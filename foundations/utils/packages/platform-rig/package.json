@@ -7,6 +7,10 @@
   },
   "exports": {
     "./bin/*": "./bin/*",
+    "./profiles/ui/svelte": {
+      "types": "./profiles/ui/svelte/index.d.ts",
+      "default": "./profiles/ui/svelte/index.d.ts"
+    },
     "./profiles/*": "./profiles/*"
   },
   "dependencies": {

@@ -14,10 +14,11 @@
 //
 
 import otpGenerator from 'otp-generator'
-import { Message } from 'telegraf/typings/core/types/typegram'
+import { Convenience, Message } from 'telegraf/types'
 import { Parser } from 'htmlparser2'
-import { MediaGroup } from 'telegraf/typings/telegram-types'
-import { InputMediaAudio, InputMediaDocument, InputMediaPhoto, InputMediaVideo } from 'telegraf/src/core/types/typegram'
+import { InputMediaAudio, InputMediaDocument, InputMediaPhoto, InputMediaVideo } from 'telegraf/types'
+
+type MediaGroup = Convenience.MediaGroup
 import { Context, Input } from 'telegraf'
 import { TelegramNotificationQueueMessage } from '@hcengineering/server-telegram'
 import { systemAccountUuid } from '@hcengineering/core'

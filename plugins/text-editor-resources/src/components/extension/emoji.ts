@@ -81,7 +81,7 @@ function detectPasteEmojis (text: string, regExp: RegExp): PasteRuleMatch[] | nu
   let startIndex = 0
   const result: PasteRuleMatch[] = []
   for (let index = 0; index < matches.length; index++) {
-    const match = matches[index]
+    const match: string = matches[index]
     const matchStart = text.indexOf(match, startIndex)
     const matchEnd = matchStart + match.length
     const prevStartIndex = startIndex

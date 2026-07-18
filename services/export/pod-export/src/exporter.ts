@@ -22,7 +22,7 @@ import {
   toIdMap,
   WorkspaceIds
 } from '@hcengineering/core'
-import { Class, Doc, Ref, Space } from '@hcengineering/core/types/classes'
+import { Class, Doc, Ref, Space } from '@hcengineering/core'
 import { type TransformConfig } from '@hcengineering/export'
 import core from '@hcengineering/model-core'
 import { StorageAdapter } from '@hcengineering/server-core'

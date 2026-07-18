@@ -18,7 +18,7 @@ import { message } from 'telegraf/filters'
 import telegram from '@hcengineering/telegram'
 import { htmlToMarkup, isEmptyMarkup, jsonToMarkup, MarkupNodeType } from '@hcengineering/text'
 import { toHTML } from '@telegraf/entity'
-import { CallbackQuery, Message, Update } from 'telegraf/typings/core/types/typegram'
+import { CallbackQuery, Message, Update } from 'telegraf/types'
 import { translate } from '@hcengineering/platform'
 import { AccountUuid, WorkspaceUuid } from '@hcengineering/core'
 

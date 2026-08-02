@@ -55,7 +55,11 @@ export enum QueueTopic {
   // Raw inbound TBank webhooks. The HTTP handler verifies the signature and enqueues here; the pod's
   // own consumer rechecks state via GetState and applies the effect. Decouples the bank's 200 from
   // downstream processing (reliability) and keeps unverified payloads out of the pipeline (security).
-  TbankWebhook = 'tbank-webhook'
+  TbankWebhook = 'tbank-webhook',
+
+  // Wakeup pings from account to workspace-service workers: new pending workspace operation exists.
+  // Broadcast (each worker pod consumes with its own group id); polling remains as a backstop.
+  WorkspaceWakeup = 'workspace-wakeup'
 }
 
 export interface ConsumerHandle {
@@ -77,7 +81,8 @@ export interface ConsumerControl {
 }
 
 export interface PlatformQueue {
-  getProducer: <T>(ctx: MeasureContext, topic: QueueTopic | string) => PlatformQueueProducer<T>
+  // Region defaults to the instance's own region; pass it explicitly to target another region.
+  getProducer: <T>(ctx: MeasureContext, topic: QueueTopic | string, region?: string) => PlatformQueueProducer<T>
 
   /**
    * Create a consumer for a topic.
@@ -96,6 +101,7 @@ export interface PlatformQueue {
       retryDelay?: number // Initial retry delay in milliseconds (default 1000)
       maxRetryDelay?: number // Maximum retry delay in seconds (default 10)
       sessionTimeout?: number // Maximum time in milliseconds between heartbeats/processing (optional)
+      regions?: string[] // Subscribe to this topic of the given regions (one consumer) instead of the own region
     }
   ) => ConsumerHandle
 
@@ -116,10 +122,12 @@ export interface PlatformQueue {
       batchSize?: number // Number of messages to accumulate before flushing
       batchTimeout?: number // Maximum time in milliseconds to wait for batch to fill before flushing
       sessionTimeout?: number // Maximum time in milliseconds between heartbeats/processing (optional)
+      regions?: string[] // Subscribe to this topic of the given regions (one consumer) instead of the own region
     }
   ) => ConsumerHandle
 
-  createTopic: (topics: string | string[], partitions: number) => Promise<void>
+  // With regions given, the topics are created in each of the given regions instead of the own one.
+  createTopic: (topics: string | string[], partitions: number, regions?: string[]) => Promise<void>
 
   createTopics: (tx: number) => Promise<void>
 

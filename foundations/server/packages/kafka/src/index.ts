@@ -21,7 +21,8 @@ import {
   type ConsumerMessage,
   type PlatformQueue,
   type PlatformQueueProducer,
-  QueueTopic
+  QueueTopic,
+  getRegionTopic
 } from '@hcengineering/server-core'
 import { type Admin, CompressionTypes, type Consumer, Kafka, Partitioners, type Producer } from 'kafkajs'
 import type * as tls from 'tls'
@@ -116,16 +117,74 @@ export function parseQueueConfig (config: string, serviceId: string, region: str
   }
 }
 
-function getKafkaTopicId (topic: QueueTopic | string, config: QueueConfig): string {
-  if (config.region !== '') {
-    return `${config.region}.${topic}${config.postfix ?? ''}`
+// Create a kafka topic (resolved name) if missing; tolerant to creation races between services.
+async function ensureKafkaTopic (
+  admin: Admin,
+  kTopic: string,
+  existing: Set<string>,
+  partitions: number
+): Promise<void> {
+  if (existing.has(kTopic)) return
+  console.info(`Creating topic ${kTopic} with ${partitions} partitions`)
+  try {
+    await admin.createTopics({ topics: [{ topic: kTopic, numPartitions: partitions }] })
+    existing.add(kTopic)
+    console.info(`Topic ${kTopic} created successfully`)
+  } catch (err: any) {
+    // Always check if topic exists after any error - another service may have created it
+    const currentTopics = new Set(await admin.listTopics())
+    if (currentTopics.has(kTopic)) {
+      console.info(`Topic ${kTopic} already exists (created by another service), skipping`)
+      existing.add(kTopic)
+    } else {
+      // Check if it's a fatal error or just "already exists" wrapped in different error type
+      const errorType = err?.errors?.[0]?.type
+      const errorCode = err?.errors?.[0]?.code
+      if (errorType === 'TOPIC_ALREADY_EXISTS' || errorCode === 36) {
+        console.info(`Topic ${kTopic} already exists (error code), skipping`)
+        existing.add(kTopic)
+      } else {
+        // Only log real errors, not race conditions between services
+        console.info(`Topic ${kTopic} creation failed (${errorType}:${errorCode}), will retry on next startup`)
+      }
+    }
   }
-  return `${topic}${config.postfix ?? ''}`
+}
+
+// A consumer subscribed to a missing topic never picks it up after creation, so block the
+// subscription until every topic exists. Polls with backoff (100ms -> 5s): services normally
+// create their topics right at startup, so the wait is short.
+async function waitForTopics (
+  ctx: MeasureContext,
+  kafka: Kafka,
+  topics: string[],
+  stopped: () => boolean
+): Promise<void> {
+  const admin = kafka.admin()
+  let delay = 100
+  try {
+    await admin.connect()
+    while (!stopped()) {
+      try {
+        const existing = new Set(await admin.listTopics())
+        const missing = topics.filter((t) => !existing.has(t))
+        if (missing.length === 0) return
+        ctx.warn('waiting for kafka topics to appear', { missing, delay })
+      } catch (err: any) {
+        ctx.warn('failed to list kafka topics, retrying', { err })
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      delay = Math.min(delay * 2, 5000)
+    }
+  } finally {
+    await admin.disconnect()
+  }
 }
 
 class PlatformQueueImpl implements PlatformQueue {
   consumers: ConsumerHandle[] = []
-  producers = new Map<QueueTopic | string, PlatformQueueProducerImpl>()
+  // Keyed by the fully resolved kafka topic name (region prefix + postfix applied)
+  producers = new Map<string, PlatformQueueProducerImpl>()
   constructor (
     private readonly kafka: Kafka,
     readonly config: QueueConfig
@@ -133,6 +192,11 @@ class PlatformQueueImpl implements PlatformQueue {
 
   getClientId (): string {
     return this.config.clientId
+  }
+
+  // Resolved kafka name of the topic in the given region; own region by default.
+  private topicId (topic: QueueTopic | string, region?: string): string {
+    return `${getRegionTopic(topic, region ?? this.config.region)}${this.config.postfix ?? ''}`
   }
 
   async shutdown (): Promise<void> {
@@ -152,14 +216,27 @@ class PlatformQueueImpl implements PlatformQueue {
     }
   }
 
-  getProducer<T>(ctx: MeasureContext, topic: QueueTopic | string): PlatformQueueProducer<T> {
-    const producer = this.producers.get(topic)
+  getProducer<T>(ctx: MeasureContext, topic: QueueTopic | string, region?: string): PlatformQueueProducer<T> {
+    const kTopic = this.topicId(topic, region)
+    const producer = this.producers.get(kTopic)
     if (producer !== undefined && !producer.isClosed()) return producer
 
-    const created = new PlatformQueueProducerImpl(ctx, this.kafka, getKafkaTopicId(topic, this.config), this)
-    this.producers.set(topic, created)
+    const created = new PlatformQueueProducerImpl(ctx, this.kafka, kTopic, this)
+    this.producers.set(kTopic, created)
 
     return created
+  }
+
+  // With regions the single consumer spans the topic of every listed region, so the group is named
+  // by groupId alone; the own-region case keeps the historical `${topicId}-${groupId}` scheme.
+  private resolveSubscription (
+    topic: QueueTopic | string,
+    groupId: string,
+    regions?: string[]
+  ): { topics: string[], groupId: string } {
+    return regions !== undefined
+      ? { topics: regions.map((r) => this.topicId(topic, r)), groupId: `${groupId}${this.config.postfix ?? ''}` }
+      : { topics: [this.topicId(topic)], groupId: `${this.topicId(topic)}-${groupId}` }
   }
 
   createConsumer<T>(
@@ -171,9 +248,12 @@ class PlatformQueueImpl implements PlatformQueue {
       fromBegining?: boolean
       retryDelay?: number // Initial retry delay in milliseconds (default 1000)
       maxRetryDelay?: number // Maximum retry delay in seconds (default 10)
+      sessionTimeout?: number
+      regions?: string[]
     }
   ): ConsumerHandle {
-    const result = new PlatformQueueConsumerImpl(ctx, this.kafka, this.config, topic, groupId, onMessage, options)
+    const sub = this.resolveSubscription(topic, groupId, options?.regions)
+    const result = new PlatformQueueConsumerImpl(ctx, this.kafka, sub.topics, sub.groupId, onMessage, options)
     this.consumers.push(result)
     return result
   }
@@ -194,9 +274,12 @@ class PlatformQueueImpl implements PlatformQueue {
       maxRetryDelay?: number
       batchSize?: number
       batchTimeout?: number
+      sessionTimeout?: number
+      regions?: string[]
     }
   ): ConsumerHandle {
-    const result = new PlatformQueueBatchConsumerImpl(ctx, this.kafka, this.config, topic, groupId, onMessage, options)
+    const sub = this.resolveSubscription(topic, groupId, options?.regions)
+    const result = new PlatformQueueBatchConsumerImpl(ctx, this.kafka, sub.topics, sub.groupId, onMessage, options)
     this.consumers.push(result)
     return result
   }
@@ -207,44 +290,21 @@ class PlatformQueueImpl implements PlatformQueue {
     topics: Set<string>,
     numPartitions?: number
   ): Promise<void> {
-    const kTopic = getKafkaTopicId(topic, this.config)
-    if (!topics.has(kTopic)) {
-      const partitions = numPartitions ?? 1
-      console.info(`Creating topic ${kTopic} with ${partitions} partitions`)
-      try {
-        await admin.createTopics({ topics: [{ topic: kTopic, numPartitions: partitions }] })
-        topics.add(kTopic)
-        console.info(`Topic ${kTopic} created successfully`)
-      } catch (err: any) {
-        // Always check if topic exists after any error - another service may have created it
-        const currentTopics = new Set(await admin.listTopics())
-        if (currentTopics.has(kTopic)) {
-          console.info(`Topic ${kTopic} already exists (created by another service), skipping`)
-          topics.add(kTopic)
-        } else {
-          // Check if it's a fatal error or just "already exists" wrapped in different error type
-          const errorType = err?.errors?.[0]?.type
-          const errorCode = err?.errors?.[0]?.code
-          if (errorType === 'TOPIC_ALREADY_EXISTS' || errorCode === 36) {
-            console.info(`Topic ${kTopic} already exists (error code), skipping`)
-            topics.add(kTopic)
-          } else {
-            // Only log real errors, not race conditions between services
-            console.info(`Topic ${kTopic} creation failed (${errorType}:${errorCode}), will retry on next startup`)
-          }
-        }
-      }
-    }
+    await ensureKafkaTopic(admin, this.topicId(topic), topics, numPartitions ?? 1)
   }
 
-  async createTopic (topics: string | string[], partitions: number): Promise<void> {
+  async createTopic (topics: string | string[], partitions: number, regions?: string[]): Promise<void> {
+    const list = Array.isArray(topics) ? topics : [topics]
+    const names =
+      regions !== undefined
+        ? regions.flatMap((r) => list.map((t) => this.topicId(t, r)))
+        : list.map((t) => this.topicId(t))
     const admin = this.kafka.admin()
     try {
       await admin.connect()
       const existing = new Set(await admin.listTopics())
-      topics = Array.isArray(topics) ? topics : [topics]
-      for (const topic of topics) {
-        await this.checkCreateTopic(admin, topic, existing, partitions)
+      for (const name of names) {
+        await ensureKafkaTopic(admin, name, existing, partitions)
       }
     } finally {
       await admin.disconnect()
@@ -268,13 +328,14 @@ class PlatformQueueImpl implements PlatformQueue {
       await this.checkCreateTopic(admin, QueueTopic.LoveQueue, topics, 1)
       await this.checkCreateTopic(admin, QueueTopic.CrmQueue, topics, 1)
       await this.checkCreateTopic(admin, QueueTopic.BillingUsage, topics, 1)
+      await this.checkCreateTopic(admin, QueueTopic.WorkspaceWakeup, topics, 1)
     } finally {
       await admin.disconnect()
     }
   }
 
   async checkDeleteTopic (admin: any, topic: QueueTopic | string, topics: Set<string>): Promise<void> {
-    const kTopic = getKafkaTopicId(topic, this.config)
+    const kTopic = this.topicId(topic)
     if (topics.has(kTopic)) {
       try {
         await admin.deleteTopics({ topics: [kTopic] })
@@ -361,13 +422,14 @@ class PlatformQueueProducerImpl implements PlatformQueueProducer<any> {
 
 class PlatformQueueConsumerImpl implements ConsumerHandle {
   connected = false
+  private stopped = false
   cc: Consumer
   private readonly ready: Promise<void>
   constructor (
     readonly ctx: MeasureContext,
     readonly kafka: Kafka,
-    readonly config: QueueConfig,
-    private readonly topic: QueueTopic | string,
+    // Fully resolved kafka topic names and group id (region/postfix already applied by the caller)
+    private readonly topics: string[],
     groupId: string,
     private readonly onMessage: (
       ctx: MeasureContext,
@@ -382,7 +444,7 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
     }
   ) {
     this.cc = this.kafka.consumer({
-      groupId: `${getKafkaTopicId(this.topic, this.config)}-${groupId}`,
+      groupId,
       sessionTimeout: this.options?.sessionTimeout,
       allowAutoTopicCreation: true
     })
@@ -394,6 +456,8 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
   }
 
   async start (): Promise<void> {
+    await waitForTopics(this.ctx, this.kafka, this.topics, () => this.stopped)
+    if (this.stopped) return
     await this.doConnect()
     await this.doSubscribe()
 
@@ -462,7 +526,7 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
 
   async doSubscribe (): Promise<void> {
     await this.cc.subscribe({
-      topic: getKafkaTopicId(this.topic, this.config),
+      topics: this.topics,
       fromBeginning: this.options?.fromBegining
     })
   }
@@ -476,6 +540,7 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
   }
 
   close (): Promise<void> {
+    this.stopped = true
     return this.cc.disconnect()
   }
 }
@@ -491,13 +556,14 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
  */
 class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
   connected = false
+  private stopped = false
   cc: Consumer
   private readonly ready: Promise<void>
   constructor (
     readonly ctx: MeasureContext,
     readonly kafka: Kafka,
-    readonly config: QueueConfig,
-    private readonly topic: QueueTopic | string,
+    // Fully resolved kafka topic names and group id (region/postfix already applied by the caller)
+    private readonly topics: string[],
     groupId: string,
     private readonly onMessage: (
       ctx: MeasureContext,
@@ -517,7 +583,7 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
     const sanitizedMaxWait =
       typeof rawMaxWait === 'number' && Number.isFinite(rawMaxWait) && rawMaxWait >= 0 ? rawMaxWait : undefined
     this.cc = this.kafka.consumer({
-      groupId: `${getKafkaTopicId(this.topic, this.config)}-${groupId}`,
+      groupId,
       sessionTimeout: this.options?.sessionTimeout,
       maxWaitTimeInMs: sanitizedMaxWait,
       allowAutoTopicCreation: true
@@ -530,6 +596,8 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
   }
 
   async start (): Promise<void> {
+    await waitForTopics(this.ctx, this.kafka, this.topics, () => this.stopped)
+    if (this.stopped) return
     await this.doConnect()
     await this.doSubscribe()
 
@@ -639,7 +707,7 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
 
   async doSubscribe (): Promise<void> {
     await this.cc.subscribe({
-      topic: getKafkaTopicId(this.topic, this.config),
+      topics: this.topics,
       fromBeginning: this.options?.fromBegining
     })
   }
@@ -653,6 +721,7 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
   }
 
   close (): Promise<void> {
+    this.stopped = true
     return this.cc.disconnect()
   }
 }
@@ -680,25 +749,26 @@ function intEnv (name: string, def: number): number {
   return Number.isFinite(v) ? v : def
 }
 
+function createKafkaClient (clientId: string, brokers: string[], ssl?: tls.ConnectionOptions | boolean): Kafka {
+  return new Kafka({
+    clientId,
+    brokers,
+    ssl,
+    // Never give up on the broker by default: retries=5 gets exhausted during a redpanda
+    // restart/rebalance and kills producers/consumers. Overridable via env (e.g. bound retries
+    // in tests so a transient broker error fails fast instead of hanging).
+    retry: {
+      initialRetryTime: intEnv('QUEUE_INITIAL_RETRY_TIME', 300),
+      maxRetryTime: intEnv('QUEUE_MAX_RETRY_TIME', 30000),
+      factor: 0.2,
+      multiplier: 2,
+      retries: intEnv('QUEUE_RETRIES', Number.MAX_SAFE_INTEGER)
+    }
+  })
+}
+
 export function createPlatformQueue (config: QueueConfig): PlatformQueue {
   console.info({ message: 'Using queue', config })
 
-  return new PlatformQueueImpl(
-    new Kafka({
-      clientId: config.clientId,
-      brokers: config.brokers,
-      ssl: config.ssl,
-      // Never give up on the broker by default: retries=5 gets exhausted during a redpanda
-      // restart/rebalance and kills producers/consumers. Overridable via env (e.g. bound retries
-      // in tests so a transient broker error fails fast instead of hanging).
-      retry: {
-        initialRetryTime: intEnv('QUEUE_INITIAL_RETRY_TIME', 300),
-        maxRetryTime: intEnv('QUEUE_MAX_RETRY_TIME', 30000),
-        factor: 0.2,
-        multiplier: 2,
-        retries: intEnv('QUEUE_RETRIES', Number.MAX_SAFE_INTEGER)
-      }
-    }),
-    config
-  )
+  return new PlatformQueueImpl(createKafkaClient(config.clientId, config.brokers, config.ssl), config)
 }

@@ -32,6 +32,18 @@ export class AdminPage {
     await this.page.locator('[data-id="tab-workspaces"]').click()
   }
 
+  async openAccountsTab (): Promise<void> {
+    await this.page.locator('[data-id="tab-accounts"]').click()
+  }
+
+  // Accounts tab has a single plain SearchEdit (no testid container).
+  async searchAccount (text: string): Promise<void> {
+    const input = this.page.locator('input[placeholder="Search"]')
+    await input.click()
+    await input.fill(text)
+    await input.press('Enter')
+  }
+
   async searchWorkspace (uuid: string): Promise<void> {
     const input = this.page.locator('[data-testid="workspace-search-container"] input')
     await input.click()

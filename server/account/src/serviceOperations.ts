@@ -39,6 +39,7 @@ import { decodeTokenVerbose, generateToken, isHumanAdmin, type Token } from '@hc
 import {
   LimitCategory,
   LimitStatus,
+  QueueTopic,
   subscriptionEvents,
   workspaceEvents,
   type QueueWorkspaceMessage
@@ -114,7 +115,10 @@ import {
   requestAdminOtp,
   logAdminAction,
   doReleaseSocialId,
-  publishMembersChanged
+  publishMembersChanged,
+  publishWorkspaceWakeup,
+  publishToWorkspaceRegion,
+  processingTimeoutMs
 } from './utils'
 
 /** An impersonation session is for a quick look, not for working: it dies in half an hour. */
@@ -123,9 +127,6 @@ const IMPERSONATION_TTL_SEC = 1800
 // Note: it is IMPORTANT to always destructure params passed here to avoid sending extra params
 // to the database layer when searching/inserting as they may contain SQL injection
 // !!! NEVER PASS "params" DIRECTLY in any DB functions !!!
-
-// Move to config?
-const processingTimeoutMs = 30 * 1000
 
 export async function listWorkspaces (
   ctx: MeasureContext,
@@ -377,7 +378,7 @@ export async function adminUpdateWorkspaceRole (
   await db.updateWorkspaceRole(targetAccount, workspace, role)
   ctx.info('admin: workspace role updated', { workspace, targetAccount, role })
   await logAdminAction(ctx, db, token, 'update_workspace_role', workspace, undefined, { targetAccount, role })
-  await publishMembersChanged(ctx, workspace)
+  await publishMembersChanged(ctx, db, workspace)
 }
 
 export async function adminAddWorkspaceMember (
@@ -404,15 +405,11 @@ export async function adminAddWorkspaceMember (
   await db.assignWorkspace(target, workspace, role)
   ctx.info('admin: workspace member added', { workspace, target, role })
   await logAdminAction(ctx, db, token, 'add_workspace_member', workspace, email, { target, role })
-  await publishMembersChanged(ctx, workspace)
+  await publishMembersChanged(ctx, db, workspace)
 }
 
-async function sendReindex (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<void> {
-  const producer = getMetadata(accountPlugin.metadata.FulltextQueue)
-  if (producer === undefined) {
-    throw new PlatformError(unknownError('Fulltext queue is not configured'))
-  }
-  await producer.send(ctx, workspace, [workspaceEvents.fullReindex()])
+async function sendReindex (ctx: MeasureContext, db: AccountDB, workspace: WorkspaceUuid): Promise<void> {
+  await publishToWorkspaceRegion(ctx, db, workspace, QueueTopic.Fulltext, [workspaceEvents.fullReindex()])
 }
 
 export async function adminReindexWorkspace (
@@ -423,7 +420,8 @@ export async function adminReindexWorkspace (
   params: { workspace: WorkspaceUuid, otpCode: string }
 ): Promise<void> {
   await requireAdminOp(ctx, db, token, 'reindex', params.otpCode, params.workspace)
-  await sendReindex(ctx, params.workspace)
+  checkAdmin(ctx, token)
+  await sendReindex(ctx, db, params.workspace)
   ctx.info('admin: reindex requested', { workspace: params.workspace })
   await logAdminAction(ctx, db, token, 'reindex', params.workspace)
 }
@@ -440,14 +438,13 @@ export async function adminSetMaintenance (
   params: { timeoutMinutes: number, message?: string, otpCode: string }
 ): Promise<void> {
   await requireAdminOp(ctx, db, token, 'set_maintenance', params.otpCode)
-  const producer = getMetadata(accountPlugin.metadata.WorkspaceQueue)
-  if (producer === undefined) {
-    throw new PlatformError(unknownError('Workspace queue is not configured'))
-  }
-  // Global event: every transactor consumes the workspace topic in its own group,
-  // the workspace key carries no meaning here.
+  // Global event: broadcast to the workspace topic of every region, the workspace key
+  // carries no meaning here.
   const nilWorkspace = '00000000-0000-0000-0000-000000000000' as WorkspaceUuid
-  await producer.send(ctx, nilWorkspace, [workspaceEvents.maintenance(params.timeoutMinutes, params.message)])
+  const event = workspaceEvents.maintenance(params.timeoutMinutes, params.message)
+  for (const { region } of getRegions()) {
+    await publishToWorkspaceRegion(ctx, db, nilWorkspace, QueueTopic.Workspace, [event], region)
+  }
   ctx.info('admin: maintenance broadcast', { timeoutMinutes: params.timeoutMinutes })
   await logAdminAction(ctx, db, token, 'set_maintenance', undefined, undefined, {
     timeoutMinutes: params.timeoutMinutes,
@@ -467,11 +464,7 @@ export async function adminForceCloseWorkspace (
   params: { workspace: WorkspaceUuid, otpCode: string }
 ): Promise<void> {
   await requireAdminOp(ctx, db, token, 'force_close', params.otpCode, params.workspace)
-  const producer = getMetadata(accountPlugin.metadata.WorkspaceQueue)
-  if (producer === undefined) {
-    throw new PlatformError(unknownError('Workspace queue is not configured'))
-  }
-  await producer.send(ctx, params.workspace, [workspaceEvents.forceClose()])
+  await publishToWorkspaceRegion(ctx, db, params.workspace, QueueTopic.Workspace, [workspaceEvents.forceClose()])
   ctx.info('admin: force close requested', { workspace: params.workspace })
   await logAdminAction(ctx, db, token, 'force_close', params.workspace)
 }
@@ -546,7 +539,7 @@ export async function adminReindexAllWorkspaces (
   await requireAdminOp(ctx, db, token, 'reindex_all', params.otpCode)
   const workspaces = await getWorkspaces(db, false, null, 'active')
   for (const ws of workspaces) {
-    await sendReindex(ctx, ws.uuid)
+    await publishToWorkspaceRegion(ctx, db, ws.uuid, QueueTopic.Fulltext, [workspaceEvents.fullReindex()], ws.region)
   }
   ctx.info('admin: reindex-all requested', { count: workspaces.length })
   await logAdminAction(ctx, db, token, 'reindex_all', undefined, undefined, { count: workspaces.length })
@@ -566,7 +559,7 @@ export async function adminRemoveWorkspaceMember (
   await db.unassignWorkspace(targetAccount, workspace)
   ctx.info('admin: workspace member removed', { workspace, targetAccount })
   await logAdminAction(ctx, db, token, 'remove_workspace_member', workspace, undefined, { targetAccount })
-  await publishMembersChanged(ctx, workspace)
+  await publishMembersChanged(ctx, db, workspace)
 }
 
 const emptyTierLimits: TierLimits = {
@@ -710,7 +703,7 @@ export async function adminUpdateSubscription (
   }
 
   if (existing.type === SubscriptionType.Tier) {
-    await publishLimitsEvents(ctx, existing.workspaceUuid, [
+    await publishLimitsEvents(ctx, db, existing.workspaceUuid, [
       workspaceEvents.limitsChanged(LimitCategory.Plan, LimitStatus.Ok)
     ])
   }
@@ -767,7 +760,7 @@ export async function adminCancelSubscription (
   }
 
   if (existing.type === SubscriptionType.Tier) {
-    await publishLimitsEvents(ctx, existing.workspaceUuid, [
+    await publishLimitsEvents(ctx, db, existing.workspaceUuid, [
       workspaceEvents.limitsChanged(LimitCategory.Plan, LimitStatus.Ok)
     ])
     // pod-payment owns the free-plan config, so it decides whether a free fallback follows this cancel.
@@ -1000,6 +993,8 @@ export async function performWorkspaceOperation (
 
     if (Object.keys(update).length !== 0) {
       await db.workspaceStatus.update({ workspaceUuid: workspace.uuid }, update)
+      // For migrate-to the work starts in the current region (backup), so always the workspace's own region
+      await publishWorkspaceWakeup(ctx, db, workspace.uuid, workspace.region ?? '')
       ops++
     }
   }
@@ -1245,6 +1240,14 @@ export async function updateWorkspaceInfo (
   if (Object.keys(wsUpdate).length !== 0) {
     await db.workspace.update({ uuid: workspaceUuid }, wsUpdate)
   }
+
+  // A hand-off event leaves the workspace in a new pending-* mode: nudge workers right away.
+  if (event === 'migrate-clean-done') {
+    await publishWorkspaceWakeup(ctx, db, workspaceUuid, wsStatus?.targetRegion ?? '')
+  } else if (event === 'migrate-backup-done' || event === 'archiving-backup-done') {
+    const ws = await getWorkspaceById(db, workspaceUuid)
+    await publishWorkspaceWakeup(ctx, db, workspaceUuid, ws?.region ?? '')
+  }
 }
 
 export async function workerHandshake (
@@ -1371,10 +1374,10 @@ export async function assignWorkspace (
 
   if (currentRole == null) {
     await db.assignWorkspace(account.uuid, workspaceUuid, role)
-    await publishMembersChanged(ctx, workspaceUuid)
+    await publishMembersChanged(ctx, db, workspaceUuid)
   } else if (getRolePower(currentRole) < getRolePower(role)) {
     await db.updateWorkspaceRole(account.uuid, workspaceUuid, role)
-    await publishMembersChanged(ctx, workspaceUuid)
+    await publishMembersChanged(ctx, db, workspaceUuid)
   }
 }
 
@@ -1826,23 +1829,15 @@ export async function findPersonBySocialKey (
   return socialId.personUuid
 }
 
-/** Fire-and-forget edge events to QueueTopic.Workspace; producer set by account-service via metadata. */
+/** Fire-and-forget edge events to the workspace's regional QueueTopic.Workspace. */
 async function publishLimitsEvents (
   ctx: MeasureContext,
+  db: AccountDB,
   workspaceUuid: WorkspaceUuid,
   events: QueueWorkspaceMessage[]
 ): Promise<void> {
   if (events.length === 0) return
-  const producer = getMetadata(accountPlugin.metadata.WorkspaceQueue)
-  if (producer === undefined) {
-    ctx.warn('WorkspaceQueue producer is not configured, limits events skipped', { workspaceUuid })
-    return
-  }
-  try {
-    await producer.send(ctx, workspaceUuid, events)
-  } catch (err: any) {
-    ctx.error('Failed to publish limits events', { workspaceUuid, err })
-  }
+  await publishToWorkspaceRegion(ctx, db, workspaceUuid, QueueTopic.Workspace, events)
 }
 
 /** Tell pod-payment about an operator cancel so it can provision the free fallback plan. */
@@ -1995,7 +1990,7 @@ async function doUpsertSubscription (ctx: MeasureContext, db: AccountDB, params:
   if (params.type === SubscriptionType.Package && params.status === SubscriptionStatus.Active) {
     const tokens = params.limits?.tokenLimit ?? 0
     if (tokens > 0 && params.periodStart !== undefined) {
-      await publishLimitsEvents(ctx, workspaceUuid, [
+      await publishLimitsEvents(ctx, db, workspaceUuid, [
         workspaceEvents.purchaseActivated(params.plan, `${params.id}:${params.periodStart}`, 'add-ai-tokens', tokens)
       ])
     }
@@ -2012,7 +2007,9 @@ async function doUpsertSubscription (ctx: MeasureContext, db: AccountDB, params:
     wasActive !== isActive ||
     JSON.stringify(existing.limits ?? null) !== JSON.stringify(params.limits ?? null)
   if (planChanged) {
-    await publishLimitsEvents(ctx, workspaceUuid, [workspaceEvents.limitsChanged(LimitCategory.Plan, LimitStatus.Ok)])
+    await publishLimitsEvents(ctx, db, workspaceUuid, [
+      workspaceEvents.limitsChanged(LimitCategory.Plan, LimitStatus.Ok)
+    ])
   }
 }
 
@@ -2541,7 +2538,9 @@ export async function createManualSubscription (
 
   if (type === SubscriptionType.Tier) {
     // Refresh plan snapshot so consumers re-read free-vs-paid limits without restart.
-    await publishLimitsEvents(ctx, workspaceUuid, [workspaceEvents.limitsChanged(LimitCategory.Plan, LimitStatus.Ok)])
+    await publishLimitsEvents(ctx, db, workspaceUuid, [
+      workspaceEvents.limitsChanged(LimitCategory.Plan, LimitStatus.Ok)
+    ])
   }
 }
 

@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -77,12 +78,18 @@ export interface WorkspaceOptions {
 
   ignore?: string
   waitTimeout: number
+  // Sleep cap for the empty-poll backoff; polling stays as a backstop for lost wakeup events
+  maxWaitTimeout: number
 
   backup?: {
     backupStorage: StorageAdapter
     bucketName: string
   }
 }
+
+// Keep polling at the base rate for this long after the last activity before backing off.
+// Covers account starting later than the worker: early polls fail/return nothing.
+export const BACKOFF_DELAY_MS = 30_000
 
 // Register close on process exit.
 process.on('exit', () => {
@@ -126,9 +133,26 @@ export class WorkspaceWorker {
     })
   }
 
-  // Note: not gonna use it for now
+  // Called by the queue consumer when account signals new pending work; resolves doSleep early.
   wakeup: () => void = () => {}
   defaultWakeup: () => void = () => {}
+
+  lastActivity: number = Date.now()
+  private backoffIdx = 0
+
+  private noteActivity (): void {
+    this.lastActivity = Date.now()
+    this.backoffIdx = 0
+  }
+
+  nextSleepMs (opt: WorkspaceOptions): number {
+    if (Date.now() - this.lastActivity < BACKOFF_DELAY_MS) {
+      return opt.waitTimeout
+    }
+    const timeout = Math.min(opt.waitTimeout * 2 ** this.backoffIdx, opt.maxWaitTimeout)
+    this.backoffIdx++
+    return timeout
+  }
 
   async start (ctx: MeasureContext, opt: WorkspaceOptions, isCanceled: () => boolean): Promise<void> {
     this.defaultWakeup = () => {
@@ -179,6 +203,7 @@ export class WorkspaceWorker {
         // no workspaces available, sleep before another attempt
         await this.doSleep(ctx, opt)
       } else {
+        this.noteActivity()
         void this.exec(async () => {
           const job = randomUUID().slice(-8)
           const opContext = ctx.newChild('ws-op', {}, { fullParams: { job } })
@@ -716,18 +741,22 @@ export class WorkspaceWorker {
 
   private async doSleep (ctx: MeasureContext, opt: WorkspaceOptions): Promise<void> {
     await new Promise<void>((resolve) => {
-      const wakeup: () => void = () => {
-        resolve()
-        this.wakeup = this.defaultWakeup
-      }
-      // sleep for N (5 by default) seconds for the next operation, or until a wakeup event
+      // sleep with backoff until the next poll, or until a wakeup event
       // add jitter to avoid simultaneous requests from multiple workspace services
-      const maxJitter = opt.waitTimeout * 0.2
-      const sleepHandle = setTimeout(wakeup, opt.waitTimeout + Math.random() * maxJitter)
+      const timeout = this.nextSleepMs(opt)
+      const sleepHandle = setTimeout(
+        () => {
+          this.wakeup = this.defaultWakeup
+          resolve()
+        },
+        timeout + Math.random() * timeout * 0.2
+      )
 
       this.wakeup = () => {
         clearTimeout(sleepHandle)
-        wakeup()
+        this.wakeup = this.defaultWakeup
+        this.noteActivity()
+        resolve()
       }
     })
   }

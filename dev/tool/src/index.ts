@@ -525,10 +525,7 @@ export function buildToolProgram (prepareTools: PrepareTools, extendProgram?: (p
           }
           // Direct DB write: the CLI holds no admin token. Same code path as the admin RPC.
           const queue = getPlatformQueue('tool', ws.region ?? '')
-          setMetadata(
-            accountPlugin.metadata.WorkspaceQueue,
-            queue.getProducer<QueueWorkspaceMessage>(toolCtx, QueueTopic.Workspace)
-          )
+          setMetadata(accountPlugin.metadata.RegionalQueue, queue)
           try {
             await createManualSubscription(toolCtx, db, systemAccountUuid, {
               workspaceUuid: ws.uuid,

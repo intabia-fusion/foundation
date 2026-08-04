@@ -94,27 +94,3 @@ export function createTranscriptionProvider (
     }
   }
 }
-
-/**
- * Get default transcription configuration from environment variables
- *
- * Environment variables:
- * - STT_PROVIDER: 'openai' | 'deepgram' (default: 'openai')
- * - STT_URL: API URL for the provider (use for self-hosted OpenAI-compatible services)
- * - STT_API_KEY: API key (required for cloud providers, use 'not-needed' for self-hosted)
- * - STT_MODEL: Model name (optional, provider-specific defaults apply)
- */
-export function getTranscriptionConfigFromEnv (): TranscriptionConfig {
-  const provider = (process.env.STT_PROVIDER ?? 'openai') as SttProviderType
-
-  return {
-    provider,
-    url: process.env.STT_URL,
-    apiKey: process.env.STT_API_KEY,
-    model: process.env.STT_MODEL,
-
-    // VAD
-    vadRmsThreshold: parseFloat(process.env.VAD_RMS_THRESHOLD ?? '0.02'),
-    vadSpeechRatioThreshold: parseFloat(process.env.VAD_SPEECH_RATIO_THRESHOLD ?? '0.1')
-  }
-}

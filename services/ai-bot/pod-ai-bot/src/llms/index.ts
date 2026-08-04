@@ -15,31 +15,23 @@
 
 import type { MeasureContext } from '@hcengineering/core'
 import { ClisrServer } from '@intabiafusion/clisr'
-import config from '../config'
+import config, { type AIProviderConfig } from '../config'
 
 import { createOpenAIProvider } from './openai'
 import { createGigaChatProvider } from './gigachat'
 import { createServerLLMProvider } from './server'
+import { createMockProvider } from './mock'
 import { LLMProvider } from './types'
 
 // Re-export types for convenience
-export type {
-  LLMProvider,
-  ChatMessage,
-  ChatCompletionResult,
-  ChatCompletionWithToolsResult,
-  RequestSummaryResult,
-  ContextMode,
-  LLMFactory
-} from './types'
+export type { LLMProvider, ChatMessage, ChatCompletionWithToolsResult, ContextMode, TokenUsage } from './types'
+export { totalTokens } from './types'
 
 // Re-export server provider request types
 export type {
   TranslateHtmlRequest,
   SummarizeMessagesRequest,
-  ChatCompletionRequest,
   ChatCompletionWithToolsRequest,
-  RequestSummaryRequest,
   CountTokensRequest,
   LLMRequest
 } from './server'
@@ -52,74 +44,60 @@ export { createOpenAIProvider } from './openai'
 export { createGigaChatProvider } from './gigachat'
 export { createServerLLMProvider } from './server'
 
-/**
- * LLM provider type enumeration
- */
-export type LLMProviderType = 'openai' | 'gigachat' | 'server'
-
-/**
- * Create an LLM provider instance based on runtime configuration.
- *
- * Provider selection logic:
- * - 'server': Use server provider to distribute requests to connected clients via Clisr
- * - 'gigachat': Use GigaChat provider when credentials are present
- * - 'openai': Use OpenAI provider when API key is present (default)
- *
- * @param ctx - Measure context for logging
- * @param server - Optional ClisrServer instance (required for 'server' provider)
- * @returns LLM provider instance or undefined if configuration is invalid
- */
-export function createLLMFromConfig (ctx: MeasureContext, server?: ClisrServer): LLMProvider | undefined {
-  // Check for explicit provider selection (via config.LLMProvider)
-  const rawLlmProvider = config.LLMProvider ?? ''
-  const providerType = rawLlmProvider.trim() === '' ? undefined : rawLlmProvider.trim().toLowerCase()
-
-  switch (providerType) {
-    case 'server': {
+/** Instantiate a single LLM provider from its registry config. */
+export function createProvider (
+  ctx: MeasureContext,
+  cfg: AIProviderConfig,
+  server?: ClisrServer
+): LLMProvider | undefined {
+  switch (cfg.provider) {
+    case 'clisr': {
       if (server === undefined) {
-        ctx.error('LLM server provider requires ClisrServer instance')
+        ctx.error('clisr LLM provider requires ClisrServer instance', { id: cfg.id })
         return undefined
       }
-      ctx.info('Creating server LLM provider', { provider: 'server' })
-      return createServerLLMProvider(ctx, server)
+      return createServerLLMProvider(ctx, server, cfg)
     }
-    case 'gigachat': {
-      const gigachatProvider = createGigaChatProvider(ctx)
-      if (gigachatProvider !== undefined) {
-        ctx.info('Creating GigaChat LLM provider', { provider: 'gigachat' })
-        return gigachatProvider
-      }
-      ctx.warn('GigaChat credentials not configured, trying fallback')
-      break
-    }
+    case 'gigachat':
+      return createGigaChatProvider(ctx, cfg)
     case 'openai':
-    default: {
-      const openaiProvider = createOpenAIProvider(ctx)
-      if (openaiProvider !== undefined) {
-        ctx.info('Creating OpenAI LLM provider', { provider: 'openai' })
-        return openaiProvider
-      }
-      if (providerType === 'openai') {
-        ctx.warn('OpenAI API key not configured')
-      }
-      break
+      return createOpenAIProvider(ctx, cfg)
+    case 'mock':
+      return createMockProvider(ctx, cfg)
+    default:
+      ctx.warn('Unknown provider type', { provider: cfg.provider, id: cfg.id })
+      return undefined
+  }
+}
+
+/**
+ * Resolve the provider serving the configured default level (for client mode and
+ * service ops that are not part of the per-provider pipeline).
+ */
+export function createDefaultProvider (ctx: MeasureContext, server?: ClisrServer): LLMProvider | undefined {
+  const serves = (cfg: AIProviderConfig): boolean => cfg.levels[config.DefaultLevel] !== undefined
+  const cfg = config.AIProviders.find(serves) ?? config.AIProviders[0]
+  if (cfg === undefined) {
+    ctx.info('No LLM providers configured, disabled')
+    return undefined
+  }
+  return createProvider(ctx, cfg, server)
+}
+
+/**
+ * Build all providers from the registry, keyed by provider id (= topic suffix).
+ * Providers that fail to configure (missing keys) are skipped with a warning.
+ */
+export function createProvidersFromRegistry (ctx: MeasureContext, server?: ClisrServer): Map<string, LLMProvider> {
+  const map = new Map<string, LLMProvider>()
+  for (const cfg of config.AIProviders) {
+    const provider = createProvider(ctx, cfg, server)
+    if (provider !== undefined) {
+      ctx.info('Registered LLM provider', { id: cfg.id, provider: cfg.provider, levels: Object.keys(cfg.levels) })
+      map.set(cfg.id, provider)
+    } else {
+      ctx.warn('Skipping unconfigured LLM provider', { id: cfg.id, provider: cfg.provider })
     }
   }
-
-  // Fallback: try GigaChat if OpenAI is not configured
-  if (providerType === undefined || providerType === 'openai') {
-    const gigachatProvider = createGigaChatProvider(ctx)
-    if (gigachatProvider !== undefined) {
-      ctx.info('Creating GigaChat LLM provider (fallback)', { provider: 'gigachat' })
-      return gigachatProvider
-    }
-  }
-
-  // No provider configured
-  if (providerType === undefined) {
-    ctx.info('LLM provider not configured, disabled')
-  } else {
-    ctx.warn('No LLM provider configured', { provider: providerType })
-  }
-  return undefined
+  return map
 }

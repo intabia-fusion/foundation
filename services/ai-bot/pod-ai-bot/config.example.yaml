@@ -1,0 +1,185 @@
+# ai-bot pod configuration (CONFIG_PATH=/var/cfg/config.yaml).
+#
+# SCHEMA: two-section model registry under `llm`:
+#
+#   models:   level CLASSES - shared UI/accounting metadata (label, order, multipliers).
+#             No concrete model name here; just the billing and display properties.
+#
+#   providers[].serves:  per-provider model bindings.
+#             Each entry maps a level id to a concrete model.
+#             Short form:  low: my-model-name
+#             Long form:   low: { model: my-model-name, tokenizer: approx, capabilities: { tools: true } }
+#             Metadata (label, order, multipliers) is merged from models[level] at startup.
+#
+# The `asr` section mirrors `llm` (models = level classes, providers[].serves = bindings)
+# for transcription. Legacy `providers[].levels` is still accepted for existing LLM deployments.
+#
+# Window/billing limits live in plan-config.yaml / billing, not here.
+
+# clientId: logical worker id for per-client usage attribution. Set it on a clisr WORKER pod
+# (MODE=client) so the router credits its LLM/ASR usage to this id in the admin breakdown.
+# Leave unset on router/direct-provider pods. Also settable via env CLIENT_ID.
+# clientId: worker-local-1
+
+accounts:
+  url: http://account:3000
+  serverSecret: secret
+  serviceId: ai-bot-service
+
+bot:
+  firstName: Julia
+  lastName: AI
+  password: password
+  avatar:
+    path: ./avatar.png
+    contentType: image/png
+
+port: 4010
+
+llm:
+  defaultLevel: low
+
+  # Level classes: UI/accounting metadata only. No model names here.
+  models:
+    low:
+      order: 0
+      label: Базовый
+      description: Локальная модель Intabia, экономичная
+      # Plan-dependent billed factor: free w/o packages = freeMultiplier,
+      # free w/ packages = tokenMultiplier, paid = paidMultiplier. Only this
+      # (free) level may be fallbackEligible: paid plans keep it usable over the
+      # monthly limit, billed at paidMultiplier (slow local model, still works).
+      tokenMultiplier: 0.1
+      freeMultiplier: 0.5
+      paidMultiplier: 0.5
+      displayMultiplier: 0.5
+      fallbackEligible: true
+    middle:
+      order: 10
+      label: Стандарт
+      description: Баланс цены и качества
+      tokenMultiplier: 1.2
+      displayMultiplier: 1
+    pro:
+      order: 20
+      label: Профи
+      description: Повышенное качество
+      tokenMultiplier: 9.24
+      displayMultiplier: 8
+    max:
+      order: 30
+      label: Максимум
+      description: Максимальное качество
+      tokenMultiplier: 12
+      displayMultiplier: 10
+
+  providers:
+    # Local / on-prem models served over clisr. Cheapest; fallbackEligible keeps it
+    # answering after the WEEKLY window is exhausted (5h window is always hard-blocked).
+    - id: clisr
+      provider: clisr
+      concurrency: 4
+      batch: 1
+      endpoint: ws://aibot:4010
+      serves:
+        # Long form: override tokenizer and capabilities per model.
+        low:
+          model: qwen/qwen3.5-9b
+          tokenizer: approx
+          capabilities:
+            tools: true
+            maxContextTokens: 32768
+
+    # GigaChat: one client/auth, one topic, serving several levels via its model line.
+    - id: gigachat
+      provider: gigachat
+      concurrency: 1
+      batch: 1
+      endpointConfig:
+        credentials: ''
+        scope: GIGACHAT_API_PERS
+        baseUrl: https://gigachat.devices.sberbank.ru/api/v1/
+      serves:
+        # Short form: level -> model string (metadata from models[level]).
+        # middle: GigaChat-2
+        # Long form with overrides:
+        middle:
+          model: GigaChat-2
+          tokenizer: gigachat
+          capabilities:
+            tools: false
+            maxContextTokens: 32768
+        pro:
+          model: GigaChat-2-Pro
+          tokenizer: gigachat
+          capabilities:
+            tools: false
+            maxContextTokens: 131072
+        max:
+          model: GigaChat-2-Max
+          tokenizer: gigachat
+          capabilities:
+            tools: false
+            maxContextTokens: 131072
+
+    # Optional OpenAI-compatible provider (cloud or self-hosted gateway).
+    # - id: openai
+    #   provider: openai
+    #   concurrency: 8
+    #   batch: 1
+    #   endpoint: https://api.openai.com/v1/
+    #   endpointConfig:
+    #     apiKey: ''
+    #   serves:
+    #     pro:
+    #       model: gpt-4o
+    #       tokenizer: tiktoken
+    #       capabilities:
+    #         tools: true
+    #         maxContextTokens: 131072
+
+# ASR (transcription) registry. Same shape as `llm`: `models` are level classes
+# (UI/accounting), `providers[].serves` bind a level to a concrete model/endpoint.
+asr:
+  defaultLevel: default
+
+  models:
+    default:
+      order: 0
+      label: Базовый
+      description: Локальное распознавание
+      tokenMultiplier: 1      # billed per SECOND of audio (not per token)
+      displayMultiplier: 1
+    premium:
+      order: 10
+      label: Премиум
+      description: Облачный провайдер
+      enabled: false          # flip to true to enable operationally
+      tokenMultiplier: 1
+      displayMultiplier: 1
+
+  providers:
+    # Local / on-prem transcription served over clisr (STT workers connect to this pod).
+    - id: clisr
+      provider: server
+      serves:
+        default:
+          model: default
+    # Optional OpenAI-compatible transcription endpoint (cloud or self-hosted).
+    - id: openai
+      provider: openai
+      serves:
+        premium:
+          model: whisper-1
+          url: ''
+          apiKey: ''
+
+services:
+  love:
+    endpoint: http://love:8096
+  billing:
+    url: http://billing:4041
+
+limits:
+  maxContentTokens: 12800
+  maxHistoryRecords: 500

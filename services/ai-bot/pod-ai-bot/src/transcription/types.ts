@@ -85,6 +85,8 @@ export interface TranscriptionResult {
   words?: TranscriptionWord[]
   /** Segment-level information */
   segments?: TranscriptionSegment[]
+  /** clisr worker that served this transcription; empty for local providers. */
+  clientId?: string
 }
 
 /**
@@ -125,7 +127,8 @@ export interface TranscriptionProvider {
  * - 'deepgram' - Deepgram API
  * - 'server' - Will host a clisr server, and call using round-robin to do a transcription on it.
  */
-export type SttProviderType = 'openai' | 'deepgram' | 'server' | ''
+// 'none' opts a worker out of ASR entirely (ignores any `asr:` registry block).
+export type SttProviderType = 'openai' | 'deepgram' | 'server' | 'none' | ''
 
 /**
  * VAD (Voice Activity Detection) analysis result

@@ -14,14 +14,11 @@
 //
 
 import { AccountUuid, MeasureContext, Ref, WorkspaceUuid } from '@hcengineering/core'
-import { countTokens } from '@hcengineering/openai'
-import { Tiktoken } from 'js-tiktoken'
 import OpenAI from 'openai'
 
 import { PersonMessage } from '@hcengineering/ai-bot'
 import contact, { Contact } from '@hcengineering/contact'
 import config from '../config'
-import { HistoryRecord } from '../types'
 import { WorkspaceClient } from '../workspace/workspaceClient'
 import { getTools } from './tools'
 import { pushTokensData } from '../billing'
@@ -148,54 +145,6 @@ export async function summarizeMessages (
   }
 
   return responseText
-}
-
-export async function createChatCompletion (
-  ctx: MeasureContext,
-  workspace: WorkspaceUuid,
-  client: OpenAI,
-  message: OpenAI.ChatCompletionMessageParam,
-  user?: string,
-  history: OpenAI.ChatCompletionMessageParam[] = [],
-  skipCache = true,
-  reason = 'chat'
-): Promise<OpenAI.ChatCompletion | undefined> {
-  const opt: OpenAI.RequestOptions = {}
-  if (skipCache) {
-    opt.headers = { 'cf-skip-cache': 'true' }
-  }
-  try {
-    const response = await client.chat.completions.create(
-      {
-        messages: [...history, message],
-        model: config.OpenAIModel,
-        user,
-        stream: false
-      },
-      opt
-    )
-
-    if (response.usage != null) {
-      void pushTokensData(
-        ctx,
-        [
-          {
-            workspace,
-            reason,
-            tokens: response.usage.total_tokens,
-            date: new Date(response.created * 1000).toISOString()
-          }
-        ],
-        response.id
-      )
-    }
-
-    return response
-  } catch (e) {
-    console.error(e)
-  }
-
-  return undefined
 }
 
 export async function createChatCompletionWithTools (
@@ -331,65 +280,4 @@ ${sharedContext !== '' ? `**Shared preferences:**\n${sharedContext}\n` : ''}
   }
 
   return undefined
-}
-
-export async function requestSummary (
-  ctx: MeasureContext,
-  workspace: WorkspaceUuid,
-  aiClient: OpenAI,
-  encoding: Tiktoken,
-  personMemory: string,
-  history: HistoryRecord[]
-): Promise<{
-    summary?: string
-    tokens: number
-  }> {
-  const summaryPrompt: OpenAI.ChatCompletionMessageParam = {
-    content: `
-      Create a factual, accurate summary of the conversation history based ONLY on what was actually discussed.
-
-      **Summarization goals:**
-      - Extract main topics, decisions, and action items EXACTLY as stated
-      - Preserve factual information and specific details from messages
-      - Keep critical facts that may be referenced later
-      - Maintain chronological flow of events as they occurred
-      - Record any user preferences or instructions explicitly provided
-      - Remove only redundant repetitions, NOT important context
-
-      **Critical - ACCURACY REQUIREMENTS:**
-      - ONLY include information explicitly present in the conversation
-      - DO NOT add interpretations, assumptions, or invented details
-      - If something is unclear, note it as unclear rather than guessing
-      - Preserve exact terminology and names used by participants
-      - Keep factual statements separate from interpretations
-
-      **Target compression:**
-      - Compress messages into a compact but complete summary
-      - Aim for maximum information density without losing facts
-      - Prioritize factual accuracy over brevity
-      - Keep summary under 1000 tokens
-
-      Conversation entries:
-        ${history.map((msg) => `${msg.role}: ${msg.message}`).join('\n')}
-      `,
-    role: 'user'
-  }
-
-  const response = await createChatCompletion(ctx, workspace, aiClient, summaryPrompt, undefined, [
-    {
-      role: 'system',
-      content:
-        'You are a conversation compression system. Create accurate, factual summaries that capture ONLY what was actually discussed. Do NOT add interpretations, assumptions, or invented details. Preserve exact facts, decisions, and context from the conversation. If information is unclear or missing, note this rather than guessing. Focus on maintaining factual accuracy and completeness of real information.'
-    }
-  ])
-
-  const summary = response?.choices[0].message.content
-
-  if (summary == null) {
-    return { tokens: 0 }
-  }
-
-  const tokens = response?.usage?.completion_tokens ?? countTokens([{ content: summary, role: 'assistant' }], encoding)
-
-  return { summary, tokens }
 }

@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 import { MeasureContext, Ref, WorkspaceUuid } from '@hcengineering/core'
+import aiBot from '@hcengineering/ai-bot'
 import config from './config'
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
@@ -25,6 +26,7 @@ import { PlatformQueueProducer } from '@hcengineering/server-core'
 import { TranscriptionConfig, TranscriptionQueueTask } from './transcription/types'
 import { ClisrServer } from '@intabiafusion/clisr'
 import { createTranscriptionProvider } from './transcription'
+import { resolveTranscriptionConfig } from './transcription/asrRegistry'
 
 export async function createTranscriptionsSupport (
   ctx: MeasureContext,
@@ -36,15 +38,12 @@ export async function createTranscriptionsSupport (
   }>,
   server?: ClisrServer
 ): Promise<TranscriptionConsumer | undefined> {
-  // Set up transcription configuration from environment
-  const transcriptionConfig: TranscriptionConfig = {
-    provider: config.SttProvider,
-    url: config.SttUrl,
-    apiKey: config.SttApiKey,
-    model: config.SttModel,
-    vadRmsThreshold: config.VadRmsThreshold,
-    vadSpeechRatioThreshold: config.VadSpeechRatioThreshold
-  }
+  // Resolve provider/model from the ASR registry (yaml `asr:` block). Empty registry -> disabled.
+  const transcriptionConfig: TranscriptionConfig = resolveTranscriptionConfig(
+    config.AsrProviders,
+    config.AsrDefaultLevel,
+    { vadRmsThreshold: config.VadRmsThreshold, vadSpeechRatioThreshold: config.VadSpeechRatioThreshold }
+  )
 
   ctx.info('Transcription config', {
     provider: transcriptionConfig.provider,
@@ -59,6 +58,36 @@ export async function createTranscriptionsSupport (
   }
 
   const provider = createTranscriptionProvider(ctx, transcriptionConfig, server)
+
+  // Per-workspace ASR level enforcement: resolve the provider for the workspace's
+  // AISpaceSettings.asrLevel, caching one provider instance per level.
+  const providerByLevel = new Map<string, ReturnType<typeof createTranscriptionProvider>>()
+  providerByLevel.set(config.AsrDefaultLevel, provider)
+  const resolveProvider = async (
+    rctx: MeasureContext,
+    workspace: WorkspaceUuid
+  ): Promise<{ provider: ReturnType<typeof createTranscriptionProvider>, level: string } | undefined> => {
+    try {
+      const wsClient = await aiControl.getWorkspaceClient(workspace)
+      const settings = await wsClient?.client?.findOne(aiBot.class.AISpaceSettings, { attachedTo: { $exists: false } })
+      const level = settings?.asrLevel
+      if (level === undefined || level === '' || level === config.AsrDefaultLevel) return undefined
+      let p = providerByLevel.get(level)
+      if (p === undefined) {
+        const cfg = resolveTranscriptionConfig(config.AsrProviders, level, {
+          vadRmsThreshold: config.VadRmsThreshold,
+          vadSpeechRatioThreshold: config.VadSpeechRatioThreshold
+        })
+        if (cfg.provider === undefined || cfg.provider === '') return undefined
+        p = createTranscriptionProvider(rctx, cfg, server)
+        providerByLevel.set(level, p)
+      }
+      return { provider: p, level }
+    } catch (e) {
+      rctx.error('Failed to resolve per-workspace ASR provider', { workspace, e })
+      return undefined
+    }
+  }
 
   try {
     if (config.DebugDir !== '' && config.DebugDir != null) {
@@ -162,7 +191,10 @@ export async function createTranscriptionsSupport (
       (async (ctx, workspace, task, error, errorType) => {
         await transcriptionDeadLetterProducer?.send(ctx, workspace, [{ task, error, errorType }])
       }) as SendToDeadLetterCallback,
-      config.DebugDir
+      config.DebugDir,
+      undefined,
+      resolveProvider,
+      config.AsrDefaultLevel
     )
 
     if (!transcriptionHandler.isReady()) {

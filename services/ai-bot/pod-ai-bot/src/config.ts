@@ -1,5 +1,5 @@
 //
-// Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -19,6 +19,149 @@ import yaml from 'js-yaml'
 
 import { SttProviderType } from './transcription/types'
 
+/**
+ * ЮляИИ quality level id. Data-driven, NOT an enum: a free-form string defined in
+ * the registry (e.g. 'low', 'pro', 'fast'). UI lists levels from the registry,
+ * sorts by `order`, and shows `label`/`description`. New levels = new registry
+ * entries, no code changes.
+ */
+export type AILevel = string
+
+/** Per-level model binding inside a provider (model + billing + UI metadata). */
+export interface AILevelModel {
+  model: string // provider-specific model name for this level
+  tokenMultiplier: number // billedTokens = (prompt+completion) * tokenMultiplier
+  // Plan-dependent billed factors (low fallback): free-no-package / paid. Default tokenMultiplier.
+  freeMultiplier?: number
+  paidMultiplier?: number
+  displayMultiplier?: number // UI-facing "xN" relative to the base (middle) level; falls back to tokenMultiplier when unset
+  order: number // sort key for UI + fallback ladder (lower = weaker/cheaper)
+  label: string // UI label shown to the user
+  description?: string // UI hint under the label
+  // May serve requests after the workspace's WEEKLY token limit is exceeded (a cheap/
+  // local fallback model). The 5h window is always hard-blocked regardless. Window
+  // limits themselves are global (billing config), not per-level.
+  fallbackEligible?: boolean
+  capabilities?: {
+    tools?: boolean
+    streaming?: boolean
+    maxContextTokens?: number
+  }
+  tokenizer?: 'tiktoken' | 'gigachat' | 'approx'
+}
+
+/**
+ * One provider instance: a single client/auth and one queue topic `llm-<id>`,
+ * shared across all the levels it serves. The provider picks the concrete model
+ * per request from `levels[requestedLevel]`. E.g. GigaChat = one client, one
+ * topic, one concurrency pool, serving low/middle/high/max via Lite/base/Pro/Max.
+ */
+export interface AIProviderConfig {
+  id: string // unique id, used as the per-provider topic suffix `llm-<id>`
+  provider: 'openai' | 'gigachat' | 'clisr' | 'mock'
+  concurrency: number // shared RateLimiter rate for the whole provider
+  batch: number // shared batch consumer size for this provider's topic
+  levels: Partial<Record<AILevel, AILevelModel>> // which levels this provider serves
+  endpoint?: string // shared endpoint override (clisr router url / openai baseUrl)
+  endpointConfig?: Record<string, unknown> // shared auth (apiKey, scope, credentials)
+}
+
+/** UI/accounting metadata for a quality level class (no concrete model). */
+export interface AILevelClass {
+  order: number
+  label: string
+  description?: string
+  // false disables the level everywhere (registry, dropdown, routing) without deleting its config —
+  // e.g. a provider-side model not yet available on the current plan. Defaults to enabled.
+  enabled?: boolean
+  tokenMultiplier: number
+  // Plan-dependent billed factors (used for the low fallback level): freeMultiplier for
+  // free plans without packages, paidMultiplier for paid plans. Default to tokenMultiplier.
+  freeMultiplier?: number
+  paidMultiplier?: number
+  displayMultiplier?: number
+  fallbackEligible?: boolean
+}
+
+/** New-schema serves entry: string (model name) or object with overrides. */
+export type ServesEntry =
+  | string
+  | {
+    model: string
+    tokenizer?: 'tiktoken' | 'gigachat' | 'approx'
+    capabilities?: {
+      tools?: boolean
+      streaming?: boolean
+      maxContextTokens?: number
+    }
+  }
+
+/** New-schema provider spec (uses `serves` instead of `levels`). */
+export interface AIProviderSpec {
+  id: string
+  provider: 'openai' | 'gigachat' | 'clisr' | 'mock'
+  concurrency: number
+  batch: number
+  endpoint?: string
+  endpointConfig?: Record<string, unknown>
+  serves: Partial<Record<AILevel, ServesEntry>>
+}
+
+/**
+ * ASR quality level id. Mirrors AILevel: a free-form string defined in the
+ * registry (e.g. 'default', 'premium'). UI lists levels sorted by `order`.
+ */
+export type AsrLevel = string
+
+/** UI/accounting metadata for an ASR quality level class (no concrete model). */
+export interface AsrLevelClass {
+  order: number
+  label: string
+  description?: string
+  enabled?: boolean
+  tokenMultiplier: number // billed factor per SECOND of transcribed audio (not per token)
+  displayMultiplier?: number
+}
+
+/** ASR serves entry: model name, or object with per-serve url/apiKey overrides. */
+export type AsrServesEntry =
+  | string
+  | {
+    model: string
+    url?: string
+    apiKey?: string
+  }
+
+/** ASR provider spec (mirrors AIProviderSpec). */
+export interface AsrProviderSpec {
+  id: string
+  provider: SttProviderType
+  concurrency?: number
+  batch?: number
+  endpoint?: string
+  endpointConfig?: Record<string, unknown>
+  serves: Partial<Record<AsrLevel, AsrServesEntry>>
+}
+
+/** Per-level model binding inside an ASR provider (mirrors AILevelModel). */
+export interface AsrLevelModel {
+  model: string
+  tokenMultiplier: number
+  displayMultiplier?: number
+  order: number
+  label: string
+  description?: string
+  url?: string
+  apiKey?: string
+}
+
+/** Resolved ASR provider (mirrors AIProviderConfig). */
+export interface AsrProviderConfig {
+  id: string
+  provider: SttProviderType
+  levels: Partial<Record<AsrLevel, AsrLevelModel>>
+}
+
 interface Config {
   AccountsURL: string
   ServerSecret: string
@@ -30,10 +173,24 @@ interface Config {
   AvatarContentType: string
   Password: string
 
-  Mode: 'queue' | 'client' // In queue mode we start server and listen for queue events and pass to providers or clients.
+  // Pod role. One binary, several roles selected by MODE:
+  // - 'all'           : everything (event-router + llm-router + stt-worker), legacy alias 'queue'
+  // - 'event-router'  : read ai-queue, resolve model, route to llm-<id> topics
+  // - 'llm-router'    : read llm-<id> for LLMProviderIds, run providers (+ClisrServer for clisr)
+  // - 'stt-worker'    : consume TranscriptionQueue, transcribe (+ClisrServer for transcribers)
+  // - 'client'        : legacy clisr worker (connects to a server/router)
+  // STT ingest (HTTP audio + placeholder + producer) + meeting lifecycle run in
+  // EVERY role by default (stateless, cheap) so love can post audio to any pod.
+  Mode: 'all' | 'queue' | 'client' | 'event-router' | 'llm-router' | 'stt-worker'
+  // For 'llm-router': which provider ids this pod serves (empty = all in the registry).
+  LLMProviderIds: string[]
   // In client mode we connect to accounts server and wait for requests.
   ServerUrl: string
   ApiToken: string // Api token for clients to handle server in LLMProvider and STT provider 'server' mode.
+  // Logical worker id for per-client usage attribution. On a clisr worker (client mode): its own id,
+  // echoed in every LLM/ASR result. On the router: the expected id for the single connected worker;
+  // usage is attributed to it, empty when unset (direct providers). Env: CLIENT_ID.
+  ClientId: string
 
   MaxContentTokens: number
   MaxHistoryRecords: number
@@ -47,10 +204,22 @@ interface Config {
   // If specified all chunks will be saved to this directory, per user at a time.wav + transcription
   DebugDir?: string
 
+  // When true, log full LLM payloads (messages, tool definitions, tool calls,
+  // raw completions) for debugging. Verbose; off by default. Env: LLM_DEBUG=true.
+  LLMDebug: boolean
+
   // LLM parameters
   // LLM selection (e.g. 'openai' | 'gigachat' | 'server' or leave empty for auto)
   LLMProvider: string // Could be 'server' to pass LLM requests to connected clients.
   LLMProcessingBatch: number // Batch size for LLM request processing (1 = no batching)
+
+  // Provider registry: every provider the pod can route to. Each provider serves
+  // one or more levels and owns one topic `llm-<id>`. Built from yaml
+  // `llm.providers`, or synthesized from the legacy single-provider settings.
+  AIProviders: AIProviderConfig[]
+  DefaultLevel: AILevel
+  // Fallback language for the bot's non-personal replies when a space has none set.
+  DefaultLanguage: string
 
   // ******************
   // Openai
@@ -73,15 +242,16 @@ interface Config {
   DataLabApiKey: string
   // ******************
 
-  // STT Transcription settings
+  // ASR (transcription) settings.
+  // SttProvider is an opt-out switch only: 'none' disables ASR on this pod even when the yaml
+  // `asr:` block is present (e.g. an LLM-only clisr worker). Actual provider/model come from
+  // the AsrProviders registry. Env: STT_PROVIDER.
   SttProvider: SttProviderType
   SttProcessingBatch: number // If defined will consume messages by bulks and pass to transcriber
 
-  // Transcription parameters
-  // ******************
-  SttUrl: string
-  SttApiKey: string
-  SttModel: string
+  // ASR provider registry (mirrors AIProviders). Built from yaml `asr.models`+`asr.providers`.
+  AsrProviders: AsrProviderConfig[]
+  AsrDefaultLevel: AsrLevel
 
   DeepgramPollIntervalMinutes: number
   DeepgramApiKey: string
@@ -111,9 +281,13 @@ interface YamlConfig {
     }
   }
   port?: number
+  clientId?: string // logical worker id for per-client usage attribution
   llm: {
     provider?: string
     batch?: number
+    defaultLevel?: AILevel
+    models?: Partial<Record<AILevel, AILevelClass>>
+    providers?: AIProviderSpec[]
     openai?: {
       apiKey?: string
       model?: string
@@ -129,12 +303,12 @@ interface YamlConfig {
       timeout?: string
     }
   }
-  stt: {
-    provider?: string
+  // ASR registry, mirrors `llm`. Absent -> transcription disabled for this pod.
+  asr?: {
+    defaultLevel?: AsrLevel
     batch?: number
-    url?: string
-    apiKey?: string
-    model?: string
+    models?: Partial<Record<AsrLevel, AsrLevelClass>>
+    providers?: AsrProviderSpec[]
   }
   deepgram?: {
     apiKey?: string
@@ -172,6 +346,206 @@ interface YamlConfig {
 
 const parseNumber = (str: string | undefined): number | undefined => (str !== undefined ? Number(str) : undefined)
 
+/** Merge new-schema (models+serves) entries into the legacy AIProviderConfig shape. */
+const resolveProviderSpec = (
+  spec: AIProviderSpec,
+  models: Partial<Record<AILevel, AILevelClass>> | undefined
+): AIProviderConfig => {
+  const levels: Partial<Record<AILevel, AILevelModel>> = {}
+  for (const [level, entry] of Object.entries(spec.serves)) {
+    if (entry === undefined) continue
+    const cls = models?.[level]
+    if (cls === undefined) {
+      console.warn(`[config] models.${level} not defined; skipping serves entry for provider ${spec.id}`)
+      continue
+    }
+    if (cls.enabled === false) {
+      // Level explicitly disabled in config: skip so it never enters the registry/routing.
+      continue
+    }
+    const model = typeof entry === 'string' ? entry : entry.model
+    const overrides = typeof entry === 'string' ? undefined : entry
+    levels[level] = {
+      model,
+      tokenMultiplier: cls.tokenMultiplier,
+      freeMultiplier: cls.freeMultiplier,
+      paidMultiplier: cls.paidMultiplier,
+      displayMultiplier: cls.displayMultiplier,
+      order: cls.order,
+      label: cls.label,
+      description: cls.description,
+      fallbackEligible: cls.fallbackEligible,
+      tokenizer: overrides?.tokenizer,
+      capabilities: overrides?.capabilities
+    }
+  }
+  return {
+    id: spec.id,
+    provider: spec.provider,
+    concurrency: spec.concurrency,
+    batch: spec.batch,
+    endpoint: spec.endpoint,
+    endpointConfig: spec.endpointConfig,
+    levels
+  }
+}
+
+/**
+ * Build the provider registry from the yaml `llm.models` (level classes) +
+ * `llm.providers[].serves` (per-provider level->model bindings). When no yaml
+ * providers are given, synthesizes a single provider from the legacy env settings
+ * so bare-env deployments keep working.
+ */
+const buildProviderRegistry = (yamlConfig: YamlConfig | null): AIProviderConfig[] => {
+  const explicit = yamlConfig?.llm?.providers
+  if (explicit !== undefined && explicit.length > 0) {
+    const models = yamlConfig?.llm?.models
+    // Only the free level (carrying plan-dependent multipliers) may be fallbackEligible;
+    // guard against flagging a paid level.
+    for (const [level, cls] of Object.entries(models ?? {})) {
+      if (cls?.fallbackEligible === true && cls.paidMultiplier === undefined && cls.freeMultiplier === undefined) {
+        throw new Error(
+          `AI config error: level '${level}' is fallbackEligible but has no paidMultiplier/freeMultiplier. ` +
+            'Only the free low-tier level may be a fallback.'
+        )
+      }
+    }
+    const registry = explicit.map((spec) => resolveProviderSpec(spec, models))
+    // Each level must be served by exactly one provider: ambiguous routing would
+    // pick the first provider in yaml order and silently mis-bill.
+    const owner = new Map<AILevel, string>()
+    for (const provider of registry) {
+      for (const level of Object.keys(provider.levels)) {
+        if (provider.levels[level] === undefined) continue
+        const prev = owner.get(level)
+        if (prev !== undefined) {
+          throw new Error(
+            `AI config error: level '${level}' is served by both '${prev}' and '${provider.id}'. Each level must be served by exactly one provider.`
+          )
+        }
+        owner.set(level, provider.id)
+      }
+    }
+    return registry
+  }
+
+  const provider = (yamlConfig?.llm?.provider ?? process.env.LLM_PROVIDER ?? 'openai').trim().toLowerCase()
+  const batch = yamlConfig?.llm?.batch ?? parseInt(process.env.LLM_BATCH ?? '1')
+  const level = yamlConfig?.llm?.defaultLevel ?? process.env.AI_DEFAULT_LEVEL ?? 'low'
+
+  if (provider === 'gigachat') {
+    const model = yamlConfig?.llm?.gigachat?.model ?? process.env.GIGACHAT_MODEL ?? 'GigaChat'
+    return [
+      {
+        id: 'gigachat',
+        provider: 'gigachat',
+        concurrency: 1,
+        batch,
+        levels: {
+          [level]: {
+            model,
+            tokenMultiplier: 1,
+            order: 0,
+            label: 'GigaChat',
+            tokenizer: 'gigachat',
+            capabilities: { tools: false }
+          }
+        }
+      }
+    ]
+  }
+
+  const isClisr = provider === 'server' || provider === 'clisr'
+  const model = yamlConfig?.llm?.openai?.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
+  return [
+    {
+      id: isClisr ? 'clisr' : 'openai',
+      provider: isClisr ? 'clisr' : 'openai',
+      concurrency: isClisr ? 4 : 8,
+      batch,
+      levels: {
+        [level]: {
+          model,
+          tokenMultiplier: isClisr ? 0.1 : 1,
+          order: 0,
+          label: isClisr ? 'Local' : 'Standard',
+          tokenizer: 'tiktoken',
+          capabilities: { tools: true, maxContextTokens: 128 * 1024 }
+        }
+      }
+    }
+  ]
+}
+
+/** Merge new-schema (models+serves) entries into the AsrProviderConfig shape. */
+const resolveAsrProviderSpec = (
+  spec: AsrProviderSpec,
+  models: Partial<Record<AsrLevel, AsrLevelClass>> | undefined
+): AsrProviderConfig => {
+  const levels: Partial<Record<AsrLevel, AsrLevelModel>> = {}
+  for (const [level, entry] of Object.entries(spec.serves)) {
+    if (entry === undefined) continue
+    const cls = models?.[level]
+    if (cls === undefined) {
+      console.warn(`[config] asr.models.${level} not defined; skipping serves entry for provider ${spec.id}`)
+      continue
+    }
+    if (cls.enabled === false) continue
+    const model = typeof entry === 'string' ? entry : entry.model
+    const overrides = typeof entry === 'string' ? undefined : entry
+    levels[level] = {
+      model,
+      tokenMultiplier: cls.tokenMultiplier,
+      displayMultiplier: cls.displayMultiplier,
+      order: cls.order,
+      label: cls.label,
+      description: cls.description,
+      url: overrides?.url,
+      apiKey: overrides?.apiKey
+    }
+  }
+  return { id: spec.id, provider: spec.provider, levels }
+}
+
+/**
+ * Build the ASR provider registry from yaml `asr.models`+`asr.providers`. Falls back
+ * to synthesizing a single provider from the legacy `stt:` block (one level 'default')
+ * so existing deployments without an `asr:` block keep working unchanged.
+ */
+const buildAsrRegistry = (yamlConfig: YamlConfig | null): AsrProviderConfig[] => {
+  const explicit = yamlConfig?.asr?.providers
+  if (explicit !== undefined && explicit.length > 0) {
+    const models = yamlConfig?.asr?.models
+    const registry = explicit.map((spec) => resolveAsrProviderSpec(spec, models))
+    // Each level must be served by exactly one provider (same rule as AIProviders).
+    const owner = new Map<AsrLevel, string>()
+    for (const provider of registry) {
+      for (const level of Object.keys(provider.levels)) {
+        if (provider.levels[level] === undefined) continue
+        const prev = owner.get(level)
+        if (prev !== undefined) {
+          throw new Error(
+            `ASR config error: level '${level}' is served by both '${prev}' and '${provider.id}'. Each level must be served by exactly one provider.`
+          )
+        }
+        owner.set(level, provider.id)
+      }
+    }
+    return registry
+  }
+
+  // No `asr:` block -> transcription disabled for this pod.
+  return []
+}
+
+// Expand ${VAR} / ${VAR:-default} placeholders in the yaml text from process.env so
+// secrets (e.g. GIGACHAT_AUTH_KEY) can live in the environment, not in the file.
+export const expandEnv = (text: string): string =>
+  text.replace(/\$\{([A-Z0-9_]+)(?::-([^}]*))?\}/g, (_m, name: string, def: string | undefined) => {
+    const v = process.env[name]
+    return v !== undefined && v !== '' ? v : (def ?? '')
+  })
+
 const config: Config = (() => {
   // Try to load configuration from YAML file first
   let yamlConfig: YamlConfig | null = null
@@ -181,7 +555,7 @@ const config: Config = (() => {
   if (configPath !== undefined && fs.existsSync(configPath)) {
     try {
       const configFileContent = fs.readFileSync(configPath, 'utf8')
-      yamlConfig = yaml.load(configFileContent) as YamlConfig
+      yamlConfig = yaml.load(expandEnv(configFileContent)) as YamlConfig
     } catch (error) {
       console.warn(`Failed to load YAML config from ${configPath}:`, error)
     }
@@ -192,7 +566,7 @@ const config: Config = (() => {
   if (configYaml !== undefined) {
     try {
       const decodedYaml = Buffer.from(configYaml, 'base64').toString('utf8')
-      yamlConfig = yaml.load(decodedYaml) as YamlConfig
+      yamlConfig = yaml.load(expandEnv(decodedYaml)) as YamlConfig
     } catch (error) {
       console.warn('Failed to load YAML config from CONFIG_YAML environment variable:', error)
     }
@@ -206,8 +580,13 @@ const config: Config = (() => {
     ServiceID: yamlConfig?.accounts?.serviceId ?? process.env.SERVICE_ID ?? 'ai-bot-service',
 
     Mode: (process.env.MODE ?? 'queue') as Config['Mode'],
+    LLMProviderIds: (process.env.LLM_PROVIDER_IDS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s !== ''),
     ServerUrl: process.env.SERVER_URL ?? '',
     ApiToken: process.env.API_TOKEN ?? '',
+    ClientId: yamlConfig?.clientId ?? process.env.CLIENT_ID ?? '',
 
     // Bot identity configuration
     FirstName: yamlConfig?.bot?.firstName ?? process.env.FIRST_NAME,
@@ -245,6 +624,10 @@ const config: Config = (() => {
       'https://gigachat.devices.sberbank.ru/api/v1/',
     GigaChatTimeout: yamlConfig?.llm?.gigachat?.timeout ?? process.env.GIGACHAT_TIMEOUT ?? '600',
 
+    AIProviders: buildProviderRegistry(yamlConfig),
+    DefaultLevel: yamlConfig?.llm?.defaultLevel ?? process.env.AI_DEFAULT_LEVEL ?? 'low',
+    DefaultLanguage: process.env.AI_DEFAULT_LANGUAGE ?? 'ru',
+
     // Limits
     MaxContentTokens: yamlConfig?.limits?.maxContentTokens ?? parseNumber(process.env.MAX_CONTENT_TOKENS) ?? 128 * 100,
     MaxHistoryRecords: yamlConfig?.limits?.maxHistoryRecords ?? parseNumber(process.env.MAX_HISTORY_RECORDS) ?? 500,
@@ -261,12 +644,12 @@ const config: Config = (() => {
     DeepgramProjectId: yamlConfig?.deepgram?.projectId ?? process.env.DEEPGRAM_PROJECT_ID ?? '',
     DeepgramTag: yamlConfig?.deepgram?.tag ?? process.env.DEEPGRAM_TAG ?? '',
 
-    // STT configuration
-    SttProvider: (yamlConfig?.stt?.provider ?? process.env.STT_PROVIDER ?? 'wsr') as SttProviderType,
-    SttProcessingBatch: yamlConfig?.stt.batch ?? parseInt(process.env.STT_BATCH ?? '1'),
-    SttUrl: yamlConfig?.stt?.url ?? process.env.STT_URL ?? '',
-    SttApiKey: yamlConfig?.stt?.apiKey ?? process.env.STT_API_KEY ?? '',
-    SttModel: yamlConfig?.stt?.model ?? process.env.STT_MODEL ?? '',
+    // ASR opt-out switch ('none' disables) + batch. Provider/model come from AsrProviders.
+    SttProvider: (process.env.STT_PROVIDER ?? '') as SttProviderType,
+    SttProcessingBatch: yamlConfig?.asr?.batch ?? parseInt(process.env.STT_BATCH ?? '1'),
+
+    AsrProviders: buildAsrRegistry(yamlConfig),
+    AsrDefaultLevel: yamlConfig?.asr?.defaultLevel ?? 'default',
 
     // VAD configuration
     VadRmsThreshold: yamlConfig?.vad?.rmsThreshold ?? parseFloat(process.env.VAD_RMS_THRESHOLD ?? '0.02'),
@@ -280,13 +663,16 @@ const config: Config = (() => {
     ChunkStorage: yamlConfig?.storage?.chunks ?? process.env.CHUNK_STORAGE_CONFIG ?? undefined,
 
     // Debug configuration
-    DebugDir: yamlConfig?.debug?.dir ?? process.env.DEBUG_DIR ?? ''
+    DebugDir: yamlConfig?.debug?.dir ?? process.env.DEBUG_DIR ?? '',
+    LLMDebug: (process.env.LLM_DEBUG ?? 'false').toLowerCase() === 'true'
   }
 
+  // 'client' is a thin clisr worker (only needs the server endpoint); every other
+  // role talks to accounts/queues and needs the full config.
   const keys =
-    params.Mode === 'queue'
-      ? (Object.keys(params) as Array<keyof Config>)
-      : (['ServerUrl', 'ApiToken'] as Array<keyof Config>)
+    params.Mode === 'client'
+      ? (['ServerUrl', 'ApiToken'] as Array<keyof Config>)
+      : (Object.keys(params) as Array<keyof Config>)
   const missingEnv = keys.filter((key) => params[key] === undefined)
 
   if (missingEnv.length > 0) {

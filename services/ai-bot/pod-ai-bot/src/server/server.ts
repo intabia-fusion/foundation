@@ -25,11 +25,16 @@ import {
   PostTranscriptRequest,
   SummarizeMessagesRequest
 } from '@hcengineering/ai-bot'
-import { extractToken } from '@hcengineering/server-client'
-import { MeasureContext, systemAccountUuid } from '@hcengineering/core'
+import { extractToken, getAccountClient } from '@hcengineering/server-client'
+import { AccountRole, MeasureContext, systemAccountUuid } from '@hcengineering/core'
+import { isWorkspaceLoginInfo } from '@hcengineering/account-client'
 
 import { ApiError } from './error'
 import { AIControl } from '../controller'
+import config from '../config'
+import { availableLevels } from '../llms/modelRegistry'
+import { availableAsrLevels } from '../transcription/asrRegistry'
+import type { AILevelInfo, AsrLevelInfo } from '@hcengineering/ai-bot'
 
 type AsyncRequestHandler = (req: Request, res: Response, token: Token, next: NextFunction) => Promise<void>
 
@@ -52,6 +57,18 @@ const handleRequest = async (
 
 const wrapRequest = (fn: AsyncRequestHandler) => (req: Request, res: Response, next: NextFunction) => {
   void handleRequest(fn, req, res, next)
+}
+
+// Resolve the caller's workspace role from the raw bearer token. Fail-closed on any error.
+const isWorkspaceOwner = async (req: Request): Promise<boolean> => {
+  const raw = req.headers.authorization?.split(' ')[1]
+  if (raw === undefined) return false
+  try {
+    const info = await getAccountClient(raw).getLoginInfoByToken()
+    return isWorkspaceLoginInfo(info) && info.role === AccountRole.Owner
+  } catch {
+    return false
+  }
 }
 
 export function createServer (controller: AIControl, ctx: MeasureContext, app?: Express): Express {
@@ -225,6 +242,62 @@ export function createServer (controller: AIControl, ctx: MeasureContext, app?: 
 
       res.status(200)
       res.json(resp)
+    })
+  )
+
+  // The catalog of AI levels the pod offers (same for everyone). The UI uses this
+  // to render the level picker; the chosen level is stored in AISpaceSettings.
+  app.get(
+    '/levels',
+    wrapRequest(async (req, res, token) => {
+      const levels: AILevelInfo[] = availableLevels(config.AIProviders).map((l) => ({
+        level: l.level,
+        order: l.order,
+        label: l.label,
+        description: l.description,
+        tokenMultiplier: l.tokenMultiplier,
+        displayMultiplier: l.displayMultiplier
+      }))
+      res.status(200)
+      res.json(levels)
+    })
+  )
+
+  // ASR transcription levels for the space settings picker (mirrors /levels).
+  app.get(
+    '/asr-levels',
+    wrapRequest(async (req, res, token) => {
+      const levels: AsrLevelInfo[] = availableAsrLevels(config.AsrProviders).map((l) => ({
+        level: l.level,
+        order: l.order,
+        label: l.label,
+        description: l.description,
+        tokenMultiplier: l.tokenMultiplier,
+        displayMultiplier: l.displayMultiplier
+      }))
+      res.status(200)
+      res.json(levels)
+    })
+  )
+
+  // Set the workspace-wide AI level (AISpaceSettings without attachedTo).
+  // Workspace owners only; system tokens (tests/tooling) bypass the role check.
+  app.post(
+    '/levels/workspace',
+    wrapRequest(async (req, res, token) => {
+      if (token.account !== systemAccountUuid && !(await isWorkspaceOwner(req))) {
+        throw new ApiError(403, 'Only workspace owners can change the AI level')
+      }
+      const level = req.body?.level
+      if (typeof level !== 'string' || level === '') {
+        throw new ApiError(400, 'level is required')
+      }
+      if (!availableLevels(config.AIProviders).some((l) => l.level === level)) {
+        throw new ApiError(400, `unknown level: ${level}`)
+      }
+      await controller.setWorkspaceLevel(token.workspace, level)
+      res.status(200)
+      res.json({ level })
     })
   )
 

@@ -15,7 +15,7 @@
 
 import { Readable } from 'stream'
 import { isWorkspaceLoginInfo } from '@hcengineering/account-client'
-import {
+import aiBot, {
   AIEventRequest,
   ConnectMeetingRequest,
   DisconnectMeetingRequest,
@@ -27,11 +27,12 @@ import {
   TranslateRequest,
   TranslateResponse
 } from '@hcengineering/ai-bot'
-import {
+import core, {
   AccountUuid,
   MeasureContext,
   PersonId,
   Ref,
+  type Space,
   SocialId,
   SortingOrder,
   toIdMap,
@@ -44,17 +45,20 @@ import chunter, { ChatMessage } from '@hcengineering/chunter'
 import { getAccountClient, getTransactorEndpointEx } from '@hcengineering/server-client'
 import { generateToken } from '@hcengineering/server-token'
 import { htmlToMarkup, jsonToHTML, jsonToMarkup, markupToJSON } from '@hcengineering/text'
-import { createLLMFromConfig, type LLMProvider } from './llms'
+import { createDefaultProvider, createProvidersFromRegistry, type LLMProvider } from './llms'
 import { ClisrServer } from '@intabiafusion/clisr'
 
 import { ConsumerControl, PlatformQueueProducer, StorageAdapter } from '@hcengineering/server-core'
 import { buildStorageFromConfig, storageConfigFrom } from '@hcengineering/server-storage'
-import config from './config'
+import config, { type AILevel } from './config'
 import { TranscriptionTask } from './types'
 import { v4 as uuid } from 'uuid'
 import { markdownToMarkup, markupToMarkdown } from '@hcengineering/text-markdown'
 import { tryAssignToWorkspace } from './utils/account'
 import { LimitsState } from './limits'
+import { PoolLimits } from './billing'
+import { resolveModel } from './llms/modelRegistry'
+import { cheapestEligible } from './workspace/windowLimit'
 import { ApiError } from './server/error'
 /* LLM helpers moved to ./llm; use provider methods on `this.llm` instead */
 import { WorkspaceClient } from './workspace/workspaceClient'
@@ -101,8 +105,10 @@ export class AIControl {
   readonly chunkStorageAdapter: StorageAdapter
   private transcriptionProducer: PlatformQueueProducer<TranscriptionTask> | undefined
 
-  private llm?: LLMProvider
+  private llm?: LLMProvider // default provider, used by service ops (translate/summarize)
+  private providers = new Map<string, LLMProvider>() // per-provider, keyed by provider id (= topic suffix)
   private limitsState?: LimitsState
+  private poolLimits?: PoolLimits
 
   constructor (
     readonly personUuid: AccountUuid,
@@ -117,7 +123,18 @@ export class AIControl {
    * Initialize LLM provider. Can be called after construction to pass ClisrServer for server provider.
    */
   initLLM (clisrServer?: ClisrServer): void {
-    this.llm = createLLMFromConfig(this.ctx, clisrServer)
+    this.providers = createProvidersFromRegistry(this.ctx, clisrServer)
+    this.llm = createDefaultProvider(this.ctx, clisrServer)
+  }
+
+  /** All provider ids in the registry (= per-provider topic suffixes). */
+  getProviderIds (): string[] {
+    return [...this.providers.keys()]
+  }
+
+  /** Resolve a provider by id (the dispatcher routes by id via the topic). */
+  getProvider (id: string): LLMProvider | undefined {
+    return this.providers.get(id)
   }
 
   setTranscriptionProducer (producer: PlatformQueueProducer<TranscriptionTask>): void {
@@ -126,6 +143,10 @@ export class AIControl {
 
   setLimitsState (state: LimitsState): void {
     this.limitsState = state
+  }
+
+  setPoolLimits (pools: PoolLimits): void {
+    this.poolLimits = pools
   }
 
   /**
@@ -364,17 +385,50 @@ export class AIControl {
     }
   }
 
+  // Language for the bot's non-personal output: AISpaceSettings for the space ->
+  // workspace-wide default -> the pod's DefaultLanguage. The client's req.lang is
+  // intentionally ignored (the space owns the language of non-personal replies).
+  async resolveLanguage (workspace: WorkspaceUuid, space?: Ref<Space>): Promise<string> {
+    try {
+      const wsClient = await this.getWorkspaceClient(workspace)
+      const client = wsClient?.client
+      if (client === undefined) return config.DefaultLanguage
+
+      const settings = await client.findAll(aiBot.class.AISpaceSettings, {})
+      const forSpace = space !== undefined ? settings.find((s) => s.attachedTo === space) : undefined
+      const wsDefault = settings.find((s) => s.attachedTo == null)
+      return forSpace?.language ?? wsDefault?.language ?? config.DefaultLanguage
+    } catch {
+      return config.DefaultLanguage
+    }
+  }
+
+  // Upsert the workspace-wide AISpaceSettings level (the one without attachedTo).
+  async setWorkspaceLevel (workspace: WorkspaceUuid, level: AILevel): Promise<void> {
+    const wsClient = await this.getWorkspaceClient(workspace)
+    const client = wsClient?.client
+    if (client === undefined) throw new Error('workspace client is not connected')
+
+    const existing = (await client.findAll(aiBot.class.AISpaceSettings, {})).find((s) => s.attachedTo == null)
+    if (existing !== undefined) {
+      await client.updateDoc(aiBot.class.AISpaceSettings, existing.space, existing._id, { level })
+      return
+    }
+    await client.createDoc(aiBot.class.AISpaceSettings, core.space.Workspace, { level })
+  }
+
   async translate (workspace: WorkspaceUuid, req: TranslateRequest): Promise<TranslateResponse | undefined> {
     if (this.llm === undefined) {
       return undefined
     }
     this.checkTokensLimit(workspace)
+    const lang = await this.resolveLanguage(workspace)
     const html = jsonToHTML(markupToJSON(req.text))
-    const result = await this.llm.translateHtml(this.ctx, workspace, html, req.lang)
+    const result = await this.llm.translateHtml(this.ctx, workspace, html, lang)
     const text = result !== undefined ? htmlToMarkup(result) : req.text
     return {
       text,
-      lang: req.lang
+      lang
     }
   }
 
@@ -475,7 +529,8 @@ export class AIControl {
         }
       }
     }
-    const summary = await this.llm.summarizeMessages(this.ctx, workspace, messagesToSummarize, req.lang, description)
+    const lang = await this.resolveLanguage(workspace, target.space)
+    const summary = await this.llm.summarizeMessages(this.ctx, workspace, messagesToSummarize, lang, description)
     if (summary === undefined) return
 
     const summaryMarkup = jsonToMarkup(markdownToMarkup(summary))
@@ -508,16 +563,65 @@ export class AIControl {
 
     return {
       text: summaryMarkup,
-      lang: req.lang
+      lang
     }
   }
 
-  async processEvent (workspace: WorkspaceUuid, events: AIEventRequest[], control?: ConsumerControl): Promise<void> {
-    if (this.llm === undefined) {
+  // Cheapest fallback-eligible (provider, level) whose pool is not exhausted; undefined if none.
+  private resolvePoolFallback (
+    fromProviderId: string,
+    fromLevel: AILevel
+  ): { providerId: string, level: AILevel } | undefined {
+    const fbLevel = cheapestEligible(config.AIProviders)
+    if (fbLevel === undefined || fbLevel === fromLevel) return undefined
+    const resolved = resolveModel(fbLevel, config.AIProviders)
+    if (this.poolLimits?.isBlockedByLevel(config.AIProviders, resolved.provider.id, resolved.level) === true) {
+      return undefined
+    }
+    return { providerId: resolved.provider.id, level: resolved.level }
+  }
+
+  async processEvent (
+    workspace: WorkspaceUuid,
+    events: AIEventRequest[],
+    control?: ConsumerControl,
+    providerId?: string,
+    level?: AILevel
+  ): Promise<void> {
+    // Resolve the per-provider instance (pipeline path) or fall back to the default.
+    const provider = providerId !== undefined ? this.providers.get(providerId) : undefined
+    if (provider === undefined && this.llm === undefined) {
       throw new Error('LLM provider not configured')
     }
 
     this.checkTokensLimit(workspace)
+
+    // Global per-model pool guard. When this (provider, level) budget is exhausted, try
+    // the cheapest fallback-eligible level (e.g. local `low`) instead of failing outright;
+    // only reject if no fallback is available or it is exhausted too.
+    let effProvider = provider
+    let effProviderId = providerId
+    let effLevel = level
+    if (providerId !== undefined && level !== undefined && this.poolLimits !== undefined) {
+      if (this.poolLimits.isBlockedByLevel(config.AIProviders, providerId, level)) {
+        const fb = this.resolvePoolFallback(providerId, level)
+        if (fb === undefined) {
+          this.ctx.warn('AI provider pool exhausted, no fallback available', { workspace, providerId, level })
+          throw new ApiError(
+            402,
+            'The global token budget for this model has been reached. Please contact your administrator.'
+          )
+        }
+        this.ctx.info('AI pool exhausted, falling back to a simpler model', {
+          workspace,
+          from: { providerId, level },
+          to: { providerId: fb.providerId, level: fb.level }
+        })
+        effProviderId = fb.providerId
+        effLevel = fb.level
+        effProvider = this.providers.get(fb.providerId) ?? provider
+      }
+    }
 
     const i1 = setInterval(() => {
       void control?.heartbeat()
@@ -527,8 +631,8 @@ export class AIControl {
         await control?.heartbeat()
         const wsClient = await this.getWorkspaceClient(workspace)
         if (wsClient === undefined) continue
-        this.ctx.info('processing event', event)
-        await wsClient.processMessageEvent(event, control)
+        this.ctx.info('processing event', { ...event, providerId: effProviderId, level: effLevel })
+        await wsClient.processMessageEvent(event, control, effProvider, effLevel, this.providers)
       }
     } finally {
       clearInterval(i1)

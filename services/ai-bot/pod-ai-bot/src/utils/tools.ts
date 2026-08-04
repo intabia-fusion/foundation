@@ -1,4 +1,4 @@
-import { AccountUuid, MarkupBlobRef, Ref } from '@hcengineering/core'
+import { AccountUuid, Class, Doc, MarkupBlobRef, Ref, Space } from '@hcengineering/core'
 import document, { Document, getFirstRank, Teamspace } from '@hcengineering/document'
 import { makeRank } from '@hcengineering/rank'
 import { markdownToMarkup } from '@hcengineering/text-markdown'
@@ -151,117 +151,6 @@ async function getFoldersForDocuments (
   return res
 }
 
-async function updateAssistantMemory (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  // console.log('Update assistant memory', args)
-  await workspaceClient.updateAssistantMemory(user, args)
-  return 'Assistant memory updated successfully.'
-}
-
-async function updateUserMemory (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  // console.log('Update user memory', args)
-  await workspaceClient.updateUserMemory(user, args)
-  return 'User memory updated successfully.'
-}
-
-async function getAssistantMemory (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  if (user === undefined) return 'No user context available'
-
-  const history = await workspaceClient.getHistoryForUser(user)
-  if (history.assistantMemory === '') {
-    return 'No assistant memory stored yet.'
-  }
-  return `Current assistant memory:\n${history.assistantMemory}`
-}
-
-async function getUserMemory (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  if (user === undefined) return 'No user context available'
-
-  const history = await workspaceClient.getHistoryForUser(user)
-  if (history.userMemory === '') {
-    return 'No user memory stored yet.'
-  }
-  return `Current user memory:\n${history.userMemory}`
-}
-
-async function clearAssistantMemory (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  if (user === undefined) return 'No user context available'
-  await workspaceClient.updateAssistantMemory(user, { memory: '' })
-  return 'Assistant memory has been cleared.'
-}
-
-async function clearUserMemory (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  if (user === undefined) return 'No user context available'
-  await workspaceClient.updateUserMemory(user, { memory: '' })
-  return 'User memory has been cleared.'
-}
-
-async function updateSharedContext (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  // console.log('Update shared context', args)
-  await workspaceClient.updateSharedContext(user, args)
-  return 'Shared context updated successfully.'
-}
-
-async function getSharedContext (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  if (user === undefined) return 'No user context available'
-
-  const history = await workspaceClient.getHistoryForUser(user)
-  if (history.sharedContext === '') {
-    return 'No shared context stored yet.'
-  }
-  return `Current shared context:\n${history.sharedContext}`
-}
-
-async function clearHistory (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  if (user === undefined) return 'No user context available'
-  await workspaceClient.clearHistory(user)
-  return 'Conversation history has been cleared. Starting fresh conversation.'
-}
-
-async function getHistorySummary (
-  workspaceClient: WorkspaceClient,
-  user: AccountUuid | undefined,
-  args: Record<string, any>
-): Promise<string> {
-  if (user === undefined) return 'No user context available'
-  return await workspaceClient.getHistorySummary(user)
-}
-
 type ChangeFields<T, R> = Omit<T, keyof R> & R
 type PredefinedTool<T extends object | string> = ChangeFields<
 RunnableToolFunction<T>,
@@ -273,7 +162,18 @@ type PredefinedToolFunction<T extends object | string> = Omit<
 T extends string ? RunnableFunctionWithoutParse : RunnableFunctionWithParse<any>,
 'function'
 >
-type ToolFunc = (workspaceClient: WorkspaceClient, user: AccountUuid | undefined, args: any) => Promise<string> | string
+export interface ReqCtx {
+  objectId: Ref<Doc>
+  objectClass: Ref<Class<Doc>>
+  space: Ref<Space>
+  collection: string
+}
+type ToolFunc = (
+  workspaceClient: WorkspaceClient,
+  user: AccountUuid | undefined,
+  args: any,
+  reqCtx?: ReqCtx
+) => Promise<string> | string
 
 const tools: [PredefinedTool<any>, ToolFunc, 'direct' | 'thread' | 'any'][] = []
 
@@ -343,204 +243,117 @@ if (config.DataLabApiKey !== '') {
   )
 }
 
-// Assistant memory tools
+function startOfTodayMs (): number {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+const loadThreadHistory: ToolFunc = async (workspaceClient, _user, args, reqCtx) => {
+  if (reqCtx === undefined) return 'No conversation context available.'
+  let before: number
+  if (typeof args?.beforeIso === 'string' && args.beforeIso !== '') {
+    const t = Date.parse(args.beforeIso)
+    before = isNaN(t) ? startOfTodayMs() : t
+  } else {
+    before = startOfTodayMs()
+  }
+  const limit = typeof args?.limit === 'number' && args.limit > 0 ? Math.min(args.limit, 200) : 50
+  return await workspaceClient.loadThreadHistory(reqCtx.objectId, reqCtx.objectClass, before, limit)
+}
+
 registerTool<object>(
   {
     type: 'function',
     function: {
-      name: 'update_assistant_memory',
+      name: 'load_thread_history',
       parse: JSON.parse,
       parameters: {
         type: 'object',
         properties: {
-          memory: {
+          beforeIso: {
             type: 'string',
             description:
-              'Complete updated memory about yourself: your name, behavior style, how to address the user, your role, etc.'
+              'ISO timestamp; load messages strictly older than this. Defaults to the start of today if omitted.'
+          },
+          limit: {
+            type: 'number',
+            description: 'Max number of older messages to load (1..200, default 50).'
           }
-        },
-        required: ['memory']
+        }
       },
       description:
-        'Update information about yourself (the assistant). Use this when user tells you how to behave, what name to use, how to address them, or defines your role/personality.'
+        "Load messages OLDER THAN TODAY from the current channel/thread. Today's messages are ALREADY in the prompt — do NOT call this for questions about today, recent, or the current discussion. Call ONLY when the user explicitly asks about an earlier period (yesterday, last week, a specific past date). Returns older messages as text, oldest first."
     }
   },
-  updateAssistantMemory,
-  'direct'
-)
-
-registerTool(
-  {
-    type: 'function',
-    function: {
-      name: 'get_assistant_memory',
-      parameters: {
-        type: 'object',
-        properties: {}
-      },
-      description:
-        'Retrieve current memory about yourself (the assistant). Check your name, behavior style, and how you should address the user.'
-    }
-  },
-  getAssistantMemory,
-  'direct'
-)
-
-registerTool(
-  {
-    type: 'function',
-    function: {
-      name: 'clear_assistant_memory',
-      parameters: {
-        type: 'object',
-        properties: {}
-      },
-      description:
-        'Clear all memory about yourself (the assistant). Use only if user explicitly asks to reset your persona.'
-    }
-  },
-  clearAssistantMemory,
-  'direct'
-)
-
-// User memory tools
-registerTool<object>(
-  {
-    type: 'function',
-    function: {
-      name: 'update_user_memory',
-      parse: JSON.parse,
-      parameters: {
-        type: 'object',
-        properties: {
-          memory: {
-            type: 'string',
-            description:
-              'Complete updated memory about the user: their preferences, context, personal info, interests, etc.'
-          }
-        },
-        required: ['memory']
-      },
-      description:
-        'Update information about the user. Use this when user shares personal information, preferences, or context about themselves.'
-    }
-  },
-  updateUserMemory,
-  'direct'
-)
-
-registerTool(
-  {
-    type: 'function',
-    function: {
-      name: 'get_user_memory',
-      parameters: {
-        type: 'object',
-        properties: {}
-      },
-      description: 'Retrieve current memory about the user. Check what information is stored about them.'
-    }
-  },
-  getUserMemory,
+  loadThreadHistory,
   'any'
 )
 
-registerTool(
-  {
-    type: 'function',
-    function: {
-      name: 'clear_user_memory',
-      parameters: {
-        type: 'object',
-        properties: {}
-      },
-      description: 'Clear all memory about the user. Use only if user explicitly asks to forget everything about them.'
-    }
-  },
-  clearUserMemory,
-  'direct'
-)
+// Strip wrappers a small model tends to echo around the document: our old <<<DOCUMENT markers
+// and a leading/trailing ```markdown code fence. Defensive — the prompt already asks for none.
+function sanitizeDocumentMarkdown (raw: string): string {
+  let s = raw.trim()
+  s = s
+    .replace(/^<<<DOCUMENT\s*/i, '')
+    .replace(/\s*DOCUMENT>>>$/i, '')
+    .trim()
+  const fence = /^```[a-zA-Z]*\n([\s\S]*?)\n```$/.exec(s)
+  if (fence !== null) s = fence[1].trim()
+  return s
+}
 
-// Shared context tools
+const rewriteDocument: ToolFunc = async (workspaceClient, _user, args, reqCtx) => {
+  if (reqCtx === undefined) return 'No conversation context available.'
+  if (typeof args?.markdown !== 'string' || args.markdown.trim() === '') {
+    return 'No content provided; pass the full new document as markdown.'
+  }
+  const target = await workspaceClient.resolveEditTarget(reqCtx.objectId, reqCtx.objectClass)
+  if (target === undefined) {
+    return 'This conversation is not linked to an editable document, so no edit can be proposed.'
+  }
+  const posted = await workspaceClient.postEditProposal(reqCtx, target, sanitizeDocumentMarkdown(args.markdown))
+  if (!posted) {
+    return 'The new content is identical to the current document — nothing to change. Do NOT call this tool again unless the user asks for a different change.'
+  }
+  return 'Proposed the edit to the user. They will review a diff and apply it themselves; do not repeat the content or call this tool again.'
+}
+
 registerTool<object>(
   {
     type: 'function',
     function: {
-      name: 'update_shared_context',
+      name: 'rewrite_document',
       parse: JSON.parse,
       parameters: {
         type: 'object',
         properties: {
-          context: {
+          markdown: {
             type: 'string',
             description:
-              'Complete updated shared context: language preference, timezone, general non-personal settings, etc.'
+              'The COMPLETE new document body as markdown. Take the CURRENT DOCUMENT shown in the system ' +
+              'context, apply the requested change, and pass the whole result. NOT a diff, NOT a fragment. ' +
+              "Never include the user's request text or chat comments in it."
           }
         },
-        required: ['context']
+        required: ['markdown']
       },
       description:
-        'Update shared context that can be used in both direct and group chats. Use for preferences that apply to group chats (like how to address user in public), language, timezone, or public settings.'
+        'Propose a rewrite of the linked document/issue. Pass the ENTIRE new document body as markdown, ' +
+        'built from the CURRENT DOCUMENT in the system context with only the requested change applied. ' +
+        'Use ONLY when the user asks to change/edit/rewrite the document. The proposal is shown to the user ' +
+        'with an Apply button — they apply it, not you. Do not echo the content in your reply.'
     }
   },
-  updateSharedContext,
-  'direct'
-)
-
-registerTool(
-  {
-    type: 'function',
-    function: {
-      name: 'get_shared_context',
-      parameters: {
-        type: 'object',
-        properties: {}
-      },
-      description: 'Retrieve current shared context. Check language preference, timezone, or other general settings.'
-    }
-  },
-  getSharedContext,
-  'any'
-)
-
-registerTool(
-  {
-    type: 'function',
-    function: {
-      name: 'clear_history',
-      parameters: {
-        type: 'object',
-        properties: {}
-      },
-      description:
-        'Clear conversation history. Use when user asks to clear/forget the conversation history or start fresh. This removes all previous messages but keeps assistant and user memory.'
-    }
-  },
-  clearHistory,
-  'direct'
-)
-
-registerTool(
-  {
-    type: 'function',
-    function: {
-      name: 'get_history_summary',
-      parameters: {
-        type: 'object',
-        properties: {}
-      },
-      description:
-        'Get a summary of the conversation history. Use this instead of relying on full message history when you need context about previous discussions but want to save tokens. Returns a concise summary of past conversations.'
-    }
-  },
-  getHistorySummary,
-  'direct'
+  rewriteDocument,
+  'thread'
 )
 
 export function getTools (
   workspaceClient: WorkspaceClient,
   contextMode: 'direct' | 'thread',
-  user: AccountUuid | undefined
+  user: AccountUuid | undefined,
+  reqCtx?: ReqCtx
 ): RunnableTools<BaseFunctionsArgs> {
   const result: (RunnableToolFunctionWithoutParse | RunnableToolFunctionWithParse<any>)[] = []
   for (const tool of tools) {
@@ -549,7 +362,7 @@ export function getTools (
         ...tool[0],
         function: {
           ...tool[0].function,
-          function: (args: any) => tool[1](workspaceClient, user, args)
+          function: (args: any) => tool[1](workspaceClient, user, args, reqCtx)
         }
       }
       result.push(res)

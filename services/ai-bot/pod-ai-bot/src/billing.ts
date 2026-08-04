@@ -19,16 +19,27 @@ import {
   getClient as getBillingClient,
   type BillingClient,
   AiTranscriptData,
-  AiTokensData
+  AiTokensData,
+  type AiModelRegistryEntry,
+  type ProviderPool
 } from '@hcengineering/billing-client'
+import { getClient as getAccountClient } from '@hcengineering/account-client'
 import { withRetry } from '@hcengineering/retry'
 import { v4 as uuid } from 'uuid'
 
-import config from './config'
+import config, { type AIProviderConfig } from './config'
+import { type WindowUsage } from './workspace/windowLimit'
+import { resolveAsrModel } from './transcription/asrRegistry'
+
+/** Mirrors BillingMessageKind in pod-billing. Missing kind = Usage (back-compat). */
+export enum BillingMessageKind {
+  Usage = 'usage',
+  AiRegistry = 'ai-registry'
+}
 
 /** Mirrors BillingUsageMessage in pod-billing (single billing-usage topic, discriminated by `kind`). */
 export interface BillingUsageMessage {
-  kind: 'usage'
+  kind?: BillingMessageKind.Usage
   workspace: WorkspaceUuid
   metric: 'tokens' | 'transcript'
   amount: number
@@ -36,11 +47,26 @@ export interface BillingUsageMessage {
   ref: string
 }
 
-// Set from queue.ts after queue init; undefined = no-op.
-let usageProducer: PlatformQueueProducer<BillingUsageMessage> | undefined
+/** Mirrors AiModelRegistryMessage in pod-billing: replace-all model catalog. */
+export interface AiModelRegistryMessage {
+  kind: BillingMessageKind.AiRegistry
+  entries: AiModelRegistryEntry[]
+}
 
-export function setUsageProducer (producer: PlatformQueueProducer<BillingUsageMessage>): void {
+export type BillingQueueMessage = BillingUsageMessage | AiModelRegistryMessage
+
+// Set from queue.ts after queue init; undefined = no-op.
+let usageProducer: PlatformQueueProducer<BillingQueueMessage> | undefined
+
+export function setUsageProducer (producer: PlatformQueueProducer<BillingQueueMessage>): void {
   usageProducer = producer
+}
+
+// Set from queue.ts so pushTokensData can feed the local pool counter for immediate enforcement.
+let poolLimitsRef: PoolLimits | undefined
+
+export function setPoolLimitsRef (pools: PoolLimits): void {
+  poolLimitsRef = pools
 }
 
 interface DeepgramRequest {
@@ -237,7 +263,7 @@ export async function pushTranscriptDuration (
     await usageProducer.send(ctx, workspace, [
       // ref must be deterministic for retry idempotency (billing dedups by it)
       {
-        kind: 'usage',
+        kind: BillingMessageKind.Usage,
         workspace,
         metric: 'transcript',
         amount: durationSec,
@@ -249,16 +275,390 @@ export async function pushTranscriptDuration (
   }
 }
 
+/**
+ * Admin-stats-only per-model ASR detail (no pool enforcement). Resolves (provider,
+ * model, level) from the ASR registry via the configured default level and posts to
+ * billing's REST breakdown store. Does not touch the workspace usage limit (that's
+ * pushTranscriptDuration, unchanged).
+ */
+export async function pushTranscriptUsageRecord (
+  ctx: MeasureContext,
+  workspace: WorkspaceUuid,
+  durationSec: number,
+  clientId?: string,
+  asrLevel?: string
+): Promise<void> {
+  if (config.BillingUrl === '' || durationSec <= 0) return
+
+  let providerId = ''
+  let model = ''
+  let level = asrLevel ?? config.AsrDefaultLevel
+  if (config.AsrProviders.length > 0) {
+    try {
+      // Logical registry values: provider.id (e.g. 'clisr' route or 'openai-whisper') + level.
+      // clientId (which clisr worker served) is passed in separately, empty for direct providers.
+      // The client's internal model is not recorded here.
+      const resolved = resolveAsrModel(level, config.AsrProviders)
+      providerId = resolved.provider.id
+      model = resolved.model.model
+      level = resolved.level
+    } catch (e) {
+      ctx.error('Failed to resolve ASR model for transcript usage stats', { e })
+    }
+  }
+
+  try {
+    const token = generateToken(systemAccountUuid, undefined, { service: 'ai-bot' })
+    const billingClient = getBillingClient(config.BillingUrl, token)
+    await billingClient.postTranscriptUsage([
+      { workspace, durationSeconds: durationSec, date: new Date().toISOString(), providerId, model, level, clientId }
+    ])
+  } catch (e) {
+    ctx.error('Failed to post per-model transcript usage to billing REST', { e })
+  }
+}
+
+/**
+ * Build a billing record applying the model's billing multiplier.
+ * billedTokens = (prompt+completion) * tokenMultiplier (rounded up). The model id
+ * is appended to `reason` so usage can be attributed per model in billing.
+ */
+export function tokensRecord (
+  workspace: WorkspaceUuid,
+  promptTokens: number,
+  completionTokens: number,
+  multiplier: number,
+  reason: string,
+  modelId?: string,
+  date: string = new Date().toISOString(),
+  providerId?: string,
+  level?: string,
+  clientId?: string
+): AiTokensData {
+  const billed = Math.ceil((promptTokens + completionTokens) * multiplier)
+  return {
+    workspace,
+    reason: modelId !== undefined ? `${reason}:${modelId}` : reason,
+    tokens: billed,
+    rawTokens: promptTokens + completionTokens,
+    date,
+    providerId,
+    model: modelId,
+    level,
+    clientId
+  }
+}
+
+/**
+ * Push a single billing record if total tokens > 0.
+ * usage undefined = no-op (API returned no usage).
+ */
+export function billUsage (
+  ctx: MeasureContext,
+  workspace: WorkspaceUuid,
+  usage: { promptTokens: number, completionTokens: number } | undefined,
+  meta: { multiplier: number, modelId: string, providerId: string, level: string },
+  reason: string,
+  date?: string,
+  clientId?: string
+): void {
+  if (usage === undefined) return
+  const total = Math.ceil((usage.promptTokens + usage.completionTokens) * meta.multiplier)
+  if (total <= 0) return
+  void pushTokensData(ctx, [
+    tokensRecord(
+      workspace,
+      usage.promptTokens,
+      usage.completionTokens,
+      meta.multiplier,
+      reason,
+      meta.modelId,
+      date,
+      meta.providerId,
+      meta.level,
+      clientId
+    )
+  ])
+}
+
+const WINDOW_CACHE_TTL_MS = 30 * 1000
+const windowCache = new Map<WorkspaceUuid, { at: number, value: WindowUsage }>()
+
+/** Drop a workspace's cached window (billing published a limits change). */
+export function invalidateWorkspaceWindows (workspace: WorkspaceUuid): void {
+  windowCache.delete(workspace)
+}
+
+// SKUs whose effect aibot owns. account/payment are domain-agnostic; aibot decides what a purchase does.
+const AI_TOKEN_RESET_SKU = 'ai-token-reset'
+
+// Apply a confirmed one-time purchase (from a PurchaseActivated event). Only handles aibot-owned SKUs;
+// others are ignored (another pod owns them). Idempotent: billing.resetAiWindow dedups by purchaseId,
+// so a redelivered event resets the window only once. Marks the purchase consumed in account after.
+export async function applyPurchase (
+  ctx: MeasureContext,
+  workspace: WorkspaceUuid,
+  sku: string,
+  purchaseId: string
+): Promise<void> {
+  if (sku !== AI_TOKEN_RESET_SKU) return
+  const token = generateToken(systemAccountUuid, workspace, { service: 'ai-bot', admin: 'true' })
+  const billingClient = getBillingClient(config.BillingUrl, token)
+  const { applied } = await billingClient.resetAiWindow(workspace, purchaseId)
+  invalidateWorkspaceWindows(workspace)
+  if (applied) {
+    // The window is already reset; retry the status mark so a transient account outage doesn't
+    // leave the purchase stuck 'active'. resetAiWindow is idempotent, so re-delivery is also safe.
+    const account = getAccountClient(config.AccountsURL, token)
+    await withRetry(() => account.updatePurchaseStatus(purchaseId, 'consumed', Date.now()))
+  }
+}
+
+// Fetch the per-workspace monthly billed-token window from billing, cached for 30s. A workspace
+// is always handled by one consumer (AIQueue is partitioned by workspace), so a pod-local cache
+// has no competing writer; `used` already lags via the usage queue, so the TTL adds no new
+// staleness class. On outage the last known value is reused; with none, the window is reported
+// unavailable and the caller refuses to serve (never unmetered).
+export async function getWorkspaceWindows (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<WindowUsage> {
+  // Billing not configured (dev/self-hosted): unmetered by design, not an outage.
+  if (config.BillingUrl === '') {
+    return { month: { used: 0, limit: 0 }, plan: 'unknown', isFree: false, hasPackages: false }
+  }
+  const cached = windowCache.get(workspace)
+  if (cached !== undefined && Date.now() - cached.at < WINDOW_CACHE_TTL_MS) {
+    return cached.value
+  }
+  try {
+    const token = generateToken(systemAccountUuid, workspace, { service: 'ai-bot', admin: 'true' })
+    const billingClient = getBillingClient(config.BillingUrl, token)
+    const w = await billingClient.getWorkspaceTokenWindows(workspace)
+    const value: WindowUsage = {
+      month: { used: w.month.used, limit: w.month.limit },
+      plan: w.plan,
+      isFree: w.isFree ?? false,
+      hasPackages: w.hasPackages
+    }
+    windowCache.set(workspace, { at: Date.now(), value })
+    return value
+  } catch (e) {
+    ctx.error('Failed to fetch token windows', { workspace, e })
+    // Stale-if-error: keep serving on the last known window rather than cutting AI off on a blip.
+    if (cached !== undefined) return cached.value
+    return { month: { used: 0, limit: 0 }, plan: 'unknown', isFree: false, hasPackages: false, unavailable: true }
+  }
+}
+
 export async function pushTokensData (ctx: MeasureContext, data: AiTokensData[], ref?: string): Promise<void> {
+  // Local pool counter for immediate global-budget enforcement (fetch corrects the absolute later).
+  // The global provider budget is measured in REAL tokens spent at the provider (rawTokens), not the
+  // billing-multiplied count — the multiplier only scales the user's own monthly limit.
+  if (poolLimitsRef !== undefined) {
+    for (const d of data) {
+      if (d.providerId !== undefined && d.model !== undefined) {
+        poolLimitsRef.addUsage(d.providerId, d.model, d.rawTokens ?? d.tokens)
+      }
+    }
+  }
   if (usageProducer === undefined) return
   try {
     const total = data.reduce((sum, d) => sum + d.tokens, 0)
     const workspace = data[0]?.workspace
     if (workspace === undefined || total === 0) return
     await usageProducer.send(ctx, workspace, [
-      { kind: 'usage', workspace, metric: 'tokens', amount: total, ref: ref ?? uuid() }
+      { kind: BillingMessageKind.Usage, workspace, metric: 'tokens', amount: total, ref: ref ?? uuid() }
     ])
   } catch (e) {
     ctx.error('Failed to push tokens data to billing-usage', { e })
+  }
+  // Also POST per-model detail (with raw + billed) to billing for admin reporting.
+  if (config.BillingUrl !== '') {
+    try {
+      const token = generateToken(systemAccountUuid, undefined, { service: 'ai-bot' })
+      const billingClient = getBillingClient(config.BillingUrl, token)
+      await billingClient.postAiTokensData(data)
+    } catch (e) {
+      ctx.error('Failed to post per-model tokens data to billing REST', { e })
+    }
+  }
+}
+
+function adminBillingClient (): BillingClient {
+  const token = generateToken(systemAccountUuid, undefined, { service: 'ai-bot', admin: 'true' })
+  return getBillingClient(config.BillingUrl, token)
+}
+
+function buildRegistryEntries (providers: AIProviderConfig[]): AiModelRegistryEntry[] {
+  const entries: AiModelRegistryEntry[] = []
+  for (const provider of providers) {
+    for (const [level, model] of Object.entries(provider.levels)) {
+      if (model === undefined) continue
+      entries.push({ providerId: provider.id, model: model.model, level, label: model.label })
+    }
+  }
+  return entries
+}
+
+// Publish this pod's (provider, model, level) catalog so the admin UI can set
+// per-model pool limits before any spend exists. Sent on the billing-usage queue
+// (kind 'ai-registry') so it survives a not-yet-ready billing pod. Best-effort.
+export async function pushModelRegistry (ctx: MeasureContext, providers: AIProviderConfig[]): Promise<void> {
+  if (usageProducer === undefined) return
+  const entries = buildRegistryEntries(providers)
+  if (entries.length === 0) return
+  try {
+    // Fixed partition key: registry is global, not per-workspace.
+    await usageProducer.send(ctx, 'ai-registry' as WorkspaceUuid, [{ kind: BillingMessageKind.AiRegistry, entries }])
+    ctx.info('Published AI model registry to billing queue', { count: entries.length })
+  } catch (e) {
+    ctx.error('Failed to publish AI model registry to billing queue', { e })
+  }
+}
+
+// Self-heal the registry: the initial push can race a not-yet-joined billing consumer
+// (Kafka `latest` drops it). On each pool poll, compare billing's stored registry with
+// ours and republish if any of our (provider, model) pairs are missing.
+async function syncModelRegistry (ctx: MeasureContext, providers: AIProviderConfig[]): Promise<void> {
+  const local = buildRegistryEntries(providers)
+  if (local.length === 0) return
+  try {
+    const remote = await adminBillingClient().listAiModelRegistry()
+    const have = new Set(remote.map((e) => `${e.providerId} ${e.model}`))
+    const missing = local.some((e) => !have.has(`${e.providerId} ${e.model}`))
+    if (missing) {
+      ctx.info('AI model registry out of sync with billing; republishing', {
+        local: local.length,
+        remote: remote.length
+      })
+      await pushModelRegistry(ctx, providers)
+    }
+  } catch (e) {
+    // billing unreachable: pool poll already logs this, registry sync is best-effort.
+  }
+}
+
+/**
+ * Global per-(provider, model) pool guard. Fetches purchased pools from billing on
+ * startup and periodically; refetches sooner when any pool runs low. Enforcement is
+ * fail-open: an unreachable billing service never blocks LLM usage.
+ */
+export class PoolLimits {
+  // "providerId model" -> purchased budget (0/absent = untracked, no pool).
+  private purchased = new Map<string, number>()
+  // Locally-accumulated spend since the last fetch: immediate self-blocking without
+  // waiting for billing's recompute. Fetch overwrites with billing's absolute.
+  private used = new Map<string, number>()
+  // Pools billing flagged exhausted (from fetch or the Kafka pool-exhausted event).
+  private exhausted = new Set<string>()
+  private timer: any | undefined
+  private closed = false
+  // Provider registry, for the registry self-heal on each poll (set in start()).
+  private providers: AIProviderConfig[] = []
+  // Fraction of the pool still free below which we poll more aggressively.
+  private static readonly LOW_REMAINING = 0.1
+
+  private key (providerId: string, model: string): string {
+    return `${providerId} ${model}`
+  }
+
+  // True when the model's own pool OR its whole-provider pool is exhausted.
+  isBlocked (providerId: string, model: string): boolean {
+    return this.blockedKey(this.key(providerId, model)) || this.blockedKey(this.key(providerId, ''))
+  }
+
+  private blockedKey (key: string): boolean {
+    if (this.exhausted.has(key)) return true
+    const cap = this.purchased.get(key)
+    return cap !== undefined && cap > 0 && (this.used.get(key) ?? 0) >= cap
+  }
+
+  // Resolve (providerId, level) -> model via the registry, then check the pool.
+  isBlockedByLevel (providers: AIProviderConfig[], providerId: string, level: string): boolean {
+    const model = providers.find((p) => p.id === providerId)?.levels[level]?.model ?? ''
+    return this.isBlocked(providerId, model)
+  }
+
+  // Count freshly-spent billed tokens against the local budget between fetches.
+  addUsage (providerId: string, model: string, billedTokens: number): void {
+    if (billedTokens <= 0) return
+    const key = this.key(providerId, model)
+    this.used.set(key, (this.used.get(key) ?? 0) + billedTokens)
+  }
+
+  // Billing tells us a pool crossed 100% (Kafka) — block immediately.
+  markExhausted (providerId: string, model: string): void {
+    this.exhausted.add(this.key(providerId, model))
+  }
+
+  async refresh (ctx: MeasureContext): Promise<{ lowRemaining: boolean, ok?: boolean }> {
+    if (config.BillingUrl === '') return { lowRemaining: false }
+    let pools: ProviderPool[]
+    try {
+      pools = await adminBillingClient().getAiPools()
+    } catch (e) {
+      ctx.error('Failed to fetch AI pools; leaving enforcement fail-open', { e })
+      return { lowRemaining: false, ok: false }
+    }
+    const nextExhausted = new Set<string>()
+    const nextPurchased = new Map<string, number>()
+    const nextUsed = new Map<string, number>()
+    let lowRemaining = false
+    for (const pool of pools) {
+      if (pool.kind === 'local' || pool.purchasedTokens <= 0) continue
+      const key = this.key(pool.providerId, pool.model)
+      nextPurchased.set(key, pool.purchasedTokens)
+      // Billing's absolute wins over the local estimate (corrects drift/dedup).
+      nextUsed.set(key, pool.usedTokens)
+      if (pool.exhausted || pool.usedTokens >= pool.purchasedTokens) {
+        nextExhausted.add(key)
+      } else if ((pool.purchasedTokens - pool.usedTokens) / pool.purchasedTokens < PoolLimits.LOW_REMAINING) {
+        lowRemaining = true
+      }
+    }
+    this.exhausted = nextExhausted
+    this.purchased = nextPurchased
+    this.used = nextUsed
+    if (nextExhausted.size > 0) {
+      ctx.info('AI pools exhausted (enforcement active)', { keys: [...nextExhausted] })
+    }
+    // billing reachable now: make sure it has our model registry (initial push may have
+    // raced its consumer join).
+    await syncModelRegistry(ctx, this.providers)
+    return { lowRemaining }
+  }
+
+  // Poll on startup, then on an interval that tightens when any pool is running low.
+  start (ctx: MeasureContext, providers: AIProviderConfig[], baseIntervalMs: number, lowIntervalMs: number): void {
+    this.providers = providers
+    const tick = async (): Promise<void> => {
+      if (this.closed) return
+      const { lowRemaining, ok } = await this.refresh(ctx)
+      if (this.closed) return
+      // Retry quickly while billing is unreachable (e.g. still booting) so the pool
+      // state isn't stuck empty (fail-open) for a whole base interval.
+      const next = ok === false ? lowIntervalMs : lowRemaining ? lowIntervalMs : baseIntervalMs
+      this.timer = setTimeout(() => {
+        void tick()
+      }, next)
+    }
+    // Block until the first successful fetch so enforcement isn't fail-open on boot;
+    // then hand off to the periodic tick.
+    void (async () => {
+      const retryMs = 3000
+      while (!this.closed) {
+        const { ok } = await this.refresh(ctx)
+        if (ok !== false) break
+        await new Promise((resolve) => setTimeout(resolve, retryMs))
+      }
+      if (!this.closed) {
+        this.timer = setTimeout(() => {
+          void tick()
+        }, baseIntervalMs)
+      }
+    })()
+  }
+
+  close (): void {
+    this.closed = true
+    if (this.timer !== undefined) clearTimeout(this.timer)
   }
 }

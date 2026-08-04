@@ -23,46 +23,70 @@ import OpenAI from 'openai'
 import type { MeasureContext, WorkspaceUuid } from '@hcengineering/core'
 import type { PersonMessage } from '@hcengineering/ai-bot'
 import contact from '@hcengineering/contact'
-import type { HistoryRecord } from '../types'
-import config from '../config'
+import config, { type AILevel, type AIProviderConfig } from '../config'
+import { providerLevels, billingMetaFor } from './modelRegistry'
 import { countTokens } from '@hcengineering/openai'
-import { pushTokensData } from '../billing'
+import { pushTokensData, tokensRecord, billUsage } from '../billing'
+import { withRetry, retryNetworkErrors } from '@hcengineering/retry'
 import type {
   LLMProvider,
   ChatMessage,
-  ChatCompletionResult,
   ChatCompletionWithToolsResult,
-  RequestSummaryResult
+  ContextMode,
+  ToolDefinition,
+  ToolResult,
+  ChatToolStepResult,
+  PlanContext
 } from './types'
+import { totalTokens, usageFromApi } from './types'
 import type { RunnableTools, BaseFunctionsArgs } from 'openai/lib/RunnableFunction'
-import { PROMPTS } from './prompts'
-import { CompletionUsage } from 'openai/resources/completions'
+import { PROMPTS, buildSystemPrompt } from './prompts'
+import { buildPersonNameMap, buildMessageText, replacePersonRefs } from './summarizeUtils'
+import { parseInlineToolCalls } from './inlineToolCalls'
 
 export default class OpenAIProvider implements LLMProvider {
   private readonly client: OpenAI
   private readonly encoding: Tiktoken
+  private readonly provider: AIProviderConfig
+  private readonly defaultLevel: AILevel
 
-  constructor (readonly ctx: MeasureContext) {
+  constructor (
+    readonly ctx: MeasureContext,
+    provider: AIProviderConfig
+  ) {
+    this.provider = provider
+    // strongest served level is the default for service ops (translate/summary),
+    // resolved by `order` so custom level ids work (not a hardcoded list)
+    const served = providerLevels(provider)
+    this.defaultLevel = served[served.length - 1] ?? 'low'
+
     this.client = new OpenAI({
-      apiKey: config.OpenAIKey,
-      baseURL: config.OpenAIBaseUrl === '' ? undefined : config.OpenAIBaseUrl
+      apiKey: (provider.endpointConfig?.apiKey as string) ?? config.OpenAIKey,
+      baseURL: provider.endpoint ?? (config.OpenAIBaseUrl === '' ? undefined : config.OpenAIBaseUrl)
     })
 
-    // Try to obtain encoding for configured model; fallback to universal encoding.
+    // Try to obtain encoding for the default model; fallback to universal encoding.
     this.encoding = (() => {
       try {
-        return encodingForModel(config.OpenAIModel as any)
+        return encodingForModel(this.modelFor(this.defaultLevel) as any)
       } catch {
         return getEncoding('cl100k_base')
       }
     })()
   }
 
-  toTokens (usage?: CompletionUsage): number {
-    if (usage === undefined) {
-      return 0
-    }
-    return usage.total_tokens ?? (usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0)
+  /** Resolve the concrete model name for a level, falling back to the default level. */
+  private modelFor (level?: AILevel): string {
+    const lvl = level ?? this.defaultLevel
+    return this.provider.levels[lvl]?.model ?? this.provider.levels[this.defaultLevel]?.model ?? config.OpenAIModel
+  }
+
+  /** Billing multiplier + model id for a level (used to bill tokens). */
+  private billingFor (
+    level?: AILevel,
+    planContext?: PlanContext
+  ): { multiplier: number, modelId: string, providerId: string, level: string } {
+    return billingMetaFor(this.provider, level, this.defaultLevel, () => this.modelFor(level), planContext)
   }
 
   async translateHtml (
@@ -72,7 +96,7 @@ export default class OpenAIProvider implements LLMProvider {
     lang: string
   ): Promise<string | undefined> {
     const response = await this.client.chat.completions.create({
-      model: config.OpenAISummaryModel,
+      model: this.modelFor(),
       messages: [
         {
           role: 'system',
@@ -87,17 +111,24 @@ export default class OpenAIProvider implements LLMProvider {
 
     const responseText = response.choices?.[0]?.message?.content ?? undefined
 
-    const usage = this.toTokens(response.usage)
-    if (usage !== 0) {
+    const usage = usageFromApi(response.usage)
+    const total = totalTokens(usage)
+    if (total !== 0 && usage !== undefined) {
+      const { multiplier, modelId, providerId, level } = this.billingFor()
       void pushTokensData(
         ctx,
         [
-          {
+          tokensRecord(
             workspace,
-            reason: 'manual-translate',
-            tokens: usage,
-            date: new Date((response.created ?? Date.now() / 1000) * 1000).toISOString()
-          }
+            usage.promptTokens,
+            usage.completionTokens,
+            multiplier,
+            'manual-translate',
+            modelId,
+            new Date((response.created ?? Date.now() / 1000) * 1000).toISOString(),
+            providerId,
+            level
+          )
         ],
         response.id
       )
@@ -113,28 +144,11 @@ export default class OpenAIProvider implements LLMProvider {
     lang: string,
     description?: string
   ): Promise<string | undefined> {
-    // Build person name map
-    const personToName = new Map<string, string>()
-    for (const m of messages) {
-      if (!personToName.has(m.personRef)) {
-        personToName.set(m.personRef, m.personName)
-      }
-    }
-
-    // Disambiguate identical names
-    const nameUsage = new Map<string, number>()
-    for (const [personRef, name] of personToName) {
-      const idx = nameUsage.get(name) ?? 0
-      if (idx > 0) {
-        personToName.set(personRef, name + ` no.${idx}`)
-      }
-      nameUsage.set(name, idx + 1)
-    }
-
-    const text = messages.map((p) => `---\n\n@${p.personName}\n${p.text}`).join('\n\n')
+    const personToName = buildPersonNameMap(messages)
+    const text = buildMessageText(messages)
 
     const response = await this.client.chat.completions.create({
-      model: config.OpenAIModel,
+      model: this.modelFor(),
       messages: [
         {
           role: 'system',
@@ -147,17 +161,24 @@ export default class OpenAIProvider implements LLMProvider {
       ]
     })
 
-    const usage = this.toTokens(response.usage)
-    if (usage !== 0) {
+    const usage = usageFromApi(response.usage)
+    const total = totalTokens(usage)
+    if (total !== 0 && usage !== undefined) {
+      const { multiplier, modelId, providerId, level } = this.billingFor()
       void pushTokensData(
         ctx,
         [
-          {
+          tokensRecord(
             workspace,
-            reason: 'summarize',
-            tokens: usage,
-            date: new Date((response.created ?? Date.now() / 1000) * 1000).toISOString()
-          }
+            usage.promptTokens,
+            usage.completionTokens,
+            multiplier,
+            'summarize',
+            modelId,
+            new Date((response.created ?? Date.now() / 1000) * 1000).toISOString(),
+            providerId,
+            level
+          )
         ],
         response.id
       )
@@ -166,93 +187,26 @@ export default class OpenAIProvider implements LLMProvider {
     let responseText = response.choices?.[0]?.message?.content ?? undefined
     if (responseText === undefined) return undefined
 
-    // Replace bolded participant names with internal ref syntax
-    const classURI = encodeURIComponent(contact.class.Contact)
-    for (const [personRef, name] of personToName) {
-      const idURI = encodeURIComponent(personRef)
-      const nameURI = encodeURIComponent(name)
-      const refString = `[](ref://?_class=${classURI}&_id=${idURI}&label=${nameURI})`
-      responseText = responseText.replaceAll(`**@${name}**`, refString)
-    }
+    responseText = replacePersonRefs(responseText, personToName, encodeURIComponent(contact.class.Contact))
 
     return responseText
-  }
-
-  async createChatCompletion (
-    ctx: MeasureContext,
-    workspace: WorkspaceUuid,
-    message: ChatMessage,
-    user?: string,
-    history: ChatMessage[] = [],
-    skipCache = true,
-    reason = 'chat'
-  ): Promise<ChatCompletionResult | undefined> {
-    const opt: OpenAI.RequestOptions = {}
-    if (skipCache) {
-      opt.headers = { 'cf-skip-cache': 'true' }
-    }
-    try {
-      const systemContent = history
-        .filter((it) => it.role === 'system')
-        .map((it) => it.content)
-        .join('\n')
-      const response = await this.client.chat.completions.create(
-        {
-          messages: [
-            {
-              role: 'system',
-              content: systemContent
-            },
-            ...history.filter((it) => it.role !== 'system'),
-            message as any
-          ],
-          model: config.OpenAIModel,
-          user,
-          stream: false
-        },
-        opt
-      )
-
-      const text = response.choices?.[0]?.message?.content ?? undefined
-      const created = response.created
-
-      const usage = this.toTokens(response.usage)
-      if (usage !== 0) {
-        void pushTokensData(
-          ctx,
-          [
-            {
-              workspace,
-              reason,
-              tokens: usage,
-              date: new Date((response.created ?? Date.now() / 1000) * 1000).toISOString()
-            }
-          ],
-          response.id
-        )
-      }
-
-      return { text, usage, created }
-    } catch (e) {
-      console.error(e)
-    }
-
-    return undefined
   }
 
   async createChatCompletionWithTools (
     tools: RunnableTools<BaseFunctionsArgs>,
     message: ChatMessage,
     contextMode: 'direct' | 'thread',
-    assistantMemory: string,
-    userMemory: string,
-    sharedContext: string,
+    sharedPrompt: string,
+    personalContext: string,
     user: string,
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
     history: ChatMessage[] = [],
     skipCache = true,
-    reason = 'chat'
+    reason = 'chat',
+    level?: AILevel,
+    planContext?: PlanContext,
+    lang?: string
   ): Promise<ChatCompletionWithToolsResult | undefined> {
     const opt: OpenAI.RequestOptions = {}
     const date = new Date()
@@ -266,9 +220,7 @@ export default class OpenAIProvider implements LLMProvider {
       // Join all other system prompts in history
       const systemMessages = history.filter((it) => it.role === 'system')
 
-      const systemPrompt = isDirectMode
-        ? PROMPTS.DIRECT_CHAT_WITH_TOOLS({ assistantMemory, userMemory, sharedContext })
-        : PROMPTS.THREAD_CHAT_WITH_TOOLS({ sharedContext }) + '\n\n' + systemMessages.map((it) => it.content).join('\n')
+      const systemPrompt = buildSystemPrompt(isDirectMode, sharedPrompt, personalContext, systemMessages, lang)
 
       const res = this.client.beta.chat.completions.runTools(
         {
@@ -280,7 +232,7 @@ export default class OpenAIProvider implements LLMProvider {
             ...(history as any[]),
             message as any
           ],
-          model: config.OpenAIModel,
+          model: this.modelFor(level),
           user,
           tools
         },
@@ -288,28 +240,22 @@ export default class OpenAIProvider implements LLMProvider {
       )
 
       let str = await res.finalContent()
-      const usage = await res.totalUsage()
+      const usage = usageFromApi(await res.totalUsage())
 
       const pos = (str ?? '').indexOf('</think>')
       if (pos > 0) {
         str = (str ?? '').substring(pos + 8)
       }
 
-      const tu = this.toTokens(usage)
-      if (tu !== 0) {
-        void pushTokensData(ctx, [
-          {
-            workspace,
-            reason,
-            tokens: tu,
-            date: date.toISOString()
-          }
-        ])
-      }
+      // Strip leaked harmony function-call markup (servers without a tool-call parser)
+      // so the user never sees raw <|function_call|>{...} text in the reply.
+      str = parseInlineToolCalls(str ?? '').content
+
+      billUsage(ctx, workspace, usage, this.billingFor(level, planContext), reason, date.toISOString())
 
       return {
         completion: str ?? undefined,
-        usage: usage?.completion_tokens
+        usage
       }
     } catch (e) {
       console.error(e)
@@ -318,44 +264,132 @@ export default class OpenAIProvider implements LLMProvider {
     return undefined
   }
 
-  async requestSummary (
+  async chatToolStep (
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
-    personMemory: string,
-    history: HistoryRecord[]
-  ): Promise<RequestSummaryResult> {
-    const summaryPrompt: { content: string, role: 'user' } = {
-      content: PROMPTS.SUMMARY_USER_PROMPT(history),
-      role: 'user'
+    message: ChatMessage,
+    contextMode: ContextMode,
+    sharedPrompt: string,
+    personalContext: string,
+    user: string,
+    toolDefinitions: ToolDefinition[],
+    priorToolResults: ToolResult[],
+    history: ChatMessage[] = [],
+    skipCache = true,
+    reason = 'chat',
+    level?: AILevel,
+    planContext?: PlanContext,
+    lang?: string
+  ): Promise<ChatToolStepResult | undefined> {
+    const opt: OpenAI.RequestOptions = {}
+    if (skipCache) {
+      opt.headers = { 'cf-skip-cache': 'true' }
     }
 
-    const response = await this.createChatCompletion(ctx, workspace, summaryPrompt as any, undefined, [
-      {
-        role: 'system',
-        content: PROMPTS.SUMMARY_SYSTEM_PROMPT
-      }
-    ])
+    try {
+      const isDirectMode = contextMode === 'direct'
+      const systemMessages = history.filter((it) => it.role === 'system')
+      const systemPrompt = buildSystemPrompt(isDirectMode, sharedPrompt, personalContext, systemMessages, lang)
 
-    const summary = response?.text
-
-    if (summary == null) {
-      return { tokens: 0 }
-    }
-
-    const tokens = response?.usage ?? countTokens([{ content: summary, role: 'assistant' }], this.encoding)
-
-    if (tokens !== 0) {
-      void pushTokensData(ctx, [
-        {
-          workspace,
-          reason: 'manual-translate',
-          tokens,
-          date: new Date((response?.created ?? Date.now() / 1000) * 1000).toISOString()
+      const messages: any[] = [
+        { role: 'system', content: systemPrompt },
+        ...history.filter((it) => it.role !== 'system'),
+        message
+      ]
+      // Replay prior tool results so the model continues where it left off.
+      // A model that emitted the call inline (id `inline_*`, no native tool_calls) cannot read
+      // back the assistant/tool pair either — it sees a null-content turn and an unknown role,
+      // so the context looks unchanged and it re-requests the same tool forever. Feed those
+      // results back as plain text instead; native callers keep the structured transcript.
+      for (const tr of priorToolResults) {
+        if (tr.id.startsWith('inline_')) {
+          messages.push({ role: 'assistant', content: `Вызов инструмента ${tr.name}(${tr.arguments ?? '{}'})` })
+          messages.push({ role: 'user', content: `Результат инструмента ${tr.name}:\n${tr.content}` })
+          continue
         }
-      ])
-    }
+        messages.push({
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: tr.id, type: 'function', function: { name: tr.name, arguments: tr.arguments ?? '{}' } }]
+        })
+        messages.push({ role: 'tool', tool_call_id: tr.id, content: tr.content })
+      }
 
-    return { summary, tokens }
+      const tools =
+        toolDefinitions.length > 0
+          ? toolDefinitions.map((t) => ({
+            type: 'function' as const,
+            function: { name: t.name, description: t.description, parameters: t.parameters }
+          }))
+          : undefined
+
+      if (config.LLMDebug) {
+        ctx.info('LLM debug -> openai chatToolStep', {
+          model: this.modelFor(level),
+          messages,
+          tools: tools?.map((t) => t.function.name)
+        })
+      }
+
+      // Retry transient network failures (local endpoint restart, connection drop) before
+      // giving up; a hard-down endpoint still exhausts retries and rethrows so the pod notifies.
+      const response = await withRetry(
+        async () =>
+          await this.client.chat.completions.create(
+            { messages, model: this.modelFor(level), user, tools, stream: false },
+            opt
+          ),
+        { maxRetries: 3, isRetryable: retryNetworkErrors },
+        'openai.chatToolStep'
+      )
+
+      const choice = response.choices?.[0]?.message
+      const usage = usageFromApi(response.usage)
+
+      if (config.LLMDebug) {
+        ctx.info('LLM debug <- openai chatToolStep', {
+          model: this.modelFor(level),
+          content: choice?.content,
+          toolCalls: choice?.tool_calls,
+          finishReason: response.choices?.[0]?.finish_reason
+        })
+      }
+      billUsage(
+        ctx,
+        workspace,
+        usage,
+        this.billingFor(level, planContext),
+        reason,
+        new Date((response.created ?? Date.now() / 1000) * 1000).toISOString()
+      )
+
+      const rawCalls = choice?.tool_calls ?? []
+      if (rawCalls.length > 0) {
+        return {
+          toolCalls: rawCalls.map((c: any) => ({
+            id: c.id,
+            name: c.function?.name ?? '',
+            arguments: c.function?.arguments ?? ''
+          })),
+          usage
+        }
+      }
+
+      // Some local OpenAI-compatible servers (gpt-oss/GigaChat harmony, no server-side
+      // tool-call parser) emit the function call as TEXT inside content instead of
+      // structured tool_calls. Recover those so the tool loop can execute them.
+      const inline = parseInlineToolCalls(choice?.content ?? '')
+      if (inline.toolCalls.length > 0) {
+        return { toolCalls: inline.toolCalls, usage }
+      }
+
+      return { content: inline.content !== '' ? inline.content : undefined, usage }
+    } catch (e) {
+      // Rethrow so the worker rejects the WS request and the pod can notify the user
+      // (an empty content is a valid model reply and returns above; this path is a real failure).
+      ctx.error('openai chatToolStep failed', { error: (e as any)?.message })
+      throw e
+    }
   }
 
   countTokens (messages: ChatMessage[]): number {
@@ -369,11 +403,13 @@ export default class OpenAIProvider implements LLMProvider {
 }
 
 /**
- * Helper factory to create OpenAI provider when OpenAI is configured.
+ * Helper factory to create an OpenAI provider for a registry provider config.
+ * Returns undefined when neither the provider nor the global config supplies an API key.
  */
-export function createOpenAIProvider (ctx: MeasureContext): LLMProvider | undefined {
-  if (config.OpenAIKey !== '') {
-    return new OpenAIProvider(ctx)
+export function createOpenAIProvider (ctx: MeasureContext, provider: AIProviderConfig): LLMProvider | undefined {
+  const apiKey = (provider.endpointConfig?.apiKey as string) ?? config.OpenAIKey
+  if (apiKey !== '') {
+    return new OpenAIProvider(ctx, provider)
   }
   return undefined
 }

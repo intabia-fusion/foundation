@@ -15,153 +15,80 @@
 
 /**
  * Shared prompts used across different LLM providers.
+ *
+ * Templates live in prompts.yaml (override via PROMPTS_PATH). There are no built-in
+ * fallbacks: a missing file or key throws on first use. See promptStore.ts.
  */
+
+import { loadPromptTemplates, renderPrompt, type PromptTemplates } from './promptStore'
 
 export interface PromptParams {
   lang?: string
   contextMode?: 'direct' | 'thread'
-  assistantMemory?: string
-  userMemory?: string
-  sharedContext?: string
+  sharedPrompt?: string
+  personalContext?: string
+  currentDateTime?: string
+}
+
+const DEFAULT_LANG = 'ru'
+// Localized request timestamp for the prompt (falls back to ISO on failure). Short form:
+// the full/verbose form gets parroted back verbatim by weaker models.
+function nowForPrompt (lang: string): string {
+  const now = new Date()
+  try {
+    return now.toLocaleString(lang, { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return now.toISOString()
+  }
+}
+
+let cached: PromptTemplates | undefined
+
+/** Load templates once. Throws if prompts.yaml is missing/incomplete. */
+function templates (): PromptTemplates {
+  if (cached === undefined) {
+    cached = loadPromptTemplates()
+  }
+  return cached
 }
 
 export const PROMPTS = {
-  /**
-   * Prompt for translating HTML content while preserving structure
-   */
-  TRANSLATE_HTML: (lang: string): string =>
-    `Your task is to translate the text into ${lang} while preserving the html structure and metadata. Do not translate <span data-type="reference">`,
+  TRANSLATE_HTML: (lang: string): string => renderPrompt(templates().translateHtml, { lang }),
 
-  /**
-   * Prompt for summarizing messages from multiple participants
-   */
-  SUMMARIZE_MESSAGES: (
-    lang: string,
-    description?: string
-  ): string => `Generate a summary from the provided sequence of messages by creating separate bullet lists for each participant, ensuring that each bullet point includes only the key points, problems and further work plans without any chit-chat, and clearly label each participant so that their individual contributions are distinctly summarized.
-  Use following structure for output:
-    **@Participant Name**
-      - Key point 1
-      - Key point 2
-      - ...
-    **@Participant Name**
-      - Key point 1
-      - ...
-  Don't introduce any other elements of the structure.
-  If a bullet point implies a reference to another participant include a reference according to this format: **@Participant Name**
-  The response should be translated into ${lang} regardless of the original language. Don't translate the names of the participants and leave them exactly as they appear in the text.${
-    description !== undefined && description.trim() !== ''
-      ? `\n\n  Meeting description / agenda (use as context for topic, goals, and expected outcomes; copy to summary only parts with relevant todo items):\n${description}`
-      : ''
-  }`,
+  SUMMARIZE_MESSAGES: (lang: string, description?: string): string =>
+    renderPrompt(templates().summarizeMessages, { lang, description: description?.trim() ?? '' }),
 
-  /**
-   * System prompt for direct chat mode with tools
-   */
   DIRECT_CHAT_WITH_TOOLS: (params: PromptParams): string => {
-    const { assistantMemory = '', userMemory = '', sharedContext = '' } = params
-    return `You are a helpful AI assistant, talking to user in direct chat.
-
-**Your role:**
-- Assist users with their questions and tasks
-- Provide accurate, factual responses based only on available information
-- Use available tools to help answer user requests
-- Adapt your communication style to user preferences when explicitly specified
-
-${assistantMemory !== '' ? `**Your persona and behavior:**\n${assistantMemory}\n` : ''}
-${userMemory !== '' ? `**User preferences and context:**\n${userMemory}\n` : ''}
-${sharedContext !== '' ? `**Shared preferences:**\n${sharedContext}\n` : ''}
-**Available tools:**
-- update_assistant_memory: Update information about assistant personality (name, behavior, etc.)
-- update_user_memory: Update information about the user (preferences, context, personal info, how to address use in direct chats)
-- update_shared_context: Update shared context (language, timezone, group chat preferences, how to address user in GROUP chats or general chats)
-- get_assistant_memory: Check current information about yourself
-- get_user_memory: Check current information about the user
-- get_history_summary: Get a summary of past conversation (use this if you need context beyond recent messages)
-- clear_assistant_memory / clear_user_memory / clear_history: Clear respective data
-
-**Important context notes:**
-- You only see the last ~20 messages in conversation history
-- For context about older conversations, use get_history_summary tool
-- This helps save tokens while maintaining conversation continuity
-
-**Critical guidelines - ACCURACY FIRST:**
-- ONLY use information explicitly provided in the conversation, context, or retrieved via tools
-- If you don't have enough information to answer accurately, state this clearly
-- NEVER invent, assume, or fabricate details not present in available data
-- If uncertain about facts, explicitly say "I don't have information about this"
-- Clearly distinguish between facts from context and any inferences you make
-- Use memory tools when user shares important information about themselves or tells you how to behave
-- Use get_history_summary if you need context about earlier parts of long conversations
-- Keep responses precise and grounded in available data`
+    const lang = params.lang ?? DEFAULT_LANG
+    return renderPrompt(templates().directChatWithTools, {
+      sharedPrompt: params.sharedPrompt ?? '',
+      personalContext: params.personalContext ?? '',
+      lang,
+      currentDateTime: params.currentDateTime ?? nowForPrompt(lang)
+    })
   },
 
-  /**
-   * System prompt for thread/group chat mode with tools
-   */
   THREAD_CHAT_WITH_TOOLS: (params: PromptParams): string => {
-    const { sharedContext = '' } = params
-    return `You are a helpful AI assistant participating in a group conversation.
+    const lang = params.lang ?? DEFAULT_LANG
+    return renderPrompt(templates().threadChatWithTools, {
+      sharedPrompt: params.sharedPrompt ?? '',
+      lang,
+      currentDateTime: params.currentDateTime ?? nowForPrompt(lang)
+    })
+  }
+}
 
-**Your role:**
-- Assist all participants with their questions and tasks
-- Provide accurate, factual responses based only on available information
-- Contribute meaningfully to group discussions
-- Stay on topic and maintain professional tone
-
-${sharedContext !== '' ? `**Shared preferences:**\n${sharedContext}\n` : ''}
-**Important - Group Chat Mode:**
-- This is a shared conversation with multiple participants
-- Do NOT use or reference any personal information about specific users
-- Do NOT use memory tools (update_assistant_memory, update_user_memory, etc.)
-- Treat all participants equally and professionally
-- Keep responses neutral and avoid personalization
-- Focus on the current discussion context only
-
-**Critical guidelines - ACCURACY FIRST:**
-- ONLY use information explicitly provided in the conversation or message history
-- If you don't have enough information to answer accurately, state this clearly
-- NEVER invent, assume, or fabricate details not present in the discussion
-- If uncertain about facts, explicitly say "I don't have information about this"
-- Clearly distinguish between facts from the conversation and any inferences
-- Keep answers clear, concise, and grounded in available data
-- Don't assume context or relationships not explicitly mentioned in messages`
-  },
-
-  /**
-   * System prompt for conversation summary
-   */
-  SUMMARY_SYSTEM_PROMPT:
-    'You are a conversation compression system. Create accurate, factual summaries that capture ONLY what was actually discussed. Do NOT add interpretations, assumptions, or invented details. Preserve exact facts, decisions, and context from the conversation. If information is unclear or missing, note this rather than guessing. Focus on maintaining factual accuracy and completeness of real information.',
-
-  /**
-   * User prompt for conversation summary
-   */
-  SUMMARY_USER_PROMPT: (history: Array<{ role: string, message: string }>): string => `
-      Create a factual, accurate summary of the conversation history based ONLY on what was actually discussed.
-
-      **Summarization goals:**
-      - Extract main topics, decisions, and action items EXACTLY as stated
-      - Preserve factual information and specific details from messages
-      - Keep critical facts that may be referenced later
-      - Maintain chronological flow of events as they occurred
-      - Record any user preferences or instructions explicitly provided
-      - Remove only redundant repetitions, NOT important context
-
-      **Critical - ACCURACY REQUIREMENTS:**
-      - ONLY include information explicitly present in the conversation
-      - DO NOT add interpretations, assumptions, or invented details
-      - If something is unclear, note it as unclear rather than guessing
-      - Preserve exact terminology and names used by participants
-      - Keep factual statements separate from interpretations
-
-      **Target compression:**
-      - Compress messages into a compact but complete summary
-      - Aim for maximum information density without losing facts
-      - Prioritize factual accuracy over brevity
-      - Keep summary under 1000 tokens
-
-      Conversation entries:
-        ${history.map((msg) => `${msg.role}: ${msg.message}`).join('\n')}
-      `
+/** Build the system prompt for a chat-with-tools request. */
+export function buildSystemPrompt (
+  isDirectMode: boolean,
+  sharedPrompt: string,
+  personalContext: string,
+  systemMessages: Array<{ content: string }>,
+  lang?: string
+): string {
+  return isDirectMode
+    ? PROMPTS.DIRECT_CHAT_WITH_TOOLS({ sharedPrompt, personalContext, lang })
+    : PROMPTS.THREAD_CHAT_WITH_TOOLS({ sharedPrompt, lang }) +
+        '\n\n' +
+        systemMessages.map((it) => it.content).join('\n')
 }

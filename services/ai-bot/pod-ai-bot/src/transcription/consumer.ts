@@ -5,7 +5,7 @@ import { parseRoomName } from '@hcengineering/love'
 import { ConsumerControl, StorageAdapter } from '@hcengineering/server-core'
 
 import { TranscriptionQueueTask, TranscriptionProvider, TranscriptionConfig, AudioFormat } from './types'
-import { pushTranscriptDuration } from '../billing'
+import { pushTranscriptDuration, pushTranscriptUsageRecord } from '../billing'
 import path from 'path'
 import { writeFile } from 'fs/promises'
 
@@ -94,6 +94,15 @@ export type GetWorkspaceStorageCallback = (workspace: WorkspaceUuid) => Promise<
 }
 | undefined
 >
+
+/**
+ * Resolve the transcription provider + level for a workspace from its AISpaceSettings.asrLevel.
+ * Returns undefined to fall back to the consumer's default provider/level.
+ */
+export type ResolveProviderCallback = (
+  ctx: MeasureContext,
+  workspace: WorkspaceUuid
+) => Promise<{ provider: TranscriptionProvider, level: string } | undefined>
 
 /**
  * Callback type for sending failed tasks to dead letter queue
@@ -233,7 +242,11 @@ export class TranscriptionConsumer {
     private readonly createMessageWithTimestamp: CreateMessageWithTimestampCallback,
     private readonly sendToDeadLetter?: SendToDeadLetterCallback,
     private readonly debugDir?: string,
-    retryConfig?: Partial<RetryConfig>
+    retryConfig?: Partial<RetryConfig>,
+    // Per-workspace provider/level resolution (AISpaceSettings.asrLevel). Falls back to the
+    // default provider/level when unset or the callback returns undefined.
+    private readonly resolveProvider?: ResolveProviderCallback,
+    private readonly defaultLevel: string = 'default'
   ) {
     this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...retryConfig }
   }
@@ -289,8 +302,13 @@ export class TranscriptionConsumer {
         blobId: task.blobId
       })
 
+      // Resolve provider/level from the workspace ASR setting (falls back to the default).
+      const resolved = this.resolveProvider !== undefined ? await this.resolveProvider(ctx, workspace) : undefined
+      const provider = resolved?.provider ?? this.provider
+      const level = resolved?.level ?? this.defaultLevel
+
       // Transcribe audio with retry logic
-      const result = await this.transcribeWithRetry(ctx, audioData, task, workspace, control)
+      const result = await this.transcribeWithRetry(ctx, audioData, task, workspace, control, provider)
 
       if (result === undefined) {
         // All retries exhausted, already handled in transcribeWithRetry
@@ -396,9 +414,10 @@ export class TranscriptionConsumer {
         elapsedMs: elapsed
       })
 
-      // Report transcribed audio duration to billing
+      // Report transcribed audio duration to billing (with the resolved workspace ASR level).
       if (task.durationSec > 0) {
         await pushTranscriptDuration(ctx, workspace, task.durationSec, task.blobId)
+        await pushTranscriptUsageRecord(ctx, workspace, task.durationSec, result.clientId, level)
       }
 
       // Cleanup storage
@@ -424,8 +443,9 @@ export class TranscriptionConsumer {
     audioData: Buffer,
     task: TranscriptionQueueTask,
     workspace: WorkspaceUuid,
-    control?: ConsumerControl
-  ): Promise<{ text: string, language?: string } | undefined> {
+    control?: ConsumerControl,
+    provider: TranscriptionProvider = this.provider
+  ): Promise<{ text: string, language?: string, clientId?: string } | undefined> {
     let lastError: Error | undefined
     let consecutiveTimeouts = 0
     let attempt = 0
@@ -434,7 +454,7 @@ export class TranscriptionConsumer {
     while (true) {
       try {
         const result = await ctx.with('transcribe', {}, () =>
-          this.provider.transcribe(audioData, {
+          provider.transcribe(audioData, {
             wordTimestamps: true,
             sampleRate: task.sampleRate,
             channels: task.channels,
@@ -661,7 +681,9 @@ export function createTranscriptionConsumer (
   createMessageWithTimestamp: CreateMessageWithTimestampCallback,
   sendToDeadLetter?: SendToDeadLetterCallback,
   debugDir?: string,
-  retryConfig?: Partial<RetryConfig>
+  retryConfig?: Partial<RetryConfig>,
+  resolveProvider?: ResolveProviderCallback,
+  defaultLevel?: string
 ): TranscriptionConsumer {
   return new TranscriptionConsumer(
     ctx,
@@ -674,6 +696,8 @@ export function createTranscriptionConsumer (
     createMessageWithTimestamp,
     sendToDeadLetter,
     debugDir,
-    retryConfig
+    retryConfig,
+    resolveProvider,
+    defaultLevel
   )
 }

@@ -15,7 +15,7 @@
 
 import { Analytics } from '@hcengineering/analytics'
 import { configureAnalytics, createOpenTelemetryMetricsContext, SplitLogger } from '@hcengineering/analytics-service'
-import { newMetrics, systemAccountUuid, type MeasureContext } from '@hcengineering/core'
+import { newMetrics, systemAccountUuid, type MeasureContext, type WorkspaceUuid } from '@hcengineering/core'
 import { getPlatformQueue } from '@hcengineering/kafka'
 import { setMetadata } from '@hcengineering/platform'
 import serverClient from '@hcengineering/server-client'
@@ -24,9 +24,11 @@ import {
   QueueTopic,
   QueueWorkspaceEvent,
   type QueueWorkspaceMessage,
+  type QueueWorkspacePurchaseMessage,
   type QueueSubscriptionMessage,
   QueueSubscriptionEvent,
   subscriptionEvents,
+  workspaceEvents,
   type QueuePaymentOperationMessage
 } from '@hcengineering/server-core'
 import { type SubscriptionData } from '@hcengineering/account-client'
@@ -121,11 +123,24 @@ export const main = async (): Promise<void> => {
     }
   }
 
+  // Announce a confirmed one-time purchase (generic). The owning pod (e.g. aibot) consumes
+  // PurchaseActivated on QueueTopic.Workspace, applies the SKU effect, and marks the purchase consumed.
+  const wsPurchaseProducer = queue.getProducer<QueueWorkspacePurchaseMessage>(metricsContext, QueueTopic.Workspace)
+  const publishPurchaseActivated = async (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    sku: string,
+    purchaseId: string
+  ): Promise<void> => {
+    await wsPurchaseProducer.send(ctx, workspace, [workspaceEvents.purchaseActivated(sku, purchaseId)])
+  }
+
   const { app, ensureInitialSubscription, createFreeIfNoActiveTier, persistSubscription, close } = await createServer(
     metricsContext,
     config,
     publish,
-    logOperation
+    logOperation,
+    publishPurchaseActivated
   )
   const server = listen(app, config.Port)
 

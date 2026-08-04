@@ -143,7 +143,14 @@ export async function createServer (
   // Publishes provider subscription events to the queue (durable, provider-agnostic). Required.
   publish: SubscriptionPublisher,
   // Best-effort ledger audit for direct (non-queue) writes like free/trial provisioning.
-  logOperation?: (ctx: MeasureContext, sub: SubscriptionData, canceled: boolean) => Promise<void>
+  logOperation?: (ctx: MeasureContext, sub: SubscriptionData, canceled: boolean) => Promise<void>,
+  // Announces a confirmed one-time purchase (generic) so the owning pod applies its SKU effect.
+  publishPurchaseActivated?: (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    sku: string,
+    purchaseId: string
+  ) => Promise<void>
 ): Promise<{
     app: Express
     ensureInitialSubscription: (workspace: WorkspaceUuid) => Promise<void>
@@ -235,16 +242,16 @@ export async function createServer (
   const planConfig: any = (() => {
     try {
       const configPath = config.PlanConfig
-      if (configPath === undefined || configPath.length === 0) return { plans: {}, packages: {} }
+      if (configPath === undefined || configPath.length === 0) return { plans: {}, packages: {}, purchasables: {} }
       if (!existsSync(configPath)) {
         ctx.error('Plan config file not found', { path: configPath })
-        return { plans: {}, packages: {} }
+        return { plans: {}, packages: {}, purchasables: {} }
       }
       const content = readFileSync(configPath, 'utf-8')
       return yaml.load(content)
     } catch (err: any) {
       ctx.error('Failed to load plan config', { err })
-      return { plans: {}, packages: {} }
+      return { plans: {}, packages: {}, purchasables: {} }
     }
   })()
 
@@ -253,6 +260,8 @@ export async function createServer (
   })
 
   function resolveLimits (type: SubscriptionType, plan: string, quantity?: number): SubscriptionData['limits'] {
+    // Purchases grant no limit snapshot — their effect runs on activation, not as baked limits.
+    if (type === SubscriptionType.Purchase) return undefined
     const source = type === SubscriptionType.Package ? planConfig.packages : planConfig.plans
     const item = source?.[plan]
     if (item == null) return undefined
@@ -261,18 +270,28 @@ export async function createServer (
     // storagePerUserGB (e.g. free tier) -> disk scales with the seat budget; else fixed storageLimitGB.
     const storageLimitGB =
       item.storagePerUserGB != null ? usersLimit * item.storagePerUserGB : (item.storageLimitGB ?? 0)
+    // AI window: per-seat plans scale the token window by paid seats; flat plans (free) keep it fixed.
+    const baseWindow = item.windowMonthLimit ?? 0
+    const windowMonthLimit = isPerSeat && quantity != null ? baseWindow * quantity : baseWindow
     return {
       storageLimitGB,
       trafficLimitGB: item.trafficLimitGB ?? 0,
       meetingMinutesLimit: item.meetingMinutesLimit ?? 0,
       tokenLimit: item.tokenLimit ?? 0,
-      usersLimit
+      usersLimit,
+      windowMonthLimit,
+      tokenPackageMultiplier: item.tokenPackageMultiplier ?? 1
     }
   }
 
   // Full price (kopecks) for a plan at the given seats/period (see computePlanPrice).
   function planFullPrice (type: SubscriptionType, plan: string, quantity: number, period?: BillingPeriod): number {
-    const source = type === SubscriptionType.Package ? planConfig.packages : planConfig.plans
+    const source =
+      type === SubscriptionType.Package
+        ? planConfig.packages
+        : type === SubscriptionType.Purchase
+          ? planConfig.purchasables
+          : planConfig.plans
     return computePlanPrice(source?.[plan], quantity, period === 'yearly')
   }
 
@@ -305,7 +324,37 @@ export async function createServer (
   // Both sync (HTTP user actions) and async (provider events via the Subscription queue) funnel through
   // here so limits are always baked consistently regardless of provider. Idempotent (account dedups by
   // provider + providerSubscriptionId), so queue replays are safe.
+  // A confirmed one-time purchase: record it (generic), then announce it. account/payment stay
+  // domain-agnostic — the owning pod (e.g. aibot) consumes PurchaseActivated, applies the SKU effect,
+  // and marks the purchase consumed. Never touches the subscription table.
+  async function activatePurchase (data: SubscriptionData): Promise<void> {
+    // Idempotency: this runs from both the queue consumer (at-least-once redelivery) and the
+    // checkout-status poll (fires on every GET). Purchases never hit the subscription table, so the
+    // caller-side dedup does not cover them — dedup here by provider payment id.
+    const existing = await accountClient.getPurchases(data.workspaceUuid)
+    if (existing.some((p) => p.paymentId === data.providerSubscriptionId && p.provider === data.provider)) {
+      return
+    }
+    const category: string | undefined = planConfig.purchasables?.[data.plan]?.category
+    const id = await accountClient.createPurchase({
+      workspaceUuid: data.workspaceUuid,
+      accountUuid: data.accountUuid,
+      sku: data.plan,
+      category,
+      status: 'active',
+      amount: data.amount,
+      paymentId: data.providerSubscriptionId,
+      provider: data.provider,
+      raw: { providerData: data.providerData }
+    })
+    await publishPurchaseActivated?.(ctx, data.workspaceUuid, data.plan, id)
+  }
+
   async function persistSubscription (data: SubscriptionData): Promise<void> {
+    if (data.type === SubscriptionType.Purchase) {
+      await activatePurchase(data)
+      return
+    }
     await accountClient.upsertSubscription(attachLimits(data))
   }
 
@@ -493,7 +542,7 @@ export async function createServer (
     // Packages have prices too (priceMonthly); merge them so computeAmount finds package plans.
     provider = PaymentProviderFactory.getInstance().create(
       'mock',
-      { frontUrl: config.FrontUrl, plans: { ...planConfig.plans, ...planConfig.packages } },
+      { frontUrl: config.FrontUrl, plans: { ...planConfig.plans, ...planConfig.packages, ...planConfig.purchasables } },
       accountClient
     )
   }
@@ -604,6 +653,31 @@ export async function createServer (
             if (!isPackageEligible(request.plan, activeTierPlan)) {
               res.status(400).json({ error: 'Package not available on current plan' })
               return
+            }
+
+            // Cancel any active package of the same category before creating the new one.
+            // Storage and AI packages are independent slots; same-category replacement must not stack.
+            const requestedCategory: string = planConfig.packages?.[request.plan]?.category ?? 'storage'
+            const sameCategory = subscriptions.filter((s) => {
+              if (s.type !== SubscriptionType.Package || s.status !== SubscriptionStatus.Active) return false
+              if (s.plan === request.plan) return false
+              const cat: string = planConfig.packages?.[s.plan]?.category ?? 'storage'
+              return cat === requestedCategory
+            })
+            for (const existing of sameCategory) {
+              try {
+                if (existing.provider === config.Provider) {
+                  const canceled = await provider.cancelSubscription(ctx, existing.providerSubscriptionId)
+                  if (canceled !== null) {
+                    await persistSubscription(canceled)
+                  }
+                } else {
+                  const now = Date.now()
+                  await persistSubscription({ ...existing, status: SubscriptionStatus.Canceled, canceledAt: now })
+                }
+              } catch (err) {
+                ctx.error('Failed to cancel same-category package', { plan: existing.plan, err })
+              }
             }
           }
 

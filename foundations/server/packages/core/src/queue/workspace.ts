@@ -16,7 +16,8 @@ export enum QueueWorkspaceEvent {
   ClearIndex = 'clear-fulltext-index',
   LimitsChanged = 'limits-changed',
   UsageChanged = 'usage-changed',
-  Maintenance = 'maintenance'
+  Maintenance = 'maintenance',
+  PurchaseActivated = 'purchase-activated'
 }
 
 export interface QueueWorkspaceMessage {
@@ -71,6 +72,16 @@ export interface QueueWorkspaceMaintenanceMessage extends QueueWorkspaceMessage 
   message?: string
 }
 
+/** A one-time catalog purchase was paid & activated. Generic: the owning pod interprets `sku` and
+ * applies its effect (e.g. aibot resets the AI usage window on 'ai-token-reset'). purchaseId is the
+ * account purchase row id — used by the applying pod for idempotency across redeliveries. */
+export interface QueueWorkspacePurchaseMessage extends QueueWorkspaceMessage {
+  type: QueueWorkspaceEvent.PurchaseActivated
+
+  sku: string
+  purchaseId: string
+}
+
 export const workspaceEvents = {
   open: (): QueueWorkspaceMessage => ({ type: QueueWorkspaceEvent.Up }),
   down: (): QueueWorkspaceMessage => ({ type: QueueWorkspaceEvent.Down }),
@@ -93,6 +104,11 @@ export const workspaceEvents = {
     type: QueueWorkspaceEvent.UsageChanged,
     category,
     used
+  }),
+  purchaseActivated: (sku: string, purchaseId: string): QueueWorkspacePurchaseMessage => ({
+    type: QueueWorkspaceEvent.PurchaseActivated,
+    sku,
+    purchaseId
   }),
   reindex: (domain: Domain, classes: Ref<Class<Doc>>[]): QueueWorkspaceReindexMessage => ({
     type: QueueWorkspaceEvent.Reindex,

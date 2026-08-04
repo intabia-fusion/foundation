@@ -23,8 +23,12 @@ import { checkUsageAgainstLimits, calculateLimits } from '../utils'
 export interface SubscriptionState {
   currentSubscription: SubscriptionData | undefined
   currentPlan: PlanItem | undefined
+  // Storage package subscription (grants extra disk).
   currentPackageSubscription: SubscriptionData | undefined
   currentPackage: PackageItem | undefined
+  // AI token package subscription (adds billed-token window budget).
+  currentAiPackageSubscription: SubscriptionData | undefined
+  currentAiPackage: PackageItem | undefined
   workspaceInfo: WorkspaceInfoWithStatus | undefined
   usageInfo: UsageStatus | undefined
   limitExceeded: boolean
@@ -40,6 +44,8 @@ const initialState: SubscriptionState = {
   currentPlan: undefined,
   currentPackageSubscription: undefined,
   currentPackage: undefined,
+  currentAiPackageSubscription: undefined,
+  currentAiPackage: undefined,
   workspaceInfo: undefined,
   usageInfo: undefined,
   limitExceeded: false,
@@ -88,7 +94,10 @@ export function setSubscriptionState (
   packageSubscription?: SubscriptionData | undefined,
   pkg?: PackageItem | undefined,
   // The current (latest) tier subscription regardless of status — used to decide payment/free state.
-  statusTier?: SubscriptionData | undefined
+  // A granting `subscription` may be undefined when the tier is canceled, but the banner still needs it.
+  statusTier?: SubscriptionData | undefined,
+  aiPackageSubscription?: SubscriptionData | undefined,
+  aiPkg?: PackageItem | undefined
 ): void {
   const usage = workspaceInfo?.usageInfo ?? get(subscriptionStore).usageInfo
   const workspace = workspaceInfo ?? get(subscriptionStore).workspaceInfo
@@ -119,6 +128,8 @@ export function setSubscriptionState (
     currentPlan: plan,
     currentPackageSubscription: packageSubscription,
     currentPackage: pkg,
+    currentAiPackageSubscription: aiPackageSubscription,
+    currentAiPackage: aiPkg,
     usageInfo: usage,
     workspaceInfo: workspace,
     limitExceeded: checkUsageAgainstLimits(usage, plan, pkg, subscription, packageSubscription),

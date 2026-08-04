@@ -174,6 +174,11 @@
     "Audit": "Auditoría",
     "AuditTitle": "Acciones de administradores",
     "Target": "Objetivo",
-    "ReleaseSocialId": "Eliminar social id"
+    "ReleaseSocialId": "Eliminar social id",
+    "Billing": "AI",
+    "SortTokens": "Por tokens",
+    "SortMinutes": "Por minutos",
+    "HeaderTokens": "Tokens",
+    "HeaderMinutes": "Minutos"
   }
 }

@@ -146,6 +146,10 @@
     "SortBackupDate": "Backup date",
     "SortBackupSize": "Backup size",
     "SortLastVisit": "Last visit",
+    "SortTokens": "By tokens",
+    "SortMinutes": "By minutes",
+    "HeaderTokens": "Tokens",
+    "HeaderMinutes": "Minutes",
     "MassArchive": "Mass Archive {count}",
     "MassMigrate": "Mass Migrate {count} to {region}",
     "ResetAttempts": "Reset attempts {url}",
@@ -174,6 +178,7 @@
     "Audit": "Audit",
     "AuditTitle": "Administrator actions",
     "Target": "Target",
-    "ReleaseSocialId": "Delete social id"
+    "ReleaseSocialId": "Delete social id",
+    "Billing": "AI"
   }
 }

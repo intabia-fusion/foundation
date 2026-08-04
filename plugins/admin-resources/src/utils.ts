@@ -29,6 +29,8 @@ import {
   type PaymentMonthlyStats,
   type SubscriptionInfo
 } from '@hcengineering/account-client'
+import billing from '@hcengineering/billing'
+import { getClient as getBillingClientRaw, type BillingClient } from '@hcengineering/billing-client'
 import { type WorkspaceInfoWithStatus, type WorkspaceUserOperation } from '@hcengineering/core'
 import login, { loginId } from '@hcengineering/login'
 import { getMetadata, PlatformError } from '@hcengineering/platform'
@@ -52,6 +54,17 @@ export function getAccountClient (
   const frontUrl = getMetadata(presentation.metadata.FrontUrl) ?? window.location.origin
 
   return getAccountClientRaw(accountsUrl, token !== null ? token : undefined, undefined, frontUrl)
+}
+
+// Billing URL may be unconfigured in the admin panel; callers must treat null as best-effort.
+export function getBillingClient (): BillingClient | null {
+  const billingUrl = getMetadata(billing.metadata.BillingURL) ?? ''
+  const token = getMetadata(presentation.metadata.Token) ?? ''
+  if (billingUrl === '' || token === '') {
+    return null
+  }
+  const absoluteUrl = billingUrl.startsWith('/') ? window.location.origin + billingUrl : billingUrl
+  return getBillingClientRaw(absoluteUrl, token)
 }
 
 // Run an account-client call, reporting failures and returning a fallback so the UI degrades gracefully.

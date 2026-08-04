@@ -174,6 +174,11 @@
     "Audit": "Audit",
     "AuditTitle": "Akce administrátorů",
     "Target": "Cíl",
-    "ReleaseSocialId": "Smazat social id"
+    "ReleaseSocialId": "Smazat social id",
+    "Billing": "Fakturace",
+    "SortTokens": "Podle tokenů",
+    "SortMinutes": "Podle minut",
+    "HeaderTokens": "Tokeny",
+    "HeaderMinutes": "Minuty"
   }
 }

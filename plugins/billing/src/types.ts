@@ -35,27 +35,53 @@ export interface PlanItem {
   contactSales?: boolean
   storageLimitGB: number
   trafficLimitGB: number
-  meetingMinutesLimit: number
-  tokenLimit: number
+  meetingMinutesLimit: number // In minutes
+  tokenLimit: number // In thousands of tokens
   usersLimit: number
   // Seats-input hard cap (usersLimit=0 = unlimited, can't cap input). Absent -> MAX_SEATS_FALLBACK.
   maxSeats?: number
+
+  // AI rolling-window limit (billed tokens/month). Bigger plan = bigger window = more
+  // AI before the rate-limit kicks in. 0 = unlimited.
+  windowMonthLimit?: number
+  // AI token package multiplier (xN). Scales the effective windows. Default 1 = no effect.
+  tokenPackageMultiplier?: number
+
   index: number
   color?: string
 }
 
 /** @public */
+export type PackageCategory = 'storage' | 'ai'
+
 export interface PackageItem {
   description: LocalizedString
   // Monthly price in whole rubles.
   priceMonthly: number
   currency: string
   eligiblePlans: string[]
-  storageLimitGB: number
+  // Storage addon packages grant disk; AI-token packages grant a monthly billed-token quota
+  // (tokenLimit) whose unused part rolls over. One active subscription per category.
+  category: PackageCategory
+  storageLimitGB?: number
+  tokenLimit?: number
+}
+
+/** One-time catalog purchase (not a subscription): bought once, its effect runs on payment. */
+export interface PurchasableItem {
+  description: LocalizedString
+  // One-time price in whole rubles.
+  priceMonthly: number
+  currency: string
+  eligiblePlans: string[]
+  category: string
+  // Effect key run on activation (e.g. 'reset-ai-window' zeroes the AI usage window).
+  effect: string
 }
 
 /** @public */
 export interface PlanConfig {
   plans: Record<string, PlanItem>
   packages: Record<string, PackageItem>
+  purchasables?: Record<string, PurchasableItem>
 }

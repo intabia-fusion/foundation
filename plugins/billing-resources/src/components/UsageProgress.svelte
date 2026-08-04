@@ -16,6 +16,7 @@
   import { IntlString } from '@hcengineering/platform'
   import { Label, PaletteColorIndexes, Progress, humanReadableFileSize, humanReadableNumbers } from '@hcengineering/ui'
   import plugin from '../plugin'
+  import { formatMinutes } from '../billingFormat'
 
   export let label: IntlString
   export let value: number
@@ -23,14 +24,15 @@
 
   export let kind: 'bytes' | 'items' | 'minutes' = 'bytes'
 
-  $: color = limit > 0 && value >= limit ? PaletteColorIndexes.Firework : undefined
-
-  function formatMinutes (minutes: number): string {
-    const h = Math.floor(minutes / 60)
-    const m = Math.round(minutes % 60)
-    if (h > 0) return `${h}h ${m}m`
-    return `${m}m`
+  function barColor (used: number, max: number): PaletteColorIndexes | undefined {
+    if (max <= 0) return undefined
+    const ratio = used / max
+    if (ratio >= 1) return PaletteColorIndexes.Firework
+    if (ratio >= 0.75) return PaletteColorIndexes.Sunshine
+    return PaletteColorIndexes.Grass
   }
+
+  $: color = barColor(value, limit)
 
   function formatValue (v: number): string {
     if (kind === 'bytes') return humanReadableFileSize(v, 10, 0)

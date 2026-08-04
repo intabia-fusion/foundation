@@ -28,6 +28,7 @@ export default plugin(adminId, {
   },
   string: {
     Workspaces: '' as IntlString,
-    Accounts: '' as IntlString
+    Accounts: '' as IntlString,
+    Billing: '' as IntlString
   }
 })

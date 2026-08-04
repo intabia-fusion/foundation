@@ -34,7 +34,6 @@ export default mergeIds(billingId, billing, {
     PaymentMonth: '' as IntlString,
     PaymentYear: '' as IntlString,
     UsersCount: '' as IntlString,
-    Total: '' as IntlString,
     Active: '' as IntlString,
     Disabled: '' as IntlString,
     CancelScheduled: '' as IntlString,

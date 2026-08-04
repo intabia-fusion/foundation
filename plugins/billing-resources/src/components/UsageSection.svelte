@@ -26,6 +26,8 @@
   export let pkg: PackageItem | undefined = undefined
   export let tierSub: SubscriptionData | undefined = undefined
   export let pkgSub: SubscriptionData | undefined = undefined
+  // compact = the status-bar popup: storage only (AI token windows are shown separately there).
+  export let compact: boolean = false
 
   $: storageUsedBytes = usage?.usage?.storageBytes ?? 0
   $: meetingMinutes = usage?.usage?.meetingMinutes ?? 0
@@ -42,15 +44,17 @@
 
     <UsageProgress label={plugin.string.StorageUsage} value={storageUsedBytes} limit={limits.storageLimit} />
 
-    <UsageProgress
-      label={plugin.string.MeetingMinutesUsage}
-      value={meetingMinutes}
-      limit={limits.meetingMinutesLimit}
-      kind={'minutes'}
-    />
+    {#if !compact}
+      <UsageProgress
+        label={plugin.string.MeetingMinutesUsage}
+        value={meetingMinutes}
+        limit={limits.meetingMinutesLimit}
+        kind={'minutes'}
+      />
 
-    <UsageProgress label={plugin.string.TotalTokens} value={tokensUsage} limit={limits.tokenLimit} kind={'items'} />
+      <UsageProgress label={plugin.string.TotalTokens} value={tokensUsage} limit={limits.tokenLimit} kind={'items'} />
 
-    <UsageProgress label={plugin.string.MembersUsage} value={membersCount} limit={limits.usersLimit} kind={'items'} />
+      <UsageProgress label={plugin.string.MembersUsage} value={membersCount} limit={limits.usersLimit} kind={'items'} />
+    {/if}
   </div>
 {/if}

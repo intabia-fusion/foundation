@@ -19,15 +19,21 @@ import Settings from './components/Settings.svelte'
 import WorkbenchExtension from './components/WorkbenchExtension.svelte'
 import UsageExtension from './components/UsageExtension.svelte'
 import ReadOnlyBanner from './components/ReadOnlyBanner.svelte'
+import AdminBilling from './components/AdminBilling.svelte'
 
 export { isLimited, setIsLimited, planLimits, seatCount, seatLimitReached } from './stores/subscription'
 export { checkWorkspaceLimits } from './utils'
 export { ReadOnlyBanner }
+export { default as ModelsTab } from './components/ModelsTab.svelte'
+export { default as CalculatorTab } from './components/CalculatorTab.svelte'
+export { default as ClientsTab } from './components/ClientsTab.svelte'
+export { default as WorkspaceTokenInfo } from './components/WorkspaceTokenInfo.svelte'
 
 export default async (): Promise<Resources> => ({
   component: {
     Settings,
     UsageExtension,
-    WorkbenchExtension
+    WorkbenchExtension,
+    AdminBilling
   }
 })

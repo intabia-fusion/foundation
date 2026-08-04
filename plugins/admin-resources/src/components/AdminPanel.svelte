@@ -13,12 +13,25 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Button, ButtonMenu, IconRedo, Label, Popup, Scroller, TabList, type TabItem } from '@hcengineering/ui'
+  import {
+    Button,
+    ButtonMenu,
+    getCurrentLocation,
+    IconRedo,
+    Label,
+    location,
+    navigate,
+    Popup,
+    Scroller,
+    TabList,
+    type TabItem
+  } from '@hcengineering/ui'
   import { onDestroy } from 'svelte'
 
   import adminRes from '../plugin'
   import AccountsTab from './tabs/AccountsTab.svelte'
   import AuditTab from './tabs/AuditTab.svelte'
+  import BillingTab from './tabs/BillingTab.svelte'
   import GeneralTab from './tabs/GeneralTab.svelte'
   import StatisticsTab from './tabs/StatisticsTab.svelte'
   import WorkspacesTab from './tabs/WorkspacesTab.svelte'
@@ -54,20 +67,25 @@
 
   refresh()
 
-  let selectedTab: string = 'general'
-
   const tabItems: TabItem[] = [
     { id: 'general', labelIntl: adminRes.string.General },
     { id: 'workspaces', labelIntl: adminRes.string.Workspaces },
     { id: 'accounts', labelIntl: adminRes.string.Accounts },
     { id: 'payments', labelIntl: adminRes.string.Payments },
     { id: 'statistics', labelIntl: adminRes.string.Statistics },
-    { id: 'audit', labelIntl: adminRes.string.Audit }
+    { id: 'audit', labelIntl: adminRes.string.Audit },
+    { id: 'billing', labelIntl: adminRes.string.Billing }
   ]
 
+  // Tab lives in the URL (/admin/<tab>) so it survives reload and is deep-linkable.
+  $: selectedTab = tabItems.some((t) => t.id === $location.path[1]) ? $location.path[1] : 'general'
+
   function onTabSelect (ev: CustomEvent): void {
-    if (ev.detail !== undefined) {
-      selectedTab = ev.detail.id
+    if (ev.detail?.id !== undefined) {
+      const loc = getCurrentLocation()
+      loc.path[1] = ev.detail.id
+      loc.path.length = 2
+      navigate(loc)
     }
   }
 </script>
@@ -108,6 +126,8 @@
       <StatisticsTab {refreshTick} />
     {:else if selectedTab === 'audit'}
       <AuditTab {refreshTick} />
+    {:else if selectedTab === 'billing'}
+      <BillingTab />
     {/if}
   </div>
 </Scroller>

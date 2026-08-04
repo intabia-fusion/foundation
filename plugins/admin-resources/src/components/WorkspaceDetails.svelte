@@ -43,6 +43,8 @@
 
   import { onDestroy } from 'svelte'
 
+  import { WorkspaceTokenInfo } from '@hcengineering/billing-resources'
+
   import adminRes from '../plugin'
   import AdminOtpDialog from './AdminOtpDialog.svelte'
   import EditSubscriptionDialog from './EditSubscriptionDialog.svelte'
@@ -360,6 +362,10 @@
         <div class="content-dark-color">
           <Label label={adminRes.string.UpdatedAt} />: {fmtDate(workspace.usageInfo?.updateTime)}
         </div>
+      </div>
+
+      <div class="mr-8 mb-2">
+        <WorkspaceTokenInfo workspace={workspace.uuid} />
       </div>
 
       <div class="mr-8 mb-2">

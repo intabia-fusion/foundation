@@ -246,7 +246,8 @@ export enum SubscriptionStatus {
 export enum SubscriptionType {
   Tier = 'tier', // Main workspace tier (free, starter, pro, enterprise)
   Support = 'support', // Voluntary support/donation subscription
-  Package = 'package' // Additional package (storage, etc.)
+  Package = 'package', // Additional package (storage, etc.)
+  Purchase = 'purchase' // One-time catalog purchase (AI usage reset, skins, unlocks) — not a limit-granting subscription
 }
 
 /**
@@ -278,6 +279,9 @@ export interface Subscription {
     meetingMinutesLimit: number
     tokenLimit: number
     usersLimit: number
+    // AI rolling-window limit (billed tokens/month) + package multiplier. Bigger plan = bigger window.
+    windowMonthLimit?: number
+    tokenPackageMultiplier?: number
   }
 
   // Free fallback limits (from the plan flagged free in config). Applied when the paid tier is unpaid:
@@ -288,6 +292,8 @@ export interface Subscription {
     meetingMinutesLimit: number
     tokenLimit: number
     usersLimit: number
+    windowMonthLimit?: number
+    tokenPackageMultiplier?: number
   }
 
   // Amount paid (in cents, e.g. 9999 = $99.99)
@@ -369,6 +375,24 @@ export interface PaymentOperation {
   amount?: number
   raw?: Record<string, any>
   createdOn?: number
+}
+
+/** One-time catalog purchase owned by a workspace (AI usage reset now; skins/themes later). */
+export type WorkspacePurchaseStatus = 'pending' | 'active' | 'consumed' | 'failed'
+
+export interface WorkspacePurchase {
+  id?: string
+  workspaceUuid: WorkspaceUuid
+  accountUuid: AccountUuid // who bought
+  sku: string
+  category?: string
+  status: WorkspacePurchaseStatus
+  amount?: number // minor units (kopecks)
+  paymentId?: string
+  provider?: string
+  raw?: Record<string, any>
+  createdOn?: number
+  activatedOn?: number
 }
 
 export interface PaymentOperationStats {

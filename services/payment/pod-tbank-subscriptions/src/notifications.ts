@@ -283,7 +283,7 @@ export async function notifyPaymentFailed (
     // Team inbox is Russian-only: resolve the plan label and the reason enum to Russian.
     const planRu = await getPlanLabel(config, sub.plan, sub.type, DEFAULT_LANG)
     const reasonRu = SERVICE.reason[reason]
-    const typeRu = SERVICE.type[sub.type] ?? sub.type
+    const typeRu = SERVICE.type[sub.type as keyof typeof SERVICE.type] ?? sub.type
     const l = SERVICE.labels
     // Decline reason from the last charge, so the team sees why (card code / our-side receipt block).
     const code = sub.providerData?.lastChargeErrorCode as string | undefined
@@ -417,7 +417,7 @@ export async function notifyPaymentSucceeded (
     // Team inbox is Russian-only: resolve the plan label and the kind enum to Russian.
     const planRu = await getPlanLabel(config, sub.plan, sub.type, DEFAULT_LANG)
     const kindRu = SERVICE.kind[kind]
-    const typeRu = SERVICE.type[sub.type] ?? sub.type
+    const typeRu = SERVICE.type[sub.type as keyof typeof SERVICE.type] ?? sub.type
     const l = SERVICE.labels
     const lines = [
       `${l.workspace}: ${workspace}`,

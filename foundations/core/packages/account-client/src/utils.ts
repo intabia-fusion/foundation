@@ -41,6 +41,12 @@ export function grantsPlan (sub: Pick<Subscription, 'status' | 'providerData' | 
   return PLAN_GRANTING_STATUSES.includes(sub.status)
 }
 
+// Free plan = no granting tier, the free-billing provider, or the 'free' plan by name (admin/manual
+// free tiers carry provider='manual', so provider alone misses them).
+export function isFreePlan (tier: Pick<Subscription, 'plan' | 'provider'> | undefined): boolean {
+  return tier === undefined || tier.provider === 'free' || tier.plan === 'free'
+}
+
 export const GUEST_ROLES: AccountRole[] = [AccountRole.ReadOnlyGuest, AccountRole.DocGuest, AccountRole.Guest]
 
 /**

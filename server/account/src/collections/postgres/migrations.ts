@@ -93,7 +93,8 @@ export function getMigrations (ns: string, flavor: DBFlavor): [string, string][]
     getV32Migration(ns, flavor),
     getV33Migration(ns),
     getV34Migration(ns),
-    getV35Migration(ns, flavor)
+    getV35Migration(ns, flavor),
+    getV36Migration(ns, flavor)
   ]
 }
 
@@ -1060,6 +1061,40 @@ function getV35Migration (ns: string, flavor: DBFlavor): [string, string] {
 
     CREATE INDEX IF NOT EXISTS admin_action_created_idx ON ${ns}.admin_action (created_on);
     CREATE INDEX IF NOT EXISTS admin_action_target_idx ON ${ns}.admin_action (target);
+    `
+  ]
+}
+
+function getV36Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v36_workspace_purchase',
+    `
+    /* ======= W O R K S P A C E   P U R C H A S E ======= */
+    /* Generic one-time purchases of catalog SKUs (AI usage reset now; skins/themes later). History of
+       what a workspace bought; account stays domain-agnostic — the SKU effect (e.g. resetting the AI
+       usage window) is interpreted and applied by the owning pod (aibot), not here. Consumable purchases
+       flip to 'consumed' once that pod applied the effect; entitlements (future) stay 'active'. */
+
+    CREATE TABLE IF NOT EXISTS ${ns}.workspace_purchase (
+        id ${types.string} NOT NULL DEFAULT gen_random_uuid()::TEXT,
+        workspace_uuid ${types.string} NOT NULL,
+        account_uuid ${types.string} NOT NULL, -- who bought
+        sku ${types.string} NOT NULL,
+        category ${types.string},
+        status ${types.string} NOT NULL, -- pending | active | consumed | failed
+        amount ${types.int8}, -- minor units (kopecks)
+        payment_id ${types.string},
+        provider ${types.string},
+        raw JSONB,
+        created_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+        activated_on BIGINT,
+
+        CONSTRAINT workspace_purchase_pk PRIMARY KEY (id)
+    );
+
+    CREATE INDEX IF NOT EXISTS workspace_purchase_workspace_idx ON ${ns}.workspace_purchase (workspace_uuid);
+    CREATE INDEX IF NOT EXISTS workspace_purchase_payment_id_idx ON ${ns}.workspace_purchase (payment_id);
     `
   ]
 }

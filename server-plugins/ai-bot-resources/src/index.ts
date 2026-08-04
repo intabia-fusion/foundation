@@ -15,7 +15,7 @@
 
 import core, { AccountUuid, Doc, PersonId, Ref, SortingOrder, Tx, TxCreateDoc, TxProcessor } from '@hcengineering/core'
 import { PlatformQueueProducer, QueueTopic, TriggerControl } from '@hcengineering/server-core'
-import { aiBotEmailSocialKey, AIEventRequest } from '@hcengineering/ai-bot'
+import aiBot, { type AIContextMessage, aiBotEmailSocialKey, AIEventRequest } from '@hcengineering/ai-bot'
 import chunter, { ChatMessage, DirectMessage, ThreadMessage } from '@hcengineering/chunter'
 import contact, { Employee, SocialIdentity } from '@hcengineering/contact'
 
@@ -122,7 +122,12 @@ async function OnMessageSend (originTxs: TxCreateDoc<ChatMessage>[], control: Tr
         return !mentioned
       })
 
-      if (docClass === chunter.class.DirectMessage) {
+      // A context-starter message (its own class) opens the "Discuss with Yulia" thread; the
+      // bot must not answer it top-level in the Direct. Its class is on the create tx, so no
+      // DB read and no mixin race.
+      const isContextStarter = hierarchy.isDerived(message._class, aiBot.class.AIContextMessage)
+
+      if (docClass === chunter.class.DirectMessage && !isContextStarter) {
         await onBotDirectMessageSend(control, message, 'direct', wsID, producer)
       } else if (mentioned) {
         await onBotDirectMessageSend(control, message, 'mentioned', wsID, producer)
@@ -151,6 +156,7 @@ function getMessageData (doc: Doc, message: ChatMessage): AIEventRequest {
   }
 }
 
+// A top-level message in the Direct channel with the bot starts a new conversation.
 function getThreadMessageData (message: ThreadMessage): AIEventRequest {
   return {
     createdOn: message.createdOn ?? message.modifiedOn,
@@ -191,6 +197,45 @@ function isDirectAvailable (direct: DirectMessage, control: TriggerControl, wsID
   return members.length === 2
 }
 
+/**
+ * Set the effective AI level + language on the event from the active AISpaceSettings
+ * (space-specific -> workspace-wide). The model catalog lives in the pod (served via
+ * its API), so the trigger only forwards the chosen level/language; the pod validates
+ * the level against its registry and falls back to AI_DEFAULT_LANGUAGE for language.
+ */
+async function applySpaceSettings (control: TriggerControl, event: AIEventRequest): Promise<void> {
+  try {
+    const spaceSetting = (
+      await control.findAll(control.ctx, aiBot.class.AISpaceSettings, { attachedTo: event.objectSpace })
+    )[0]
+    const wsSetting =
+      spaceSetting ??
+      (await control.findAll(control.ctx, aiBot.class.AISpaceSettings, {})).find((s) => s.attachedTo == null)
+    event.level = spaceSetting?.level ?? wsSetting?.level
+    event.language = spaceSetting?.language ?? wsSetting?.language
+  } catch (err: any) {
+    control.ctx.warn('failed to apply AI space settings', { error: err?.message })
+  }
+}
+
+/**
+ * A thread reply belongs to an AIContextMessage root. If the user picked a per-thread level in the
+ * thread header (root.level), it wins over the space/workspace level. Only applies to thread
+ * messages; top-level Direct replies keep the space default.
+ */
+async function applyThreadLevel (control: TriggerControl, message: ChatMessage, event: AIEventRequest): Promise<void> {
+  if (!control.hierarchy.isDerived(message._class, chunter.class.ThreadMessage)) return
+  try {
+    const rootId = (message as ThreadMessage).attachedTo as unknown as Ref<AIContextMessage>
+    const root = (await control.findAll(control.ctx, aiBot.class.AIContextMessage, { _id: rootId }))[0]
+    if (root?.level != null && root.level !== '') {
+      event.level = root.level
+    }
+  } catch (err: any) {
+    control.ctx.warn('failed to apply thread AI level', { error: err?.message })
+  }
+}
+
 async function onBotDirectMessageSend (
   control: TriggerControl,
   message: ChatMessage,
@@ -209,11 +254,16 @@ async function onBotDirectMessageSend (
     }
     let messageEvent: AIEventRequest
     if (control.hierarchy.isDerived(message._class, chunter.class.ThreadMessage)) {
+      // Reply within a thread = continue that conversation (full thread context).
       messageEvent = getThreadMessageData(message as ThreadMessage)
     } else {
+      // Top-level message in the Direct = the bot replies inline in the Direct;
+      // context is the recent Direct messages (current day, see pod-side).
       messageEvent = getMessageData(direct, message)
     }
     messageEvent.objectIdIsSpace = control.hierarchy.isDerived(messageEvent.objectClass, core.class.Space)
+    await applySpaceSettings(control, messageEvent)
+    await applyThreadLevel(control, message, messageEvent)
     await producer.send(control.ctx, control.workspace.uuid, [messageEvent])
   } else if (kind === 'mentioned') {
     let messageEvent: AIEventRequest
@@ -223,6 +273,8 @@ async function onBotDirectMessageSend (
       messageEvent = getMessageData(message, message)
     }
     messageEvent.objectIdIsSpace = control.hierarchy.isDerived(messageEvent.objectClass, core.class.Space)
+    await applySpaceSettings(control, messageEvent)
+    await applyThreadLevel(control, message, messageEvent)
     await producer.send(control.ctx, control.workspace.uuid, [messageEvent])
   }
 }

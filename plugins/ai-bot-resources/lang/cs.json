@@ -1,0 +1,27 @@
+{
+  "string": {
+    "AISettings": "Yulia AI",
+    "AILevel": "Úroveň AI",
+    "AILevelHint": "Úroveň kvality odpovědí AI pro tento prostor.",
+    "Language": "Jazyk",
+    "LanguageHint": "Jazyk odpovědí bota v tomto prostoru. Nechte prázdné pro výchozí nastavení.",
+    "LanguageAuto": "Automaticky / výchozí",
+    "BasicTab": "Základní",
+    "PersonalTab": "Osobní",
+    "SharedPrompt": "Pokyny pracovního prostoru",
+    "SharedPromptHint": "Systémový prompt pro všechny uživatele v tomto prostoru (pouze vlastník).",
+    "PersonalContext": "Osobní předvolby",
+    "PersonalContextHint": "Poznámka o vás, platí pouze v přímých chatech s asistentem.",
+    "DiscussWithAI": "Probrat s Yulií",
+    "DiscussFirstMessage": "Pojďme probrat {label}.",
+    "ProposedEdit": "Yulia navrhuje úpravu",
+    "ApplyEdit": "Použít",
+    "EditApplied": "Použito",
+    "OpenDocument": "Otevřít dokument",
+    "PreviewDiff": "Zobrazit změny",
+    "HideDiff": "Skrýt změny",
+    "NewContext": "Nový kontext",
+    "NewContextHint": "Archivovat tuto konverzaci a začít nový kontext pro tento objekt",
+    "NewContextConfirm": "Archivovat aktuální konverzaci a začít nový kontext? Aktuální diskuse zůstane dostupná, ale asistent ji už nebude používat."
+  }
+}

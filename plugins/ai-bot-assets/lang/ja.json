@@ -1,0 +1,12 @@
+{
+  "string": {
+    "AISettings": "AI設定",
+    "TokenLimitReachedMonth": "月間のAIトークン上限に達しました。しばらくしてから再度お試しください。",
+    "AIServiceUnavailable": "AIサービスは一時的に利用できません。しばらくしてからもう一度お試しください。",
+    "AIEmptyResponse": "今回は回答を生成できませんでした。質問を言い換えるか、もう一度お試しください。",
+    "AILevel": "AIレベル",
+    "AILevelHint": "このワークスペースの品質レベルの上限",
+    "Language": "言語",
+    "LanguageHint": "ボット返答のデフォルト言語（例：ja、en）。空白はポッドのデフォルト。"
+  }
+}

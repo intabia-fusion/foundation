@@ -1,0 +1,12 @@
+{
+  "string": {
+    "AISettings": "Impostazioni IA",
+    "TokenLimitReachedMonth": "È stato raggiunto il limite mensile di token IA. Riprova più tardi.",
+    "AIServiceUnavailable": "Il servizio IA è temporaneamente non disponibile. Riprova più tardi.",
+    "AIEmptyResponse": "Non sono riuscita a produrre una risposta. Riformula la domanda o riprova.",
+    "AILevel": "Livello IA",
+    "AILevelHint": "Tetto del livello di qualità per questo spazio di lavoro",
+    "Language": "Lingua",
+    "LanguageHint": "Lingua predefinita per le risposte del bot (es. it, en). Vuoto = predefinito del pod."
+  }
+}

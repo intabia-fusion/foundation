@@ -1,0 +1,29 @@
+{
+  "string": {
+    "AISettings": "Yulia IA",
+    "AILevel": "Niveau IA",
+    "AILevelHint": "Le niveau de qualité des réponses IA pour cet espace.",
+    "AsrLevel": "Niveau de transcription",
+    "AsrLevelHint": "Le niveau de qualité de la transcription des réunions dans cet espace.",
+    "Language": "Langue",
+    "LanguageHint": "Langue des réponses du bot dans cet espace. Laisser vide pour la valeur par défaut.",
+    "LanguageAuto": "Auto / par défaut",
+    "BasicTab": "Général",
+    "PersonalTab": "Personnel",
+    "SharedPrompt": "Instructions de l'espace de travail",
+    "SharedPromptHint": "Invite système appliquée à tous les utilisateurs de cet espace (propriétaire uniquement).",
+    "PersonalContext": "Préférences personnelles",
+    "PersonalContextHint": "Une note vous concernant, appliquée uniquement dans les discussions directes avec l'assistant.",
+    "DiscussWithAI": "Discuter avec Yulia",
+    "DiscussFirstMessage": "Discutons de {label}.",
+    "ProposedEdit": "Yulia propose une modification",
+    "ApplyEdit": "Appliquer",
+    "EditApplied": "Appliqué",
+    "OpenDocument": "Ouvrir le document",
+    "PreviewDiff": "Afficher les modifications",
+    "HideDiff": "Masquer les modifications",
+    "NewContext": "Nouveau contexte",
+    "NewContextHint": "Archiver cette conversation et démarrer un nouveau contexte pour cet objet",
+    "NewContextConfirm": "Archiver la conversation actuelle et démarrer un nouveau contexte ? La discussion actuelle restera disponible, mais l'assistant ne l'utilisera plus."
+  }
+}

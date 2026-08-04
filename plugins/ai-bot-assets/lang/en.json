@@ -1,0 +1,12 @@
+{
+  "string": {
+    "AISettings": "AI settings",
+    "TokenLimitReachedMonth": "Monthly AI token limit reached. Please try again later.",
+    "AIServiceUnavailable": "The AI service is temporarily unavailable. Please try again later.",
+    "AIEmptyResponse": "I could not produce an answer this time. Please rephrase the question or try again.",
+    "AILevel": "AI level",
+    "AILevelHint": "Quality level ceiling for this workspace",
+    "Language": "Language",
+    "LanguageHint": "Default language for bot replies (e.g. en, ru). Empty = pod default."
+  }
+}

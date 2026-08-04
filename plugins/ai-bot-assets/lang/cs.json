@@ -1,0 +1,12 @@
+{
+  "string": {
+    "AISettings": "Nastavení AI",
+    "TokenLimitReachedMonth": "Byl dosažen měsíční limit tokenů AI. Zkuste to prosím později.",
+    "AIServiceUnavailable": "Služba AI je dočasně nedostupná. Zkuste to prosím později.",
+    "AIEmptyResponse": "Tentokrát se mi nepodařilo vytvořit odpověď. Přeformulujte dotaz nebo to zkuste znovu.",
+    "AILevel": "Úroveň AI",
+    "AILevelHint": "Strop úrovně kvality pro tento pracovní prostor",
+    "Language": "Jazyk",
+    "LanguageHint": "Výchozí jazyk odpovědí bota (např. cs, en). Prázdné = výchozí podu."
+  }
+}

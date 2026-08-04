@@ -1,0 +1,12 @@
+{
+  "string": {
+    "AISettings": "Yapay zeka ayarları",
+    "TokenLimitReachedMonth": "Aylık yapay zeka jeton sınırına ulaşıldı. Lütfen daha sonra tekrar deneyin.",
+    "AIServiceUnavailable": "Yapay zeka hizmeti geçici olarak kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
+    "AIEmptyResponse": "Bu sefer bir yanıt oluşturamadım. Lütfen soruyu yeniden ifade edin veya tekrar deneyin.",
+    "AILevel": "AI düzeyi",
+    "AILevelHint": "Bu çalışma alanı için kalite düzeyi tavanı",
+    "Language": "Dil",
+    "LanguageHint": "Bot yanıtları için varsayılan dil (ör. tr, en). Boş = pod varsayılanı."
+  }
+}

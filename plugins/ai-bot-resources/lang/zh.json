@@ -1,0 +1,29 @@
+{
+  "string": {
+    "AISettings": "Yulia AI",
+    "AILevel": "AI级别",
+    "AILevelHint": "此空间的AI响应质量级别。",
+    "AsrLevel": "转录级别",
+    "AsrLevelHint": "此空间中会议的转录质量级别。",
+    "Language": "语言",
+    "LanguageHint": "此空间中机器人回复的语言。留空则使用默认语言。",
+    "LanguageAuto": "自动 / 默认",
+    "BasicTab": "基本",
+    "PersonalTab": "个人",
+    "SharedPrompt": "工作区指令",
+    "SharedPromptHint": "应用于此工作区所有用户的系统提示（仅限所有者）。",
+    "PersonalContext": "个人偏好",
+    "PersonalContextHint": "关于您的备注，仅适用于与助手的直接聊天。",
+    "DiscussWithAI": "与 Yulia 讨论",
+    "DiscussFirstMessage": "我们来讨论 {label}。",
+    "ProposedEdit": "Yulia 提议了一项修改",
+    "ApplyEdit": "应用",
+    "EditApplied": "已应用",
+    "OpenDocument": "打开文档",
+    "PreviewDiff": "显示更改",
+    "HideDiff": "隐藏更改",
+    "NewContext": "新建上下文",
+    "NewContextHint": "归档此对话，并为该对象开始新的上下文",
+    "NewContextConfirm": "归档当前对话并开始新的上下文？当前讨论仍可查看，但助手将不再使用它。"
+  }
+}

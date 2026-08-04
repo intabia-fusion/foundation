@@ -1,0 +1,29 @@
+{
+  "string": {
+    "AISettings": "Yulia AI",
+    "AILevel": "Yapay zeka seviyesi",
+    "AILevelHint": "Bu alan için yapay zeka yanıtlarının kalite seviyesi.",
+    "AsrLevel": "Transkripsiyon seviyesi",
+    "AsrLevelHint": "Bu alandaki toplantıların transkripsiyon kalite seviyesi.",
+    "Language": "Dil",
+    "LanguageHint": "Bu alandaki bot yanıtları için dil. Varsayılan için boş bırakın.",
+    "LanguageAuto": "Otomatik / varsayılan",
+    "BasicTab": "Temel",
+    "PersonalTab": "Kişisel",
+    "SharedPrompt": "Çalışma alanı talimatları",
+    "SharedPromptHint": "Bu çalışma alanındaki tüm kullanıcılara uygulanan sistem istemi (yalnızca sahip).",
+    "PersonalContext": "Kişisel tercihler",
+    "PersonalContextHint": "Asistanla yalnızca doğrudan sohbetlerde uygulanan sizinle ilgili bir not.",
+    "DiscussWithAI": "Yulia ile görüş",
+    "DiscussFirstMessage": "{label} konusunu konuşalım.",
+    "ProposedEdit": "Yulia bir düzenleme öneriyor",
+    "ApplyEdit": "Uygula",
+    "EditApplied": "Uygulandı",
+    "OpenDocument": "Belgeyi aç",
+    "PreviewDiff": "Değişiklikleri göster",
+    "HideDiff": "Değişiklikleri gizle",
+    "NewContext": "Yeni bağlam",
+    "NewContextHint": "Bu görüşmeyi arşivle ve bu nesne için yeni bir bağlam başlat",
+    "NewContextConfirm": "Mevcut görüşme arşivlenip yeni bir bağlam başlatılsın mı? Mevcut görüşme erişilebilir kalır, ancak asistan artık onu kullanmayacak."
+  }
+}

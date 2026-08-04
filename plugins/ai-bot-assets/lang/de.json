@@ -1,0 +1,12 @@
+{
+  "string": {
+    "AISettings": "KI-Einstellungen",
+    "TokenLimitReachedMonth": "Das monatliche KI-Token-Limit wurde erreicht. Bitte versuchen Sie es später erneut.",
+    "AIServiceUnavailable": "Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
+    "AIEmptyResponse": "Ich konnte diesmal keine Antwort erzeugen. Bitte formulieren Sie die Frage um oder versuchen Sie es erneut.",
+    "AILevel": "KI-Niveau",
+    "AILevelHint": "Qualitätsniveau-Obergrenze für diesen Workspace",
+    "Language": "Sprache",
+    "LanguageHint": "Standardsprache für Bot-Antworten (z.B. de, en). Leer = Pod-Standard."
+  }
+}

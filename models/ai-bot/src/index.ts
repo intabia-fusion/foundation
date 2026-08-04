@@ -13,12 +13,186 @@
 // limitations under the License.
 //
 
-import { type Builder } from '@hcengineering/model'
+import {
+  AccountRole,
+  type AccountUuid,
+  type Blob,
+  type Class,
+  type Doc,
+  type Domain,
+  type Markup,
+  type Ref,
+  type Space,
+  type Timestamp
+} from '@hcengineering/core'
+import {
+  type AIContextMessage,
+  type AIEditProposalMessage,
+  type AILevel,
+  type AsrLevel,
+  type AISpaceSettings,
+  type AIPersonalData,
+  type AIRequest,
+  type AIRequestStatus
+} from '@hcengineering/ai-bot'
+import {
+  type Builder,
+  Model,
+  Prop,
+  TypeBoolean,
+  TypeNumber,
+  TypeRef,
+  TypeString,
+  TypeTimestamp
+} from '@hcengineering/model'
+import core, { TDoc } from '@hcengineering/model-core'
+import chunter, { TChatMessage, TThreadMessage } from '@hcengineering/model-chunter'
+import preference, { TPreference } from '@hcengineering/model-preference'
+import presentation from '@hcengineering/model-presentation'
+import setting from '@hcengineering/setting'
+import view from '@hcengineering/model-view'
 
 import aiBot from './plugin'
+
+/** Domain for AI request status documents. */
+export const DOMAIN_AI = 'ai' as Domain
 
 export { aiBotId } from '@hcengineering/ai-bot'
 export { aiBotOperation } from './migration'
 export default aiBot
 
-export function createModel (builder: Builder): void {}
+@Model(aiBot.class.AIPersonalData, preference.class.Preference)
+export class TAIPersonalData extends TPreference implements AIPersonalData {
+  declare attachedTo: AccountUuid
+
+  @Prop(TypeString(), core.string.String)
+    personalContext!: string
+
+  @Prop(TypeString(), core.string.String)
+    language?: string
+}
+
+@Model(aiBot.class.AIRequest, core.class.Doc, DOMAIN_AI)
+export class TAIRequest extends TDoc implements AIRequest {
+  @Prop(TypeString(), core.string.String)
+    status!: AIRequestStatus
+
+  @Prop(TypeString(), core.string.String)
+    level!: AILevel
+
+  @Prop(TypeString(), core.string.String)
+    modelId!: string
+
+  @Prop(TypeString(), core.string.String)
+    kind!: string
+
+  @Prop(TypeNumber(), core.string.Number)
+    promptTokens!: number
+
+  @Prop(TypeNumber(), core.string.Number)
+    completionTokens!: number
+
+  @Prop(TypeNumber(), core.string.Number)
+    billedTokens!: number
+
+  @Prop(TypeTimestamp(), core.string.Timestamp)
+    estimatedFinishAt?: Timestamp
+
+  @Prop(TypeString(), core.string.String)
+    error?: string
+}
+
+@Model(aiBot.class.AISpaceSettings, core.class.Doc, DOMAIN_AI)
+export class TAISpaceSettings extends TDoc implements AISpaceSettings {
+  @Prop(TypeRef(core.class.Space), core.string.Space)
+    attachedTo?: Ref<Space>
+
+  @Prop(TypeString(), core.string.String)
+    level!: AILevel
+
+  @Prop(TypeString(), core.string.String)
+    asrLevel?: AsrLevel
+
+  @Prop(TypeString(), core.string.String)
+    language?: string
+
+  @Prop(TypeString(), core.string.String)
+    sharedPrompt?: string
+}
+
+@Model(aiBot.class.AIContextMessage, chunter.class.ChatMessage)
+export class TAIContextMessage extends TChatMessage implements AIContextMessage {
+  @Prop(TypeRef(core.class.Doc), core.string.Object)
+    objectId!: Ref<Doc>
+
+  @Prop(TypeRef(core.class.Class), core.string.Class)
+    objectClass!: Ref<Class<Doc>>
+
+  @Prop(TypeRef(core.class.Space), core.string.Space)
+    direct!: Ref<Space>
+
+  @Prop(TypeRef(core.class.Blob), core.string.Object)
+    snapshotBlob?: Ref<Blob>
+
+  @Prop(TypeBoolean(), core.string.Boolean)
+    archived?: boolean
+
+  @Prop(TypeString(), core.string.String)
+    level?: AILevel
+}
+
+@Model(aiBot.class.AIEditProposalMessage, chunter.class.ThreadMessage)
+export class TAIEditProposalMessage extends TThreadMessage implements AIEditProposalMessage {
+  @Prop(TypeRef(core.class.Doc), core.string.Object)
+    targetId!: Ref<Doc>
+
+  @Prop(TypeRef(core.class.Class), core.string.Class)
+    targetClass!: Ref<Class<Doc>>
+
+  @Prop(TypeString(), core.string.String)
+    targetAttr!: string
+
+  @Prop(TypeString(), core.string.String)
+    proposedMarkup!: Markup
+
+  @Prop(TypeBoolean(), core.string.Boolean)
+    applied?: boolean
+}
+
+export function createModel (builder: Builder): void {
+  builder.createModel(TAIPersonalData, TAIRequest, TAISpaceSettings, TAIContextMessage, TAIEditProposalMessage)
+
+  // Render the proposal message with its own presenter (diff + apply button) instead of the
+  // plain chat-message body. The activity feed resolves ObjectPresenter by _class.
+  builder.mixin(aiBot.class.AIEditProposalMessage, core.class.Class, view.mixin.ObjectPresenter, {
+    presenter: aiBot.component.EditProposalPresenter
+  })
+
+  builder.mixin(aiBot.class.AISpaceSettings, core.class.Class, core.mixin.TxAccessLevel, {
+    createAccessLevel: AccountRole.Owner,
+    updateAccessLevel: AccountRole.Owner,
+    removeAccessLevel: AccountRole.Owner
+  })
+
+  builder.createDoc(setting.class.SettingsCategory, core.space.Model, {
+    name: 'ai-settings',
+    label: aiBot.string.AISettings,
+    icon: view.icon.AiStar,
+    component: aiBot.component.AISettings,
+    group: 'settings-account',
+    role: AccountRole.Guest,
+    order: 1700
+  })
+
+  // "Discuss with Yulia" button in the object header (issues, documents, etc.).
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: view.extensions.EditDocTitleExtension,
+    component: aiBot.component.DiscussWithAI
+  })
+
+  // "New context" button in the thread header; renders only for AI context roots.
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: chunter.extensions.ThreadHeaderExtension,
+    component: aiBot.component.ThreadContextActions
+  })
+}

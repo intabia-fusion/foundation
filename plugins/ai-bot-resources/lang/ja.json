@@ -1,0 +1,29 @@
+{
+  "string": {
+    "AISettings": "Yulia AI",
+    "AILevel": "AIレベル",
+    "AILevelHint": "このスペースのAI応答の品質レベル。",
+    "AsrLevel": "文字起こしレベル",
+    "AsrLevelHint": "このスペースでの会議の文字起こしの品質レベル。",
+    "Language": "言語",
+    "LanguageHint": "このスペースでのボットの返信言語。デフォルトにする場合は空白のままにしてください。",
+    "LanguageAuto": "自動 / デフォルト",
+    "BasicTab": "基本",
+    "PersonalTab": "個人",
+    "SharedPrompt": "ワークスペースの指示",
+    "SharedPromptHint": "このワークスペースのすべてのユーザーに適用されるシステムプロンプト（オーナーのみ）。",
+    "PersonalContext": "個人設定",
+    "PersonalContextHint": "あなたに関するメモ。アシスタントとの直接チャットにのみ適用されます。",
+    "DiscussWithAI": "ユリアと相談",
+    "DiscussFirstMessage": "{label} について相談しましょう。",
+    "ProposedEdit": "ユリアが編集を提案しています",
+    "ApplyEdit": "適用",
+    "EditApplied": "適用済み",
+    "OpenDocument": "ドキュメントを開く",
+    "PreviewDiff": "変更を表示",
+    "HideDiff": "変更を非表示",
+    "NewContext": "新しいコンテキスト",
+    "NewContextHint": "この会話をアーカイブし、このオブジェクトの新しいコンテキストを開始します",
+    "NewContextConfirm": "現在の会話をアーカイブして新しいコンテキストを開始しますか？現在の会話は引き続き閲覧できますが、アシスタントは使用しなくなります。"
+  }
+}

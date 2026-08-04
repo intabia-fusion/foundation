@@ -1,0 +1,12 @@
+{
+  "string": {
+    "AISettings": "Ajustes de IA",
+    "TokenLimitReachedMonth": "Se ha alcanzado el límite mensual de tokens de IA. Inténtalo de nuevo más tarde.",
+    "AIServiceUnavailable": "El servicio de IA no está disponible temporalmente. Inténtelo de nuevo más tarde.",
+    "AIEmptyResponse": "No he podido generar una respuesta esta vez. Reformule la pregunta o inténtelo de nuevo.",
+    "AILevel": "Nivel de IA",
+    "AILevelHint": "Techo del nivel de calidad para este espacio de trabajo",
+    "Language": "Idioma",
+    "LanguageHint": "Idioma predeterminado para las respuestas del bot (p. ej. es, en). Vacío = predeterminado del pod."
+  }
+}

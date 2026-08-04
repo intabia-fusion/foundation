@@ -13,6 +13,8 @@
 // limitations under the License.
 //
 import {
+  type AILevelInfo,
+  type AsrLevelInfo,
   type ConnectMeetingRequest,
   type DisconnectMeetingRequest,
   type SummarizeMessagesRequest,
@@ -118,6 +120,56 @@ export async function connectMeeting (
   } catch (error) {
     console.error(error)
     return undefined
+  }
+}
+
+export async function getAILevels (): Promise<AILevelInfo[]> {
+  const url = getMetadata(aiBot.metadata.EndpointURL) ?? ''
+  const token = getMetadata(presentation.metadata.Token) ?? ''
+
+  if (url === '' || token === '') {
+    return []
+  }
+
+  try {
+    const resp = await fetch(concatLink(url, '/levels'), {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer ' + token
+      }
+    })
+    if (!resp.ok) {
+      return []
+    }
+    return (await resp.json()) as AILevelInfo[]
+  } catch (error) {
+    console.error(error)
+    return []
+  }
+}
+
+export async function getAsrLevels (): Promise<AsrLevelInfo[]> {
+  const url = getMetadata(aiBot.metadata.EndpointURL) ?? ''
+  const token = getMetadata(presentation.metadata.Token) ?? ''
+
+  if (url === '' || token === '') {
+    return []
+  }
+
+  try {
+    const resp = await fetch(concatLink(url, '/asr-levels'), {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer ' + token
+      }
+    })
+    if (!resp.ok) {
+      return []
+    }
+    return (await resp.json()) as AsrLevelInfo[]
+  } catch (error) {
+    console.error(error)
+    return []
   }
 }
 

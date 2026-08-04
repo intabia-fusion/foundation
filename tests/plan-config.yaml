@@ -30,6 +30,8 @@ plans:
     meetingMinutesLimit: 0
     tokenLimit: 100000
     usersLimit: 5
+    windowMonthLimit: 100000
+    tokenPackageMultiplier: 1
     index: -1
     color: Grayish
   start:
@@ -231,3 +233,57 @@ packages:
       - storage-mini
       - storage-medium
     storageLimitGB: 0.1
+  ai-1m:
+    description:
+      ru: AI пакет 1М токенов
+      en: AI package 1M tokens
+    priceMonthly: 500
+    currency: ₽
+    eligiblePlans:
+      - start
+      - team
+      - standard
+      - business
+    category: ai
+    tokenLimit: 1000000
+  ai-5m:
+    description:
+      ru: AI пакет 5М токенов
+      en: AI package 5M tokens
+    priceMonthly: 2500
+    currency: ₽
+    eligiblePlans:
+      - start
+      - team
+      - standard
+      - business
+    category: ai
+    tokenLimit: 5000000
+  ai-20m:
+    description:
+      ru: AI пакет 20М токенов
+      en: AI package 20M tokens
+    priceMonthly: 5000
+    currency: ₽
+    eligiblePlans:
+      - start
+      - team
+      - standard
+      - business
+    category: ai
+    tokenLimit: 20000000
+
+purchasables:
+  ai-token-reset:
+    description:
+      ru: Сброс лимита AI-токенов
+      en: AI token limit reset
+    priceMonthly: 500
+    currency: ₽
+    eligiblePlans:
+      - start
+      - team
+      - standard
+      - business
+    category: ai-reset
+    effect: reset-ai-window

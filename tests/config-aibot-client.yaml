@@ -1,0 +1,28 @@
+# Sanity clisr worker registry: serves the `middle` level from the host's OpenAI-compatible
+# endpoint. Needs a mid-size model at :8000/v1; override via LLM_TEST_ENDPOINT / LLM_TEST_MODEL.
+
+llm:
+  defaultLevel: middle
+
+  models:
+    middle:
+      order: 10
+      label: Стандарт
+      tokenMultiplier: 1.2
+      displayMultiplier: 1
+
+  providers:
+    - id: openai
+      provider: openai
+      concurrency: 1
+      batch: 1
+      endpoint: "${LLM_TEST_ENDPOINT:-http://host.docker.internal:8000/v1/}"
+      endpointConfig:
+        apiKey: "${LLM_TEST_API_KEY:-1234}"
+      serves:
+        middle:
+          model: "${LLM_TEST_MODEL:-GigaChat3.1-10B-A1.8B-MLX-oQ4}"
+          tokenizer: tiktoken
+          capabilities:
+            tools: true
+            maxContextTokens: 32768

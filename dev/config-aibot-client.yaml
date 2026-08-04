@@ -1,0 +1,55 @@
+# Dev ai-bot CLIENT registry (mounted at /var/cfg/config.yaml on the clisr worker pods).
+# Reference: services/ai-bot/pod-ai-bot/config.example.yaml
+#
+# The clisr client receives requests carrying a level and resolves level -> model/endpoint
+# from THIS registry, then calls the local OpenAI-compatible endpoint (LM Studio /
+# llama.cpp on the host). Both LLM and ASR are configured here (no legacy STT_* env).
+#   low -> Qwen (LLM), default -> local whisper (ASR)
+
+llm:
+  defaultLevel: low
+
+  # Level classes for levels this client serves locally.
+  models:
+    low:
+      order: 0
+      label: Базовый
+      tokenMultiplier: 1
+      displayMultiplier: 0
+
+  providers:
+    - id: openai
+      provider: openai
+      concurrency: 4
+      batch: 1
+      endpoint: ${CLISR_HOST:-http://host.docker.local:8000/v1/}
+      endpointConfig:
+        apiKey: 1234
+      serves:
+        low:
+          model: ${CLISR_MODEL:-GigaChat3.1-10B-A1.8B-MLX-oQ4}
+          tokenizer: tiktoken
+          capabilities:
+            tools: true
+            maxContextTokens: 32768
+
+# ASR registry (mirrors llm). The clisr STT worker resolves level -> model/endpoint here
+# and calls the local OpenAI-compatible transcription endpoint.
+asr:
+  defaultLevel: default
+
+  models:
+    default:
+      order: 0
+      label: Базовый
+      tokenMultiplier: 1
+      displayMultiplier: 0
+
+  providers:
+    - id: openai
+      provider: openai
+      serves:
+        default:
+          model: whisper-1
+          url: http://host.docker.internal:9007
+          apiKey: key

@@ -30,6 +30,7 @@ export interface PlanLimitsInput {
   tokens?: number
   meetingMinutes?: number
   trialEnd?: number // set with status='trialing' to create a real trial subscription
+  windowMonth?: number // billed-token monthly window (0 = unlimited)
 }
 
 /** Assign an existing account to a workspace with the given role (requires a service token). */
@@ -44,6 +45,7 @@ interface SubscriptionLimits {
   trafficLimitGB: number
   tokenLimit: number
   meetingMinutesLimit: number
+  windowMonthLimit: number
 }
 
 function buildLimits (input: PlanLimitsInput = {}): SubscriptionLimits {
@@ -52,7 +54,8 @@ function buildLimits (input: PlanLimitsInput = {}): SubscriptionLimits {
     storageLimitGB: input.storageGB ?? 0,
     trafficLimitGB: 0,
     tokenLimit: input.tokens ?? 0,
-    meetingMinutesLimit: input.meetingMinutes ?? 0
+    meetingMinutesLimit: input.meetingMinutes ?? 0,
+    windowMonthLimit: input.windowMonth ?? 0
   }
 }
 

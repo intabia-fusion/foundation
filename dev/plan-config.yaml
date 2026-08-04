@@ -49,6 +49,8 @@ plans:
     tokenLimit: 100000
     usersLimit: 5
     guestsLimit: 50
+    windowMonthLimit: 100000
+    tokenPackageMultiplier: 1
     index: 0
     color: Sky
   business:
@@ -101,6 +103,9 @@ plans:
     meetingMinutesLimit: 0
     tokenLimit: 0
     usersLimit: 0
+    # Per-seat AI token window (per-seat plan): effective limit = windowMonthLimit * paid seats.
+    windowMonthLimit: 100000
+    tokenPackageMultiplier: 1
     index: 1
     color: Orchid
   corporation:
@@ -162,6 +167,8 @@ plans:
     meetingMinutesLimit: 0
     tokenLimit: 0
     usersLimit: 0
+    windowMonthLimit: 0
+    tokenPackageMultiplier: 1
     index: 2
     color: Orange
 # Trial for new workspaces. When set, a new workspace starts on this plan with Trialing status
@@ -176,29 +183,86 @@ packages:
     description:
       ru: 100 Гб
       en: 100 GB
-    priceMonthly: 1000
+    priceMonthly: 500
     currency: ₽
     eligiblePlans:
       - start
       - business
+    category: storage
     storageLimitGB: 100
   500gb:
     description:
       ru: 500 Гб
       en: 500 GB
-    priceMonthly: 5000
+    priceMonthly: 2500
     currency: ₽
     eligiblePlans:
       - start
       - business
+    category: storage
     storageLimitGB: 500
   1000gb:
     description:
       ru: 1 000 Гб
       en: 1 000 GB
-    priceMonthly: 10000
+    priceMonthly: 5000
     currency: ₽
     eligiblePlans:
       - start
       - business
+    category: storage
     storageLimitGB: 1000
+  # AI token packages: add an absolute billed-token budget on top of the tier windows.
+  # Budget K = price / 1.2 (20% margin) / 0.065 * 1000 billed/month; the window fields
+  # split it over rolling windows (5h = K*5/720, week = K*168/720).
+  # AI token packages: a purchased monthly token quota. Unused tokens roll over into the
+  # workspace token_balance (billing owns the period). tokenLimit = billed-token budget/month.
+  ai-3m:
+    description:
+      ru: AI пакет 3М токенов
+      en: AI package 3M tokens
+    priceMonthly: 250
+    currency: ₽
+    eligiblePlans:
+      - start
+      - business
+    category: ai
+    tokenLimit: 3000000
+  ai-10m:
+    description:
+      ru: AI пакет 10М токенов
+      en: AI package 10M tokens
+    priceMonthly: 1000
+    currency: ₽
+    eligiblePlans:
+      - start
+      - business
+    category: ai
+    tokenLimit: 10000000
+  ai-25m:
+    description:
+      ru: AI пакет 25М токенов
+      en: AI package 25M tokens
+    priceMonthly: 2500
+    currency: ₽
+    eligiblePlans:
+      - start
+      - business
+    category: ai
+    tokenLimit: 25000000
+
+# One-time catalog purchases (not subscriptions). Bought once via the same checkout (recurrent:false),
+# the effect runs on payment confirmation. ai-token-reset shifts the AI usage window start to now,
+# zeroing used tokens for the current period (limit unchanged).
+purchasables:
+  ai-token-reset:
+    description:
+      ru: Сброс лимита AI-токенов
+      en: AI token limit reset
+    priceMonthly: 500
+    currency: ₽
+    eligiblePlans:
+      - start
+      - business
+    category: ai-reset
+    effect: reset-ai-window

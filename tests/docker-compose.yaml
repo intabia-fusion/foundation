@@ -278,6 +278,7 @@ services:
       - PRINT_URL=http://localhost:8083/_print
       - BILLING_URL=http://localhost:8083/_billing
       - PAYMENT_URL=http://localhost:8083/_payment
+      - AI_URL=http://localhost:8083/_ai
       - USE_OTP=false
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
       - ANALYTICS_COLLECTOR_URL=http://localhost:4018
@@ -573,6 +574,74 @@ services:
       - STATS_URL=http://stats:4901
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
+    restart: unless-stopped
+
+  # clisr worker serving the `pro` level from a local model on the host. Starts always but
+  # idles unless a model server is up; only the @llm suite (rushx run-uitests) uses it.
+  aibot_client_llm:
+    image: intabiafusion/ai-bot
+    pull_policy: never
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      aibot:
+        condition: service_started
+    volumes:
+      - ./config-aibot-client.yaml:/var/cfg/config.yaml
+    environment:
+      - API_TOKEN=api-secret
+      - MODE=client
+      - SERVER_URL=ws://aibot:4010
+      - CONFIG_PATH=/var/cfg/config.yaml
+      - MAX_CONTENT_TOKENS=12800
+      - MAX_HISTORY_RECORDS=500
+      - STATS_URL=http://stats:4901
+      - STT_PROVIDER=
+    restart: unless-stopped
+
+  aibot:
+    image: intabiafusion/ai-bot
+    pull_policy: never
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      account:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    volumes:
+      # Mock provider registry: deterministic replies, per-level billing multipliers.
+      - ./config-aibot.yaml:/var/cfg/config.yaml
+    environment:
+      - ACCOUNTS_URL=http://account:3003
+      - SERVER_SECRET=secret
+      - SERVICE_ID=ai-bot-service
+      - API_TOKEN=api-secret
+      # All-in-one role for sanity (event-router + llm-router + stt-worker).
+      - MODE=all
+      - FIRST_NAME=Julia
+      - LAST_NAME=AI
+      - PASSWORD=password
+      - AVATAR_PATH=./avatar.png
+      - AVATAR_CONTENT_TYPE=.png
+      - PORT=4010
+      # Mock LLM provider (deterministic, offline) — registry from CONFIG_PATH.
+      # Mock provider runs inline on the pod (no clisr worker).
+      - CONFIG_PATH=/var/cfg/config.yaml
+      # STT served in-process via clisr (no external STT needed for sanity).
+      - STT_PROVIDER=server
+      - VAD_RMS_THRESHOLD=0.02
+      - VAD_SPEECH_RATIO_THRESHOLD=0.1
+      - LOVE_ENDPOINT=http://love:8087
+      - BILLING_URL=http://billing:4043
+      # Test stand only: append in/out/reasoning tokens + tok/s to every reply.
+      - LLM_SHOW_USAGE=true
+      - MAX_CONTENT_TOKENS=12800
+      - MAX_HISTORY_RECORDS=500
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - STORAGE_CONFIG=${STORAGE_CONFIG}
+      - CHUNK_STORAGE_CONFIG=minio|minio?accessKey=minioadmin&secretKey=minioadmin&rootBucket=ai-bot-chunks-test
+      - STATS_URL=http://stats:4901
     restart: unless-stopped
 
   sign:

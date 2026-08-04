@@ -463,6 +463,8 @@ services:
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - ACCOUNTS_URL=http://account:3003
       - STORAGE_CONFIG=${STORAGE_CONFIG}
+      - MODE=all
+      - PORT=4011
       - FIRST_NAME=Jolie
       - LAST_NAME=AI
       - PASSWORD=password

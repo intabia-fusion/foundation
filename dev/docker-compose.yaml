@@ -511,13 +511,22 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    volumes:
+      # Model registry (levels -> models). See pod-ai-bot/config.example.yaml.
+      - ./config-aibot.yaml:/var/cfg/config.yaml
     environment:
       # Account and Server Configuration
       - ACCOUNTS_URL=http://account:3000
       - SERVER_SECRET=secret
       - SERVICE_ID=ai-bot-service
       - API_TOKEN=api-secret
-      - MODE=queue
+      # Multi-level model registry (overrides the single-provider env synthesis below).
+      - CONFIG_PATH=/var/cfg/config.yaml
+      # All-in-one role: event-router + llm-router + stt-worker (+ stt-ingest).
+      # Split into MODE=event-router / llm-router / stt-worker for prod topology.
+      - MODE=all
+      # Full LLM payload logging (messages, tool defs, function calls, completions).
+      - LLM_DEBUG=true
 
       # Bot Identity Configuration
       - FIRST_NAME=Julia
@@ -539,17 +548,17 @@ services:
 
       # GigaChat Configuration (only if using GigaChat)
       - LLM_PROVIDER=server # gigachat
-      # - GIGACHAT_CREDENTIALS=${GIGACHAT_AUTH_KEY}
+      # Auth key for the gigachat provider in config-aibot.yaml (${GIGACHAT_AUTH_KEY}
+      # placeholder is expanded from this env by the pod).
+      - GIGACHAT_AUTH_KEY=${GIGACHAT_AUTH_KEY}
+      - GIGACHAT_CLIENT_ID=${GIGACHAT_CLIENT_ID}
       # - GIGACHAT_SCOPE=GIGACHAT_API_PERS
       # - GIGACHAT_MODEL=GigaChat-2
       # - GIGACHAT_BASE_URL=https://gigachat.devices.sberbank.ru/api/v1/
       # - GIGACHAT_TIMEOUT=600
 
-      # STT Configuration
-      - STT_PROVIDER=server #openai
-      # - STT_URL=http://host.docker.internal:9007
-      # - STT_API_KEY=key
-      # - STT_MODEL=
+      # ASR: provider/model come from the yaml `asr:` block. STT_PROVIDER is an opt-out
+      # switch only ('none' disables). Unset here = ASR enabled via the registry.
 
       # Deepgram Configuration (only if using Deepgram)
       # - DEEPGRAM_API_KEY=your-deepgram-api-key
@@ -565,6 +574,8 @@ services:
       - LOVE_ENDPOINT=http://love:8096
       - BILLING_URL=http://billing:4041
       - DATALAB_API_KEY=
+      # Dev only: append in/out/reasoning tokens + tok/s to every reply.
+      - LLM_SHOW_USAGE=false
 
       # Content and History Limits
       - MAX_CONTENT_TOKENS=12800
@@ -584,17 +595,24 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    volumes:
+      # Client model registry: level -> model on the local OpenAI-compatible endpoint.
+      # low -> gpt-oss-20b, middle -> GigaChat3.1-10B (both via host :8000/v1).
+      - ./config-aibot-client.yaml:/var/cfg/config.yaml
     environment:
       - API_TOKEN=api-secret
       - MODE=client
+      # Logical worker id, echoed in results so the router attributes per-client usage.
+      - CLIENT_ID=client-llm-local
       - SERVER_URL=ws://aibot:4010
-      # LLM Configuration
-      - LLM_PROVIDER=openai
-      - OPENAI_API_KEY=token
-      # - OPENAI_MODEL=gpt-4o-mini
-      - OPENAI_BASE_URL=http://host.docker.internal:1234/v1/
-      - OPENAI_SUMMARY_MODEL=qwen/qwen3.5-9b
-      - OPENAI_TRANSLATE_MODEL=qwen/qwen3.5-9b
+      # Model registry (endpoint/models/levels live here, not in env).
+      - CONFIG_PATH=/var/cfg/config.yaml
+      # Local endpoint override: forwarded from the host shell into the container so the
+      # config-aibot-client.yaml ${CLISR_HOST}/${CLISR_MODEL} placeholders resolve.
+      - CLISR_HOST=${CLISR_HOST:-}
+      - CLISR_MODEL=${CLISR_MODEL:-}
+      # Full LLM payload logging (messages, tool defs, tool calls, completions).
+      - LLM_DEBUG=true
 
       # GigaChat Configuration (only if using GigaChat)
       # - LLM_PROVIDER=gigachat
@@ -610,30 +628,27 @@ services:
 
       - STATS_URL=http://stats:4900
 
-      - STT_PROVIDER=
+      # LLM-only worker: opt out of ASR even though the shared registry yaml has an `asr:` block.
+      - STT_PROVIDER=none
   aibot_client_stt:
     image: "intabiafusion/ai-bot:${DOCKER_TAG:-latest}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    volumes:
+      # Same client registry as aibot_client_llm; the `asr:` block drives transcription.
+      - ./config-aibot-client.yaml:/var/cfg/config.yaml
     environment:
       - API_TOKEN=api-secret
       - MODE=client
+      # Logical worker id, echoed in results so the router attributes per-client usage.
+      - CLIENT_ID=client-stt-local
       - SERVER_URL=ws://aibot:4010
+      # ASR registry (endpoint/models/levels live in the yaml `asr:` block, not in env).
+      - CONFIG_PATH=/var/cfg/config.yaml
 
+      # LLM opt-out: this worker only serves ASR (from the yaml `asr:` block).
       - LLM_PROVIDER=none
-
-      # STT Configuration
-      - STT_PROVIDER=openai
-      - STT_URL=http://host.docker.internal:9007
-      - STT_API_KEY=key
-      - STT_MODEL=
-
-      # Deepgram Configuration (only if using Deepgram)
-      # - DEEPGRAM_API_KEY=your-deepgram-api-key
-      # - DEEPGRAM_PROJECT_ID=your-project-id
-      # - DEEPGRAM_TAG=tag
-      # - DEEPGRAM_POLL_INTERVAL_MINUTES=60
 
       # VAD Configuration
       - VAD_RMS_THRESHOLD=0.02

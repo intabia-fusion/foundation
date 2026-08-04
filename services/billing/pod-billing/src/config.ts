@@ -20,6 +20,21 @@ export interface Config {
   DbUrl: string
   StorageConfig: string
   UsageUpdateInterval: number // seconds
+  // Recipients of provider-pool threshold alerts (80%/100%); empty disables email.
+  AdminEmails: string[]
+  QueueRegion: string
+  // Per-PAID-USER rolling-window token limit (0 = unlimited). The effective window
+  // limit scales with the number of paid seats: limit = perUser * paidSeats. Used to
+  // render usage as a percentage; enforcement lives in aibot.
+  WindowMonthLimit: number
+  // AI token package multiplier (xN) — a purchasable package scales the effective AI
+  // token limits (windows + overall). Default 1 = no effect. Placeholder until the
+  // purchase flow lands: today it comes from env; later read the workspace's package
+  // from its Subscription (Tier.tokenPackageMultiplier baked into Subscription.limits).
+  TokenPackageMultiplier: number
+  // Upstream cost per 1000 tokens by key, for the admin cost calculator. Keyed by
+  // provider_id or model (whatever ai-bot records). Env: PROVIDER_PRICES=key:rub,...
+  ProviderPrices: Record<string, number>
 }
 
 const parseNumber = (str: string | undefined): number | undefined => (str !== undefined ? Number(str) : undefined)
@@ -31,10 +46,37 @@ const config: Config = (() => {
     AccountsUrl: process.env.ACCOUNTS_URL,
     DbUrl: process.env.DB_URL,
     StorageConfig: process.env.STORAGE_CONFIG,
-    UsageUpdateInterval: parseNumber(process.env.USAGE_UPDATE_INTERVAL) ?? 60 * 60
+    UsageUpdateInterval: parseNumber(process.env.USAGE_UPDATE_INTERVAL) ?? 60 * 60,
+    AdminEmails: (process.env.PLATFORM_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim())
+      .filter((e) => e !== ''),
+    QueueRegion: process.env.QUEUE_REGION ?? '',
+    WindowMonthLimit: parseNumber(process.env.WINDOW_MONTH_LIMIT) ?? 100000,
+    TokenPackageMultiplier: parseNumber(process.env.TOKEN_PACKAGE_MULTIPLIER) ?? 1,
+    ProviderPrices: Object.fromEntries(
+      (process.env.PROVIDER_PRICES ?? '')
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p !== '')
+        .map((p) => {
+          const [k, v] = p.split(':')
+          return [k.trim(), Number(v)]
+        })
+        .filter(([, v]) => !isNaN(v as number))
+    )
   }
 
-  const missingEnv = (Object.keys(params) as Array<keyof Config>).filter((key) => params[key] === undefined)
+  // AdminEmails/QueueRegion are optional (default applied above) — exclude from the check.
+  const required: Array<keyof Config> = [
+    'Port',
+    'Secret',
+    'AccountsUrl',
+    'DbUrl',
+    'StorageConfig',
+    'UsageUpdateInterval'
+  ]
+  const missingEnv = required.filter((key) => params[key] === undefined)
 
   if (missingEnv.length > 0) {
     throw Error(`Missing config for attributes: ${missingEnv.join(', ')}`)

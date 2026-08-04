@@ -85,6 +85,9 @@ export interface AiTranscriptStats {
 export interface AiTokensStats {
   reason: string
   totalTokens: number
+  providerId?: string
+  model?: string
+  level?: string
 }
 
 export interface AiStats {
@@ -105,10 +108,129 @@ export interface AiTokensData {
   workspace: WorkspaceUuid
   reason: string
   tokens: number
+  rawTokens?: number
   date: string
+  // AI usage dimensions for per-provider/model/level reporting and provider pools.
+  providerId?: string
+  model?: string
+  level?: string
+  // clisr worker that served the request; empty for direct providers.
+  clientId?: string
 }
 
 export interface LargestSpaceInfo {
   spaceId: string
   size: number
+}
+
+export type ProviderPoolKind = 'purchased' | 'local'
+export type ProviderPoolPeriod = 'monthly' | 'daily' | 'none'
+
+export interface ProviderPool {
+  providerId: string
+  model: string
+  kind: ProviderPoolKind
+  purchasedTokens: number
+  period: ProviderPoolPeriod
+  periodStart: string
+  usedTokens: number
+  exhausted: boolean
+  notified80: boolean
+  notified100: boolean
+}
+
+export interface ProviderPoolConfig {
+  providerId: string
+  model: string
+  kind: ProviderPoolKind
+  purchasedTokens: number
+  period: ProviderPoolPeriod
+  periodStart?: string
+}
+
+export interface AiModelRegistryEntry {
+  providerId: string
+  model: string
+  level: string
+  label: string
+}
+
+export interface LevelUsage {
+  level: string
+  label?: string
+  tokens: number
+}
+
+export interface TokenWindowUsage {
+  used: number
+  limit: number
+  // Limit breakdown (all included in `limit`): tier base, purchased packages, rolled-over balance.
+  base?: number
+  packages?: number
+  rollover?: number
+  windowHours: number
+  resetAt: string | null
+  levels: LevelUsage[]
+}
+
+export interface WorkspaceTokenWindows {
+  workspace: WorkspaceUuid
+  plan: string
+  isFree?: boolean
+  // UI label of the level paid plans keep using over the limit (the 'low' fallback).
+  basicLevelLabel: string
+  hasPackages: boolean
+  month: TokenWindowUsage
+}
+
+export interface BillingPricing {
+  pricePer1000: Record<string, number>
+  windowMonthLimitPerUser: number
+  tokenPackageMultiplier: number
+}
+
+export type AiTokensGroupBy = 'model' | 'level' | 'provider' | 'workspace' | 'client'
+
+export interface AiTokensBreakdown {
+  providerId?: string
+  model?: string
+  level?: string
+  clientId?: string
+  workspace?: WorkspaceUuid
+  totalTokens: number
+  rawTokens?: number
+}
+
+export type AiTranscriptGroupBy = 'model' | 'level' | 'provider' | 'workspace' | 'client'
+
+export interface AiTranscriptBreakdown {
+  providerId?: string
+  model?: string
+  level?: string
+  clientId?: string
+  workspace?: WorkspaceUuid
+  durationSeconds: number
+}
+
+// Per-model transcription usage record posted by aibot (mirrors AiTokensData).
+export interface AiTranscriptUsageData {
+  workspace: WorkspaceUuid
+  durationSeconds: number
+  date: string
+  providerId?: string
+  model?: string
+  level?: string
+  // clisr worker that served the transcription; empty for direct providers.
+  clientId?: string
+}
+
+export interface AiWorkspaceBreakdown {
+  workspace: WorkspaceUuid
+  totalTokens: number
+  rawTokens?: number
+  usedMonth: number
+  plan: string
+  limitMonth: number
+  byModel: Array<{ key: string, totalTokens: number, rawTokens?: number }>
+  byLevel: Array<{ key: string, totalTokens: number, rawTokens?: number }>
 }

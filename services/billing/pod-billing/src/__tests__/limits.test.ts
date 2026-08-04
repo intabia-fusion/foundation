@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 import { type WorkspaceUuid } from '@hcengineering/core'
-import { type BillingDB, type BillingUsageMessage, type WorkspaceLimitState } from '../types'
+import { BillingMessageKind, type BillingDB, type BillingUsageMessage, type WorkspaceLimitState } from '../types'
 
 const getSubscriptionsMock = jest.fn()
 const collectDatalakeStatsMock = jest.fn()
@@ -34,6 +34,7 @@ jest.mock('@hcengineering/account-client', () => ({
     if (sub.status === 'trialing' && sub.trialEnd != null && sub.trialEnd < Date.now()) return false
     return ['active', 'trialing', 'past_due', 'readonly'].includes(sub.status)
   },
+  isFreePlan: (tier: any): boolean => tier === undefined || tier.provider === 'free' || tier.plan === 'free',
   SubscriptionType: { Tier: 'tier', Support: 'support', Package: 'package' },
   SubscriptionStatus: {
     Active: 'active',
@@ -53,7 +54,7 @@ jest.mock('../billing', () => ({
 }))
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { LimitsEngine } = require('../limits')
+const { LimitsEngine, effectivePeriodStart } = require('../limits')
 
 const WS = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' as WorkspaceUuid
 const ctx: any = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
@@ -75,7 +76,8 @@ function makeDb (tokensUsed = 0, participantMinutes = 0): BillingDB {
     }),
     getAllExhaustedStates: jest.fn(async () => Array.from(states.values()).filter((s) => s.exhausted)),
     getAiTokensStats: jest.fn(async () => [{ reason: 'chat', totalTokens: tokensUsed }]),
-    getAiTranscriptStats: jest.fn(async () => ({ totalDurationSeconds: 0 }))
+    getAiTranscriptStats: jest.fn(async () => ({ totalDurationSeconds: 0 })),
+    getAiWindowReset: jest.fn(async () => undefined)
   } as unknown as BillingDB
 }
 
@@ -100,7 +102,7 @@ function makeEngine (db: BillingDB): any {
 }
 
 function msg (ref: string, amount = 1): BillingUsageMessage {
-  return { kind: 'usage', workspace: WS, metric: 'tokens', amount, ref }
+  return { kind: BillingMessageKind.Usage, workspace: WS, metric: 'tokens', amount, ref }
 }
 
 describe('LimitsEngine', () => {
@@ -182,7 +184,7 @@ describe('LimitsEngine', () => {
 
   describe('meetingMinutes', () => {
     function minutesMsg (ref: string, amountSeconds: number): BillingUsageMessage {
-      return { kind: 'usage', workspace: WS, metric: 'meetingMinutes', amount: amountSeconds, ref }
+      return { kind: BillingMessageKind.Usage, workspace: WS, metric: 'meetingMinutes', amount: amountSeconds, ref }
     }
 
     it('enforces meetingMinutesLimit in seconds', async () => {
@@ -271,5 +273,119 @@ describe('LimitsEngine', () => {
     )
     expect(byCat.tokens).toBe(5)
     expect(byCat.transcript).toBe(5)
+  })
+})
+
+const DAY = 24 * 60 * 60 * 1000
+
+// Rollover db: token_balance in memory, per-period usage keyed by the query range start.
+function makeRolloverDb (usageByPeriod: number[] = []): { db: BillingDB, balance: () => any } {
+  let bal: any
+  const db = {
+    ...makeDb(0),
+    getTokenBalance: jest.fn(async () => bal),
+    upsertTokenBalance: jest.fn(async (_c: any, workspace: any, remainingTokens: number, periodStart: string) => {
+      bal = { workspace, remainingTokens, periodStart }
+    }),
+    getAiTokensStats: jest.fn(async (_c: any, _ws: any, from?: Date, _to?: Date) => {
+      if (from === undefined) return [{ reason: 'chat', totalTokens: 0 }]
+      // Which elapsed period this range starts at, relative to the stored anchor.
+      const idx = Math.round((from.getTime() - new Date(bal.periodStart).getTime()) / (30 * DAY))
+      return [{ reason: 'chat', totalTokens: usageByPeriod[idx] ?? 0 }]
+    })
+  } as unknown as BillingDB
+  return { db, balance: () => bal }
+}
+
+describe('package rollover', () => {
+  // Tier + one active AI package; tier window is spent first, the package tops it up.
+  function paidWithPackage (tokenLimit: number, packageLimit: number): void {
+    getSubscriptionsMock.mockResolvedValue([
+      { type: 'tier', status: 'active', provider: 'tbank', limits: { tokenLimit } },
+      { type: 'package', status: 'active', limits: { tokenLimit: packageLimit } }
+    ])
+  }
+
+  it('anchors the first period to the billing period, granting nothing yet', async () => {
+    const periodStart = Date.now() - 5 * DAY
+    getSubscriptionsMock.mockResolvedValue([
+      { type: 'tier', status: 'active', provider: 'tbank', periodStart, limits: { tokenLimit: 1000 } }
+    ])
+    const { db, balance } = makeRolloverDb()
+    const { engine } = makeEngine(db)
+    await engine.recomputeWorkspace(ctx, WS)
+    expect(balance().remainingTokens).toBe(0)
+    expect(new Date(balance().periodStart).getTime()).toBe(periodStart)
+  })
+
+  it('carries the full unused package quota of every idle period', async () => {
+    // Idle for ~2 periods: no usage at all -> both periods roll over in full.
+    paidWithPackage(1000, 500)
+    const { db, balance } = makeRolloverDb([0, 0])
+    const start = Date.now() - 65 * DAY
+    await db.upsertTokenBalance(ctx, WS, 0, new Date(start).toISOString())
+    const { engine } = makeEngine(db)
+    await engine.recomputeWorkspace(ctx, WS)
+    expect(balance().remainingTokens).toBe(1000)
+    // Anchor advances by whole periods, not to now — the period grid must not drift.
+    expect(new Date(balance().periodStart).getTime()).toBe(start + 2 * 30 * DAY)
+  })
+
+  it('only usage above the tier window eats the package quota', async () => {
+    // Tier 1000, package 500. Period used 1200 -> 200 over the tier -> 300 rolls over.
+    paidWithPackage(1000, 500)
+    const { db, balance } = makeRolloverDb([1200])
+    const start = Date.now() - 31 * DAY
+    await db.upsertTokenBalance(ctx, WS, 0, new Date(start).toISOString())
+    const { engine } = makeEngine(db)
+    await engine.recomputeWorkspace(ctx, WS)
+    expect(balance().remainingTokens).toBe(300)
+  })
+
+  it('usage within the tier window leaves the package untouched', async () => {
+    // Used 900 < tier 1000 -> the package was never spent -> full 500 rolls over.
+    paidWithPackage(1000, 500)
+    const { db, balance } = makeRolloverDb([900])
+    const start = Date.now() - 31 * DAY
+    await db.upsertTokenBalance(ctx, WS, 0, new Date(start).toISOString())
+    const { engine } = makeEngine(db)
+    await engine.recomputeWorkspace(ctx, WS)
+    expect(balance().remainingTokens).toBe(500)
+  })
+
+  it('does not roll over before the period elapses', async () => {
+    paidWithPackage(1000, 500)
+    const { db, balance } = makeRolloverDb([0])
+    const start = Date.now() - 10 * DAY
+    await db.upsertTokenBalance(ctx, WS, 0, new Date(start).toISOString())
+    const { engine } = makeEngine(db)
+    await engine.recomputeWorkspace(ctx, WS)
+    expect(balance().remainingTokens).toBe(0)
+    expect(new Date(balance().periodStart).getTime()).toBe(start)
+  })
+
+  it('free plans do not roll over', async () => {
+    getSubscriptionsMock.mockResolvedValue([
+      { type: 'tier', status: 'active', provider: 'free', limits: { tokenLimit: 1000 } },
+      { type: 'package', status: 'active', limits: { tokenLimit: 500 } }
+    ])
+    const { db, balance } = makeRolloverDb([0, 0])
+    const start = Date.now() - 65 * DAY
+    await db.upsertTokenBalance(ctx, WS, 0, new Date(start).toISOString())
+    const { engine } = makeEngine(db)
+    await engine.recomputeWorkspace(ctx, WS)
+    expect(balance().remainingTokens).toBe(0)
+  })
+})
+
+describe('effectivePeriodStart (ai-token-reset window anchor)', () => {
+  it('returns the later of tier start and reset', () => {
+    expect(effectivePeriodStart(1000, 5000)).toBe(5000)
+    expect(effectivePeriodStart(5000, 1000)).toBe(5000)
+  })
+  it('falls back to whichever is defined', () => {
+    expect(effectivePeriodStart(1000, undefined)).toBe(1000)
+    expect(effectivePeriodStart(undefined, 5000)).toBe(5000)
+    expect(effectivePeriodStart(undefined, undefined)).toBeUndefined()
   })
 })

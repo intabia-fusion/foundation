@@ -58,13 +58,17 @@ export function getMigrations (flavor: DBFlavor): [string, string][] {
     throw new Error(`Unsupported database flavor: ${flavor}`)
   }
 
+  // Migrations apply by name order. V1-V6 are shipped (V6 = dedup retention index). V7 is
+  // branch-only: AI-token dimensions + client_id, provider_pool, ai_model_registry,
+  // token_balance, ai_transcript_usage_detail — all created in one go.
   return [
     migrationV1(flavor),
     migrationV2(flavor),
     migrationV3(flavor),
     migrationV4(flavor),
     migrationV5(flavor),
-    migrationV6(flavor)
+    migrationV6(flavor),
+    migrationV7(flavor)
   ]
 }
 
@@ -194,4 +198,102 @@ function migrationV6 (flavor: SupportedFlavor): [string, string] {
     CREATE INDEX IF NOT EXISTS idx_usage_delta_dedup_created_at ON billing.usage_delta_dedup (created_at);
   `
   return ['add_usage_dedup_created_at_index_06', sql]
+}
+
+// AI-token dimensions + client_id, provider pools, model registry, package balance and
+// per-model ASR breakdown. Branch-only (never shipped on develop). ai_tokens_usage is
+// recreated (not altered): usage stats are ephemeral, and CockroachDB rejects an in-place
+// ADD COLUMN + UPDATE backfill in one txn (42P10).
+function migrationV7 (flavor: SupportedFlavor): [string, string] {
+  const types = dbTypes[flavor]
+
+  const sql = `
+    DROP TABLE IF EXISTS billing.ai_tokens_usage;
+
+    CREATE TABLE billing.ai_tokens_usage (
+      workspace UUID NOT NULL,
+      hour TIMESTAMP NOT NULL,
+      reason ${types.string255} NOT NULL,
+      provider_id ${types.string255} NOT NULL DEFAULT '',
+      model ${types.string255} NOT NULL DEFAULT '',
+      level ${types.string255} NOT NULL DEFAULT '',
+      client_id ${types.string255} NOT NULL DEFAULT '',
+      total_tokens ${types.int8} NOT NULL,
+      raw_tokens ${types.int8} NOT NULL DEFAULT 0,
+      PRIMARY KEY (workspace, hour, reason, provider_id, model, level, client_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_hour ON billing.ai_tokens_usage (hour);
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_provider ON billing.ai_tokens_usage (provider_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_model ON billing.ai_tokens_usage (model);
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_level ON billing.ai_tokens_usage (level);
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_client ON billing.ai_tokens_usage (client_id);
+
+    CREATE TABLE IF NOT EXISTS billing.provider_pool (
+      provider_id ${types.string255} NOT NULL,
+      model ${types.string255} NOT NULL DEFAULT '',
+      kind ${types.string255} NOT NULL DEFAULT 'purchased',
+      purchased_tokens ${types.int8} NOT NULL DEFAULT 0,
+      period ${types.string255} NOT NULL DEFAULT 'monthly',
+      period_start TIMESTAMP NOT NULL DEFAULT now(),
+      used_tokens ${types.int8} NOT NULL DEFAULT 0,
+      exhausted BOOLEAN NOT NULL DEFAULT false,
+      notified80 BOOLEAN NOT NULL DEFAULT false,
+      notified100 BOOLEAN NOT NULL DEFAULT false,
+      PRIMARY KEY (provider_id, model)
+    );
+
+    -- (provider, model, level) catalog aibot pushes on startup for the admin UI.
+    CREATE TABLE IF NOT EXISTS billing.ai_model_registry (
+      provider_id ${types.string255} NOT NULL,
+      model ${types.string255} NOT NULL,
+      level ${types.string255} NOT NULL DEFAULT '',
+      label ${types.string255} NOT NULL DEFAULT '',
+      updated_at TIMESTAMP NOT NULL DEFAULT now(),
+      PRIMARY KEY (provider_id, model)
+    );
+
+    -- Per-workspace rolled-over package token balance. billing owns the monthly package
+    -- period: unused package budget rolls into remaining_tokens at period end (lazy, on
+    -- recompute), spent before the current-period tier limit.
+    CREATE TABLE IF NOT EXISTS billing.token_balance (
+      workspace UUID NOT NULL,
+      remaining_tokens ${types.int8} NOT NULL DEFAULT 0,
+      period_start TIMESTAMP NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace)
+    );
+
+    -- Per-model ASR transcription breakdown (mirrors ai_tokens_usage). Separate from
+    -- ai_transcript_usage (deepgram polling: last_request_id/last_start_time/total_usd,
+    -- day-only PK) which stays untouched.
+    CREATE TABLE IF NOT EXISTS billing.ai_transcript_usage_detail (
+      workspace UUID NOT NULL,
+      day DATE NOT NULL,
+      provider_id ${types.string255} NOT NULL DEFAULT '',
+      model ${types.string255} NOT NULL DEFAULT '',
+      level ${types.string255} NOT NULL DEFAULT '',
+      client_id ${types.string255} NOT NULL DEFAULT '',
+      total_duration_seconds ${types.float} NOT NULL DEFAULT 0,
+      PRIMARY KEY (workspace, day, provider_id, model, level, client_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_day ON billing.ai_transcript_usage_detail (day);
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_provider
+      ON billing.ai_transcript_usage_detail (provider_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_model ON billing.ai_transcript_usage_detail (model);
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_level ON billing.ai_transcript_usage_detail (level);
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_client
+      ON billing.ai_transcript_usage_detail (client_id);
+
+    -- Per-workspace AI usage-window reset anchor. A one-time purchase (applied by aibot) sets
+    -- reset_at=now; computeUsed then counts tokens from max(tier.periodStart, reset_at). applied_purchase_id
+    -- makes the aibot-driven reset idempotent across event redeliveries.
+    CREATE TABLE IF NOT EXISTS billing.ai_window_reset (
+      workspace UUID NOT NULL,
+      reset_at TIMESTAMP NOT NULL,
+      applied_purchase_id ${types.string255} NOT NULL DEFAULT '',
+      PRIMARY KEY (workspace)
+    );
+  `
+  return ['add_ai_token_dimensions_and_pools_07', sql]
 }

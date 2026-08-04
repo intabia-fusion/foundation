@@ -16,9 +16,19 @@
 import {
   AiTokensData,
   AiTokensUsage,
+  AiTokensGroupBy,
+  AiTokensBreakdown,
+  AiWorkspaceBreakdown,
+  ProviderTokenTotal,
+  ProviderPool,
+  ProviderPoolConfig,
+  AiModelRegistryEntry,
   AiTranscriptData,
   AiTranscriptDailyUsage,
   AiTranscriptUsage,
+  AiTranscriptGroupBy,
+  AiTranscriptBreakdown,
+  AiTranscriptUsageData,
   BillingDB,
   LiveKitEgressData,
   LiveKitEgressUsageData,
@@ -28,6 +38,7 @@ import {
   LiveKitUsageData,
   ParticipantDailyUsage,
   ParticipantMinutesUsage,
+  type TokenBalance,
   type LimitCategory,
   type UsageMetric,
   type WorkspaceLimitState
@@ -37,6 +48,7 @@ import { MeasureContext, type WorkspaceUuid } from '@hcengineering/core'
 import { LoggedDB } from './logged'
 import { RetryDB } from './retry'
 import { DBFlavor, getMigrations } from './migrations'
+import { computePoolTransition } from '../pool'
 
 const BATCH_SIZE = 100
 
@@ -82,6 +94,14 @@ class PostgresDB implements BillingDB {
     private readonly sql: Sql,
     private readonly flavor: DBFlavor
   ) {}
+
+  private get stringType (): string {
+    return this.flavor === 'cockroach' ? 'string' : 'text'
+  }
+
+  private get int8Type (): string {
+    return this.flavor === 'cockroach' ? 'int8' : 'bigint'
+  }
 
   static async create (ctx: MeasureContext, sql: Sql): Promise<PostgresDB> {
     const flavor = await getDbFlavor(sql)
@@ -463,7 +483,6 @@ class PostgresDB implements BillingDB {
       }
     }
     const deduped = Array.from(aggregated.values())
-    const stringType = this.flavor === 'cockroach' ? 'string' : 'text'
 
     for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
       const batch = deduped.slice(i, i + BATCH_SIZE)
@@ -476,7 +495,7 @@ class PostgresDB implements BillingDB {
       for (const item of batch) {
         const { workspace, lastRequestId, lastStartTime, durationSeconds, usd, day } = item
         values.push(
-          `($${paramIndex++}::uuid, DATE($${paramIndex++}::timestamp), $${paramIndex++}::${stringType}, $${paramIndex++}::timestamp, $${paramIndex++}::float, $${paramIndex++}::decimal)`
+          `($${paramIndex++}::uuid, DATE($${paramIndex++}::timestamp), $${paramIndex++}::${this.stringType}, $${paramIndex++}::timestamp, $${paramIndex++}::float, $${paramIndex++}::decimal)`
         )
         params.push(workspace, day, lastRequestId, lastStartTime, durationSeconds, usd)
       }
@@ -588,20 +607,27 @@ class PostgresDB implements BillingDB {
     }
   }
 
-  async pushAiTokensData (ctx: MeasureContext, data: AiTokensData[]): Promise<void> {
-    const aggregated = new Map<string, AiTokensData>()
+  // Per-model ASR detail (admin breakdown), separate table from the deepgram-polling
+  // ai_transcript_usage. Mirrors pushAiTokensData.
+  async pushTranscriptUsage (ctx: MeasureContext, data: AiTranscriptUsageData[]): Promise<void> {
+    const aggregated = new Map<string, AiTranscriptUsageData & { day: string }>()
     for (const item of data) {
-      const key = `${item.workspace}::${item.date}::${item.reason}`
+      const providerId = item.providerId ?? ''
+      const model = item.model ?? ''
+      const level = item.level ?? ''
+      const clientId = item.clientId ?? ''
+      const day = new Date(item.date)
+      day.setUTCHours(0, 0, 0, 0)
+      const dayStr = day.toISOString()
+      const key = `${item.workspace}::${dayStr}::${providerId}::${model}::${level}::${clientId}`
       const existing = aggregated.get(key)
       if (existing !== undefined) {
-        existing.tokens += item.tokens
+        existing.durationSeconds += item.durationSeconds
       } else {
-        aggregated.set(key, { ...item })
+        aggregated.set(key, { ...item, providerId, model, level, clientId, day: dayStr })
       }
     }
     const deduped = Array.from(aggregated.values())
-    const stringType = this.flavor === 'cockroach' ? 'string' : 'text'
-    const int8Type = this.flavor === 'cockroach' ? 'int8' : 'bigint'
 
     for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
       const batch = deduped.slice(i, i + BATCH_SIZE)
@@ -612,25 +638,158 @@ class PostgresDB implements BillingDB {
       let paramIndex = 1
 
       for (const item of batch) {
-        const { workspace, reason, tokens, date } = item
-
         values.push(
-          `($${paramIndex++}::uuid, $${paramIndex++}::date, $${paramIndex++}::${stringType}, $${paramIndex++}::${int8Type})`
+          `($${paramIndex++}::uuid, DATE($${paramIndex++}::timestamp), $${paramIndex++}::${this.stringType}, $${paramIndex++}::${this.stringType}, $${paramIndex++}::${this.stringType}, $${paramIndex++}::${this.stringType}, $${paramIndex++}::float)`
         )
-
-        params.push(workspace, date, reason, tokens)
+        params.push(
+          item.workspace,
+          item.day,
+          item.providerId,
+          item.model,
+          item.level,
+          item.clientId ?? '',
+          item.durationSeconds
+        )
       }
 
       const sql = `
-      INSERT INTO billing.ai_tokens_usage (workspace, day, reason, total_tokens)
+      INSERT INTO billing.ai_transcript_usage_detail
+        (workspace, day, provider_id, model, level, client_id, total_duration_seconds)
       VALUES ${values.join(',')}
-      ON CONFLICT (workspace, day, reason)
+      ON CONFLICT (workspace, day, provider_id, model, level, client_id)
       DO UPDATE SET
-        total_tokens = billing.ai_tokens_usage.total_tokens + EXCLUDED.total_tokens;
+        total_duration_seconds = billing.ai_transcript_usage_detail.total_duration_seconds
+          + EXCLUDED.total_duration_seconds;
+    `
+      await this.execute(sql, params)
+    }
+  }
+
+  async getAiTranscriptBreakdown (
+    ctx: MeasureContext,
+    groupBy: AiTranscriptGroupBy,
+    start?: Date,
+    end?: Date
+  ): Promise<AiTranscriptBreakdown[]> {
+    const column = {
+      model: 'model',
+      level: 'level',
+      provider: 'provider_id',
+      workspace: 'workspace',
+      client: 'client_id'
+    }[groupBy]
+    const params: any[] = []
+    let where = 'WHERE 1 = 1'
+    let paramIndex = 1
+    if (start != null) {
+      where += ` AND day >= $${paramIndex++}::date`
+      params.push(start)
+    }
+    if (end != null) {
+      where += ` AND day <= $${paramIndex++}::date`
+      params.push(end)
+    }
+
+    const sql = `
+    SELECT ${column} AS grp, SUM(total_duration_seconds) AS total_duration_seconds
+    FROM billing.ai_transcript_usage_detail
+    ${where}
+    GROUP BY ${column}
+    ORDER BY total_duration_seconds DESC`
+    const result = await this.execute(sql, params)
+
+    return result.map((row: any) => {
+      const durationSeconds = Number(row.total_duration_seconds ?? 0)
+      const grp = row.grp
+      switch (groupBy) {
+        case 'model':
+          return { model: grp, durationSeconds }
+        case 'level':
+          return { level: grp, durationSeconds }
+        case 'provider':
+          return { providerId: grp, durationSeconds }
+        case 'client':
+          return { clientId: grp, durationSeconds }
+        default:
+          return { workspace: grp, durationSeconds }
+      }
+    })
+  }
+
+  async pushAiTokensData (ctx: MeasureContext, data: AiTokensData[]): Promise<void> {
+    // Bucket by the hour the usage happened in, so rolling windows (5h / week) are exact.
+    const aggregated = new Map<string, AiTokensData & { hour: string }>()
+    for (const item of data) {
+      const providerId = item.providerId ?? ''
+      const model = item.model ?? ''
+      const level = item.level ?? ''
+      const hour = truncToHour(item.date)
+      const clientId = item.clientId ?? ''
+      const key = `${item.workspace}::${hour}::${item.reason}::${providerId}::${model}::${level}::${clientId}`
+      const existing = aggregated.get(key)
+      if (existing !== undefined) {
+        existing.tokens += item.tokens
+        existing.rawTokens = (existing.rawTokens ?? 0) + (item.rawTokens ?? 0)
+      } else {
+        aggregated.set(key, { ...item, providerId, model, level, clientId, hour })
+      }
+    }
+    const deduped = Array.from(aggregated.values())
+
+    for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
+      const batch = deduped.slice(i, i + BATCH_SIZE)
+      if (batch.length === 0) continue
+
+      const values: string[] = []
+      const params: any[] = []
+      let paramIndex = 1
+
+      for (const item of batch) {
+        const { workspace, reason, tokens, hour } = item
+
+        values.push(
+          `($${paramIndex++}::uuid, $${paramIndex++}::timestamp, $${paramIndex++}::${this.stringType}, $${paramIndex++}::${this.int8Type}, $${paramIndex++}::${this.int8Type}, $${paramIndex++}::${this.stringType}, $${paramIndex++}::${this.stringType}, $${paramIndex++}::${this.stringType}, $${paramIndex++}::${this.stringType})`
+        )
+
+        params.push(
+          workspace,
+          hour,
+          reason,
+          tokens,
+          item.rawTokens ?? 0,
+          item.providerId ?? '',
+          item.model ?? '',
+          item.level ?? '',
+          item.clientId ?? ''
+        )
+      }
+
+      const sql = `
+      INSERT INTO billing.ai_tokens_usage (workspace, hour, reason, total_tokens, raw_tokens, provider_id, model, level, client_id)
+      VALUES ${values.join(',')}
+      ON CONFLICT (workspace, hour, reason, provider_id, model, level, client_id)
+      DO UPDATE SET
+        total_tokens = billing.ai_tokens_usage.total_tokens + EXCLUDED.total_tokens,
+        raw_tokens = billing.ai_tokens_usage.raw_tokens + EXCLUDED.raw_tokens;
     `
 
       await this.execute(sql, params)
     }
+  }
+
+  // Build a "AND hour >= / <= " clause from optional start/end, appending to params.
+  private hourRange (params: any[], startIndex: number, start?: Date, end?: Date): string {
+    let where = ''
+    let paramIndex = startIndex
+    if (start != null) {
+      where += ` AND hour >= $${paramIndex++}::timestamp`
+      params.push(new Date(start))
+    }
+    if (end != null) {
+      where += ` AND hour <= $${paramIndex++}::timestamp`
+      params.push(new Date(end))
+    }
+    return where
   }
 
   async getAiTokensStats (
@@ -639,37 +798,15 @@ class PostgresDB implements BillingDB {
     start?: Date,
     end?: Date
   ): Promise<AiTokensUsage[]> {
-    const baseSql = `
-    SELECT
-      reason,
-      SUM(total_tokens) AS total_tokens
-    FROM billing.ai_tokens_usage
-  `
-
-    let where = 'WHERE workspace = $1::uuid'
     const params: any[] = [workspace]
-    let paramIndex = 2
+    const where = 'WHERE workspace = $1::uuid' + this.hourRange(params, 2, start, end)
 
-    if (start != null) {
-      const s = new Date(start)
-      s.setHours(0, 0, 0, 0)
-
-      where += ` AND day >= $${paramIndex++}::date`
-      params.push(s)
-    }
-
-    if (end != null) {
-      const e = new Date(end)
-      e.setHours(23, 59, 59, 999)
-
-      where += ` AND day <= $${paramIndex++}::date`
-      params.push(e)
-    }
-
-    const groupBy = 'GROUP BY reason'
-    const orderBy = 'ORDER BY reason ASC'
-
-    const sql = [baseSql, where, groupBy, orderBy].join(' ')
+    const sql = `
+    SELECT reason, SUM(total_tokens) AS total_tokens
+    FROM billing.ai_tokens_usage
+    ${where}
+    GROUP BY reason
+    ORDER BY reason ASC`
     const result = await this.execute(sql, params)
 
     return result.map((row: any) => ({
@@ -759,7 +896,401 @@ class PostgresDB implements BillingDB {
     const rows = await this.execute<any[]>(query, [])
     return rows.map(rowToLimitState)
   }
+
+  async getAiTokensBreakdown (
+    ctx: MeasureContext,
+    groupBy: AiTokensGroupBy,
+    providerId?: string,
+    start?: Date,
+    end?: Date
+  ): Promise<AiTokensBreakdown[]> {
+    const column = {
+      model: 'model',
+      level: 'level',
+      provider: 'provider_id',
+      workspace: 'workspace',
+      client: 'client_id'
+    }[groupBy]
+    const params: any[] = []
+    let where = ''
+    let paramIndex = 1
+    if (providerId != null && providerId !== '') {
+      where = `WHERE provider_id = $${paramIndex++}::${this.stringType}`
+      params.push(providerId)
+    } else {
+      where = 'WHERE 1 = 1'
+    }
+    where += this.hourRange(params, paramIndex, start, end)
+
+    const sql = `
+    SELECT ${column} AS grp, SUM(total_tokens) AS total_tokens, SUM(raw_tokens) AS raw_tokens
+    FROM billing.ai_tokens_usage
+    ${where}
+    GROUP BY ${column}
+    ORDER BY total_tokens DESC`
+    const result = await this.execute(sql, params)
+
+    return result.map((row: any) => {
+      const total = Number(row.total_tokens ?? 0)
+      const raw = Number(row.raw_tokens ?? 0)
+      const grp = row.grp
+      switch (groupBy) {
+        case 'model':
+          return { model: grp, totalTokens: total, rawTokens: raw }
+        case 'level':
+          return { level: grp, totalTokens: total, rawTokens: raw }
+        case 'provider':
+          return { providerId: grp, totalTokens: total, rawTokens: raw }
+        case 'client':
+          return { clientId: grp, totalTokens: total, rawTokens: raw }
+        default:
+          return { workspace: grp, totalTokens: total, rawTokens: raw }
+      }
+    })
+  }
+
+  // Per-workspace roll-up: period total + rolling-window (month) usage + per-model/level
+  // split. Three grouped queries (totals+window, by model, by level), merged in memory —
+  // O(rows), no per-workspace round-trips.
+  async getWorkspaceBreakdown (
+    ctx: MeasureContext,
+    start?: Date,
+    end?: Date,
+    limit?: number,
+    offset?: number
+  ): Promise<AiWorkspaceBreakdown[]> {
+    const now = Date.now()
+    const sinceMonth = new Date(now - 24 * 30 * 60 * 60 * 1000)
+
+    const totalsParams: any[] = [sinceMonth]
+    const totalsWhere = `WHERE 1 = 1${this.hourRange(totalsParams, 2, start, end)}`
+    // Highest spenders first; page with limit/offset (default: all).
+    let pageClause = ''
+    if (limit !== undefined) {
+      totalsParams.push(limit)
+      pageClause += ` LIMIT $${totalsParams.length}`
+      totalsParams.push(offset ?? 0)
+      pageClause += ` OFFSET $${totalsParams.length}`
+    }
+    const totalsSql = `
+    SELECT workspace,
+      SUM(total_tokens) AS total_tokens,
+      SUM(raw_tokens) AS raw_tokens,
+      SUM(CASE WHEN hour >= $1::timestamp THEN total_tokens ELSE 0 END) AS used_month
+    FROM billing.ai_tokens_usage
+    ${totalsWhere}
+    GROUP BY workspace
+    ORDER BY total_tokens DESC${pageClause}`
+    const totals = await this.execute<any[]>(totalsSql, totalsParams)
+
+    const splitBy = async (
+      column: 'model' | 'level'
+    ): Promise<Map<string, Array<{ key: string, totalTokens: number }>>> => {
+      const params: any[] = []
+      const where = `WHERE 1 = 1${this.hourRange(params, 1, start, end)}`
+      const sql = `
+      SELECT workspace, ${column} AS grp, SUM(total_tokens) AS total_tokens, SUM(raw_tokens) AS raw_tokens
+      FROM billing.ai_tokens_usage
+      ${where}
+      GROUP BY workspace, ${column}
+      ORDER BY total_tokens DESC`
+      const rows = await this.execute<any[]>(sql, params)
+      const map = new Map<string, Array<{ key: string, totalTokens: number, rawTokens?: number }>>()
+      for (const r of rows) {
+        const list = map.get(r.workspace) ?? []
+        list.push({ key: r.grp ?? '', totalTokens: Number(r.total_tokens ?? 0), rawTokens: Number(r.raw_tokens ?? 0) })
+        map.set(r.workspace, list)
+      }
+      return map
+    }
+    const [byModel, byLevel] = await Promise.all([splitBy('model'), splitBy('level')])
+
+    return totals.map((row: any) => ({
+      workspace: row.workspace as WorkspaceUuid,
+      totalTokens: Number(row.total_tokens ?? 0),
+      rawTokens: Number(row.raw_tokens ?? 0),
+      usedMonth: Number(row.used_month ?? 0),
+      byModel: byModel.get(row.workspace) ?? [],
+      byLevel: byLevel.get(row.workspace) ?? []
+    }))
+  }
+
+  // Per-level token totals within a calendar billing period (for the usage popup breakdown).
+  async getWorkspaceLevelUsage (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    start: Date,
+    end: Date
+  ): Promise<Array<{ level: string, label: string, tokens: number }>> {
+    const sql = `
+    SELECT u.level, MAX(r.label) AS label, SUM(u.total_tokens) AS tokens
+    FROM billing.ai_tokens_usage u
+    LEFT JOIN billing.ai_model_registry r ON r.level = u.level
+    WHERE u.workspace = $1::uuid AND u.hour >= $2::timestamp AND u.hour <= $3::timestamp
+    GROUP BY u.level
+    ORDER BY tokens DESC`
+    const result = await this.execute(sql, [workspace, start, end])
+    return result.map((row: any) => ({
+      level: row.level ?? '',
+      label: row.label ?? row.level ?? '',
+      tokens: Number(row.tokens ?? 0)
+    }))
+  }
+
+  async getProviderTokenTotals (ctx: MeasureContext, start?: Date, end?: Date): Promise<ProviderTokenTotal[]> {
+    const params: any[] = []
+    const where = "WHERE provider_id <> ''" + this.hourRange(params, 1, start, end)
+
+    const sql = `
+    SELECT provider_id, model, SUM(total_tokens) AS total_tokens, SUM(raw_tokens) AS raw_tokens
+    FROM billing.ai_tokens_usage
+    ${where}
+    GROUP BY provider_id, model`
+    const result = await this.execute(sql, params)
+
+    return result.map((row: any) => ({
+      providerId: row.provider_id,
+      model: row.model ?? '',
+      totalTokens: Number(row.total_tokens ?? 0),
+      rawTokens: Number(row.raw_tokens ?? 0)
+    }))
+  }
+
+  private mapPool (row: any): ProviderPool {
+    return {
+      providerId: row.provider_id,
+      model: row.model ?? '',
+      kind: row.kind,
+      purchasedTokens: Number(row.purchased_tokens ?? 0),
+      period: row.period,
+      periodStart: new Date(row.period_start).toISOString(),
+      usedTokens: Number(row.used_tokens ?? 0),
+      exhausted: row.exhausted === true,
+      notified80: row.notified80 === true,
+      notified100: row.notified100 === true
+    }
+  }
+
+  async listProviderPools (ctx: MeasureContext): Promise<ProviderPool[]> {
+    const result = await this.execute('SELECT * FROM billing.provider_pool ORDER BY provider_id ASC, model ASC', [])
+    return result.map((row: any) => this.mapPool(row))
+  }
+
+  async getProviderPool (ctx: MeasureContext, providerId: string, model: string): Promise<ProviderPool | undefined> {
+    const result = await this.execute(
+      `SELECT * FROM billing.provider_pool WHERE provider_id = $1::${this.stringType} AND model = $2::${this.stringType}`,
+      [providerId, model]
+    )
+    return result.length > 0 ? this.mapPool(result[0]) : undefined
+  }
+
+  async upsertProviderPool (ctx: MeasureContext, config: ProviderPoolConfig): Promise<void> {
+    const periodStart = config.periodStart ?? new Date().toISOString()
+
+    // A new config / new period resets used + notify flags (recompute repopulates used).
+    const sql = `
+    INSERT INTO billing.provider_pool
+      (provider_id, model, kind, purchased_tokens, period, period_start, used_tokens, exhausted, notified80, notified100)
+    VALUES ($1::${this.stringType}, $2::${this.stringType}, $3::${this.stringType}, $4::${this.int8Type}, $5::${this.stringType}, $6::timestamp, 0, false, false, false)
+    ON CONFLICT (provider_id, model) DO UPDATE SET
+      kind = EXCLUDED.kind,
+      purchased_tokens = EXCLUDED.purchased_tokens,
+      period = EXCLUDED.period,
+      period_start = EXCLUDED.period_start,
+      used_tokens = 0,
+      exhausted = false,
+      notified80 = false,
+      notified100 = false`
+    await this.execute(sql, [
+      config.providerId,
+      config.model,
+      config.kind,
+      config.purchasedTokens,
+      config.period,
+      periodStart
+    ])
+  }
+
+  async addPurchasedTokens (ctx: MeasureContext, providerId: string, model: string, delta: number): Promise<void> {
+    // Top-up: increment the purchased budget and clear exhausted/notify flags so the
+    // pool reopens and 80%/100% can fire again against the new total.
+    const sql = `
+    UPDATE billing.provider_pool SET
+      purchased_tokens = purchased_tokens + $3::${this.int8Type},
+      exhausted = false,
+      notified80 = false,
+      notified100 = false
+    WHERE provider_id = $1::${this.stringType} AND model = $2::${this.stringType}`
+    await this.execute(sql, [providerId, model, delta])
+  }
+
+  async updateProviderPoolState (
+    ctx: MeasureContext,
+    providerId: string,
+    model: string,
+    usedTokens: number
+  ): Promise<{ pool: ProviderPool, crossed80: boolean, crossed100: boolean }> {
+    const existing = await this.getProviderPool(ctx, providerId, model)
+    if (existing === undefined) {
+      throw new Error(`provider pool not found: ${providerId}/${model}`)
+    }
+
+    const { exhausted, reach80, reach100, crossed80, crossed100 } = computePoolTransition(existing, usedTokens)
+
+    const sql = `
+    UPDATE billing.provider_pool SET
+      used_tokens = $3::${this.int8Type},
+      exhausted = $4,
+      notified80 = notified80 OR $5,
+      notified100 = notified100 OR $6
+    WHERE provider_id = $1::${this.stringType} AND model = $2::${this.stringType}`
+    await this.execute(sql, [providerId, model, usedTokens, exhausted, reach80, reach100])
+
+    return {
+      pool: {
+        ...existing,
+        usedTokens,
+        exhausted,
+        notified80: existing.notified80 || reach80,
+        notified100: existing.notified100 || reach100
+      },
+      crossed80,
+      crossed100
+    }
+  }
+
+  async replaceAiModelRegistry (ctx: MeasureContext, entries: AiModelRegistryEntry[]): Promise<void> {
+    for (const e of entries) {
+      const sql = `
+      INSERT INTO billing.ai_model_registry (provider_id, model, level, label, updated_at)
+      VALUES ($1::${this.stringType}, $2::${this.stringType}, $3::${this.stringType}, $4::${this.stringType}, now())
+      ON CONFLICT (provider_id, model) DO UPDATE SET
+        level = EXCLUDED.level,
+        label = EXCLUDED.label,
+        updated_at = now()`
+      await this.execute(sql, [e.providerId, e.model, e.level, e.label])
+    }
+  }
+
+  async listAiModelRegistry (ctx: MeasureContext): Promise<AiModelRegistryEntry[]> {
+    const result = await this.execute(
+      'SELECT provider_id, model, level, label FROM billing.ai_model_registry ORDER BY provider_id ASC, model ASC',
+      []
+    )
+    return result.map((row: any) => ({
+      providerId: row.provider_id,
+      model: row.model,
+      level: row.level ?? '',
+      label: row.label ?? ''
+    }))
+  }
+
+  // Reset a pool's used counter by starting a fresh period at now(): the next
+  // recompute sums only usage after this instant, so used drops to 0 and the pool reopens.
+  async resetProviderPoolUsed (ctx: MeasureContext, providerId: string, model: string): Promise<void> {
+    const sql = `
+    UPDATE billing.provider_pool SET
+      period_start = now(),
+      used_tokens = 0,
+      exhausted = false,
+      notified80 = false,
+      notified100 = false
+    WHERE provider_id = $1::${this.stringType} AND model = $2::${this.stringType}`
+    await this.execute(sql, [providerId, model])
+  }
+
+  async resetAllProviderPoolsUsed (ctx: MeasureContext): Promise<void> {
+    await this.execute(
+      `UPDATE billing.provider_pool SET
+        period_start = now(), used_tokens = 0, exhausted = false, notified80 = false, notified100 = false`,
+      []
+    )
+  }
+
+  // Clear a workspace's token limit state so it is no longer blocked; recompute repopulates used.
+  async resetWorkspaceUsed (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<void> {
+    await this.execute(
+      "UPDATE billing.workspace_limit_state SET used = 0, exhausted = false, updated_at = now() WHERE workspace = $1::uuid AND category = 'tokens'",
+      [workspace]
+    )
+  }
+
+  // Test helper: make the workspace's token usage exactly `value`. Clears this month's usage rows
+  // (the source recompute reads from) and inserts one synthetic record, then updates the cached state.
+  async setWorkspaceUsed (ctx: MeasureContext, workspace: WorkspaceUuid, value: number, level: string): Promise<void> {
+    const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    await this.execute('DELETE FROM billing.ai_tokens_usage WHERE workspace = $1::uuid AND hour >= $2::timestamp', [
+      workspace,
+      monthAgo
+    ])
+    if (value > 0) {
+      await this.execute(
+        `INSERT INTO billing.ai_tokens_usage (workspace, hour, reason, total_tokens, raw_tokens, provider_id, model, level)
+         VALUES ($1::uuid, now(), 'admin-test', $2::${this.int8Type}, $2::${this.int8Type}, '', '', $3::${this.stringType})`,
+        [workspace, value, level]
+      )
+    }
+    await this.execute(
+      `UPDATE billing.workspace_limit_state SET used = $2::${this.int8Type}, updated_at = now() WHERE workspace = $1::uuid AND category = 'tokens'`,
+      [workspace, value]
+    )
+  }
+
+  async getTokenBalance (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<TokenBalance | undefined> {
+    const result = await this.execute('SELECT * FROM billing.token_balance WHERE workspace = $1::uuid', [workspace])
+    if (result.length === 0) return undefined
+    const row = result[0]
+    return {
+      workspace: row.workspace as WorkspaceUuid,
+      remainingTokens: Number(row.remaining_tokens ?? 0),
+      periodStart: new Date(row.period_start).toISOString()
+    }
+  }
+
+  async upsertTokenBalance (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    remainingTokens: number,
+    periodStart: string
+  ): Promise<void> {
+    const sql = `
+    INSERT INTO billing.token_balance (workspace, remaining_tokens, period_start)
+    VALUES ($1::uuid, $2::${this.int8Type}, $3::timestamp)
+    ON CONFLICT (workspace) DO UPDATE SET
+      remaining_tokens = EXCLUDED.remaining_tokens,
+      period_start = EXCLUDED.period_start`
+    await this.execute(sql, [workspace, remainingTokens, periodStart])
+  }
+
+  async getAiWindowReset (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<number | undefined> {
+    const result = await this.execute('SELECT reset_at FROM billing.ai_window_reset WHERE workspace = $1::uuid', [
+      workspace
+    ])
+    if (result.length === 0) return undefined
+    return new Date(result[0].reset_at).getTime()
+  }
+
+  async setAiWindowReset (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    resetAtMs: number,
+    purchaseId: string
+  ): Promise<boolean> {
+    // Idempotent by purchaseId: a redelivered event with the same id updates nothing and returns no rows.
+    const sql = `
+    INSERT INTO billing.ai_window_reset (workspace, reset_at, applied_purchase_id)
+    VALUES ($1::uuid, to_timestamp($2::float8 / 1000), $3)
+    ON CONFLICT (workspace) DO UPDATE SET
+      reset_at = EXCLUDED.reset_at,
+      applied_purchase_id = EXCLUDED.applied_purchase_id
+    WHERE billing.ai_window_reset.applied_purchase_id IS DISTINCT FROM EXCLUDED.applied_purchase_id
+    RETURNING workspace`
+    const result = await this.execute(sql, [workspace, resetAtMs, purchaseId])
+    return result.length > 0
+  }
 }
+
+export default PostgresDB
 
 const LIMIT_STATE_COLUMNS = 'workspace, category, used, limit_value, exhausted'
 
@@ -774,4 +1305,9 @@ function rowToLimitState (row: any): WorkspaceLimitState {
   }
 }
 
-export default PostgresDB
+// Truncate an ISO date string to the start of its hour (UTC), for hourly bucketing.
+function truncToHour (date: string): string {
+  const d = new Date(date)
+  d.setUTCMinutes(0, 0, 0)
+  return d.toISOString()
+}

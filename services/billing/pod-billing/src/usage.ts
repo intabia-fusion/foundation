@@ -40,7 +40,10 @@ import { generateToken } from '@hcengineering/server-token'
 
 import { collectDatalakeStats } from './billing'
 import { type Config } from './config'
-import { type BillingDB } from './types'
+import { type BillingDB, type ProviderPool } from './types'
+
+// Called when a provider pool newly crosses an 80% or 100% usage threshold.
+export type PoolThresholdHandler = (ctx: MeasureContext, pool: ProviderPool, percent: 80 | 100) => Promise<void>
 
 const aiBotSocialKey = buildSocialIdString({ type: SocialIdType.EMAIL, value: aiBotAccountEmail })
 
@@ -56,7 +59,8 @@ export class UsageWorker {
     private readonly config: Config,
     // Re-evaluate limit_state from absolute usage after the displayed usageInfo is refreshed;
     // corrects the over-counting drift accumulated by the per-event delta path. Set by main.
-    private readonly reconcileLimits?: (ctx: MeasureContext, workspace: WorkspaceUuid) => Promise<void>
+    private readonly reconcileLimits?: (ctx: MeasureContext, workspace: WorkspaceUuid) => Promise<void>,
+    private readonly onPoolThreshold?: PoolThresholdHandler
   ) {}
 
   async close (): Promise<void> {
@@ -85,8 +89,54 @@ export class UsageWorker {
         ctx.error('failed to cleanup usage delta dedup', { error: err })
       }
 
+      try {
+        await this.recomputeProviderPools(ctx)
+      } catch (err: any) {
+        ctx.error('failed to recompute provider pools', { error: err })
+      }
+
       if (!this.canceled) {
         await new Promise((resolve) => setTimeout(resolve, this.config.UsageUpdateInterval * 1000))
+      }
+    }
+  }
+
+  // Recompute used/exhausted for each purchased provider pool from the token usage
+  // table over the pool's own period; fire onPoolThreshold when 80%/100% is crossed.
+  async recomputeProviderPools (ctx: MeasureContext): Promise<void> {
+    const pools = await this.db.listProviderPools(ctx)
+    if (pools.length === 0) return
+
+    const now = new Date()
+    for (const pool of pools) {
+      if (this.canceled) return
+      if (pool.kind === 'local' || pool.purchasedTokens <= 0) continue
+
+      // Usage rows are bucketed to the start of the hour, so floor periodStart to the
+      // hour too — otherwise an intra-hour periodStart drops that whole hour's spend.
+      const from = new Date(pool.periodStart)
+      from.setUTCMinutes(0, 0, 0)
+      const totals = await this.db.getProviderTokenTotals(ctx, from, now)
+      // The provider budget is spent in REAL tokens at the provider, so the pool counts rawTokens,
+      // not the billing-multiplied totalTokens (the multiplier only scales the user's own limit).
+      // model '' = whole-provider pool: sum every model under this provider.
+      const used =
+        pool.model === ''
+          ? totals.filter((t) => t.providerId === pool.providerId).reduce((s, t) => s + t.rawTokens, 0)
+          : (totals.find((t) => t.providerId === pool.providerId && t.model === pool.model)?.rawTokens ?? 0)
+
+      const {
+        pool: updated,
+        crossed80,
+        crossed100
+      } = await this.db.updateProviderPoolState(ctx, pool.providerId, pool.model, used)
+
+      if ((crossed80 || crossed100) && this.onPoolThreshold !== undefined) {
+        try {
+          await this.onPoolThreshold(ctx, updated, crossed100 ? 100 : 80)
+        } catch (err: any) {
+          ctx.error('pool threshold notify failed', { provider: pool.providerId, err })
+        }
       }
     }
   }

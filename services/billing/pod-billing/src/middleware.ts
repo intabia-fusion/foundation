@@ -53,6 +53,11 @@ const withOwnerAsync = async (req: RequestWithAuth, res: Response, next: NextFun
     res.status(401).json({ message: 'Token error' }).end()
     return
   }
+  // system/admin tokens may inspect any workspace (admin panel); skip the ws-match + owner check.
+  if (req.token.account === systemAccountUuid || req.token.extra?.admin === 'true') {
+    next()
+    return
+  }
   if ((req.token.workspace as string) !== req.params.workspace) {
     res.status(401).json({ message: 'Workspace mismatch' }).end()
     return

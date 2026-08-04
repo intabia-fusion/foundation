@@ -15,11 +15,17 @@
 
 import { MeasureContext, type WorkspaceUuid } from '@hcengineering/core'
 import {
+  AiTokensBreakdown,
+  AiWorkspaceBreakdown,
   AiTokensData,
+  AiTokensGroupBy,
   AiTokensUsage,
   AiTranscriptData,
   AiTranscriptDailyUsage,
   AiTranscriptUsage,
+  AiTranscriptGroupBy,
+  AiTranscriptBreakdown,
+  AiTranscriptUsageData,
   BillingDB,
   LiveKitEgressData,
   LiveKitParticipantSessionData,
@@ -29,7 +35,12 @@ import {
   ParticipantMinutesUsage,
   type LimitCategory,
   type UsageMetric,
-  type WorkspaceLimitState
+  type WorkspaceLimitState,
+  ProviderPool,
+  ProviderPoolConfig,
+  AiModelRegistryEntry,
+  ProviderTokenTotal,
+  type TokenBalance
 } from '../types'
 
 export class LoggedDB implements BillingDB {
@@ -123,6 +134,21 @@ export class LoggedDB implements BillingDB {
     await ctx.with('db.pushAiTokensData', {}, () => this.db.pushAiTokensData(ctx, data))
   }
 
+  async pushTranscriptUsage (ctx: MeasureContext, data: AiTranscriptUsageData[]): Promise<void> {
+    await ctx.with('db.pushTranscriptUsage', {}, () => this.db.pushTranscriptUsage(ctx, data))
+  }
+
+  async getAiTranscriptBreakdown (
+    ctx: MeasureContext,
+    groupBy: AiTranscriptGroupBy,
+    start?: Date,
+    end?: Date
+  ): Promise<AiTranscriptBreakdown[]> {
+    return await ctx.with('db.getAiTranscriptBreakdown', {}, () =>
+      this.db.getAiTranscriptBreakdown(ctx, groupBy, start, end)
+    )
+  }
+
   async getAiTokensStats (
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
@@ -162,5 +188,125 @@ export class LoggedDB implements BillingDB {
 
   async getAllExhaustedStates (ctx: MeasureContext): Promise<WorkspaceLimitState[]> {
     return await ctx.with('db.getAllExhaustedStates', {}, () => this.db.getAllExhaustedStates(ctx))
+  }
+
+  async getAiTokensBreakdown (
+    ctx: MeasureContext,
+    groupBy: AiTokensGroupBy,
+    providerId?: string,
+    start?: Date,
+    end?: Date
+  ): Promise<AiTokensBreakdown[]> {
+    return await ctx.with('db.getAiTokensBreakdown', {}, () =>
+      this.db.getAiTokensBreakdown(ctx, groupBy, providerId, start, end)
+    )
+  }
+
+  async getWorkspaceBreakdown (
+    ctx: MeasureContext,
+    start?: Date,
+    end?: Date,
+    limit?: number,
+    offset?: number
+  ): Promise<AiWorkspaceBreakdown[]> {
+    return await ctx.with('db.getWorkspaceBreakdown', {}, () =>
+      this.db.getWorkspaceBreakdown(ctx, start, end, limit, offset)
+    )
+  }
+
+  async getWorkspaceLevelUsage (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    start: Date,
+    end: Date
+  ): Promise<Array<{ level: string, label: string, tokens: number }>> {
+    return await ctx.with('db.getWorkspaceLevelUsage', {}, () =>
+      this.db.getWorkspaceLevelUsage(ctx, workspace, start, end)
+    )
+  }
+
+  async getProviderTokenTotals (ctx: MeasureContext, start?: Date, end?: Date): Promise<ProviderTokenTotal[]> {
+    return await ctx.with('db.getProviderTokenTotals', {}, () => this.db.getProviderTokenTotals(ctx, start, end))
+  }
+
+  async listProviderPools (ctx: MeasureContext): Promise<ProviderPool[]> {
+    return await ctx.with('db.listProviderPools', {}, () => this.db.listProviderPools(ctx))
+  }
+
+  async getProviderPool (ctx: MeasureContext, providerId: string, model: string): Promise<ProviderPool | undefined> {
+    return await ctx.with('db.getProviderPool', {}, () => this.db.getProviderPool(ctx, providerId, model))
+  }
+
+  async upsertProviderPool (ctx: MeasureContext, config: ProviderPoolConfig): Promise<void> {
+    await ctx.with('db.upsertProviderPool', {}, () => this.db.upsertProviderPool(ctx, config))
+  }
+
+  async addPurchasedTokens (ctx: MeasureContext, providerId: string, model: string, delta: number): Promise<void> {
+    await ctx.with('db.addPurchasedTokens', {}, () => this.db.addPurchasedTokens(ctx, providerId, model, delta))
+  }
+
+  async updateProviderPoolState (
+    ctx: MeasureContext,
+    providerId: string,
+    model: string,
+    usedTokens: number
+  ): Promise<{ pool: ProviderPool, crossed80: boolean, crossed100: boolean }> {
+    return await ctx.with('db.updateProviderPoolState', {}, () =>
+      this.db.updateProviderPoolState(ctx, providerId, model, usedTokens)
+    )
+  }
+
+  async replaceAiModelRegistry (ctx: MeasureContext, entries: AiModelRegistryEntry[]): Promise<void> {
+    await ctx.with('db.replaceAiModelRegistry', {}, () => this.db.replaceAiModelRegistry(ctx, entries))
+  }
+
+  async listAiModelRegistry (ctx: MeasureContext): Promise<AiModelRegistryEntry[]> {
+    return await ctx.with('db.listAiModelRegistry', {}, () => this.db.listAiModelRegistry(ctx))
+  }
+
+  async resetProviderPoolUsed (ctx: MeasureContext, providerId: string, model: string): Promise<void> {
+    await ctx.with('db.resetProviderPoolUsed', {}, () => this.db.resetProviderPoolUsed(ctx, providerId, model))
+  }
+
+  async resetAllProviderPoolsUsed (ctx: MeasureContext): Promise<void> {
+    await ctx.with('db.resetAllProviderPoolsUsed', {}, () => this.db.resetAllProviderPoolsUsed(ctx))
+  }
+
+  async resetWorkspaceUsed (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<void> {
+    await ctx.with('db.resetWorkspaceUsed', {}, () => this.db.resetWorkspaceUsed(ctx, workspace))
+  }
+
+  async setWorkspaceUsed (ctx: MeasureContext, workspace: WorkspaceUuid, value: number, level: string): Promise<void> {
+    await ctx.with('db.setWorkspaceUsed', {}, () => this.db.setWorkspaceUsed(ctx, workspace, value, level))
+  }
+
+  async getTokenBalance (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<TokenBalance | undefined> {
+    return await ctx.with('db.getTokenBalance', {}, () => this.db.getTokenBalance(ctx, workspace))
+  }
+
+  async upsertTokenBalance (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    remainingTokens: number,
+    periodStart: string
+  ): Promise<void> {
+    await ctx.with('db.upsertTokenBalance', {}, () =>
+      this.db.upsertTokenBalance(ctx, workspace, remainingTokens, periodStart)
+    )
+  }
+
+  async getAiWindowReset (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<number | undefined> {
+    return await ctx.with('db.getAiWindowReset', {}, () => this.db.getAiWindowReset(ctx, workspace))
+  }
+
+  async setAiWindowReset (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    resetAtMs: number,
+    purchaseId: string
+  ): Promise<boolean> {
+    return await ctx.with('db.setAiWindowReset', {}, () =>
+      this.db.setAiWindowReset(ctx, workspace, resetAtMs, purchaseId)
+    )
   }
 }

@@ -446,6 +446,7 @@ export function devTool (
     .option('--traffic <gb>', 'trafficLimitGB', '0')
     .option('--tokens <n>', 'tokenLimit', '0')
     .option('--meeting-minutes <n>', 'meetingMinutesLimit', '0')
+    .option('--window-month <n>', 'windowMonthLimit (billed tokens, 0 = unlimited)', '0')
     .action(
       async (
         workspace: string,
@@ -458,6 +459,7 @@ export function devTool (
           traffic: string
           tokens: string
           meetingMinutes: string
+          windowMonth: string
         }
       ) => {
         await withAccountDatabase(async (db) => {
@@ -470,7 +472,8 @@ export function devTool (
             storageLimitGB: parseFloat(cmd.storage), // fractional GB allowed (e.g. 0.05 = 50MB)
             trafficLimitGB: parseFloat(cmd.traffic),
             tokenLimit: parseInt(cmd.tokens),
-            meetingMinutesLimit: parseInt(cmd.meetingMinutes)
+            meetingMinutesLimit: parseInt(cmd.meetingMinutes),
+            windowMonthLimit: parseInt(cmd.windowMonth)
           }
           const accountClient = getAccountClient(getToolToken())
           await accountClient.adminCreateSubscription({

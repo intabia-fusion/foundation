@@ -56,6 +56,7 @@ export { default as FullDescriptionBox } from './components/FullDescriptionBox.s
 export { default as AttachIcon } from './components/icons/Attach.svelte'
 export { default as TableIcon } from './components/icons/Table.svelte'
 export { default as MarkupDiffViewer } from './components/MarkupDiffViewer.svelte'
+export { getRegisteredEditor, registerEditor, unregisterEditor } from './editorRegistry'
 export * from './components/node-view'
 export { default as ReferenceInput } from './components/ReferenceInput.svelte'
 export { default as StringDiffViewer } from './components/StringDiffViewer.svelte'

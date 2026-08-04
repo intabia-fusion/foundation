@@ -66,6 +66,7 @@
     TextEditorHandler
   } from '@hcengineering/text-editor'
   import { EditorKitOptions, getEditorKit } from '../../src/kits/editor-kit'
+  import { registerEditor, unregisterEditor } from '../editorRegistry'
   import { deleteAttachment } from '../command/deleteAttachment'
   import { textEditorCommandHandler } from '../commands'
   import { Provider } from '../provider/types'
@@ -509,6 +510,7 @@
       },
       onCreate: () => {
         editorReady = true
+        registerEditor(object._id, attribute.key, editor)
       },
       onTransaction: () => {
         // force re-render so `editor.isActive` works as expected
@@ -541,6 +543,7 @@
   })
 
   onDestroy(() => {
+    unregisterEditor(object._id, attribute.key)
     if (editor !== undefined) {
       try {
         editor.destroy()

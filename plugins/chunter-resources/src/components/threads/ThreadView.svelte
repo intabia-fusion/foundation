@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { Doc, Ref } from '@hcengineering/core'
-  import { createQuery, getClient } from '@hcengineering/presentation'
+  import { ComponentExtensions, createQuery, getClient } from '@hcengineering/presentation'
   import {
     Breadcrumbs,
     location as locationStore,
@@ -129,6 +129,14 @@
 {#if showHeader}
   <Header type={'type-aside'} adaptive={'disabled'} closeOnEscape={false} on:close>
     <Breadcrumbs items={breadcrumbs} on:select={handleBreadcrumbSelect} selected={1} />
+    <svelte:fragment slot="actions">
+      {#if message !== undefined}
+        <ComponentExtensions
+          extension={chunter.extensions.ThreadHeaderExtension}
+          props={{ value: message, _id, readonly }}
+        />
+      {/if}
+    </svelte:fragment>
   </Header>
 {/if}
 

@@ -160,6 +160,7 @@
     "WorkspaceBreakdown": "Workspace breakdown",
     "ResetsAt": "azzera {time}",
     "PackageRollover": "Riporto pacchetto",
+    "TokenWindowPackages": "Pacchetti di token",
     "PackagePrice": "Prezzo pacchetto, ₽",
     "PackageMargin": "Margine, %",
     "PackagesTitle": "Calcolo dei pacchetti",

@@ -103,6 +103,7 @@ export const billingPlugin = plugin(billingId, {
     ModelLimits: '' as IntlString,
     ResetsAt: '' as IntlString,
     PackageRollover: '' as IntlString,
+    TokenWindowPackages: '' as IntlString,
     SectionLLM: '' as IntlString,
     SectionASR: '' as IntlString,
     AsrMinutesUsed: '' as IntlString,

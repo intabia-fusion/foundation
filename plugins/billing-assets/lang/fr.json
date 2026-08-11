@@ -160,6 +160,7 @@
     "WorkspaceBreakdown": "Workspace breakdown",
     "ResetsAt": "reinitialise {time}",
     "PackageRollover": "Report du forfait",
+    "TokenWindowPackages": "Forfaits de jetons",
     "PackagePrice": "Prix du forfait, ₽",
     "PackageMargin": "Marge, %",
     "PackagesTitle": "Calcul des forfaits",

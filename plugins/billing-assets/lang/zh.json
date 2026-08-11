@@ -160,6 +160,7 @@
     "WorkspaceBreakdown": "Workspace breakdown",
     "ResetsAt": "重置 {time}",
     "PackageRollover": "套餐结转",
+    "TokenWindowPackages": "令牌套餐",
     "PackagePrice": "套餐价格，₽",
     "PackageMargin": "利润率，%",
     "PackagesTitle": "套餐计算",

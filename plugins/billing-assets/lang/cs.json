@@ -157,6 +157,7 @@
     "WorkspaceBreakdown": "Workspace breakdown",
     "ResetsAt": "obnoví se {time}",
     "PackageRollover": "Převod z balíčku",
+    "TokenWindowPackages": "Balíčky tokenů",
     "PackagePrice": "Cena balíčku, ₽",
     "PackageMargin": "Marže, %",
     "PackagesTitle": "Výpočet balíčků",

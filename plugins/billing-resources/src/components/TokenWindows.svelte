@@ -14,10 +14,12 @@
 -->
 <script lang="ts">
   import type { WorkspaceTokenWindows } from '@hcengineering/billing-client'
-  import { Label, PaletteColorIndexes, Progress } from '@hcengineering/ui'
+  import { Label, PaletteColorIndexes, Progress, themeStore } from '@hcengineering/ui'
   import plugin from '../plugin'
 
   export let windows: WorkspaceTokenWindows | undefined
+
+  $: lang = $themeStore.language
 
   function barColor (used: number, limit: number): PaletteColorIndexes | undefined {
     if (limit <= 0) return undefined
@@ -27,11 +29,11 @@
     return PaletteColorIndexes.Grass
   }
 
-  function resetTime (iso: string | null): string {
+  function resetTime (iso: string | null, locale: string): string {
     if (iso === null) return ''
     const ms = new Date(iso).getTime() - Date.now()
-    if (ms <= 0) return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(0, 'minute')
-    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'always' })
+    if (ms <= 0) return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(0, 'minute')
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'always' })
     const mins = Math.round(ms / 60000)
     if (mins < 60) return rtf.format(mins, 'minute')
     const hours = Math.round(ms / 3600000)
@@ -61,13 +63,13 @@
       />
       {#if windows.month.resetAt !== null}
         <span class="text-sm content-dark-color">
-          <Label label={plugin.string.ResetsAt} params={{ time: resetTime(windows.month.resetAt) }} />
+          <Label label={plugin.string.ResetsAt} params={{ time: resetTime(windows.month.resetAt, lang) }} />
         </span>
       {/if}
-      {#if (windows.month.rollover ?? 0) > 0}
+      {#if (windows.month.packages ?? 0) > 0}
         <div class="flex-between flex-gap-2 text-sm content-dark-color">
-          <span><Label label={plugin.string.PackageRollover} /></span>
-          <span class="no-word-wrap">+{(windows.month.rollover ?? 0).toLocaleString('en-US')}</span>
+          <span><Label label={plugin.string.TokenWindowPackages} /></span>
+          <span class="no-word-wrap">+{(windows.month.packages ?? 0).toLocaleString('en-US')}</span>
         </div>
       {/if}
     </div>

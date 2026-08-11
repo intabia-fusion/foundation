@@ -160,6 +160,7 @@
     "ModelLimits": "Лимиты моделей",
     "ResetsAt": "сброс {time}",
     "PackageRollover": "Остаток пакета",
+    "TokenWindowPackages": "Пакеты токенов",
     "PackagePrice": "Цена пакета, ₽",
     "PackageMargin": "Маржа, %",
     "PackagesTitle": "Расчёт пакетов",

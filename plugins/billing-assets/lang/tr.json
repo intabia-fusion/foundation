@@ -160,6 +160,7 @@
     "WorkspaceBreakdown": "Workspace breakdown",
     "ResetsAt": "sıfırlanır {time}",
     "PackageRollover": "Paket devri",
+    "TokenWindowPackages": "Token paketleri",
     "PackagePrice": "Paket fiyatı, ₽",
     "PackageMargin": "Marj, %",
     "PackagesTitle": "Paket hesaplama",

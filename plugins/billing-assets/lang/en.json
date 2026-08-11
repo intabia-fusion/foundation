@@ -160,6 +160,7 @@
     "ModelLimits": "Model limits",
     "ResetsAt": "resets {time}",
     "PackageRollover": "Package rollover",
+    "TokenWindowPackages": "Token packages",
     "PackagePrice": "Package price, ₽",
     "PackageMargin": "Margin, %",
     "PackagesTitle": "Package pricing",

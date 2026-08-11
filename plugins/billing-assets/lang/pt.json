@@ -160,6 +160,7 @@
     "WorkspaceBreakdown": "Workspace breakdown",
     "ResetsAt": "reinicia {time}",
     "PackageRollover": "Saldo do pacote",
+    "TokenWindowPackages": "Pacotes de tokens",
     "PackagePrice": "Preço do pacote, ₽",
     "PackageMargin": "Margem, %",
     "PackagesTitle": "Cálculo de pacotes",

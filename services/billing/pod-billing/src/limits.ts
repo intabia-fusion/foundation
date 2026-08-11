@@ -23,7 +23,6 @@ import {
   type AccountClient,
   getClient,
   grantsPlan,
-  isFreePlan,
   type Subscription,
   SubscriptionStatus,
   SubscriptionType
@@ -40,8 +39,6 @@ import { generateToken } from '@hcengineering/server-token'
 
 import { collectDatalakeStats, resolveWorkspacePlan } from './billing'
 import { type BillingDB, type BillingUsageMessage, type LimitCategory, type UsageMetric } from './types'
-
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
 /** Computes volume-limit state, persists it, and publishes edge-triggered LimitsChanged events. */
 export class LimitsEngine {
@@ -218,11 +215,6 @@ export class LimitsEngine {
     const category = metricToCategory(metric)
     const subs = await this.accountClient(workspace).getSubscriptions(workspace, false)
     const tier = latestGrantingTier(subs)
-    // Rollover only for paid plans; free plans do not carry unused tokens to the next month.
-    const isFree = isFreePlan(tier)
-    if (metric === 'tokens' && !isFree) {
-      await this.rolloverPackageBalance(ctx, workspace, subs, tier)
-    }
     const used = await this.computeUsed(ctx, workspace, metric, tier)
     const limitValue = getEffectiveLimit(subs, metric)
 
@@ -237,53 +229,6 @@ export class LimitsEngine {
     }
 
     await this.db.upsertLimitState(ctx, { workspace, category, used, limitValue, exhausted: nowExhausted })
-  }
-
-  /**
-   * Advance the package rollover period for every elapsed 30d period: add each period's unused
-   * package budget to remaining_tokens. A workspace idle for months keeps the full unused quota
-   * of each period, and the new anchor is periodStart + n*30d (not now) so the period grid never
-   * drifts. Package budget is spent after the tier window, so only usage above the tier limit
-   * counts against the package.
-   */
-  private async rolloverPackageBalance (
-    ctx: MeasureContext,
-    workspace: WorkspaceUuid,
-    subs: Subscription[],
-    tier: Subscription | undefined
-  ): Promise<void> {
-    const existing = await this.db.getTokenBalance(ctx, workspace)
-    if (existing === undefined) {
-      // First seen: anchor the package period to the billing period so both stay aligned.
-      await this.db.upsertTokenBalance(ctx, workspace, 0, getPeriodStartDate(tier?.periodStart).toISOString())
-      return
-    }
-    const bal = existing
-    const start = new Date(bal.periodStart).getTime()
-    const periods = Math.floor((Date.now() - start) / THIRTY_DAYS_MS)
-    if (periods < 1) return
-
-    const pkg = subs.find((s) => s.type === SubscriptionType.Package && s.status === SubscriptionStatus.Active)
-    const packageLimit = pkg?.limits?.tokenLimit ?? 0
-    // Tier window is spent first; only the excess eats into the package quota.
-    const tierLimit = getLimitValue(resolveTierLimits(subs), 'tokens')
-
-    let remaining = bal.remainingTokens
-    for (let i = 0; i < periods; i++) {
-      const from = new Date(start + i * THIRTY_DAYS_MS)
-      const to = new Date(start + (i + 1) * THIRTY_DAYS_MS)
-      const stats = await this.db.getAiTokensStats(ctx, workspace, from, to)
-      const used = stats.map((s) => s.totalTokens).reduce((a, b) => a + b, 0)
-      const packageUsed = Math.min(packageLimit, Math.max(0, used - tierLimit))
-      remaining += Math.max(0, packageLimit - packageUsed)
-    }
-
-    await this.db.upsertTokenBalance(
-      ctx,
-      workspace,
-      remaining,
-      new Date(start + periods * THIRTY_DAYS_MS).toISOString()
-    )
   }
 
   private async computeUsed (

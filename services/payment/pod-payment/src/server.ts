@@ -284,6 +284,13 @@ export async function createServer (
     }
   }
 
+  // Token budget of a plan, for the downgrade gate: tier -> monthly window, package -> package quota.
+  function planTokenBudget (type: SubscriptionType, plan: string): number {
+    const item = (type === SubscriptionType.Package ? planConfig.packages : planConfig.plans)?.[plan] as any
+    if (item == null) return 0
+    return type === SubscriptionType.Package ? (item.tokenLimit ?? 0) : (item.windowMonthLimit ?? 0)
+  }
+
   // Full price (kopecks) for a plan at the given seats/period (see computePlanPrice).
   function planFullPrice (type: SubscriptionType, plan: string, quantity: number, period?: BillingPeriod): number {
     const source =
@@ -664,6 +671,13 @@ export async function createServer (
               const cat: string = planConfig.packages?.[s.plan]?.category ?? 'storage'
               return cat === requestedCategory
             })
+            // Downgrade to a smaller token budget is only allowed with no active package: cancel the
+            // current one first (stays until period end), then subscribe to the smaller one.
+            const newBudget = planTokenBudget(SubscriptionType.Package, request.plan)
+            if (sameCategory.some((s) => planTokenBudget(SubscriptionType.Package, s.plan) > newBudget)) {
+              res.status(400).json({ error: 'Switching to a smaller package is only allowed after cancelling the current one.' })
+              return
+            }
             for (const existing of sameCategory) {
               try {
                 if (existing.provider === config.Provider) {
@@ -863,6 +877,14 @@ export async function createServer (
           }
 
           const targetIsFree = planConfig.plans?.[plan]?.free === true
+          // Downgrade to a smaller token budget only when nothing active: to go smaller, cancel the
+          // current plan (ends at period end) and subscribe fresh. Free is the cancel path, not a switch.
+          if (!targetIsFree && subscription.status === SubscriptionStatus.Active) {
+            if (planTokenBudget(subscription.type, plan) < planTokenBudget(subscription.type, subscription.plan)) {
+              res.status(400).json({ error: 'Switching to a smaller plan is only allowed after cancelling the current one.' })
+              return
+            }
+          }
           if (targetIsFree) {
             try {
               // Downgrade to free is one user action: the paid cancel and the free activation share it.

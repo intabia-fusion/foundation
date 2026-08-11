@@ -68,7 +68,8 @@ export function getMigrations (flavor: DBFlavor): [string, string][] {
     migrationV4(flavor),
     migrationV5(flavor),
     migrationV6(flavor),
-    migrationV7(flavor)
+    migrationV7(flavor),
+    migrationV8(flavor)
   ]
 }
 
@@ -296,4 +297,19 @@ function migrationV7 (flavor: SupportedFlavor): [string, string] {
     );
   `
   return ['add_ai_token_dimensions_and_pools_07', sql]
+}
+
+// ai_window_reset was appended to V7 after V7 had already applied on some stands, so those never
+// got the table and resolveWorkspacePlan fail-opens (packages/rollover vanish). New name -> reruns.
+function migrationV8 (flavor: SupportedFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  const sql = `
+    CREATE TABLE IF NOT EXISTS billing.ai_window_reset (
+      workspace UUID NOT NULL,
+      reset_at TIMESTAMP NOT NULL,
+      applied_purchase_id ${types.string255} NOT NULL DEFAULT '',
+      PRIMARY KEY (workspace)
+    );
+  `
+  return ['add_ai_window_reset_08', sql]
 }

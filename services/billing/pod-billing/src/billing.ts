@@ -495,7 +495,7 @@ export async function handleGetWorkspaceTokenWindows (
   res: Response
 ): Promise<void> {
   const workspace = getWorkspaceUuid(req)
-  const { plan, hasPackages, limitMonth, baseMonth, packagesMonth, remaining, isFree, periodStart } =
+  const { plan, hasPackages, limitMonth, baseMonth, packagesMonth, isFree, periodStart } =
     await resolveWorkspacePlan(ctx, db, workspace)
   const periodEnd = new Date()
   const [stats, levels, registry] = await Promise.all([
@@ -517,7 +517,6 @@ export async function handleGetWorkspaceTokenWindows (
       limit: limitMonth,
       base: baseMonth,
       packages: packagesMonth,
-      rollover: remaining,
       windowHours: 24 * 30,
       resetAt: new Date(periodStart.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       levels
@@ -552,7 +551,6 @@ export async function resolveWorkspacePlan (
     limitMonth: number
     baseMonth: number
     packagesMonth: number
-    remaining: number
     hasPackages: boolean
     isFree: boolean
     periodStart: Date
@@ -563,8 +561,7 @@ export async function resolveWorkspacePlan (
     const subs = await account.getSubscriptions(workspace, false)
     const limits = resolveTierLimits(subs)
     const baseMonth = limits?.windowMonthLimit ?? billingConfig.WindowMonthLimit
-    // Active AI-token packages grant a monthly token quota (tokenLimit) on top of the tier
-    // window; unused quota rolls into `remaining` (token_balance) at period end.
+    // Period budget = tier window + active AI-token packages. No rollover: unused burns at period end.
     const pkgs = subs.filter((s) => s.type === SubscriptionType.Package && s.status === SubscriptionStatus.Active)
     const packagesMonth = pkgs.reduce((acc, s) => acc + (s.limits?.tokenLimit ?? 0), 0)
     const grantingTier = subs
@@ -572,14 +569,12 @@ export async function resolveWorkspacePlan (
       .sort((a, b) => (b.createdOn ?? 0) - (a.createdOn ?? 0))[0]
     const plan = grantingTier?.plan ?? 'free'
     const isFree = isFreePlan(grantingTier)
-    const balance = await db.getTokenBalance(ctx, workspace)
-    const remaining = balance?.remainingTokens ?? 0
-    // 0 = unlimited; adding a package/rollover balance to an unlimited window keeps it unlimited.
-    const limitMonth = baseMonth === 0 ? 0 : baseMonth + packagesMonth + remaining
+    // 0 = unlimited; a package on top of an unlimited window keeps it unlimited.
+    const limitMonth = baseMonth === 0 ? 0 : baseMonth + packagesMonth
     // A one-time ai-token-reset purchase (applied by aibot) shifts the window start forward, zeroing used.
     const resetAt = await db.getAiWindowReset(ctx, workspace)
     const periodStart = getPeriodStartDate(effectivePeriodStart(grantingTier?.periodStart, resetAt))
-    return { plan, limitMonth, baseMonth, packagesMonth, remaining, hasPackages: pkgs.length > 0, isFree, periodStart }
+    return { plan, limitMonth, baseMonth, packagesMonth, hasPackages: pkgs.length > 0, isFree, periodStart }
   } catch (err: any) {
     ctx.warn('failed to resolve workspace plan, using env defaults', { workspace, error: err?.message })
     return {
@@ -587,7 +582,6 @@ export async function resolveWorkspacePlan (
       limitMonth: billingConfig.WindowMonthLimit,
       baseMonth: billingConfig.WindowMonthLimit,
       packagesMonth: 0,
-      remaining: 0,
       hasPackages: false,
       isFree: false,
       periodStart: getPeriodStartDate(undefined)

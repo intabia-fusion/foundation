@@ -160,6 +160,7 @@
     "WorkspaceBreakdown": "Workspace breakdown",
     "ResetsAt": "リセット {time}",
     "PackageRollover": "パッケージ繰越",
+    "TokenWindowPackages": "トークンパッケージ",
     "PackagePrice": "パッケージ価格、₽",
     "PackageMargin": "マージン、%",
     "PackagesTitle": "パッケージ計算",

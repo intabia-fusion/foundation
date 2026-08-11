@@ -45,6 +45,28 @@ export interface AIEventRequest {
   language?: string
 }
 
+/**
+ * Queue task for a chat voice-note transcription (kind='chat-voice'), distinct from the
+ * meeting-room transcription path. The server trigger emits it on AudioTranscribe create; the
+ * stt-worker reads the audio blob, transcribes + LLM-corrects, and writes back onto the
+ * AudioTranscribe doc.
+ */
+export interface ChatVoiceTranscriptionTask {
+  kind: 'chat-voice'
+  // AudioTranscribe doc to write the result back onto.
+  transcribeId: Ref<Doc>
+  space: Ref<Space>
+  attachedTo: Ref<Doc>
+  attachedToClass: Ref<Class<Doc>>
+  // Workspace storage blob id (attachment.file) of the audio.
+  blobId: string
+  audioFormat: 'ogg' | 'webm' | 'wav' | 'mp4'
+  durationSec: number
+  // Effective ASR/LLM level (space ceiling), forwarded by the trigger.
+  level?: AILevel
+  language?: string
+}
+
 export interface TranslateRequest {
   text: Markup
   lang: string

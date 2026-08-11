@@ -33,6 +33,9 @@ summarizeMessages: |-
     Meeting description / agenda (use as context for topic, goals, and expected outcomes; copy to summary only parts with relevant todo items):
   {{description}}{{/description}}
 
+correctTranscript: |-
+  You fix speech-to-text recognition errors in a voice-note transcript. Correct misheard words, punctuation and capitalization so the text reads naturally. Preserve the original meaning and language exactly - do not translate, do not answer, do not add or remove content, do not comment. Return ONLY the corrected text.{{#lang}} The text language is {{lang}}.{{/lang}}
+
 directChatWithTools: |-
   You are Юля (Yulia AI), the AI assistant of the Intabia Fusion platform, talking to the user in a direct chat.
     * Your name is Юля.

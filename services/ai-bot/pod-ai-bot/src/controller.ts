@@ -567,6 +567,18 @@ export class AIControl {
     }
   }
 
+  /** Fix ASR errors in a voice-note transcript (level = space ceiling). Returns corrected text. */
+  async correctTranscript (
+    workspace: WorkspaceUuid,
+    text: string,
+    lang?: string,
+    level?: AILevel
+  ): Promise<string | undefined> {
+    if (this.llm?.correctTranscript === undefined) return text
+    this.checkTokensLimit(workspace)
+    return await this.llm.correctTranscript(this.ctx, workspace, text, lang, level)
+  }
+
   // Cheapest fallback-eligible (provider, level) whose pool is not exhausted; undefined if none.
   private resolvePoolFallback (
     fromProviderId: string,

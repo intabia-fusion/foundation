@@ -18,7 +18,13 @@ import path from 'path'
 import yaml from 'js-yaml'
 
 /** Keys of prompt templates. All must be present in prompts.yaml. */
-export const PROMPT_KEYS = ['translateHtml', 'summarizeMessages', 'directChatWithTools', 'threadChatWithTools'] as const
+export const PROMPT_KEYS = [
+  'translateHtml',
+  'summarizeMessages',
+  'correctTranscript',
+  'directChatWithTools',
+  'threadChatWithTools'
+] as const
 
 export type PromptKey = (typeof PROMPT_KEYS)[number]
 export type PromptTemplates = Record<PromptKey, string>

@@ -22,7 +22,7 @@ llm:
       provider: openai
       concurrency: 4
       batch: 1
-      endpoint: ${CLISR_HOST:-http://host.docker.local:8000/v1/}
+      endpoint: ${CLISR_HOST:-http://host.docker.internal:8000/v1/}
       endpointConfig:
         apiKey: 1234
       serves:
@@ -31,7 +31,7 @@ llm:
           tokenizer: tiktoken
           capabilities:
             tools: true
-            maxContextTokens: 32768
+            maxContextTokens: 4096
 
 # ASR registry (mirrors llm). The clisr STT worker resolves level -> model/endpoint here
 # and calls the local OpenAI-compatible transcription endpoint.

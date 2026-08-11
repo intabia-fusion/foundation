@@ -23,9 +23,12 @@
   import { createQuery } from '@hcengineering/presentation'
   import contact, { Employee } from '@hcengineering/contact'
 
+  import view from '@hcengineering/view'
+
   import chunter from '../../../plugin'
   import ChatNavGroup from './ChatNavGroup.svelte'
   import { chatNavGroupModels, chatSpecials } from '../utils'
+  import { openBotDirect } from '../../../utils'
   import ChatSpecialElement from './ChatSpecialElement.svelte'
 
   export let object: Doc | undefined
@@ -93,6 +96,11 @@
       action: async (): Promise<void> => {
         showPopup(chunter.component.CreateDirectChat, {}, 'top')
       }
+    },
+    {
+      label: chunter.string.TalkToYulia,
+      icon: view.icon.AiStar,
+      action: openBotDirect
     }
   ]
 

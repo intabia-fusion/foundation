@@ -13,8 +13,9 @@
 // limitations under the License.
 //
 import { MeasureContext, Ref, WorkspaceUuid } from '@hcengineering/core'
-import aiBot from '@hcengineering/ai-bot'
+import aiBot, { AudioTranscribe, ChatVoiceTranscriptionTask } from '@hcengineering/ai-bot'
 import config from './config'
+import { pushTranscriptDuration, pushTranscriptUsageRecord } from './billing'
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { createTranscriptionConsumer, SendToDeadLetterCallback, TranscriptionConsumer } from './transcription/consumer'
@@ -28,6 +29,11 @@ import { ClisrServer } from '@intabiafusion/clisr'
 import { createTranscriptionProvider } from './transcription'
 import { resolveTranscriptionConfig } from './transcription/asrRegistry'
 
+export interface TranscriptionSupport {
+  consumer: TranscriptionConsumer
+  processChatVoice: (ctx: MeasureContext, workspace: WorkspaceUuid, task: ChatVoiceTranscriptionTask) => Promise<void>
+}
+
 export async function createTranscriptionsSupport (
   ctx: MeasureContext,
   aiControl: AIControl,
@@ -37,7 +43,7 @@ export async function createTranscriptionsSupport (
     errorType: string
   }>,
   server?: ClisrServer
-): Promise<TranscriptionConsumer | undefined> {
+): Promise<TranscriptionSupport | undefined> {
   // Resolve provider/model from the ASR registry (yaml `asr:` block). Empty registry -> disabled.
   const transcriptionConfig: TranscriptionConfig = resolveTranscriptionConfig(
     config.AsrProviders,
@@ -202,7 +208,51 @@ export async function createTranscriptionsSupport (
         provider: transcriptionConfig.provider
       })
     }
-    return transcriptionHandler
+
+    // Chat voice-note path: read the attachment blob from workspace storage, transcribe,
+    // LLM-correct, and write the text back onto the AudioTranscribe doc.
+    const processChatVoice = async (
+      pctx: MeasureContext,
+      workspace: WorkspaceUuid,
+      task: ChatVoiceTranscriptionTask
+    ): Promise<void> => {
+      const wsClient = await aiControl.getWorkspaceClient(workspace)
+      if (wsClient === undefined) return
+      const client = wsClient.client
+      const doc = await client.findOne(aiBot.class.AudioTranscribe, { _id: task.transcribeId as Ref<AudioTranscribe> })
+      if (doc === undefined || doc.state !== 'pending') return
+
+      try {
+        const audio = await aiControl.storageAdapter.read(pctx, wsClient.wsIds, task.blobId)
+        // ponytail: webm/opus is sent as 'ogg' (both opus); server ASR decodes via ffmpeg.
+        // Add real webm handling to AudioFormat if a provider rejects the container.
+        const audioFormat = task.audioFormat === 'wav' ? 'wav' : 'ogg'
+        const resolved = await resolveProvider(pctx, workspace)
+        const asrProvider = resolved?.provider ?? provider
+        const asrLevel = resolved?.level ?? config.AsrDefaultLevel
+        const result = await asrProvider.transcribe(Buffer.concat(audio), { audioFormat, language: task.language })
+
+        if (task.durationSec > 0) {
+          await pushTranscriptDuration(pctx, workspace, task.durationSec, task.blobId)
+          await pushTranscriptUsageRecord(pctx, workspace, task.durationSec, result.clientId, asrLevel)
+        }
+
+        const raw = result.text?.trim() ?? ''
+        if (raw === '') {
+          await client.update(doc, { state: 'failed' })
+          return
+        }
+        const corrected = (await aiControl.correctTranscript(workspace, raw, task.language, task.level)) ?? raw
+        await client.update(doc, { text: corrected, state: 'done', lang: result.language })
+      } catch (err: any) {
+        pctx.error('chat-voice transcription failed', { error: err?.message, blobId: task.blobId })
+        try {
+          await client.update(doc, { state: 'failed' })
+        } catch {}
+      }
+    }
+
+    return { consumer: transcriptionHandler, processChatVoice }
   } catch (err: any) {
     ctx.info('Failed to create transcription consumer', { error: err.message })
   }

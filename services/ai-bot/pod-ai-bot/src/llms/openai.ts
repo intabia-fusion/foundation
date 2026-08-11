@@ -192,6 +192,35 @@ export default class OpenAIProvider implements LLMProvider {
     return responseText
   }
 
+  async correctTranscript (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    text: string,
+    lang?: string,
+    level?: AILevel
+  ): Promise<string | undefined> {
+    if (text.trim() === '') return text
+    const response = await this.client.chat.completions.create({
+      model: this.modelFor(level),
+      messages: [
+        { role: 'system', content: PROMPTS.CORRECT_TRANSCRIPT(lang) },
+        { role: 'user', content: text }
+      ]
+    })
+    const usage = usageFromApi(response.usage)
+    if (totalTokens(usage) !== 0 && usage !== undefined) {
+      billUsage(
+        ctx,
+        workspace,
+        usage,
+        this.billingFor(level),
+        'transcript-correct',
+        new Date((response.created ?? Date.now() / 1000) * 1000).toISOString()
+      )
+    }
+    return response.choices?.[0]?.message?.content ?? undefined
+  }
+
   async createChatCompletionWithTools (
     tools: RunnableTools<BaseFunctionsArgs>,
     message: ChatMessage,
@@ -333,10 +362,11 @@ export default class OpenAIProvider implements LLMProvider {
 
       // Retry transient network failures (local endpoint restart, connection drop) before
       // giving up; a hard-down endpoint still exhausts retries and rethrows so the pod notifies.
+      const maxTokens = this.provider.levels[level ?? this.defaultLevel]?.capabilities?.maxOutputTokens
       const response = await withRetry(
         async () =>
           await this.client.chat.completions.create(
-            { messages, model: this.modelFor(level), user, tools, stream: false },
+            { messages, model: this.modelFor(level), user, tools, stream: false, max_tokens: maxTokens },
             opt
           ),
         { maxRetries: 3, isRetryable: retryNetworkErrors },

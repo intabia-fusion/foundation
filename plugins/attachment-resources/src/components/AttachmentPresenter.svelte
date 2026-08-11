@@ -15,17 +15,20 @@
 -->
 <script lang="ts">
   import contact, { PermissionsStore } from '@hcengineering/contact'
-  import type { Attachment } from '@hcengineering/attachment'
-  import core, { BlobType, type WithLookup } from '@hcengineering/core'
+  import attachment, { type Attachment } from '@hcengineering/attachment'
+  import core, { type Class, type Doc, type Ref, BlobType, type WithLookup } from '@hcengineering/core'
   import presentation, {
     canPreviewFile,
     getBlobRef,
+    getClient,
     getFileUrl,
     previewTypes,
     getJsonOrEmpty,
     sizeToWidth
   } from '@hcengineering/presentation'
-  import { Label, Spinner } from '@hcengineering/ui'
+  import { Component, Label, Spinner } from '@hcengineering/ui'
+  import type { AnyComponent } from '@hcengineering/ui'
+  import view from '@hcengineering/view'
   import WebIcon from './icons/Web.svelte'
   import filesize from 'filesize'
   import { createEventDispatcher, onMount } from 'svelte'
@@ -54,6 +57,24 @@
     fname.length > maxLength ? fname.substr(0, (maxLength - 1) / 2) + '...' + fname.substr(-(maxLength - 1) / 2) : fname
 
   $: canRemove = isRemovable(removable, value, $permissionsStore)
+
+  // A subclass of Attachment can register its own ObjectPresenter mixin (e.g. ai-bot's
+  // AudioTranscribe -> voice-note player). Resolve it here and render that instead of the default,
+  // so no per-class knowledge leaks into this component.
+  const hierarchy = getClient().getHierarchy()
+  $: customPresenter =
+    value !== undefined && isAttachment(value) ? getCustomPresenter(value._class) : undefined
+
+  function getCustomPresenter (_class: Ref<Class<Doc>>): AnyComponent | undefined {
+    if (!hierarchy.hasClass(_class)) return undefined
+    const m = hierarchy.classHierarchyMixin(_class, view.mixin.ObjectPresenter)
+    // Only a class-specific override is used. The base Attachment presenter IS this component, so
+    // returning it would recurse infinitely - guard by its resource id.
+    if (m?.presenter === undefined || (m.presenter as string) === 'attachment:component:AttachmentPresenter') {
+      return undefined
+    }
+    return m.presenter
+  }
 
   function isRemovable (
     removable: boolean,
@@ -136,7 +157,12 @@
   }
 </script>
 
-{#if preview}
+{#if customPresenter !== undefined && !preview}
+  <Component
+    is={customPresenter}
+    props={{ value, removable: canRemove, onRemove: () => dispatch('remove', value) }}
+  />
+{:else if preview}
   <AttachmentName {value} />
 {:else}
   <div class="flex-row-center attachment-container">

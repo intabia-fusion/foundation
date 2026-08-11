@@ -13,9 +13,25 @@
 // limitations under the License.
 //
 
-import core, { AccountUuid, Doc, PersonId, Ref, SortingOrder, Tx, TxCreateDoc, TxProcessor } from '@hcengineering/core'
+import core, {
+  AccountUuid,
+  Doc,
+  PersonId,
+  Ref,
+  SortingOrder,
+  Space,
+  Tx,
+  TxCreateDoc,
+  TxProcessor
+} from '@hcengineering/core'
 import { PlatformQueueProducer, QueueTopic, TriggerControl } from '@hcengineering/server-core'
-import aiBot, { type AIContextMessage, aiBotEmailSocialKey, AIEventRequest } from '@hcengineering/ai-bot'
+import aiBot, {
+  type AIContextMessage,
+  aiBotEmailSocialKey,
+  AIEventRequest,
+  type AudioTranscribe,
+  type ChatVoiceTranscriptionTask
+} from '@hcengineering/ai-bot'
 import chunter, { ChatMessage, DirectMessage, ThreadMessage } from '@hcengineering/chunter'
 import contact, { Employee, SocialIdentity } from '@hcengineering/contact'
 
@@ -279,9 +295,68 @@ async function onBotDirectMessageSend (
   }
 }
 
+/** Effective ASR/LLM level+language for a space (space-specific -> workspace-wide default). */
+async function resolveSpaceLevel (
+  control: TriggerControl,
+  space: Ref<Space>
+): Promise<{ level?: string, language?: string }> {
+  try {
+    const spaceSetting = (await control.findAll(control.ctx, aiBot.class.AISpaceSettings, { attachedTo: space }))[0]
+    const wsSetting =
+      spaceSetting ??
+      (await control.findAll(control.ctx, aiBot.class.AISpaceSettings, {})).find((s) => s.attachedTo == null)
+    return { level: spaceSetting?.level ?? wsSetting?.level, language: spaceSetting?.language ?? wsSetting?.language }
+  } catch (err: any) {
+    control.ctx.warn('failed to resolve space AI level', { error: err?.message })
+    return {}
+  }
+}
+
+// A voice-note (AudioTranscribe) created in a chat -> enqueue an STT task; the stt-worker
+// transcribes + LLM-corrects and writes the text back onto the doc.
+async function OnAudioTranscribe (originTxs: TxCreateDoc<AudioTranscribe>[], control: TriggerControl): Promise<Tx[]> {
+  const wsID = await getAIWorkspaceID(control)
+  if (wsID === undefined) return []
+
+  const producer = control.queue?.getProducer<ChatVoiceTranscriptionTask>(control.ctx, QueueTopic.TranscriptionQueue)
+  if (producer === undefined) return []
+
+  // Ignore the bot's own writes (it fills text via updateDoc, not create).
+  const txes = originTxs.filter((it) => !wsID.all.includes(it.modifiedBy))
+
+  for (const tx of txes) {
+    const doc = TxProcessor.createDoc2Doc(tx)
+    if (doc.state !== 'pending') continue
+    const fmt = (doc.type ?? '').includes('ogg')
+      ? 'ogg'
+      : (doc.type ?? '').includes('mp4')
+        ? 'mp4'
+        : (doc.type ?? '').includes('wav')
+          ? 'wav'
+          : 'webm'
+    const { level, language } = await resolveSpaceLevel(control, doc.space)
+    const task: ChatVoiceTranscriptionTask = {
+      kind: 'chat-voice',
+      transcribeId: doc._id,
+      space: doc.space,
+      attachedTo: doc.attachedTo,
+      attachedToClass: doc.attachedToClass,
+      blobId: doc.file,
+      audioFormat: fmt,
+      durationSec: doc.durationSec ?? 0,
+      level,
+      language
+    }
+    await producer.send(control.ctx, control.workspace.uuid, [task], doc.space)
+  }
+
+  return []
+}
+
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   trigger: {
-    OnMessageSend
+    OnMessageSend,
+    OnAudioTranscribe
   }
 })

@@ -58,6 +58,8 @@ export const PROMPTS = {
   SUMMARIZE_MESSAGES: (lang: string, description?: string): string =>
     renderPrompt(templates().summarizeMessages, { lang, description: description?.trim() ?? '' }),
 
+  CORRECT_TRANSCRIPT: (lang?: string): string => renderPrompt(templates().correctTranscript, { lang: lang ?? '' }),
+
   DIRECT_CHAT_WITH_TOOLS: (params: PromptParams): string => {
     const lang = params.lang ?? DEFAULT_LANG
     return renderPrompt(templates().directChatWithTools, {

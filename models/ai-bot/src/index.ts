@@ -33,8 +33,11 @@ import {
   type AISpaceSettings,
   type AIPersonalData,
   type AIRequest,
-  type AIRequestStatus
+  type AIRequestStatus,
+  type AudioTranscribe,
+  type AudioTranscribeState
 } from '@hcengineering/ai-bot'
+import attachment, { TAttachment } from '@hcengineering/model-attachment'
 import {
   type Builder,
   Model,
@@ -159,13 +162,43 @@ export class TAIEditProposalMessage extends TThreadMessage implements AIEditProp
     applied?: boolean
 }
 
+@Model(aiBot.class.AudioTranscribe, attachment.class.Attachment)
+export class TAudioTranscribe extends TAttachment implements AudioTranscribe {
+  @Prop(TypeString(), core.string.String)
+    state!: AudioTranscribeState
+
+  @Prop(TypeString(), core.string.String)
+    text?: string
+
+  @Prop(TypeNumber(), core.string.Number)
+    durationSec?: number
+
+  @Prop(TypeString(), core.string.String)
+    lang?: string
+
+  @Prop(TypeBoolean(), core.string.Boolean)
+    edited?: boolean
+}
+
 export function createModel (builder: Builder): void {
-  builder.createModel(TAIPersonalData, TAIRequest, TAISpaceSettings, TAIContextMessage, TAIEditProposalMessage)
+  builder.createModel(
+    TAIPersonalData,
+    TAIRequest,
+    TAISpaceSettings,
+    TAIContextMessage,
+    TAIEditProposalMessage,
+    TAudioTranscribe
+  )
 
   // Render the proposal message with its own presenter (diff + apply button) instead of the
   // plain chat-message body. The activity feed resolves ObjectPresenter by _class.
   builder.mixin(aiBot.class.AIEditProposalMessage, core.class.Class, view.mixin.ObjectPresenter, {
     presenter: aiBot.component.EditProposalPresenter
+  })
+
+  // Voice-note attachment renders as a player + transcript (component lives in attachment-resources).
+  builder.mixin(aiBot.class.AudioTranscribe, core.class.Class, view.mixin.ObjectPresenter, {
+    presenter: attachment.component.VoiceAttachmentPresenter
   })
 
   builder.mixin(aiBot.class.AISpaceSettings, core.class.Class, core.mixin.TxAccessLevel, {

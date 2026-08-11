@@ -14,7 +14,11 @@
 //
 import { type ActivityMessage, type ForwardContent, type ForwardedAttachment } from '@hcengineering/activity'
 import aiBot from '@hcengineering/ai-bot'
-import { summarizeMessages as aiSummarizeMessages, translate as aiTranslate } from '@hcengineering/ai-bot-resources'
+import {
+  summarizeMessages as aiSummarizeMessages,
+  translate as aiTranslate,
+  getBotAccount
+} from '@hcengineering/ai-bot-resources'
 import {
   type Channel,
   type ChatMessage,
@@ -63,7 +67,7 @@ import { isEmptyMarkup } from '@hcengineering/text'
 
 import ChannelIcon from './components/ChannelIcon.svelte'
 import DirectIcon from './components/DirectIcon.svelte'
-import { openChannelInSidebar, resetChunterLocIfEqual } from './navigation'
+import { openChannel, openChannelInSidebar, resetChunterLocIfEqual } from './navigation'
 import chunter from './plugin'
 import {
   replyingToMessageStore,
@@ -522,6 +526,15 @@ export async function startConversationAction (docs?: Employee | Employee[]): Pr
   if (dm == null) return
 
   await openChannelInSidebar(dm, chunter.class.DirectMessage, undefined, undefined, true)
+}
+
+export async function openBotDirect (): Promise<void> {
+  const botAccount = await getBotAccount()
+  if (botAccount === undefined) return
+  const client = getClient()
+  const dm = await createDirect(client, [getCurrentAccount().uuid, botAccount])
+  if (dm == null) return
+  openChannel(dm, chunter.class.DirectMessage, undefined, true)
 }
 
 export async function toggleChannelIcon (channel: Channel, icon?: Asset, emoji?: number | number[]): Promise<void> {

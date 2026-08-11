@@ -27,6 +27,7 @@ import AttachmentGalleryPresenter from './components/AttachmentGalleryPresenter.
 import AttachmentList from './components/AttachmentList.svelte'
 import AttachmentGroup from './components/AttachmentGroup.svelte'
 import AttachmentPresenter from './components/AttachmentPresenter.svelte'
+import VoiceAttachmentPresenter from './components/VoiceAttachmentPresenter.svelte'
 import AttachmentPreview from './components/AttachmentPreview.svelte'
 import AttachmentRefInput from './components/AttachmentRefInput.svelte'
 import AttachmentStyleBoxCollabEditor from './components/AttachmentStyleBoxCollabEditor.svelte'
@@ -265,6 +266,7 @@ export default async (): Promise<Resources> => ({
   component: {
     AttachmentsPresenter,
     AttachmentPresenter,
+    VoiceAttachmentPresenter,
     AttachmentGalleryPresenter,
     Attachments,
     DrawingPresenter,

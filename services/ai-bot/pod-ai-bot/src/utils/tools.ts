@@ -15,6 +15,7 @@ import { Stream } from 'stream'
 import { v4 as uuid } from 'uuid'
 import config from '../config'
 import { WorkspaceClient } from '../workspace/workspaceClient'
+import { sanitizeDocumentMarkdown } from './documentMarkdown'
 
 async function stream2buffer (stream: Stream): Promise<Buffer> {
   return await new Promise<Buffer>((resolve, reject) => {
@@ -290,19 +291,6 @@ registerTool<object>(
   'any'
 )
 
-// Strip wrappers a small model tends to echo around the document: our old <<<DOCUMENT markers
-// and a leading/trailing ```markdown code fence. Defensive — the prompt already asks for none.
-function sanitizeDocumentMarkdown (raw: string): string {
-  let s = raw.trim()
-  s = s
-    .replace(/^<<<DOCUMENT\s*/i, '')
-    .replace(/\s*DOCUMENT>>>$/i, '')
-    .trim()
-  const fence = /^```[a-zA-Z]*\n([\s\S]*?)\n```$/.exec(s)
-  if (fence !== null) s = fence[1].trim()
-  return s
-}
-
 const rewriteDocument: ToolFunc = async (workspaceClient, _user, args, reqCtx) => {
   if (reqCtx === undefined) return 'No conversation context available.'
   if (typeof args?.markdown !== 'string' || args.markdown.trim() === '') {
@@ -331,8 +319,9 @@ registerTool<object>(
           markdown: {
             type: 'string',
             description:
-              'The COMPLETE new document body as markdown. Take the CURRENT DOCUMENT shown in the system ' +
+              'The COMPLETE new document body as RAW markdown. Take the CURRENT DOCUMENT shown in the system ' +
               'context, apply the requested change, and pass the whole result. NOT a diff, NOT a fragment. ' +
+              'Do NOT wrap it in ``` code fences. ' +
               "Never include the user's request text or chat comments in it."
           }
         },

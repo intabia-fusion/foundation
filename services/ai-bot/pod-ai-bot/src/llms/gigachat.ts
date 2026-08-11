@@ -83,6 +83,17 @@ export default class GigaChatProvider implements LLMProvider {
     return this.provider.levels[lvl]?.model ?? this.provider.levels[this.defaultLevel]?.model ?? config.GigaChatModel
   }
 
+  // Output token cap for a level from the yaml registry (capabilities.maxOutputTokens), with the
+  // provider-wide default as fallback. Keeps the limit per-configuration, not a hardcoded param.
+  private maxTokensFor (level?: AILevel): number {
+    const lvl = level ?? this.defaultLevel
+    return (
+      this.provider.levels[lvl]?.capabilities?.maxOutputTokens ??
+      this.provider.levels[this.defaultLevel]?.capabilities?.maxOutputTokens ??
+      config.GigaChatMaxTokens
+    )
+  }
+
   /** Billing multiplier + model id for a level (used to bill tokens). */
   private billingFor (
     level?: AILevel,
@@ -310,7 +321,10 @@ export default class GigaChatProvider implements LLMProvider {
             model: this.modelFor(level),
             user,
             functions: functions as any,
-            function_call: functions !== undefined ? 'auto' : undefined
+            function_call: functions !== undefined ? 'auto' : undefined,
+            // Per-level output cap (yaml registry); headroom for long rewrite_document bodies, else
+            // GigaChat truncates the function_call mid-argument (finish_reason=length).
+            max_tokens: this.maxTokensFor(level)
           } as any),
         { maxRetries: 3, isRetryable: retryNetworkErrors },
         'gigachat.chatToolStep'
@@ -337,15 +351,24 @@ export default class GigaChatProvider implements LLMProvider {
         // replay turn, else the follow-up 422s. Smuggle it through the ToolCall id (the loop
         // treats it as opaque) and decode it in the replay above.
         const stateId = (msg as any)?.functions_state_id ?? ''
+        // GigaChat may return `arguments` already as a JSON string OR as an object. Stringify only
+        // objects - double-stringifying a string double-escapes newlines (\n -> \\n) and corrupts
+        // markdown bodies on repeated rewrites.
+        const rawArgs = call.arguments ?? {}
         const toolCall: ToolCall = {
           id: `gigachat:${stateId}:${call.name}`,
           name: call.name,
-          arguments: JSON.stringify(call.arguments ?? {})
+          arguments: typeof rawArgs === 'string' ? rawArgs : JSON.stringify(rawArgs)
         }
         return { toolCalls: [toolCall], usage }
       }
 
       const str = msg?.content ?? undefined
+      // The model hit the output token limit before finishing (e.g. a huge rewrite_document body).
+      // Return a plain message instead of undefined, else the user just gets silence.
+      if (choice?.finish_reason === 'length' && (str === undefined || str === '')) {
+        return { content: 'Ответ получился слишком длинным и был обрезан. Попробуйте сузить запрос.', usage }
+      }
       return { content: str !== '' ? str : undefined, usage }
     } catch (e) {
       const resp = (e as any)?.response

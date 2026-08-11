@@ -46,6 +46,9 @@ export interface AILevelModel {
     tools?: boolean
     streaming?: boolean
     maxContextTokens?: number
+    // Output token cap for a single generation. Set per model/level in the yaml registry so a
+    // long rewrite_document body isn't truncated mid-argument. Provider default when unset.
+    maxOutputTokens?: number
   }
   tokenizer?: 'tiktoken' | 'gigachat' | 'approx'
 }
@@ -237,6 +240,7 @@ interface Config {
   GigaChatModel: string
   GigaChatBaseUrl: string
   GigaChatTimeout: string
+  GigaChatMaxTokens: number
   // ******************
 
   DataLabApiKey: string
@@ -623,6 +627,9 @@ const config: Config = (() => {
       process.env.GIGACHAT_BASE_URL ??
       'https://gigachat.devices.sberbank.ru/api/v1/',
     GigaChatTimeout: yamlConfig?.llm?.gigachat?.timeout ?? process.env.GIGACHAT_TIMEOUT ?? '600',
+    GigaChatMaxTokens: Number(
+      (yamlConfig?.llm?.gigachat as any)?.maxTokens ?? process.env.GIGACHAT_MAX_TOKENS ?? 8192
+    ),
 
     AIProviders: buildProviderRegistry(yamlConfig),
     DefaultLevel: yamlConfig?.llm?.defaultLevel ?? process.env.AI_DEFAULT_LEVEL ?? 'low',

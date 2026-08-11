@@ -26,6 +26,7 @@ import {
   SocialIdType
 } from '@hcengineering/core'
 import type { ChatMessage, ThreadMessage } from '@hcengineering/chunter'
+import type { Attachment } from '@hcengineering/attachment'
 import type { IntlString, Metadata, Plugin } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import type { Preference } from '@hcengineering/preference'
@@ -130,6 +131,27 @@ export interface AIEditProposalMessage extends ThreadMessage {
   applied?: boolean
 }
 
+/** Lifecycle of a voice-note transcription. */
+export type AudioTranscribeState = 'pending' | 'done' | 'failed'
+
+/**
+ * A voice-note recorded in a chat: the audio blob plus its transcription.
+ * The client creates it (state=pending) into the Direct space; a server trigger enqueues an STT
+ * task; the stt-worker fills `text` (ASR + LLM error-correction) and flips `state` to done. The
+ * chat input watches for done and injects the text.
+ */
+export interface AudioTranscribe extends Attachment {
+  state: AudioTranscribeState
+  // Corrected transcription text (markdown), set by the worker when state=done.
+  text?: string
+  // Recording length in seconds, for billing and UI.
+  durationSec?: number
+  lang?: string
+  // True once the user edited the transcript inplace. The bot always reads `text`; the flag only
+  // records that a human touched it.
+  edited?: boolean
+}
+
 const aiBot = plugin(aiBotId, {
   metadata: {
     EndpointURL: '' as Metadata<string>
@@ -139,7 +161,8 @@ const aiBot = plugin(aiBotId, {
     AIRequest: '' as Ref<Class<AIRequest>>,
     AISpaceSettings: '' as Ref<Class<AISpaceSettings>>,
     AIContextMessage: '' as Ref<Class<AIContextMessage>>,
-    AIEditProposalMessage: '' as Ref<Class<AIEditProposalMessage>>
+    AIEditProposalMessage: '' as Ref<Class<AIEditProposalMessage>>,
+    AudioTranscribe: '' as Ref<Class<AudioTranscribe>>
   },
   component: {
     AIPersonalDataSettings: '' as AnyComponent,

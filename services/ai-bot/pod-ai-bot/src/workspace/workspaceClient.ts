@@ -18,6 +18,7 @@ import aiBot, {
   type AIEditProposalMessage,
   type AIPersonalData,
   type AIRequest,
+  type AudioTranscribe,
   aiBotEmailSocialKey,
   ConnectMeetingRequest,
   DisconnectMeetingRequest,
@@ -463,6 +464,29 @@ export class WorkspaceClient {
     return await client.findAll(attachment.class.Attachment, { attachedTo: objectId })
   }
 
+  // Collect the transcript text of voice-note attachments, waiting for any still-transcribing ones
+  // to finish (bounded poll). Failed/empty ones are skipped.
+  private async collectVoiceTranscripts (messageId: Ref<Doc>, files: Attachment[]): Promise<string[]> {
+    const voice = files.filter((f) => f._class === aiBot.class.AudioTranscribe) as AudioTranscribe[]
+    if (voice.length === 0) return []
+
+    const deadline = Date.now() + 60000
+    let pending = voice.filter((v) => v.state === 'pending').map((v) => v._id)
+    while (pending.length > 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1000))
+      const fresh = await this.client.findAll(aiBot.class.AudioTranscribe, { _id: { $in: pending } })
+      const byId = new Map(fresh.map((d) => [d._id, d]))
+      for (const v of voice) {
+        const upd = byId.get(v._id)
+        if (upd !== undefined) v.state = upd.state
+        if (upd?.text !== undefined) v.text = upd.text
+      }
+      pending = voice.filter((v) => v.state === 'pending').map((v) => v._id)
+    }
+
+    return voice.map((v) => (v.text ?? '').trim()).filter((t) => t !== '')
+  }
+
   async processMessageEvent (
     event: AIEventRequest,
     control?: ConsumerControl,
@@ -490,9 +514,16 @@ export class WorkspaceClient {
 
     let promptText = markupToText(event.message)
     const files = await this.getAttachments(this.client, event.messageId)
-    if (files.length > 0) {
+    // Voice-note transcripts are part of what the user "said": wait for pending ones to finish,
+    // then fold their text into the prompt. Non-voice attachments stay as file references.
+    const transcripts = await this.collectVoiceTranscripts(event.messageId, files)
+    if (transcripts.length > 0) {
+      promptText += '\n\n' + transcripts.join('\n')
+    }
+    const otherFiles = files.filter((f) => f._class !== aiBot.class.AudioTranscribe)
+    if (otherFiles.length > 0) {
       promptText += '\n\nAttachments:'
-      for (const file of files) {
+      for (const file of otherFiles) {
         promptText += `\nName:${file.name} FileId:${file.file} Type:${file.type}`
       }
     }

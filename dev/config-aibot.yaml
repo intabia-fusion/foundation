@@ -65,6 +65,7 @@ llm:
         low:
           model: Base
           tokenizer: approx
+          maxContextTokens: 32768
 
     - id: gigachat
       provider: gigachat

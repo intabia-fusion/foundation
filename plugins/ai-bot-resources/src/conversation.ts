@@ -37,7 +37,7 @@ export interface StartedConversation {
 }
 
 /** Resolve the AI bot's account uuid from its cached social identity. */
-async function getBotAccount (): Promise<AccountUuid | undefined> {
+export async function getBotAccount (): Promise<AccountUuid | undefined> {
   const identity = get(aiBotSocialIdentityStore)
   if (identity === undefined) return undefined
   const client = getClient()

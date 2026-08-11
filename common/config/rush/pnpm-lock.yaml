@@ -5269,6 +5269,9 @@ importers:
       '@hcengineering/model':
         specifier: workspace:^0.7.17
         version: link:../../foundations/core/packages/model
+      '@hcengineering/model-attachment':
+        specifier: workspace:^0.7.0
+        version: link:../attachment
       '@hcengineering/model-chunter':
         specifier: workspace:^0.7.0
         version: link:../chunter
@@ -14973,6 +14976,9 @@ importers:
 
   ../../plugins/ai-bot:
     dependencies:
+      '@hcengineering/attachment':
+        specifier: workspace:^0.7.0
+        version: link:../attachment
       '@hcengineering/chunter':
         specifier: workspace:^0.7.0
         version: link:../chunter
@@ -15563,6 +15569,9 @@ importers:
       '@hcengineering/text-editor-resources':
         specifier: workspace:^0.7.0
         version: link:../text-editor-resources
+      '@hcengineering/text-markdown':
+        specifier: workspace:^0.7.20
+        version: link:../../foundations/core/packages/text-markdown
       '@hcengineering/ui':
         specifier: workspace:^0.7.0
         version: link:../../packages/ui
@@ -16571,6 +16580,9 @@ importers:
       '@hcengineering/attachment-resources':
         specifier: workspace:^0.7.0
         version: link:../attachment-resources
+      '@hcengineering/audio-dsp':
+        specifier: workspace:^0.7.0
+        version: link:../../packages/audio-dsp
       '@hcengineering/billing':
         specifier: workspace:^0.7.0
         version: link:../billing
@@ -16622,6 +16634,9 @@ importers:
       '@hcengineering/text-editor-resources':
         specifier: workspace:^0.7.0
         version: link:../text-editor-resources
+      '@hcengineering/text-markdown':
+        specifier: workspace:^0.7.20
+        version: link:../../foundations/core/packages/text-markdown
       '@hcengineering/ui':
         specifier: workspace:^0.7.0
         version: link:../../packages/ui
@@ -16640,6 +16655,9 @@ importers:
       fast-equals:
         specifier: ^5.2.2
         version: 5.3.2
+      slugify:
+        specifier: ^1.6.6
+        version: 1.6.6
       svelte:
         specifier: ^4.2.20
         version: 4.2.20

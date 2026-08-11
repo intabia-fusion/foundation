@@ -81,6 +81,9 @@
 
   function setContent (content: Markup): void {
     editor?.setContent(content)
+    // editor.setContent doesn't fire the update callback, so isEmpty (which gates Send) would
+    // stay stale after a programmatic content set (e.g. voice-note transcript injection).
+    isEmpty = isEmptyMarkup(content)
   }
 
   const editorHandler: TextEditorHandler = {

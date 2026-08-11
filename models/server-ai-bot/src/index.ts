@@ -18,6 +18,7 @@ import core from '@hcengineering/core'
 import serverCore from '@hcengineering/server-core'
 import serverAiBot from '@hcengineering/server-ai-bot'
 import chunter from '@hcengineering/chunter'
+import aiBot from '@hcengineering/ai-bot'
 
 export { serverAiBotId } from '@hcengineering/server-ai-bot'
 
@@ -27,6 +28,15 @@ export function createModel (builder: Builder): void {
     txMatch: {
       _class: core.class.TxCreateDoc,
       objectClass: chunter.class.ChatMessage
+    },
+    isAsync: true
+  })
+
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverAiBot.trigger.OnAudioTranscribe,
+    txMatch: {
+      _class: core.class.TxCreateDoc,
+      objectClass: aiBot.class.AudioTranscribe
     },
     isAsync: true
   })

@@ -150,6 +150,19 @@ export interface LLMProvider {
   ) => Promise<string | undefined>
 
   /**
+   * Fix ASR errors in a raw voice-note transcript, preserving meaning and language.
+   * Returns the corrected text (or undefined on failure). Uses the given level's model.
+   * Optional: providers without it just skip correction (raw ASR text is kept).
+   */
+  correctTranscript?: (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    text: string,
+    lang?: string,
+    level?: AILevel
+  ) => Promise<string | undefined>
+
+  /**
    * Create a chat completion that can use tools (provider-specific).
    * Tools are pre-built and passed ready to use; provider just needs to execute them.
    * This keeps the provider abstraction clean - callers handle WorkspaceClient context.

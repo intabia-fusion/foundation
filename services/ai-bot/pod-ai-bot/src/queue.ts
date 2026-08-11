@@ -34,7 +34,7 @@ import {
 import serverToken, { generateToken } from '@hcengineering/server-token'
 
 import { getClient as getAccountClient } from '@hcengineering/account-client'
-import { type AIEventRequest } from '@hcengineering/ai-bot'
+import { type AIEventRequest, type ChatVoiceTranscriptionTask } from '@hcengineering/ai-bot'
 import { createOpenTelemetryMetricsContext, SplitLogger } from '@hcengineering/analytics-service'
 import { type MeasureContext, newMetrics, RateLimiter, type SocialId, type WorkspaceUuid } from '@hcengineering/core'
 import { getPlatformQueue } from '@hcengineering/kafka'
@@ -352,12 +352,16 @@ async function startSttWorker (boot: Boot): Promise<void> {
 
   if (transcriptionHandler !== undefined) {
     const handleMsg = async (message: ConsumerMessage<TranscriptionTask>, control?: ConsumerControl): Promise<void> => {
-      const task = message.value as unknown as TranscriptionQueueTask
+      const raw = message.value as unknown as { kind?: string }
       const workspace = message.workspace
       try {
-        await transcriptionHandler.processTask(ctx, workspace, task, control)
+        if (raw.kind === 'chat-voice') {
+          await transcriptionHandler.processChatVoice(ctx, workspace, raw as unknown as ChatVoiceTranscriptionTask)
+          return
+        }
+        await transcriptionHandler.consumer.processTask(ctx, workspace, raw as unknown as TranscriptionQueueTask, control)
       } catch (err: any) {
-        ctx.error('Failed to process transcription task', { error: err.message, workspace, blobId: task.blobId })
+        ctx.error('Failed to process transcription task', { error: err.message, workspace })
       }
     }
     if (config.SttProcessingBatch === 1) {

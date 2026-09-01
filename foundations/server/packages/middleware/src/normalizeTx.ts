@@ -95,10 +95,11 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
   }
 
   private checkMeta (meta: unknown): meta is Record<string, string | number | boolean> | undefined {
-    if (meta === undefined) {
+    // json cannot carry undefined, so an optional field arrives as null - same meaning here.
+    if (meta == null) {
       return true
     }
-    if (meta === null || typeof meta !== 'object') {
+    if (typeof meta !== 'object') {
       return false
     }
     for (const [, val] of Object.entries(meta)) {
@@ -123,8 +124,8 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       typeof space === 'string' &&
       typeof modifiedBy === 'string' &&
       typeof modifiedOn === 'number' &&
-      (createdBy === undefined || typeof createdBy === 'string') &&
-      (createdOn === undefined || typeof createdOn === 'number') &&
+      (createdBy == null || typeof createdBy === 'string') &&
+      (createdOn == null || typeof createdOn === 'number') &&
       typeof objectSpace === 'string' &&
       this.checkMeta(meta)
     if (!isTxValid) {
@@ -136,10 +137,10 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       space: space as Ref<Space>,
       modifiedBy: modifiedBy as PersonId,
       modifiedOn,
-      createdBy: createdBy as PersonId | undefined,
-      createdOn,
+      createdBy: (createdBy ?? undefined) as PersonId | undefined,
+      createdOn: createdOn ?? undefined,
       objectSpace: objectSpace as Ref<Space>,
-      meta: meta as Record<string, any> | undefined
+      meta: (meta ?? undefined) as Record<string, any> | undefined
     }
     return baseTx
   }
@@ -178,13 +179,13 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       unknown
       >
       const isValid =
-        (scope === undefined || typeof scope === 'string') &&
-        (match === undefined || Array.isArray(match)) &&
-        (notMatch === undefined || Array.isArray(notMatch)) &&
+        (scope == null || typeof scope === 'string') &&
+        (match == null || Array.isArray(match)) &&
+        (notMatch == null || Array.isArray(notMatch)) &&
         Array.isArray(txes) &&
-        (notify === undefined || typeof notify === 'boolean') &&
-        (extraNotify === undefined || Array.isArray(extraNotify)) &&
-        (measureName === undefined || typeof measureName === 'string')
+        (notify == null || typeof notify === 'boolean') &&
+        (extraNotify == null || Array.isArray(extraNotify)) &&
+        (measureName == null || typeof measureName === 'string')
       if (!isValid) {
         return undefined
       }
@@ -201,13 +202,13 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
         parsedTxes.push(parsed as TxCUD<Doc>)
       }
       const applyIf: ExplicitTx<TxApplyIf> = Object.assign(baseTx, {
-        scope,
-        match,
-        notMatch,
+        scope: scope ?? undefined,
+        match: match ?? undefined,
+        notMatch: notMatch ?? undefined,
         txes: parsedTxes,
-        notify,
-        extraNotify,
-        measureName
+        notify: notify ?? undefined,
+        extraNotify: extraNotify ?? undefined,
+        measureName: measureName ?? undefined
       })
       return applyIf
     } else if (baseTx._class === core.class.TxModelUpgrade) {
@@ -226,18 +227,18 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
     const isValid =
       typeof objectId === 'string' &&
       typeof objectClass === 'string' &&
-      (attachedTo === undefined || typeof attachedTo === 'string') &&
-      (attachedToClass === undefined || typeof attachedToClass === 'string') &&
-      (collection === undefined || typeof collection === 'string')
+      (attachedTo == null || typeof attachedTo === 'string') &&
+      (attachedToClass == null || typeof attachedToClass === 'string') &&
+      (collection == null || typeof collection === 'string')
     if (!isValid) {
       return undefined
     }
     const baseCUD: ExplicitTx<TxCUD<Doc>> = Object.assign(base, {
       objectId: objectId as Ref<Doc>,
       objectClass: objectClass as Ref<Class<Doc>>,
-      attachedTo: attachedTo as Ref<Doc>,
-      attachedToClass: attachedToClass as Ref<Class<Doc>>,
-      collection
+      attachedTo: (attachedTo ?? undefined) as Ref<Doc>,
+      attachedToClass: (attachedToClass ?? undefined) as Ref<Class<Doc>>,
+      collection: collection ?? undefined
     })
     if (baseCUD._class === core.class.TxCreateDoc) {
       const { attributes } = source as Record<keyof TxCreateDoc<Doc>, unknown>
@@ -251,17 +252,20 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
       if (
         typeof operations !== 'object' ||
         operations === null ||
-        (retrieve !== undefined && typeof retrieve !== 'boolean')
+        (retrieve != null && typeof retrieve !== 'boolean')
       ) {
         return undefined
       }
-      const updateDoc: ExplicitTx<TxUpdateDoc<Doc>> = Object.assign(baseCUD, { operations, retrieve })
+      const updateDoc: ExplicitTx<TxUpdateDoc<Doc>> = Object.assign(baseCUD, {
+        operations,
+        retrieve: retrieve ?? undefined
+      })
       return updateDoc
     } else if (baseCUD._class === core.class.TxRemoveDoc) {
       const { removedDoc } = source as Record<keyof TxRemoveDoc<Doc>, unknown>
 
       return Object.assign(baseCUD, {
-        removedDoc: removedDoc as Doc | undefined
+        removedDoc: (removedDoc ?? undefined) as Doc | undefined
       })
     } else if (baseCUD._class === core.class.TxMixin) {
       const { mixin, attributes } = source as Record<keyof TxMixin<Doc, Doc>, unknown>

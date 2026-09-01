@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import {
+import core, {
   type Account,
   AccountRole,
   type Class,
@@ -102,5 +102,100 @@ describe('NormalizeTxMiddleware', () => {
     await middleware.tx(sessionCtx, [tx])
     expect(capturedTxes[0].meta?.silent).toBeUndefined()
     expect(capturedTxes[0].meta?.foo).toBe('bar')
+  })
+
+  // JSON has no undefined, so an optional field of a json client arrives as null.
+  describe('null in optional fields (json protocol)', () => {
+    async function run (raw: any): Promise<any> {
+      let captured: any[] = []
+      const next = {
+        tx: async (_ctx: any, txes: any) => {
+          captured = txes as any[]
+          return { txes: txes as any[] }
+        }
+      } as unknown as Middleware
+      const middleware = await NormalizeTxMiddleware.create(ctx, createPipelineContext(), next)
+      await middleware.tx({ ...ctx, contextData: { account: systemAccount } } as any, [raw])
+      return captured[0]
+    }
+
+    const base = {
+      _id: 'tx1',
+      space: 'core:space:Tx',
+      modifiedBy: 'core:account:System',
+      modifiedOn: 1,
+      objectSpace: 'core:space:Model',
+      createdBy: null,
+      createdOn: null,
+      meta: null
+    }
+    const cud = {
+      objectId: 'obj1',
+      objectClass: 'class:Test',
+      attachedTo: null,
+      attachedToClass: null,
+      collection: null
+    }
+
+    it('accepts TxUpdateDoc and normalizes every null to undefined', async () => {
+      const out = await run({ ...base, ...cud, _class: core.class.TxUpdateDoc, operations: { a: 1 }, retrieve: null })
+      for (const key of ['createdBy', 'createdOn', 'meta', 'attachedTo', 'attachedToClass', 'collection', 'retrieve']) {
+        expect(out[key]).toBeUndefined()
+        expect(out[key]).not.toBeNull()
+      }
+      expect(out.operations).toEqual({ a: 1 })
+    })
+
+    it('accepts TxCreateDoc and TxRemoveDoc', async () => {
+      const created = await run({ ...base, ...cud, _class: core.class.TxCreateDoc, attributes: {} })
+      expect(created.attributes).toEqual({})
+      expect(created.attachedTo).toBeUndefined()
+
+      const removed = await run({ ...base, ...cud, _class: core.class.TxRemoveDoc, removedDoc: null })
+      expect(removed.removedDoc).toBeUndefined()
+    })
+
+    it('accepts TxApplyIf with null optionals', async () => {
+      const out = await run({
+        ...base,
+        _class: core.class.TxApplyIf,
+        scope: null,
+        match: null,
+        notMatch: null,
+        notify: null,
+        extraNotify: null,
+        measureName: null,
+        txes: [{ ...base, ...cud, _class: core.class.TxUpdateDoc, operations: {}, retrieve: null }]
+      })
+      for (const key of ['scope', 'match', 'notMatch', 'notify', 'extraNotify', 'measureName']) {
+        expect(out[key]).toBeUndefined()
+      }
+      expect(out.txes).toHaveLength(1)
+      expect(out.txes[0].retrieve).toBeUndefined()
+    })
+
+    it('still rejects null in required fields', async () => {
+      const cases = [
+        { ...base, ...cud, _class: core.class.TxUpdateDoc, operations: null, retrieve: null },
+        { ...base, ...cud, objectId: null, _class: core.class.TxUpdateDoc, operations: {} },
+        { ...base, ...cud, objectClass: null, _class: core.class.TxUpdateDoc, operations: {} },
+        { ...base, ...cud, _class: core.class.TxCreateDoc, attributes: null },
+        { ...base, ...cud, _class: core.class.TxMixin, mixin: null, attributes: {} },
+        { ...base, _class: core.class.TxApplyIf, txes: null },
+        { ...base, ...cud, modifiedBy: null, _class: core.class.TxUpdateDoc, operations: {} }
+      ]
+      for (const raw of cases) {
+        await expect(run(raw)).rejects.toThrow()
+      }
+    })
+
+    it('rejects a wrong type where null is now allowed', async () => {
+      await expect(
+        run({ ...base, ...cud, _class: core.class.TxUpdateDoc, operations: {}, retrieve: 'yes' })
+      ).rejects.toThrow()
+      await expect(
+        run({ ...base, ...cud, _class: core.class.TxUpdateDoc, operations: {}, collection: 5 })
+      ).rejects.toThrow()
+    })
   })
 })

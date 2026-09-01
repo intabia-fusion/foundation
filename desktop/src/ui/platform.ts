@@ -536,7 +536,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   setMetadata(client.metadata.ExtraFilter, disabledFeatures)
   setMetadata(client.metadata.ExtraPlugins, ['preference' as Plugin, pulseId])
 
-  // Use binary response transfer for faster performance and small transfer sizes.
+  // msgpack+snappy by default, see connection.ts.
   setMetadata(client.metadata.UseBinaryProtocol, true)
   // Disable for now, since it causes performance issues on linux/docker/kubernetes boxes for now.
   setMetadata(client.metadata.UseProtocolCompression, true)

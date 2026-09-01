@@ -43,7 +43,8 @@ describe('getWorkspaceToken', () => {
 
     mockAccountClient = {
       login: jest.fn().mockResolvedValue(mockLoginInfo),
-      selectWorkspace: jest.fn().mockResolvedValue(mockWorkspaceInfo)
+      selectWorkspace: jest.fn().mockResolvedValue(mockWorkspaceInfo),
+      loginWithApiKey: jest.fn().mockResolvedValue(mockWorkspaceInfo)
     }
     ;(getAccountClient as jest.Mock).mockReturnValue(mockAccountClient)
     ;(loadServerConfig as jest.Mock).mockResolvedValue(mockConfig)
@@ -197,5 +198,16 @@ describe('getWorkspaceToken', () => {
 
       expect(mockAccountClient.login).toHaveBeenCalledWith('user+test@example.com', 'p@ssw0rd!#$%')
     })
+  })
+
+  it('exchanges an integration API key without a workspace name', async () => {
+    const result = await getWorkspaceToken('https://example.com', { apiKey: 'fus_ws_abc' })
+
+    expect(mockAccountClient.loginWithApiKey).toHaveBeenCalledWith('fus_ws_abc')
+    // The key names its own workspace: no login and no separate workspace selection.
+    expect(mockAccountClient.login).not.toHaveBeenCalled()
+    expect(mockAccountClient.selectWorkspace).not.toHaveBeenCalled()
+    expect(result.token).toBe(mockWorkspaceInfo.token)
+    expect(result.endpoint).toBe(mockWorkspaceInfo.endpoint)
   })
 })

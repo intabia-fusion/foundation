@@ -139,6 +139,7 @@
     "Edit": "Modifier",
     "Save": "Enregistrer",
     "DisabledFeaturesOverride": "Remplacement des fonctions désactivées",
+    "MaxApiKeys": "Clés API max",
     "EditSubscription": "Modifier l'abonnement",
     "PricePerPeriod": "Prix par période",
     "RecalculatePrice": "Recalculer",

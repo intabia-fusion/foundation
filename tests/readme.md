@@ -105,6 +105,26 @@ arrives, a fact is carried across turns), not exact text.
 
 Please update all navigation with using PlatformURI for CI and dev environment compatible testing.
 
+## Time-machine + webhook
+
+`time-machine` (delayed-event scheduler) and `webhook` (inbound webhook API) run as part of this
+stand (`docker-compose.yaml`). `time-machine`'s `POLL_INTERVAL` is set to 2s here (vs. the 20s
+prod default) so a scheduled-retry test doesn't have to wait.
+
+Check it's alive:
+
+```bash
+docker compose logs time-machine | grep 'Time Machine worker started'
+curl http://localhost:8083/_webhook/health   # {"status":"ok"}
+```
+
+Inspect the delayed-events table (`time_machine.delayed_events`, schema created by the service
+itself on start):
+
+```bash
+docker compose exec postgres psql -U postgres -p 5433 -c 'select * from time_machine.delayed_events;'
+```
+
 ## Generate Allure
 
 ```bash

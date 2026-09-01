@@ -26,6 +26,24 @@ services:
         condition: service_healthy
     environment:
       - DB_URL=${DB_PG_URL}
+      # Short poll so a scheduled-retry test doesn't wait the 20s prod default.
+      - POLL_INTERVAL=2000
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+    restart: unless-stopped
+  webhook:
+    image: 'intabiafusion/webhook:${DOCKER_TAG:-latest}'
+    pull_policy: never
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
+    environment:
+      - PORT=4043
+      - SECRET=secret
+      - ACCOUNTS_URL=http://account:3003
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
       # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318

@@ -26,6 +26,7 @@
     "PasswordLoginLocked": "Přihlášení heslem je zablokováno z důvodu příliš mnoha neúspěšných pokusů. Pomocí metody přihlášení OTP odemkněte svůj účet.",
     "InviteNotFound": "Pozvánka s e-mailem:{email} nenalezena.",
     "WorkspaceLimitReached": "Dosáhli jste limitu pracovních prostorů. Kontaktujte nás...",
+    "ApiKeyLimitReached": "Dosáhli jste limitu {limit} API klíčů pro tento pracovní prostor.",
     "ReadOnlyAccount": "Anonymní hostovská ukázka",
     "SystemAccount": "Systémový účet",
     "SocialIdAlreadyExists": "Sociální ID již existuje"

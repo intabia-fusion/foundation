@@ -57,7 +57,7 @@
 <div class="w-full flex-row-center">
   <Button
     {focusIndex}
-    width="100%"
+    flex="1 1 0rem"
     {icon}
     {size}
     {kind}
@@ -66,7 +66,6 @@
     shape={hasDropdown ? 'rectangle-right' : undefined}
     {justify}
     {noFocus}
-    shrink={1}
     borderStyle="none"
     on:click
     showTooltip={showTooltipMain}

@@ -25,6 +25,7 @@
     "PasswordLoginLocked": "Çok fazla başarısız deneme nedeniyle parola girişi kilitlendi. Hesabınızın kilidini açmak için OTP giriş yöntemini kullanın.",
     "InviteNotFound": "E-mail:{email} ile ilgili davet bulunamadı.",
     "WorkspaceLimitReached": "Çalışma alanı limitine ulaştınız. Lütfen bizimle iletişime geçin...",
+    "ApiKeyLimitReached": "Bu çalışma alanı için {limit} API anahtarı sınırına ulaştınız.",
     "ReadOnlyAccount": "Anonim Misafir Demo",
     "SystemAccount": "Sistem hesabı",
     "SocialIdAlreadyExists": "Sosyal ID zaten mevcut"

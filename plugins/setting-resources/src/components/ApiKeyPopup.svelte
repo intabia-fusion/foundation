@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the 'License');
 // you may not use this file except in compliance with the License. You may
@@ -21,7 +22,7 @@
 
   import settings from '../plugin'
 
-  export let token: string
+  export let apiKey: string
 
   const isSecureContext = window.isSecureContext
   const dispatch = createEventDispatcher()
@@ -35,23 +36,24 @@
 
   async function copy (): Promise<void> {
     if (!isSecureContext) return
-    if (token === undefined) return
+    if (apiKey === undefined) return
 
-    await copyTextToClipboard(token)
+    await copyTextToClipboard(apiKey)
     copied = true
     copiedTime = Date.now()
   }
 </script>
 
 <div class="antiPopup popup" class:secure={isSecureContext}>
-  <div class="overflow-label fs-title mb-4">
-    <Label label={settings.string.ApiToken} />
+  <div class="overflow-label fs-title mb-2">
+    <Label label={settings.string.ApiKeyCreated} />
   </div>
+  <div class="hint"><Label label={settings.string.ApiKeyShownOnceHint} /></div>
 
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="token" class:notSecure={!isSecureContext} class:over-underline={isSecureContext} on:click={copy}>
-    {token}
+    {apiKey}
   </div>
 
   <div class="buttons">
@@ -80,6 +82,11 @@
     border-radius: 1.25rem;
     user-select: none;
     box-shadow: var(--popup-shadow);
+
+    .hint {
+      color: var(--theme-dark-color);
+      font-size: 0.8125rem;
+    }
 
     .token {
       margin: 1.75rem 0 0;

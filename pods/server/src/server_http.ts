@@ -464,7 +464,7 @@ export function startHttpServer (
     })
   )
 
-  registerRPC(app, sessions, ctx, accountsUrl)
+  registerRPC(app, sessions, ctx, accountsUrl, externalStorage)
 
   app.put('/api/v1/broadcast', (req, res) => {
     try {

@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import type { Account, AccountRole, AccountUuid, Doc, Domain, PersonId, Ref } from './classes'
+import type { Account, AccountRole, AccountUuid, Doc, Domain, PersonId, Ref, Space } from './classes'
 import { type MeasureContext } from '@hcengineering/measurements'
 import { type DocumentQuery, type FindOptions } from './storage'
 import type { DocumentUpdate, Tx } from './tx'
@@ -73,6 +73,16 @@ export interface SessionData {
     }
   >
   grant?: PermissionsGrant
+
+  // API key grant from the token (extra.apiops/apispaces/apiall), undefined for a user session.
+  // opsOnly: named operations are checkable only on /api/v1/ops, so raw CUD is refused there.
+  apiKey?: {
+    canWrite: boolean
+    opsOnly: boolean
+    spaces: Ref<Space>[]
+  }
+  // Set by the /api/v1/ops route on the session data it writes under.
+  opsApi?: boolean
 
   asyncRequests?: ((ctx: MeasureContext, id?: string) => Promise<void>)[]
 }

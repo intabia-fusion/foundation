@@ -29,6 +29,8 @@ import {
   type Person,
   type PersonId,
   type PersonUuid,
+  type Ref,
+  type Space,
   readOnlyGuestAccountUuid,
   SocialIdType,
   systemAccountUuid,
@@ -44,11 +46,27 @@ import {
   type Token
 } from '@hcengineering/server-token'
 
+import { randomUUID } from 'crypto'
+
 import { isAdminEmail, isBillingAdminEmail } from './admin'
 import { requireAdminOp } from './adminOp'
+import {
+  type ApiKeyOperation,
+  type ApiKeySecret,
+  type ApiKeysList,
+  type CreatedApiKey,
+  apiKeyKind,
+  defaultApiKeyTokenTtlMs,
+  generateApiKey,
+  hashApiKey,
+  isApiKeyUsable,
+  isValidApiKeyOps,
+  isValidApiKeyTokenTtl,
+  maskApiKey
+} from './apiKeys'
 import { accountPlugin, type CrmNotification } from './plugin'
 import { getFreePlanLimits } from './freeLimits'
-import { type AccountServiceMethods, getServiceMethods } from './serviceOperations'
+import { type AccountServiceMethods, getServiceMethods, lastUsedResolutionMs } from './serviceOperations'
 import {
   type Account,
   type AccountDB,
@@ -71,6 +89,7 @@ import {
   type Subscription,
   SubscriptionStatus,
   type UserProfile,
+  type Workspace,
   type WorkspaceInfoWithStatus,
   type WorkspaceInviteInfo,
   type WorkspaceLoginInfo,
@@ -125,6 +144,7 @@ import {
   publishMembersChanged,
   recordFailedLoginAttempt,
   resetFailedLoginAttempts,
+  sanitizeEmail,
   selectWorkspace,
   sendEmail,
   sendOtp,
@@ -3230,6 +3250,437 @@ export async function getWorkspaceUsersWithPermission (
   return await db.getWorkspaceUsersWithPermission(workspace, permission)
 }
 
+/* =================================== */
+/* ============ A P I  K E Y S ======= */
+/* =================================== */
+
+// Same scheme as workspaceLimitPerUser/Account.maxWorkspaces, but per-workspace: env default, Workspace.maxApiKeys overrides.
+const apiKeyLimitPerWorkspace =
+  process.env.API_KEY_LIMIT_PER_WORKSPACE != null ? parseInt(process.env.API_KEY_LIMIT_PER_WORKSPACE) : 5
+
+// Personal keys don't count against apiKeyLimitPerWorkspace (and vice versa) - separate quota, per user per workspace.
+const personalApiKeyLimitPerUser = 5
+
+async function getApiKeySecrets (
+  db: AccountDB,
+  workspace: WorkspaceUuid
+): Promise<Array<{ socialId: PersonId, key: string, secret: ApiKeySecret }>> {
+  const rows = await db.integrationSecret.find({ kind: apiKeyKind, workspaceUuid: workspace })
+
+  return rows.map((row) => ({ socialId: row.socialId, key: row.key, secret: JSON.parse(row.secret) }))
+}
+
+/** Owner (or admin) gate: manage any integration key in the workspace. */
+async function verifyApiKeyOwner (
+  ctx: MeasureContext,
+  db: AccountDB,
+  token: string
+): Promise<{ workspace: WorkspaceUuid, account: AccountUuid }> {
+  const { account, workspace, extra } = decodeTokenVerbose(ctx, token)
+
+  if (workspace == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid: workspace }))
+  }
+
+  const role = await db.getWorkspaceRole(account, workspace)
+  if (role !== AccountRole.Owner && extra?.admin !== 'true') {
+    ctx.error('Need to be an owner to manage API keys', { workspace, account, role })
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+  }
+
+  return { workspace, account }
+}
+
+/** Any non-guest workspace member gate: create/list/revoke one's own personal key. Guests are refused. */
+async function verifyApiKeyMember (
+  ctx: MeasureContext,
+  db: AccountDB,
+  token: string
+): Promise<{ workspace: WorkspaceUuid, account: AccountUuid, isOwner: boolean }> {
+  const { account, workspace, extra } = decodeTokenVerbose(ctx, token)
+
+  if (workspace == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid: workspace }))
+  }
+
+  const role = await db.getWorkspaceRole(account, workspace)
+  if (role == null || getRolePower(role) < getRolePower(AccountRole.User)) {
+    ctx.error('Need to be a workspace member to manage a personal API key', { workspace, account, role })
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+  }
+
+  return { workspace, account, isOwner: role === AccountRole.Owner || extra?.admin === 'true' }
+}
+
+async function getAccountEmail (db: AccountDB, account: AccountUuid): Promise<string | undefined> {
+  const sids = (await db.socialId.find({ personUuid: account, type: SocialIdType.EMAIL, verifiedOn: { $gt: 0 } })).sort(
+    (a, b) => (a.createdOn ?? 0) - (b.createdOn ?? 0)
+  )
+  return sids[0]?.value
+}
+
+export async function getWorkspaceOwnerEmails (db: AccountDB, workspace: WorkspaceUuid): Promise<string[]> {
+  const owners = (await db.getWorkspaceMembers(workspace)).filter((m) => m.role === AccountRole.Owner)
+  const emails: string[] = []
+  for (const owner of owners) {
+    const email = await getAccountEmail(db, owner.person)
+    if (email != null) {
+      emails.push(email)
+    }
+  }
+  return emails
+}
+
+async function getActorName (db: AccountDB, actor: AccountUuid): Promise<string> {
+  const person = await db.person.findOne({ uuid: actor })
+  return person != null ? getPersonName(person) : actor
+}
+
+// Never throws: the key is already created/revoked, a failed notification must not roll it back.
+async function sendApiKeyCreatedEmail (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  ws: Workspace,
+  secret: ApiKeySecret,
+  emails: string[]
+): Promise<void> {
+  try {
+    if (emails.length === 0) return
+
+    const lang = branding?.defaultLanguage
+    const params = {
+      ws: sanitizeEmail(ws.name !== '' ? ws.name : ws.url),
+      name: sanitizeEmail(secret.name),
+      masked: secret.masked,
+      ops: secret.ops.length > 0 ? secret.ops.join(', ') : '-',
+      hasExpiry: secret.expiresOn != null ? 'yes' : 'no',
+      expiresOn: secret.expiresOn != null ? new Date(secret.expiresOn).toISOString() : '',
+      actor: sanitizeEmail(await getActorName(db, secret.createdBy))
+    }
+    const subject = await translate(accountPlugin.string.ApiKeyCreatedSubject, params, lang)
+    const text = await translate(accountPlugin.string.ApiKeyCreatedText, params, lang)
+    const html = await translate(accountPlugin.string.ApiKeyCreatedHTML, params, lang)
+
+    for (const to of emails) {
+      await sendEmail({ subject, text, html, to }, ctx)
+    }
+  } catch (err) {
+    ctx.error('Failed to send API key created email', { workspace: ws.uuid, keyId: secret.keyId, err })
+  }
+}
+
+// Never throws: the key is already created/revoked, a failed notification must not roll it back.
+async function sendApiKeyRevokedEmail (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  ws: Workspace,
+  secret: ApiKeySecret,
+  emails: string[]
+): Promise<void> {
+  try {
+    if (emails.length === 0) return
+
+    const lang = branding?.defaultLanguage
+    const params = {
+      ws: sanitizeEmail(ws.name !== '' ? ws.name : ws.url),
+      name: sanitizeEmail(secret.name),
+      masked: secret.masked,
+      actor: sanitizeEmail(await getActorName(db, secret.revokedBy ?? secret.createdBy))
+    }
+    const subject = await translate(accountPlugin.string.ApiKeyRevokedSubject, params, lang)
+    const text = await translate(accountPlugin.string.ApiKeyRevokedText, params, lang)
+    const html = await translate(accountPlugin.string.ApiKeyRevokedHTML, params, lang)
+
+    for (const to of emails) {
+      await sendEmail({ subject, text, html, to }, ctx)
+    }
+  } catch (err) {
+    ctx.error('Failed to send API key revoked email', { workspace: ws.uuid, keyId: secret.keyId, err })
+  }
+}
+
+export async function createApiKey (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: {
+    name: string
+    ops: ApiKeyOperation[]
+    spaces?: Ref<Space>[]
+    expiresOn?: number
+    tokenTtlMs?: number
+    personal?: boolean
+    unrestricted?: boolean
+    incoming?: boolean
+  }
+): Promise<CreatedApiKey> {
+  const personal = params.personal === true
+  const unrestricted = params.unrestricted === true
+  const { workspace, account } = personal
+    ? await verifyApiKeyMember(ctx, db, token)
+    : await verifyApiKeyOwner(ctx, db, token)
+  const { name, expiresOn } = params
+  // Unrestricted carries the user's own rights, so no operation list - spaces still narrow it.
+  const ops: ApiKeyOperation[] = unrestricted ? [] : params.ops
+  const spaces: Ref<Space>[] = params.spaces ?? []
+  const tokenTtlMs = params.tokenTtlMs ?? defaultApiKeyTokenTtlMs
+
+  const validOps = unrestricted || isValidApiKeyOps(params.ops)
+  if (
+    name == null ||
+    name.trim() === '' ||
+    !validOps ||
+    !isValidApiKeyTokenTtl(tokenTtlMs) ||
+    (unrestricted && !personal)
+  ) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
+  }
+
+  const ws = await db.workspace.findOne({ uuid: workspace })
+  if (ws == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid: workspace }))
+  }
+
+  if (personal) {
+    const personalKeys = (await getApiKeySecrets(db, workspace)).filter(
+      (it) => it.secret.personal === true && it.secret.createdBy === account && isApiKeyUsable(it.secret)
+    ).length
+    if (personalKeys >= personalApiKeyLimitPerUser) {
+      ctx.warn('personal-api-key-limit-reached', {
+        workspace,
+        account,
+        personalKeys,
+        limit: personalApiKeyLimitPerUser
+      })
+      throw new PlatformError(
+        new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit: personalApiKeyLimitPerUser })
+      )
+    }
+  } else {
+    const limit = ws.maxApiKeys ?? apiKeyLimitPerWorkspace
+    const activeKeys = (await getApiKeySecrets(db, workspace)).filter(
+      (it) => it.secret.personal !== true && isApiKeyUsable(it.secret)
+    ).length
+    if (activeKeys >= limit) {
+      ctx.warn('api-key-limit-reached', { workspace, activeKeys, limit })
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit }))
+    }
+  }
+
+  const keyId = randomUUID()
+  const key = generateApiKey(ws.url ?? '')
+
+  let socialId: PersonId
+  if (personal) {
+    // No new identity: the key logs in as the caller's own account. Oldest confirmed social id, so the
+    // choice is stable - linking or unlinking a github/telegram id later must not break a live key.
+    const own = (await getSocialIds(ctx, db, branding, token, { confirmed: true, includeDeleted: false })).sort(
+      (a, b) => (a.createdOn ?? 0) - (b.createdOn ?? 0)
+    )[0]
+    if (own == null) {
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    }
+    socialId = own._id
+  } else {
+    // Own person per key: the key, not its issuer, is the author of what it does.
+    const ensured = await db.ensurePerson(SocialIdType.WEBHOOK, keyId, name.trim(), '')
+    socialId = ensured.socialId
+    // Verify the webhook social id itself - creating the key is the verification event. Unverified,
+    // it would be invisible to session login (getLoginWithWorkspaceInfo only returns verifiedOn > 0
+    // ids) and the account's auto-created Huly id below would end up authoring transactions instead.
+    await db.socialId.update({ _id: socialId }, { verifiedOn: Date.now() })
+    // Own account too, assigned into the workspace so the key can log in - no seat check: an
+    // integration doesn't occupy a seat (enforced separately in the seat-limits middleware).
+    // confirmed:false - the auto Huly id stays unverified so it never outranks the webhook id above
+    // (pickPrimarySocialId prefers Huly, and only verified ids are visible to session login).
+    await createAccount(db, ensured.uuid, false)
+    await db.assignWorkspace(ensured.uuid as AccountUuid, workspace, AccountRole.User)
+    // Seat enforcement rebuilds its sets on a members-version bump; without this the new key stays unknown.
+    await publishMembersChanged(ctx, workspace)
+  }
+
+  const secret: ApiKeySecret = {
+    keyId,
+    name: name.trim(),
+    masked: maskApiKey(key),
+    ops,
+    spaces,
+    createdOn: Date.now(),
+    createdBy: account,
+    tokenTtlMs
+  }
+  if (personal) {
+    secret.personal = true
+  }
+  if (unrestricted) {
+    secret.unrestricted = true
+  }
+  if (params.incoming === true) {
+    secret.incoming = true
+  }
+  if (expiresOn != null) {
+    secret.expiresOn = expiresOn
+  }
+
+  if (!personal) {
+    // Personal keys reuse the caller's existing socialId - `integrations` is keyed on (socialId, kind,
+    // workspace) so a second personal key by the same user would collide on this row; skip it, nothing reads
+    // `integration` rows for kind=webhook, only `integrationSecret` (keyed additionally on the key hash).
+    await db.integration.insertOne({ socialId, kind: apiKeyKind, workspaceUuid: workspace })
+  }
+  await db.integrationSecret.insertOne({
+    socialId,
+    kind: apiKeyKind,
+    workspaceUuid: workspace,
+    key: hashApiKey(key),
+    secret: JSON.stringify(secret)
+  })
+
+  ctx.info('API key created', { workspace, keyId, createdBy: account, personal })
+
+  let emails: string[]
+  if (personal) {
+    const ownEmail = await getAccountEmail(db, account)
+    emails = ownEmail != null ? [ownEmail] : []
+  } else {
+    emails = await getWorkspaceOwnerEmails(db, ws.uuid)
+  }
+  await sendApiKeyCreatedEmail(ctx, db, branding, ws, secret, emails)
+
+  return { key, info: { ...secret, socialId } }
+}
+
+export async function listApiKeys (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string
+): Promise<ApiKeysList> {
+  const { workspace, account, isOwner } = await verifyApiKeyMember(ctx, db, token)
+
+  const ws = await db.workspace.findOne({ uuid: workspace })
+  const all = (await getApiKeySecrets(db, workspace)).map(({ socialId, secret }) => ({ ...secret, socialId }))
+  const keys = isOwner ? all : all.filter((k) => k.personal === true && k.createdBy === account)
+
+  return { keys, limit: ws?.maxApiKeys ?? apiKeyLimitPerWorkspace, personalLimit: personalApiKeyLimitPerUser }
+}
+
+export async function revokeApiKey (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { keyId: string }
+): Promise<void> {
+  const { workspace, account, isOwner } = await verifyApiKeyMember(ctx, db, token)
+  const { keyId } = params
+
+  const found = (await getApiKeySecrets(db, workspace)).find((it) => it.secret.keyId === keyId)
+  if (found == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.IntegrationSecretNotFound, {}))
+  }
+  if (!isOwner && !(found.secret.personal === true && found.secret.createdBy === account)) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+  }
+  if (found.secret.revokedOn !== undefined) {
+    return
+  }
+
+  const revoked: ApiKeySecret = { ...found.secret, revokedOn: Date.now(), revokedBy: account }
+  await db.integrationSecret.update(
+    { socialId: found.socialId, kind: apiKeyKind, workspaceUuid: workspace, key: found.key },
+    { secret: JSON.stringify(revoked) }
+  )
+
+  if (found.secret.personal !== true) {
+    // Drop the membership row only - person/social id stay, task history still references them. A
+    // personal key's socialId is the human user's own account: never unassign it here, or revoking
+    // your own key would kick you out of the workspace.
+    const socialId = await db.socialId.findOne({ _id: found.socialId })
+    if (socialId != null) {
+      await db.unassignWorkspace(socialId.personUuid as AccountUuid, workspace)
+      await publishMembersChanged(ctx, workspace)
+    }
+  }
+
+  ctx.info('API key revoked', { workspace, keyId, revokedBy: account })
+
+  const ws = await db.workspace.findOne({ uuid: workspace })
+  if (ws != null) {
+    // The key's own user, not the workspace owners - an Owner revoking someone's personal key is
+    // exactly the case where the user has to hear about it.
+    const ownEmail = found.secret.personal === true ? await getAccountEmail(db, found.secret.createdBy) : undefined
+    const emails =
+      found.secret.personal === true ? (ownEmail != null ? [ownEmail] : []) : await getWorkspaceOwnerEmails(db, ws.uuid)
+    await sendApiKeyRevokedEmail(ctx, db, branding, ws, revoked, emails)
+  }
+}
+
+/** Exchanges an API key for a workspace login, same shape as selectWorkspace. No caller token needed - the key authenticates itself. */
+export async function loginWithApiKey (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { key: string }
+): Promise<WorkspaceLoginInfo> {
+  const { key } = params
+  if (key == null || key === '') {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Unauthorized, {}))
+  }
+
+  const hash = hashApiKey(key)
+  const row = await db.integrationSecret.findOne({ kind: apiKeyKind, key: hash })
+  if (row?.workspaceUuid == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Unauthorized, {}))
+  }
+
+  const secret: ApiKeySecret = JSON.parse(row.secret)
+  if (!isApiKeyUsable(secret)) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Unauthorized, {}))
+  }
+
+  const socialId = await db.socialId.findOne({ _id: row.socialId })
+  if (socialId == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Unauthorized, {}))
+  }
+
+  const now = Date.now()
+  // Same one-write-per-minute throttle as verifyApiKey's lastUsed.
+  if (secret.lastUsed === undefined || now - secret.lastUsed > lastUsedResolutionMs) {
+    await db.integrationSecret.update(
+      { socialId: row.socialId, kind: apiKeyKind, workspaceUuid: row.workspaceUuid, key: row.key },
+      { secret: JSON.stringify({ ...secret, lastUsed: now }) }
+    )
+  }
+
+  // Compact form (comma-joined) so the token stays small; the default (no writes / whole
+  // workspace) is expressed by omitting the key, not by an empty value.
+  const extra: Record<string, string> = { apikey: secret.keyId }
+  if (secret.unrestricted === true) {
+    // No operation list: the key writes through any API, with the user's own rights (see client.ts).
+    extra.apiall = '1'
+  } else if (secret.ops.length > 0) {
+    extra.apiops = secret.ops.join(',')
+  }
+  if (secret.spaces.length > 0) {
+    extra.apispaces = secret.spaces.join(',')
+  }
+
+  // Interim token carries the key's identity + permissions + workspace; selectWorkspace re-signs
+  // it with the resolved role/endpoint, keeping the extra fields and the exp on the returned
+  // token. Permissions are enforced on the transactor by ApiKeyPermissionsMiddleware. TTL is
+  // owner-chosen per key (rotation is manual, there is no auto-refresh).
+  const interimToken = generateToken(socialId.personUuid, row.workspaceUuid, extra, undefined, {
+    exp: Math.floor((now + (secret.tokenTtlMs ?? defaultApiKeyTokenTtlMs)) / 1000)
+  })
+
+  return await selectWorkspace(ctx, db, branding, interimToken, { workspaceUrl: '', kind: 'external' })
+}
+
 export type AccountMethods =
   | AccountServiceMethods
   | 'login'
@@ -3305,6 +3756,10 @@ export type AccountMethods =
   | 'hasWorkspacePermission'
   | 'getWorkspacePermissions'
   | 'getWorkspaceUsersWithPermission'
+  | 'createApiKey'
+  | 'listApiKeys'
+  | 'revokeApiKey'
+  | 'loginWithApiKey'
 
 /**
  * @public
@@ -3368,6 +3823,10 @@ export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMe
     hasWorkspacePermission: wrap(hasWorkspacePermission),
     getWorkspacePermissions: wrap(getWorkspacePermissions),
     getWorkspaceUsersWithPermission: wrap(getWorkspaceUsersWithPermission),
+    createApiKey: wrap(createApiKey),
+    listApiKeys: wrap(listApiKeys),
+    revokeApiKey: wrap(revokeApiKey),
+    loginWithApiKey: wrap(loginWithApiKey),
 
     /* READ OPERATIONS */
     getRegionInfo: wrap(getRegionInfo),

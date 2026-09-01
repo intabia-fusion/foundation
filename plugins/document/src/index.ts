@@ -18,6 +18,7 @@ import { documentId, documentPlugin } from './plugin'
 export * from './analytics'
 export type * from './types'
 export * from './utils'
+export * from './ops'
 export { documentId }
 
 export default documentPlugin

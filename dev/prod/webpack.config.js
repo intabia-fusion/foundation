@@ -87,6 +87,11 @@ const devProxy = {
     changeOrigin: true,
     logLevel: 'debug'
   },
+  '/_webhook': {
+    target: 'http://localhost:8087',
+    changeOrigin: true,
+    logLevel: 'debug'
+  },
   '/_datalake': {
     target: 'http://localhost:8087',
     changeOrigin: true,

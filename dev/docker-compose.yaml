@@ -339,6 +339,7 @@ services:
       - PAYMENT_URL=http://localhost:8087/_payment
       - BILLING_URL=http://localhost:8087/_billing
       # - BACKUP_URL=http://localhost:8087/_backup/api/backup
+      - WEBHOOK_SERVICE_URL=http://localhost:8087/_webhook
       - EXCLUDED_APPLICATIONS_FOR_ANONYMOUS=["chunter", "notification"]
       # - DISABLE_SIGNUP=true
       # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
@@ -795,6 +796,30 @@ services:
       - DB_URL=${DB_URL_PG}
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
+    restart: unless-stopped
+  webhook:
+    image: "intabiafusion/webhook:${DOCKER_TAG:-latest}"
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
+    environment:
+      - PORT=4043
+      - SECRET=secret
+      - ACCOUNTS_URL=http://account:3000
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+      # Dev only: lets outgoing deliveries reach the mock inside this network. Cluster-internal names
+      # stay blocked regardless; never set either of these in production.
+      - ALLOW_INSECURE_WEBHOOK_HTTP=true
+      - DEV_ALLOWED_WEBHOOK_HOSTS=webhook-mock,host.docker.internal
+    restart: unless-stopped
+  webhook-mock:
+    image: "intabiafusion/webhook-mock:${DOCKER_TAG:-latest}"
+    environment:
+      - PORT=4044
+      - WEBHOOK_URL=http://webhook:4043
     restart: unless-stopped
   # backup:
   #   image: intabiafusion/backup

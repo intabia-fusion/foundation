@@ -32,6 +32,7 @@ import core, {
   type Ref,
   type SearchResult,
   type SessionData,
+  type Space,
   type Tx,
   type TxResult,
   type TxWorkspaceEvent,
@@ -202,7 +203,9 @@ export class SessionDataImpl implements SessionData {
       }
     >,
     readonly service: string,
-    readonly grant?: PermissionsGrant
+    readonly grant?: PermissionsGrant,
+    readonly apiKey?: { canWrite: boolean, opsOnly: boolean, spaces: Ref<Space>[] },
+    public opsApi?: boolean
   ) {
     this._removedMap = _removedMap
     this._contextCache = _contextCache
@@ -263,43 +266,71 @@ export function wrapPipeline (
   ctx: MeasureContext,
   pipeline: Pipeline,
   wsIds: WorkspaceIds,
-  doBroadcast: boolean = false
+  doBroadcast: boolean = false,
+  // Without this the caller's identity is replaced by a system/admin one, and every middleware that
+  // scopes writes (space security, api key grants, seat limits) stops seeing who is actually writing.
+  sessionData?: SessionData
 ): Client & BackupClient {
-  const contextData = new SessionDataImpl(
-    systemAccount,
-    'pipeline',
-    true,
-    { targets: {}, txes: [], queue: [], sessions: {} },
-    wsIds,
-    true,
-    undefined,
-    undefined,
-    pipeline.context.modelDb,
-    new Map(),
-    'transactor'
-  )
+  const contextData =
+    sessionData ??
+    new SessionDataImpl(
+      systemAccount,
+      'pipeline',
+      true,
+      { targets: {}, txes: [], queue: [], sessions: {} },
+      wsIds,
+      true,
+      undefined,
+      undefined,
+      pipeline.context.modelDb,
+      new Map(),
+      'transactor'
+    )
   ctx.contextData = contextData
   if (pipeline.context.lowLevelStorage === undefined) {
     throw new PlatformError(unknownError('Low level storage is not available'))
   }
   const backupOps = new BackupClientOps(pipeline.context.lowLevelStorage)
 
+  // LookupMiddleware strips every scalar query field from the returned docs; the ws and rest clients
+  // put them back (client-resources/src/connection.ts, api-client/src/rest/rest.ts). In-process
+  // callers had no such step, so `findOne(X, { _id })` handed back a doc with no `_id`.
+  function revertStrippedQueryFields<T extends Doc> (docs: T[], _class: Ref<Class<T>>, query: DocumentQuery<T>): T[] {
+    for (const doc of docs) {
+      if (doc._class == null) {
+        doc._class = _class
+      }
+      for (const [k, v] of Object.entries(query)) {
+        if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+          if ((doc as any)[k] == null) {
+            ;(doc as any)[k] = v
+          }
+        }
+      }
+    }
+    return docs
+  }
+
   return {
     findAll: async (_class, query, options) => {
       const result = await pipeline.findAll(ctx, _class, query, options)
       return toFindResult(
-        result.map((v) => {
-          return pipeline.context.hierarchy.updateLookupMixin(_class, v, options)
-        }),
+        revertStrippedQueryFields(
+          result.map((v) => pipeline.context.hierarchy.updateLookupMixin(_class, v, options)),
+          _class,
+          query
+        ),
         result.total
       )
     },
     findOne: async (_class, query, options) => {
       const result = await pipeline.findAll(ctx, _class, query, { ...options, limit: 1 })
       return toFindResult(
-        result.map((v) => {
-          return pipeline.context.hierarchy.updateLookupMixin(_class, v, options)
-        }),
+        revertStrippedQueryFields(
+          result.map((v) => pipeline.context.hierarchy.updateLookupMixin(_class, v, options)),
+          _class,
+          query
+        ),
         result.total
       )[0]
     },

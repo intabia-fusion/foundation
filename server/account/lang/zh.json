@@ -19,6 +19,12 @@
     "ResendInviteSubject": "重新邀请加入 {ws}",
     "AdminOtpSubject": "Confirmation code for an administrator action",
     "AdminOtpText": "You are about to perform a sensitive administrator action in {app} (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).\n\nYour confirmation code is:\n\n{code}\n\nEnter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.",
-    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>"
+    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>",
+    "ApiKeyCreatedSubject": "{ws} 中已签发新的 API 密钥",
+    "ApiKeyCreatedText": "{ws} 中已签发一个新的 API 密钥。\n\n名称：{name}\n密钥：{masked}\n允许的操作：{ops}\n{hasExpiry, select, yes {到期时间：{expiresOn}} other {永不过期}}\n签发人：{actor}\n\n如果您没有预期到这一操作，请立即在工作区设置中撤销该密钥。",
+    "ApiKeyCreatedHTML": "<p>{ws} 中已签发一个新的 API 密钥。</p><p>名称：{name}<br/>密钥：{masked}<br/>允许的操作：{ops}<br/>{hasExpiry, select, yes {到期时间：{expiresOn}} other {永不过期}}<br/>签发人：{actor}</p><p>如果您没有预期到这一操作，请立即在工作区设置中撤销该密钥。</p>",
+    "ApiKeyRevokedSubject": "{ws} 中的 API 密钥已被撤销",
+    "ApiKeyRevokedText": "{ws} 中的一个 API 密钥已被撤销。\n\n名称：{name}\n密钥：{masked}\n撤销人：{actor}",
+    "ApiKeyRevokedHTML": "<p>{ws} 中的一个 API 密钥已被撤销。</p><p>名称：{name}<br/>密钥：{masked}<br/>撤销人：{actor}</p>"
   }
 }

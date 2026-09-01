@@ -22,7 +22,9 @@ import {
   type Blob,
   type Rank,
   type Ref,
-  type IntegrationKind
+  type Space,
+  type IntegrationKind,
+  type Timestamp
 } from '@hcengineering/core'
 import exportPlugin from '@hcengineering/export'
 import { Mixin, Model, Prop, TypeRank, UX, type Builder } from '@hcengineering/model'
@@ -45,6 +47,10 @@ import {
   type SpaceTypeEditor,
   type SpaceTypeEditorSection,
   type UserMixin,
+  type WebhookDelivery,
+  type WebhookEndpoint,
+  type WebhookSecretEntry,
+  type WebhookStat,
   type WorkspaceSetting
 } from '@hcengineering/setting'
 import templates from '@hcengineering/templates'
@@ -135,6 +141,36 @@ export class TWorkspaceSetting extends TDoc implements WorkspaceSetting {
   icon?: Ref<Blob>
 }
 
+@Model(setting.class.WebhookEndpoint, core.class.Doc, DOMAIN_SETTING)
+export class TWebhookEndpoint extends TDoc implements WebhookEndpoint {
+  url!: string
+  events!: string[]
+  secrets!: WebhookSecretEntry[]
+  enabled!: boolean
+  spaces?: Ref<Space>[]
+  failureCount!: number
+  lastDeliveryOn?: Timestamp
+  lastError?: string
+}
+
+@Model(setting.class.WebhookDelivery, core.class.Doc, DOMAIN_SETTING)
+export class TWebhookDelivery extends TDoc implements WebhookDelivery {
+  endpoint!: Ref<WebhookEndpoint>
+  deliveryId!: string
+  attempt!: number
+  status?: number
+  error?: string
+}
+
+@Model(setting.class.WebhookStat, core.class.Doc, DOMAIN_SETTING)
+export class TWebhookStat extends TDoc implements WebhookStat {
+  direction!: 'in' | 'out'
+  target!: string
+  type!: string
+  count!: number
+  lastOn!: Timestamp
+}
+
 @Mixin(setting.mixin.SpaceTypeEditor, core.class.Class)
 export class TSpaceTypeEditor extends TClass implements SpaceTypeEditor {
   sections!: SpaceTypeEditorSection[]
@@ -158,6 +194,9 @@ export function createModel (builder: Builder): void {
     TInviteSettings,
     TOfficeSettings,
     TWorkspaceSetting,
+    TWebhookEndpoint,
+    TWebhookDelivery,
+    TWebhookStat,
     TSpaceTypeEditor,
     TSpaceTypeCreator
   )
@@ -278,6 +317,21 @@ export function createModel (builder: Builder): void {
       role: AccountRole.Owner
     },
     setting.ids.Backup
+  )
+  builder.createDoc(
+    setting.class.WorkspaceSettingCategory,
+    core.space.Model,
+    {
+      name: 'integrations',
+      label: setting.string.Integrations,
+      icon: setting.icon.Setting,
+      component: setting.component.ApiKeys,
+      order: 975,
+      // Any member reaches the Incoming (API keys) section here; the Outgoing (webhooks) section is
+      // rendered Owner-only inside the component itself, via the same hasAccountRole check.
+      role: AccountRole.User
+    },
+    setting.ids.ApiKeys
   )
   builder.createDoc(
     setting.class.WorkspaceSettingCategory,

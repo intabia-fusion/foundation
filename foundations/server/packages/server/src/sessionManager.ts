@@ -830,6 +830,11 @@ export class TSessionManager implements SessionManager {
         let wsInfo = account.workspaces[token.workspace]
 
         if (wsInfo === undefined) {
+          if (token.extra?.apikey !== undefined) {
+            // API-key token for a workspace the key no longer belongs to (e.g. revoked) - deny,
+            // do not fall through to the guest/system Owner-role branch below.
+            return { error: UNAUTHORIZED, terminate: true }
+          }
           // In case of guest or system account
           // We need to get workspace info for system account.
           const workspaceInfo =
@@ -1551,9 +1556,20 @@ export class TSessionManager implements SessionManager {
     () => Date.now()
   )
 
+  // Integrations (API-key tokens) are throttled tighter than interactive users: one key drives
+  // one automated workload, not a person clicking around.
+  apiKeyLimitter = new SlidingWindowRateLimitter(
+    parseInt(process.env.RATE_LIMIT_APIKEY_MAX ?? '300'),
+    parseInt(process.env.RATE_LIMIT_APIKEY_WINDOW ?? '30000'),
+    () => Date.now()
+  )
+
   checkRate (service: Session): RateLimitInfo {
     if (service.getUser() === systemAccountUuid) {
       return this.sysLimitter.checkRateLimit('#sys#' + (service.token.extra?.service ?? '') + service.workspace.uuid)
+    }
+    if (service.token.extra?.apikey !== undefined) {
+      return this.apiKeyLimitter.checkRateLimit('#apikey#' + service.getUser() + service.workspace.uuid)
     }
     return this.limitter.checkRateLimit(service.getUser() + (service.token.extra?.service ?? ''))
   }

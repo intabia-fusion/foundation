@@ -44,7 +44,9 @@
     "@hcengineering/contact": "workspace:^0.7.0",
     "@hcengineering/notification": "workspace:^0.7.0",
     "@hcengineering/attachment": "workspace:^0.7.0",
-    "@hcengineering/preference": "workspace:^0.7.0"
+    "@hcengineering/preference": "workspace:^0.7.0",
+    "@hcengineering/rank": "workspace:^0.7.17",
+    "@hcengineering/text-core": "workspace:^0.7.18"
   },
   "repository": "https://github.com/hcengineering/platform",
   "publishConfig": {

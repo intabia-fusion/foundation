@@ -92,6 +92,7 @@ export class ClientSession implements Session {
   // instead of spreading on every request.
   private readonly workspaceForSession: WorkspaceIds
   private readonly permissionsGrantCached: PermissionsGrant | undefined
+  private readonly apiKeyCached: { canWrite: boolean, opsOnly: boolean, spaces: Ref<Space>[] } | undefined
   private readonly serviceName: string
 
   constructor (
@@ -106,7 +107,22 @@ export class ClientSession implements Session {
     const dataId = workspace.dataId ?? (workspace.uuid as unknown as WorkspaceDataId)
     this.workspaceForSession = workspace.dataId === dataId ? workspace : { ...workspace, dataId }
     this.permissionsGrantCached = this.computePermissionsGrant()
+    this.apiKeyCached = this.computeApiKeyPermissions()
     this.serviceName = this.token.extra?.service ?? '🤦‍♂️user'
+  }
+
+  // extra.apikey/apiops/apispaces/apiall come from loginWithApiKey; ApiKeyPermissionsMiddleware enforces them.
+  // An unrestricted key (extra.apiall) writes with the user's own rights, still narrowed by its spaces.
+  private computeApiKeyPermissions (): { canWrite: boolean, opsOnly: boolean, spaces: Ref<Space>[] } | undefined {
+    const extra = this.token.extra
+    if (extra?.apikey == null) {
+      return
+    }
+    const unrestricted = extra.apiall != null
+    const ops = typeof extra.apiops === 'string' && extra.apiops !== '' ? extra.apiops.split(',') : []
+    const spaces =
+      typeof extra.apispaces === 'string' && extra.apispaces !== '' ? (extra.apispaces.split(',') as Ref<Space>[]) : []
+    return { canWrite: unrestricted || ops.length > 0, opsOnly: !unrestricted, spaces }
   }
 
   private computePermissionsGrant (): PermissionsGrant | undefined {
@@ -185,7 +201,8 @@ export class ClientSession implements Session {
       ctx.pipeline.context.modelDb,
       ctx.socialStringsToUsers,
       this.serviceName,
-      this.permissionsGrantCached
+      this.permissionsGrantCached,
+      this.apiKeyCached
     )
     ctx.ctx.contextData = contextData
   }

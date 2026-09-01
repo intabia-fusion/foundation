@@ -6,6 +6,8 @@ import {
   type AccountRole,
   type Timestamp,
   type SocialId as SocialIdBase,
+  type Ref,
+  type Space,
   PersonUuid,
   type WorkspaceMode,
   Person,
@@ -528,4 +530,104 @@ export interface AccountWorkspaceActivity {
 export interface AccountActivityStats {
   workspaces: AccountWorkspaceActivity[]
   weekly: WorkspaceActivityPoint[]
+}
+
+/**
+ * Integration API key write operation, `<domain>:<action>`. No write is granted by default; reading
+ * the workspace is implicit and limited only by `spaces`.
+ * Duplicated in server/account/src/apiKeys.ts - change both
+ */
+export type ApiKeyOperation =
+  | 'issue:create'
+  | 'issue:update'
+  | 'issue:comment'
+  | 'issue:time_report'
+  | 'chat:post'
+  | 'doc:create'
+  | 'doc:update'
+
+export const apiKeyOperations: ApiKeyOperation[] = [
+  'issue:create',
+  'issue:update',
+  'issue:comment',
+  'issue:time_report',
+  'chat:post',
+  'doc:create',
+  'doc:update'
+]
+
+/** API key as shown to the workspace owner. The key itself is returned once, on creation. */
+export interface ApiKeyInfo {
+  keyId: string
+  name: string
+  /** Human-readable stub of the key: prefix plus last 4 chars. */
+  masked: string
+  /** Allowed writes; reads are implicit. */
+  ops: ApiKeyOperation[]
+  /** Space ids the key may touch, reads included; empty means every space of the workspace. */
+  spaces: Ref<Space>[]
+  socialId: PersonId
+  createdOn: Timestamp
+  createdBy: AccountUuid
+  /** Acts as its creator with their own rights, narrowed or not by `ops`/`spaces`. Absent/false = integration key. */
+  personal?: boolean
+  /** True = full rights of the key's principal, `ops`/`spaces` unused. A personal key can only narrow the
+   * user's own rights this way, never exceed them - the session still runs under the user's real role/spaces. */
+  unrestricted?: boolean
+  /** May be used on pod-webhook's ingest routes. A separate, independent gate from `ops`/`unrestricted` -
+   * absent/false refuses ingest regardless of what the key can otherwise do.
+   * Duplicated in server/account/src/apiKeys.ts - change both */
+  incoming?: boolean
+  /** When the key itself stops being usable - distinct from `tokenTtlMs`, the lifetime of tokens it issues. */
+  expiresOn?: Timestamp
+  /**
+   * Lifetime (ms) of a token minted via this key, owner-chosen at creation, 1-90 days. Rotation is
+   * manual - once a token expires the integration must exchange the key for a new one.
+   * Duplicated in server/account/src/apiKeys.ts - change both
+   */
+  tokenTtlMs?: number
+  lastUsed?: Timestamp
+  revokedOn?: Timestamp
+  revokedBy?: AccountUuid
+}
+
+export interface CreateApiKeyParams {
+  name: string
+  ops: ApiKeyOperation[]
+  spaces?: Ref<Space>[]
+  expiresOn?: Timestamp
+  /** 1-90 days in ms; omit for the server default. Duplicated in server/account/src/apiKeys.ts - change both */
+  tokenTtlMs?: number
+  /** Acts as its creator with their own rights - `ops`/`spaces` above apply only when not `unrestricted`. */
+  personal?: boolean
+  /** Full rights, no narrowing. Only valid together with `personal: true`. */
+  unrestricted?: boolean
+  /** May be used on pod-webhook's ingest routes. Duplicated in server/account/src/apiKeys.ts - change both */
+  incoming?: boolean
+}
+
+export interface CreatedApiKey {
+  /** Shown once and never stored in plain text. */
+  key: string
+  info: ApiKeyInfo
+}
+
+/** `limit` is the integration-key quota (Workspace.maxApiKeys ?? the env default); `personalLimit` is per-user. */
+export interface ApiKeysList {
+  keys: ApiKeyInfo[]
+  limit: number
+  personalLimit: number
+}
+
+/** Result of a key check, for services acting on the key's behalf. */
+export interface ApiKeyCheck {
+  keyId: string
+  name: string
+  workspace: WorkspaceUuid
+  socialId: PersonId
+  personUuid: PersonUuid
+  ops: ApiKeyOperation[]
+  spaces: Ref<Space>[]
+  /** Whether this key may be used on pod-webhook's ingest routes. */
+  incoming: boolean
 }

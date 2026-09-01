@@ -439,7 +439,7 @@ function emitPackageJson(cfg, bundle, projects, partial) {
     dependencies: collectExternalDeps(bundle, projects, partial, cfg.depsMerge, cfg.sourceScopes),
     devDependencies: {
       typescript: '~5.9.3',
-      '@types/node': '^22.18.1',
+      '@types/node': '^24.13.3',
       '@types/cors': '^2.8.17',
       '@types/express': '^4.17.21',
       '@types/morgan': '^1.9.9',

@@ -107,7 +107,10 @@ export function getMigrations (ns: string, flavor: DBFlavor): [string, string][]
     getV38Migration(ns),
     getV39Migration(ns, flavor),
     getV40Migration(ns),
-    getV41Migration(ns)
+    getV41Migration(ns),
+    getV42Migration(ns, flavor),
+    getV43Migration(ns),
+    getV44Migration(ns)
   ]
 }
 
@@ -1181,6 +1184,49 @@ function getV41Migration (ns: string): [string, string] {
     `
     CREATE UNIQUE INDEX IF NOT EXISTS workspace_purchase_payment_provider_unique
       ON ${ns}.workspace_purchase (payment_id, provider) WHERE payment_id IS NOT NULL;
+    `
+  ]
+}
+
+function getV42Migration (ns: string, flavor: DBFlavor): [string, string] {
+  // Enum value alone: PostgreSQL forbids using a value added in the same transaction.
+  const addValueSql =
+    flavor === 'postgres'
+      ? `
+    DO $$     BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_enum
+            WHERE enumlabel = 'webhook'
+            AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'social_id_type' AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = '${ns}'))
+        ) THEN
+            ALTER TYPE ${ns}.social_id_type ADD VALUE 'webhook';
+        END IF;
+    END $$;
+    `
+      : `
+    ALTER TYPE ${ns}.social_id_type ADD VALUE IF NOT EXISTS 'webhook';
+    `
+
+  return ['account_db_v42_add_webhook_social_id_type', addValueSql]
+}
+
+function getV43Migration (ns: string): [string, string] {
+  return [
+    'account_db_v43_integration_secrets_kind_key_idx',
+    /* API key check hashes the presented key and looks the row up by (kind, key); the PK starts with
+       social_id, so without this every check scans the table. */
+    `
+    CREATE INDEX IF NOT EXISTS integration_secrets_kind_key_idx ON ${ns}.integration_secrets (kind, key);
+    `
+  ]
+}
+
+function getV44Migration (ns: string): [string, string] {
+  return [
+    'account_db_v44_add_workspace_max_api_keys',
+    `
+    ALTER TABLE ${ns}.workspace
+    ADD COLUMN IF NOT EXISTS max_api_keys SMALLINT;
     `
   ]
 }

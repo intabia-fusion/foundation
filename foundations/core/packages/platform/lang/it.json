@@ -26,6 +26,7 @@
     "PasswordLoginLocked": "L'accesso con password è bloccato a causa di troppi tentativi non riusciti. Utilizza un metodo di accesso OTP per sbloccare il tuo account.",
     "InviteNotFound": "Invito con email:{email} non trovato.",
     "WorkspaceLimitReached": "Hai raggiunto il limite di spazi di lavoro. Contattaci...",
+    "ApiKeyLimitReached": "Hai raggiunto il limite di {limit} chiavi API per questo spazio di lavoro.",
     "ReadOnlyAccount": "Demo ospite anonimo",
     "SystemAccount": "Account di sistema",
     "SocialIdAlreadyExists": "L'ID social esiste già"

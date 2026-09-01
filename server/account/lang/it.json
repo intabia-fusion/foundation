@@ -19,6 +19,12 @@
     "ResendInviteSubject": "Reinvito a {ws}",
     "AdminOtpSubject": "Confirmation code for an administrator action",
     "AdminOtpText": "You are about to perform a sensitive administrator action in {app} (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).\n\nYour confirmation code is:\n\n{code}\n\nEnter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.",
-    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>"
+    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>",
+    "ApiKeyCreatedSubject": "Nuova chiave API emessa in {ws}",
+    "ApiKeyCreatedText": "È stata emessa una nuova chiave API in {ws}.\n\nNome: {name}\nChiave: {masked}\nOperazioni consentite: {ops}\n{hasExpiry, select, yes {Scade il: {expiresOn}} other {Nessuna scadenza}}\nEmessa da: {actor}\n\nSe non te lo aspettavi, revoca la chiave nelle impostazioni del workspace.",
+    "ApiKeyCreatedHTML": "<p>È stata emessa una nuova chiave API in <b>{ws}</b>.</p><p>Nome: {name}<br/>Chiave: {masked}<br/>Operazioni consentite: {ops}<br/>{hasExpiry, select, yes {Scade il: {expiresOn}} other {Nessuna scadenza}}<br/>Emessa da: {actor}</p><p>Se non te lo aspettavi, revoca la chiave nelle impostazioni del workspace.</p>",
+    "ApiKeyRevokedSubject": "Chiave API revocata in {ws}",
+    "ApiKeyRevokedText": "Una chiave API è stata revocata in {ws}.\n\nNome: {name}\nChiave: {masked}\nRevocata da: {actor}",
+    "ApiKeyRevokedHTML": "<p>Una chiave API è stata revocata in <b>{ws}</b>.</p><p>Nome: {name}<br/>Chiave: {masked}<br/>Revocata da: {actor}</p>"
   }
 }

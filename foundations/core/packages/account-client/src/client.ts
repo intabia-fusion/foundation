@@ -45,6 +45,10 @@ import type {
   IntegrationKey,
   IntegrationSecret,
   IntegrationSecretKey,
+  ApiKeyCheck,
+  ApiKeysList,
+  CreateApiKeyParams,
+  CreatedApiKey,
   LoginInfo,
   LoginInfoByToken,
   LoginInfoRequestData,
@@ -267,6 +271,7 @@ export interface AccountClient {
   adminCancelSubscription: (subscriptionId: string, otpCode: string) => Promise<void>
   adminUpdateWorkspaceName: (workspace: WorkspaceUuid, name: string, otpCode: string) => Promise<void>
   adminUpdateWorkspaceDisabledFeatures: (workspace: WorkspaceUuid, features: string[], otpCode: string) => Promise<void>
+  adminUpdateApiKeyLimit: (workspace: WorkspaceUuid, maxApiKeys: number | null, otpCode: string) => Promise<void>
   adminUpdateWorkspaceUrl: (workspace: WorkspaceUuid, url: string, otpCode: string) => Promise<void>
   adminReleaseSocialId: (personUuid: PersonUuid, type: SocialIdType, value: string, otpCode: string) => Promise<void>
   adminDeletePerson: (personUuid: PersonUuid, otpCode: string) => Promise<void>
@@ -326,6 +331,14 @@ export interface AccountClient {
   deleteIntegrationSecret: (integrationSecretKey: IntegrationSecretKey) => Promise<void>
   getIntegrationSecret: (integrationSecretKey: IntegrationSecretKey) => Promise<IntegrationSecret | null>
   listIntegrationsSecrets: (filter: Partial<IntegrationSecretKey>) => Promise<IntegrationSecret[]>
+  createApiKey: (params: CreateApiKeyParams) => Promise<CreatedApiKey>
+  loginWithApiKey: (key: string) => Promise<WorkspaceLoginInfo>
+  listApiKeys: () => Promise<ApiKeysList>
+  revokeApiKey: (keyId: string) => Promise<void>
+  verifyApiKey: (key: string) => Promise<ApiKeyCheck | null>
+  getWorkspaceOwnerEmails: (workspace: WorkspaceUuid) => Promise<string[]>
+  /** Person uuids of every non-revoked API key in the workspace. Service-only (transactor/tool). */
+  getApiKeyAccounts: (workspace: WorkspaceUuid) => Promise<AccountUuid[]>
   getAccountInfo: (uuid: AccountUuid) => Promise<AccountInfo>
   canMergeSpecifiedPersons: (primaryPerson: PersonUuid, secondaryPerson: PersonUuid) => Promise<boolean>
   mergeSpecifiedPersons: (primaryPerson: PersonUuid, secondaryPerson: PersonUuid) => Promise<void>
@@ -1204,6 +1217,10 @@ class AccountClientImpl implements AccountClient {
     })
   }
 
+  async adminUpdateApiKeyLimit (workspace: WorkspaceUuid, maxApiKeys: number | null, otpCode: string): Promise<void> {
+    await this.rpc({ method: 'adminUpdateApiKeyLimit' as const, params: { workspace, maxApiKeys, otpCode } })
+  }
+
   async adminReleaseSocialId (
     personUuid: PersonUuid,
     type: SocialIdType,
@@ -1485,6 +1502,69 @@ class AccountClientImpl implements AccountClient {
     const request = {
       method: 'listIntegrationsSecrets' as const,
       params: filter
+    }
+
+    return await this.rpc(request)
+  }
+
+  async createApiKey (params: CreateApiKeyParams): Promise<CreatedApiKey> {
+    const request = {
+      method: 'createApiKey' as const,
+      params
+    }
+
+    return await this.rpc(request)
+  }
+
+  async loginWithApiKey (key: string): Promise<WorkspaceLoginInfo> {
+    const request = {
+      method: 'loginWithApiKey' as const,
+      params: { key }
+    }
+
+    return await this.rpc(request)
+  }
+
+  async listApiKeys (): Promise<ApiKeysList> {
+    const request = {
+      method: 'listApiKeys' as const,
+      params: {}
+    }
+
+    return await this.rpc(request)
+  }
+
+  async revokeApiKey (keyId: string): Promise<void> {
+    const request = {
+      method: 'revokeApiKey' as const,
+      params: { keyId }
+    }
+
+    await this.rpc(request)
+  }
+
+  async verifyApiKey (key: string): Promise<ApiKeyCheck | null> {
+    const request = {
+      method: 'verifyApiKey' as const,
+      params: { key }
+    }
+
+    return await this.rpc(request)
+  }
+
+  async getWorkspaceOwnerEmails (workspace: WorkspaceUuid): Promise<string[]> {
+    const request = {
+      method: 'getWorkspaceOwnerEmails' as const,
+      params: { workspace }
+    }
+
+    return await this.rpc(request)
+  }
+
+  async getApiKeyAccounts (workspace: WorkspaceUuid): Promise<AccountUuid[]> {
+    const request = {
+      method: 'getApiKeyAccounts' as const,
+      params: { workspace }
     }
 
     return await this.rpc(request)

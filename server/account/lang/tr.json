@@ -19,6 +19,12 @@
     "ResendInviteSubject": "{ws} çalışma alanına yeniden davet",
     "AdminOtpSubject": "Confirmation code for an administrator action",
     "AdminOtpText": "You are about to perform a sensitive administrator action in {app} (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).\n\nYour confirmation code is:\n\n{code}\n\nEnter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.",
-    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>"
+    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>",
+    "ApiKeyCreatedSubject": "{ws} çalışma alanında yeni bir API anahtarı oluşturuldu",
+    "ApiKeyCreatedText": "{ws} çalışma alanında yeni bir API anahtarı oluşturuldu.\n\nAd: {name}\nAnahtar: {masked}\nİzin verilen işlemler: {ops}\n{hasExpiry, select, yes {Son kullanma: {expiresOn}} other {Süresiz}}\nOluşturan: {actor}\n\nBunu beklemiyorsanız, çalışma alanı ayarlarından anahtarı hemen iptal edin.",
+    "ApiKeyCreatedHTML": "<p>{ws} çalışma alanında yeni bir API anahtarı oluşturuldu.</p><p>Ad: {name}<br/>Anahtar: {masked}<br/>İzin verilen işlemler: {ops}<br/>{hasExpiry, select, yes {Son kullanma: {expiresOn}} other {Süresiz}}<br/>Oluşturan: {actor}</p><p>Bunu beklemiyorsanız, çalışma alanı ayarlarından anahtarı hemen iptal edin.</p>",
+    "ApiKeyRevokedSubject": "{ws} çalışma alanında bir API anahtarı iptal edildi",
+    "ApiKeyRevokedText": "{ws} çalışma alanında bir API anahtarı iptal edildi.\n\nAd: {name}\nAnahtar: {masked}\nİptal eden: {actor}",
+    "ApiKeyRevokedHTML": "<p>{ws} çalışma alanında bir API anahtarı iptal edildi.</p><p>Ad: {name}<br/>Anahtar: {masked}<br/>İptal eden: {actor}</p>"
   }
 }

@@ -21,7 +21,7 @@ import {
   SortingOrder,
   type TxOperations
 } from '@hcengineering/core'
-import { type Document, type Teamspace, documentId, getFirstRank } from '@hcengineering/document'
+import { type Document, type Teamspace, createDocument, documentId, getFirstRank } from '@hcengineering/document'
 import { getMetadata, translate } from '@hcengineering/platform'
 import presentation, { getClient } from '@hcengineering/presentation'
 import { makeRank } from '@hcengineering/rank'
@@ -70,26 +70,13 @@ export async function createEmptyDocument (
   parentId?: Ref<Document>,
   data: Partial<Pick<Data<Document>, 'title' | 'icon' | 'color'>> = {}
 ): Promise<void> {
-  const title = await translate(document.string.Untitled, {})
-  const parent = parentId ?? document.ids.NoParent
-
-  const lastRank = await getFirstRank(client, space, parent)
-  const rank = makeRank(lastRank, undefined)
-
-  const object: Data<Document> = {
-    title,
-    content: null,
-    attachments: 0,
-    embeddings: 0,
-    labels: 0,
-    comments: 0,
-    references: 0,
-    rank,
-    parent: parent ?? document.ids.NoParent,
-    ...data
-  }
-
-  await client.createDoc(document.class.Document, space, object, id)
+  await createDocument(
+    client,
+    space,
+    { ...data, title: data.title ?? (await translate(document.string.Untitled, {})), parent: parentId },
+    undefined,
+    id
+  )
 }
 
 export async function resolveLocation (loc: Location): Promise<ResolvedLocation | undefined> {

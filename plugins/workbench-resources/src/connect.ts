@@ -37,6 +37,7 @@ import platform, {
   translateCB
 } from '@hcengineering/platform'
 import presentation, {
+  decodeTokenPayload,
   loadServerConfig,
   purgeClient,
   refreshClient,
@@ -146,6 +147,14 @@ export async function connect (title: string): Promise<Client | undefined> {
   }
 
   const token = workspaceLoginInfo.token
+
+  // An API key is for integrations, not for a browser session - refuse it even if pasted into local storage.
+  if (decodeTokenPayload(token).extra?.apikey !== undefined) {
+    console.error('An API key cannot be used to open a workspace. Please log in.')
+    await logOut()
+    navigate({ path: [loginId] })
+    return
+  }
 
   setMetadata(presentation.metadata.Token, workspaceLoginInfo.token)
   setMetadata(presentation.metadata.WorkspaceUuid, workspaceLoginInfo.workspace)

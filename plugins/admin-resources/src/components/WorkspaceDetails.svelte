@@ -225,6 +225,8 @@
   function resetFeatureChecked (override: string[]): void {
     featureChecked = Object.fromEntries(featureOptions.map((f) => [f, override.includes(f)]))
   }
+  let editingMaxApiKeys = false
+  let maxApiKeysValue = ''
 
   function startEditName (): void {
     nameValue = workspace.name ?? ''
@@ -265,6 +267,24 @@
       await accountClient.adminUpdateWorkspaceDisabledFeatures(workspace.uuid, features, code)
       workspace = { ...workspace, disabledFeaturesOverride: features }
     })
+  }
+  function startEditMaxApiKeys (): void {
+    maxApiKeysValue = workspace.maxApiKeys != null ? String(workspace.maxApiKeys) : ''
+    editingMaxApiKeys = true
+  }
+  // Blank value resets to the server default (Workspace.maxApiKeys = null)
+  function saveMaxApiKeys (): void {
+    const trimmed = maxApiKeysValue.trim()
+    const maxApiKeys = trimmed === '' ? null : Number(trimmed)
+    if (maxApiKeys != null && (!Number.isInteger(maxApiKeys) || maxApiKeys < 1)) {
+      editingMaxApiKeys = false
+      return
+    }
+    withOtp(async (code) => {
+      await accountClient.adminUpdateApiKeyLimit(workspace.uuid, maxApiKeys, code)
+      workspace = { ...workspace, maxApiKeys }
+    })
+    editingMaxApiKeys = false
   }
 
   let subscriptions: Subscription[] = []
@@ -498,6 +518,20 @@
             {/if}
           </div>
         </Expandable>
+        <div class="flex-row-center">
+          <Label label={adminRes.string.MaxApiKeys} />:
+          {#if editingMaxApiKeys}
+            <div class="ml-1 edit-inline"><EditBox bind:value={maxApiKeysValue} kind={'editbox'} autoFocus /></div>
+            {#if !readOnly}
+              <Button size={'small'} kind={'ghost'} label={adminRes.string.Save} on:click={saveMaxApiKeys} />
+            {/if}
+          {:else}
+            <span class="ml-1">{workspace.maxApiKeys ?? 'Default'}</span>
+            {#if !readOnly}
+              <Button size={'small'} kind={'ghost'} label={adminRes.string.Edit} on:click={startEditMaxApiKeys} />
+            {/if}
+          {/if}
+        </div>
         <div>
           <Label label={adminRes.string.Region} />: {workspace.region === '' || workspace.region == null
             ? 'Default'

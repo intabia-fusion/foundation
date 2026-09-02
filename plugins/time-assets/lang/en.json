@@ -44,6 +44,8 @@
     "MyWork": "My work",
     "WeekCalendar": "Week",
     "DayCalendar": "Day",
+    "MonthCalendar": "Month",
+    "YearCalendar": "Year",
     "GotoTimePlaning": "Planning",
     "GotoTimeTeamPlaning": "Team Planning",
     "NewToDo": "New Action Item",
@@ -55,11 +57,15 @@
     "MarkedAsDone": "Completed",
     "WorkSchedule": "Work schedule",
     "SummaryDuration": "Summary",
+    "Busy": "Busy",
 
     "UnassignToDo": "Unassign Action Item",
     "UnassignToDoConfirm": "Do you want to unassign this Action Item? The Action Item will be removed from the assignee's planner.",
     "ReassignToDo": "Change Action Item assignee",
-    "ReassignToDoConfirm": "Do you want to change the Action Item assignee? The Action Item will be removed from the current assignee's planner."
+    "ReassignToDoConfirm": "Do you want to change the Action Item assignee? The Action Item will be removed from the current assignee's planner.",
+    "Occupancy": "Occupancy",
+    "ShowEvents": "Events",
+    "ShowActivity": "Activity"
   },
   "emailTemplate": {
     "ToDoCreatedNotificationText": "{body}",

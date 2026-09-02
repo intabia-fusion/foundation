@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Event } from '@hcengineering/calendar'
+  import { BusySlot, Event } from '@hcengineering/calendar'
   import { IdMap, Ref, Timestamp } from '@hcengineering/core'
   import { IntlString, getEmbeddedLabel } from '@hcengineering/platform'
   import { ToDo, WorkSlot } from '@hcengineering/time'
@@ -10,6 +10,9 @@
   export let day: Date
   export let slots: WorkSlot[]
   export let events: Event[]
+  export let busySlots: BusySlot[]
+  export let from: Timestamp
+  export let to: Timestamp
   export let showAssignee: boolean = false
   export let todos: IdMap<ToDo>
 
@@ -38,6 +41,6 @@
 </div>
 
 <Scroller padding={'0 1rem'} noStretch shrink>
-  <PlanGroup {slots} {events} {showAssignee} {todos} />
+  <PlanGroup {slots} {events} {busySlots} {from} {to} {showAssignee} {todos} />
 </Scroller>
 <div class="antiVSpacer x4" />

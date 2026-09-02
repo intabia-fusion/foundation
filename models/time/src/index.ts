@@ -49,7 +49,7 @@ import core, { defineCollaborators, TAttachedDoc, TClass, TDoc, TType } from '@h
 import document from '@hcengineering/model-document'
 import tracker from '@hcengineering/model-tracker'
 import view, { createAction } from '@hcengineering/model-view'
-import workbench from '@hcengineering/model-workbench'
+import workbench, { WidgetType } from '@hcengineering/model-workbench'
 import notification, { type NotificationGroup, type TxNotificationType } from '@hcengineering/notification'
 import recruit from '@hcengineering/recruit'
 import tags from '@hcengineering/tags'
@@ -87,6 +87,7 @@ export class TItemPresenter extends TClass implements ItemPresenter {
 @Model(time.class.WorkSlot, calendarPlugin.class.Event)
 @UX(time.string.WorkSlot)
 export class TWorkSlot extends TEvent implements WorkSlot {
+  declare space: Ref<Space>
   declare attachedTo: Ref<ToDo>
   declare attachedToClass: Ref<Class<ToDo>>
 }
@@ -106,7 +107,9 @@ export class TToDo extends TAttachedDoc implements ToDo {
 
   visibility!: Visibility
 
-  @Prop(TypeRef(core.class.Space), core.string.Space)
+  // Always a tracker project in practice - typing it so keeps the filter from
+  // offering every space in the workspace.
+  @Prop(TypeRef(task.class.Project), core.string.Space)
     attachedSpace?: Ref<Space> | undefined
 
   @Prop(TypeString(), calendarPlugin.string.Title)
@@ -204,19 +207,24 @@ export function createModel (builder: Builder): void {
     time.app.Me
   )
 
-  // builder.createDoc(
-  //   workbench.class.Application,
-  //   core.space.Model,
-  //   {
-  //     label: time.string.Team,
-  //     icon: time.icon.Team,
-  //     accessLevel: AccountRole.User,
-  //     alias: 'team',
-  //     hidden: true,
-  //     component: time.component.Team
-  //   },
-  //   time.app.Team
-  // )
+  // Opened from a Team calendar cell: shows that person's day in the sidebar.
+  builder.createDoc(
+    workbench.class.Widget,
+    core.space.Model,
+    {
+      label: time.string.Team,
+      type: WidgetType.Flexible,
+      icon: time.icon.Team,
+      component: time.component.PersonDayWidget
+    },
+    time.ids.PersonDayWidget
+  )
+
+  // Team views filter by project and person, nothing else is meaningful there.
+  builder.mixin(time.class.ToDo, core.class.Class, view.mixin.ClassFilters, {
+    filters: ['attachedSpace', 'user'],
+    strict: true
+  })
 
   builder.mixin(time.class.ToDo, core.class.Class, view.mixin.IgnoreActions, {
     actions: [view.action.Open, tracker.action.NewRelatedIssue, view.action.Delete]

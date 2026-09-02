@@ -16,18 +16,27 @@
 import { type IntegrationSecret } from '@hcengineering/account-client'
 import {
   AccessLevel,
+  type BusySlot,
   type Calendar,
   calendarId,
   type Event,
   type ExternalCalendar,
-  type ReccuringEvent
+  type ReccuringEvent,
+  type ReccuringInstance
 } from '@hcengineering/calendar'
-import contact, { type SocialIdentity, type SocialIdentityRef } from '@hcengineering/contact'
+import contact, {
+  type Person,
+  type PersonSpace,
+  type SocialIdentity,
+  type SocialIdentityRef
+} from '@hcengineering/contact'
 import core, {
   type AccountUuid,
   buildSocialIdString,
+  type Class,
   type Doc,
   DOMAIN_TX,
+  generateId,
   type IntegrationKind,
   type PersonId,
   pickPrimarySocialId,
@@ -47,6 +56,7 @@ import {
   tryMigrate,
   tryUpgrade
 } from '@hcengineering/model'
+import { DOMAIN_CHANNEL } from '@hcengineering/model-contact'
 import {
   DOMAIN_SPACE,
   getAccountUuidBySocialKey,
@@ -54,8 +64,13 @@ import {
   getSocialKeyByOldAccount
 } from '@hcengineering/model-core'
 import setting, { DOMAIN_SETTING, type Integration } from '@hcengineering/setting'
-import { DOMAIN_CALENDAR, DOMAIN_EVENT } from '.'
+import { DOMAIN_BUSY, DOMAIN_CALENDAR, DOMAIN_EVENT } from '.'
 import calendar from './plugin'
+
+// time.class.WorkSlot lives in @hcengineering/time, which depends on calendar (not the other way
+// around), so it can't be imported here. Id format is `${plugin}:class:${name}`, same as the id
+// this class is registered under by the time model.
+const timeWorkSlotClass = 'time:class:WorkSlot' as Ref<Class<Doc>>
 
 function getCalendarId (val: string): Ref<Calendar> {
   return `${val}_calendar` as Ref<Calendar>
@@ -568,6 +583,203 @@ async function updateCalendarUser (client: MigrationClient): Promise<void> {
   }
 }
 
+async function fillBusySlots (client: MigrationClient): Promise<void> {
+  const iterator = await client.traverse<Event>(DOMAIN_EVENT, {
+    _class: { $in: client.hierarchy.getDescendants(calendar.class.Event) },
+    blockTime: true,
+    access: AccessLevel.Owner
+  })
+
+  try {
+    while (true) {
+      const docs = await iterator.next(500)
+      if (docs === null || docs.length === 0) break
+
+      // Existing slots are looked up per batch, the whole collection never lands in memory.
+      const existing = await client.find<BusySlot>(DOMAIN_BUSY, {
+        _class: calendar.class.BusySlot,
+        eventId: { $in: docs.map((it) => it.eventId) }
+      })
+      const known = new Set(existing.map((it) => `${it.person}:${it.eventId}`))
+
+      const slots: BusySlot[] = []
+      for (const event of docs) {
+        if ((event as ReccuringInstance).isCancelled === true) continue
+        const rec = event as ReccuringEvent
+        for (const person of event.participants as Ref<Person>[]) {
+          const key = `${person}:${event.eventId}`
+          if (known.has(key)) continue
+          known.add(key)
+          slots.push({
+            _id: generateId(),
+            _class: calendar.class.BusySlot,
+            space: calendar.space.Calendar,
+            modifiedBy: core.account.System,
+            modifiedOn: Date.now(),
+            person,
+            eventId: event.eventId,
+            date: event.date,
+            dueDate: event.dueDate,
+            allDay: event.allDay,
+            timeZone: event.timeZone,
+            rules: rec.rules,
+            exdate: rec.exdate,
+            rdate: rec.rdate
+          })
+        }
+      }
+      if (slots.length > 0) {
+        await client.create(DOMAIN_BUSY, slots)
+      }
+    }
+  } finally {
+    await iterator.close()
+  }
+}
+
+async function fillBusySlotTitles (client: MigrationClient): Promise<void> {
+  // Only `public` events expose their title to non-participants, so only their slots carry one.
+  const iterator = await client.traverse<Event>(DOMAIN_EVENT, {
+    _class: { $in: client.hierarchy.getDescendants(calendar.class.Event) },
+    blockTime: true,
+    access: AccessLevel.Owner,
+    visibility: 'public'
+  })
+
+  try {
+    while (true) {
+      const docs = await iterator.next(500)
+      if (docs === null || docs.length === 0) break
+
+      const titles = new Map<string, string>()
+      for (const event of docs) {
+        if ((event as ReccuringInstance).isCancelled === true) continue
+        titles.set(event.eventId, event.title)
+      }
+      if (titles.size === 0) continue
+
+      const slots = await client.find<BusySlot>(DOMAIN_BUSY, {
+        _class: calendar.class.BusySlot,
+        eventId: { $in: Array.from(titles.keys()) }
+      })
+      for (const slot of slots) {
+        const title = titles.get(slot.eventId)
+        if (title === undefined || slot.title === title) continue
+        await client.update(DOMAIN_BUSY, { _id: slot._id }, { title })
+      }
+    }
+  } finally {
+    await iterator.close()
+  }
+}
+
+async function moveEventsToPersonSpace (client: MigrationClient): Promise<void> {
+  const hierarchy = client.hierarchy
+  const workSlotClasses = new Set(hierarchy.getDescendants(timeWorkSlotClass))
+  const eventClasses = hierarchy.getDescendants(calendar.class.Event).filter((c) => !workSlotClasses.has(c))
+
+  // Lookups are filled per batch and cached across batches, so neither social ids
+  // nor person spaces are loaded wholesale.
+  const personBySocialId = new Map<PersonId, Ref<Person> | null>()
+  const spaceByPerson = new Map<Ref<Person>, Ref<PersonSpace> | null>()
+
+  async function resolveSpaces (owners: PersonId[]): Promise<void> {
+    const missing = owners.filter((it) => !personBySocialId.has(it))
+    if (missing.length > 0) {
+      const identities = await client.find<SocialIdentity>(DOMAIN_CHANNEL, {
+        _class: contact.class.SocialIdentity,
+        _id: { $in: missing as unknown as Array<SocialIdentityRef> }
+      })
+      for (const si of identities) {
+        personBySocialId.set(si._id, si.attachedTo)
+      }
+      for (const id of missing) {
+        if (!personBySocialId.has(id)) personBySocialId.set(id, null)
+      }
+    }
+
+    const persons = owners
+      .map((it) => personBySocialId.get(it))
+      .filter((it): it is Ref<Person> => it != null && !spaceByPerson.has(it))
+    if (persons.length === 0) return
+    const spaces = await client.find<PersonSpace>(DOMAIN_SPACE, {
+      _class: contact.class.PersonSpace,
+      person: { $in: persons }
+    })
+    for (const ps of spaces) {
+      spaceByPerson.set(ps.person, ps._id)
+    }
+    for (const person of persons) {
+      if (!spaceByPerson.has(person)) spaceByPerson.set(person, null)
+    }
+  }
+
+  client.logger.log('moving calendar events to person spaces', {})
+
+  let processed = 0
+  let unresolved = 0
+  const unresolvedExamples: Array<Ref<Event>> = []
+
+  const iterator = await client.traverse<Event>(DOMAIN_EVENT, {
+    _class: { $in: eventClasses },
+    space: calendar.space.Calendar
+  })
+
+  try {
+    while (true) {
+      const events = await iterator.next(200)
+      if (events === null || events.length === 0) break
+
+      const operations: { filter: MigrationDocumentQuery<Doc>, update: MigrateUpdate<Doc> }[] = []
+
+      const owners = events.map(
+        (it) => (it.user !== undefined && it.user !== '' ? it.user : undefined) ?? it.createdBy ?? it.modifiedBy
+      )
+      await resolveSpaces(owners)
+
+      for (const event of events) {
+        const owner =
+          (event.user !== undefined && event.user !== '' ? event.user : undefined) ??
+          event.createdBy ??
+          event.modifiedBy
+        const person = personBySocialId.get(owner)
+        const space = person != null ? (spaceByPerson.get(person) ?? undefined) : undefined
+
+        if (space === undefined) {
+          unresolved++
+          if (unresolvedExamples.length < 10) {
+            unresolvedExamples.push(event._id)
+          }
+          continue
+        }
+
+        operations.push({
+          filter: { _id: event._id },
+          update: { space }
+        })
+      }
+
+      if (operations.length > 0) {
+        await client.bulk(DOMAIN_EVENT, operations)
+      }
+
+      processed += events.length
+      client.logger.log('...processed events', { count: processed })
+    }
+  } finally {
+    await iterator.close()
+  }
+
+  if (unresolved > 0) {
+    client.logger.error('could not resolve person space for events, left in calendar space', {
+      count: unresolved,
+      examples: unresolvedExamples
+    })
+  }
+
+  client.logger.log('finished moving calendar events to person spaces', { processed, unresolved })
+}
+
 export const calendarOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode): Promise<void> {
     await tryMigrate(mode, client, calendarId, [
@@ -648,9 +860,24 @@ export const calendarOperation: MigrateOperation = {
         func: migrateIntegrations
       },
       {
+        state: 'fill-busy-slots',
+        mode: 'upgrade',
+        func: fillBusySlots
+      },
+      {
         state: 'update-calendar-user',
         mode: 'upgrade',
         func: updateCalendarUser
+      },
+      {
+        state: 'move-events-to-person-space',
+        mode: 'upgrade',
+        func: moveEventsToPersonSpace
+      },
+      {
+        state: 'fill-busy-slot-titles',
+        mode: 'upgrade',
+        func: fillBusySlotTitles
       }
     ])
   },

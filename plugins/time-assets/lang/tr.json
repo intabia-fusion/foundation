@@ -44,6 +44,8 @@
     "MyWork": "İşlerim",
     "WeekCalendar": "Hafta",
     "DayCalendar": "Gün",
+    "MonthCalendar": "Ay",
+    "YearCalendar": "Yıl",
     "GotoTimePlaning": "Planlama",
     "GotoTimeTeamPlaning": "Takım Planlaması",
     "NewToDo": "Yeni Eylem Öğesi",
@@ -55,10 +57,14 @@
     "MarkedAsDone": "Tamamlandı",
     "WorkSchedule": "Çalışma programı",
     "SummaryDuration": "Özet",
+    "Busy": "Meşgul",
     "UnassignToDo": "Eylem Öğesinin Atamasını Kaldır",
     "UnassignToDoConfirm": "Bu Eylem Öğesinin atamasını kaldırmak istiyor musunuz? Eylem Öğesi, atananın planlayıcısından kaldırılacak.",
     "ReassignToDo": "Eylem Öğesi atananı değiştir",
-    "ReassignToDoConfirm": "Eylem Öğesi atananını değiştirmek istiyor musunuz? Eylem Öğesi, mevcut atananın planlayıcısından kaldırılacak."
+    "ReassignToDoConfirm": "Eylem Öğesi atananını değiştirmek istiyor musunuz? Eylem Öğesi, mevcut atananın planlayıcısından kaldırılacak.",
+    "Occupancy": "Doluluk",
+    "ShowEvents": "Etkinlikler",
+    "ShowActivity": "Etkinlik akışı"
   },
   "emailTemplate": {
     "ToDoCreatedNotificationText": "{body}",

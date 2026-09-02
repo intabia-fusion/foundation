@@ -1,5 +1,7 @@
 import { AccountUuid, Ref, Timestamp, generateId } from '@hcengineering/core'
+import { Person } from '@hcengineering/contact'
 import calendar, {
+  BusySlot,
   Calendar,
   PrimaryCalendar,
   Event,
@@ -448,4 +450,69 @@ export function getPrimaryCalendar (
     }
   }
   return `${acc}_calendar` as Ref<Calendar>
+}
+
+/**
+ * @public
+ *
+ * Expands busy slots into plain intervals within the window, merging overlaps
+ * per person. Recurring slots are expanded from their rules.
+ */
+export function getBusyIntervals (
+  slots: BusySlot[],
+  from: Timestamp,
+  to: Timestamp
+): Map<Ref<Person>, { date: Timestamp, dueDate: Timestamp }[]> {
+  const res = new Map<Ref<Person>, { date: Timestamp, dueDate: Timestamp }[]>()
+  for (const slot of slots) {
+    const intervals = res.get(slot.person) ?? []
+    for (const value of getSlotOccurrences(slot, from, to)) {
+      intervals.push({ date: Math.max(from, value), dueDate: Math.min(to, value + slot.dueDate - slot.date) })
+    }
+    res.set(slot.person, intervals)
+  }
+  for (const [person, intervals] of res) {
+    // A recurring slot may have no occurrence inside the window at all - such a person is free.
+    if (intervals.length === 0) res.delete(person)
+    else res.set(person, mergeIntervals(intervals))
+  }
+  return res
+}
+
+function getSlotOccurrences (slot: BusySlot, from: Timestamp, to: Timestamp): Timestamp[] {
+  const duration = slot.dueDate - slot.date
+  if ((slot.rules ?? []).length === 0 && (slot.rdate ?? []).length === 0) {
+    return slot.date < to && slot.dueDate > from ? [slot.date] : []
+  }
+  const values = new Set<Timestamp>()
+  // A slot starting before `from` may still be running inside the window.
+  const start = from - duration
+  for (const rule of slot.rules ?? []) {
+    for (const value of generateRecurringValues(rule, slot.date, start, to)) {
+      values.add(value)
+    }
+  }
+  for (const date of slot.rdate ?? []) {
+    if (date >= start && date <= to) values.add(date)
+  }
+  for (const date of slot.exdate ?? []) {
+    values.delete(date)
+  }
+  return Array.from(values).filter((it) => it + duration > from)
+}
+
+function mergeIntervals (
+  intervals: { date: Timestamp, dueDate: Timestamp }[]
+): { date: Timestamp, dueDate: Timestamp }[] {
+  intervals.sort((a, b) => a.date - b.date)
+  const res: { date: Timestamp, dueDate: Timestamp }[] = []
+  for (const interval of intervals) {
+    const last = res[res.length - 1]
+    if (last !== undefined && interval.date <= last.dueDate) {
+      last.dueDate = Math.max(last.dueDate, interval.dueDate)
+    } else {
+      res.push({ ...interval })
+    }
+  }
+  return res
 }

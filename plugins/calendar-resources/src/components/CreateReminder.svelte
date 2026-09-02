@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { AccessLevel, Calendar, generateEventId } from '@hcengineering/calendar'
-  import { Employee, getCurrentEmployee } from '@hcengineering/contact'
+  import { Employee, getCurrentEmployee, getCurrentEmployeeSpace } from '@hcengineering/contact'
   import { UserBoxList } from '@hcengineering/contact-resources'
   import { Class, DateRangeMode, Doc, Ref, getCurrentAccount } from '@hcengineering/core'
   import { Card, getClient } from '@hcengineering/presentation'
@@ -45,7 +45,7 @@
     if (value != null) date = value
     if (date === undefined) return
     const _calendar = `${getCurrentAccount().uuid}_calendar` as Ref<Calendar>
-    await client.addCollection(calendar.class.Event, calendar.space.Calendar, attachedTo, attachedToClass, 'events', {
+    await client.addCollection(calendar.class.Event, getCurrentEmployeeSpace(), attachedTo, attachedToClass, 'events', {
       calendar: _calendar,
       eventId: generateEventId(),
       date,

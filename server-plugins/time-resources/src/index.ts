@@ -636,6 +636,23 @@ async function changeIssueDataHandler (control: TriggerControl, issueId: Ref<Iss
         )
         res.push(outerTx)
       }
+      if (update.attachedSpace !== undefined) {
+        // Workslots live in the todo's space (project or personal), keep them in sync with it.
+        const workslots = await control.findAll(control.ctx, time.class.WorkSlot, { attachedTo: todo._id })
+        for (const workslot of workslots) {
+          const wsInnerTx = control.txFactory.createTxUpdateDoc(workslot._class, workslot.space, workslot._id, {
+            space: update.attachedSpace
+          })
+          const wsOuterTx = control.txFactory.createTxCollectionCUD(
+            workslot.attachedToClass,
+            workslot.attachedTo,
+            workslot.space,
+            workslot.collection,
+            wsInnerTx
+          )
+          res.push(wsOuterTx)
+        }
+      }
     }
   }
   return res

@@ -13,21 +13,129 @@
 // limitations under the License.
 //
 
-import { TxOperations } from '@hcengineering/core'
+import calendarPlugin from '@hcengineering/calendar'
+import contact, { type Person, type PersonSpace } from '@hcengineering/contact'
+import { type Doc, type Ref, TxOperations } from '@hcengineering/core'
 import {
   type MigrateOperation,
+  type MigrateUpdate,
   type MigrationClient,
+  type MigrationDocumentQuery,
   type MigrationUpgradeClient,
   createOrUpdate,
   tryMigrate,
   tryUpgrade,
   createDefaultSpace
 } from '@hcengineering/model'
-import core from '@hcengineering/model-core'
+import { DOMAIN_EVENT } from '@hcengineering/model-calendar'
+import core, { DOMAIN_SPACE } from '@hcengineering/model-core'
 import tags from '@hcengineering/tags'
-import { timeId, ToDoPriority } from '@hcengineering/time'
+import { timeId, ToDoPriority, type ToDo, type WorkSlot } from '@hcengineering/time'
 import { DOMAIN_TIME } from '.'
 import time from './plugin'
+
+async function moveWorkSlotsToTargetSpace (client: MigrationClient): Promise<void> {
+  const hierarchy = client.hierarchy
+  const workSlotClasses = hierarchy.getDescendants(time.class.WorkSlot)
+
+  // Both lookups are filled per batch and cached across batches: neither todos nor
+  // person spaces are loaded wholesale.
+  const todoByRef = new Map<Ref<ToDo>, ToDo | null>()
+  const spaceByPerson = new Map<Ref<Person>, Ref<PersonSpace> | null>()
+
+  async function resolveBatch (refs: Array<Ref<ToDo>>): Promise<void> {
+    const missing = refs.filter((it) => !todoByRef.has(it))
+    if (missing.length > 0) {
+      const todos = await client.find<ToDo>(
+        DOMAIN_TIME,
+        { _id: { $in: missing } },
+        { projection: { _id: 1, attachedSpace: 1, user: 1 } }
+      )
+      for (const todo of todos) {
+        todoByRef.set(todo._id, todo)
+      }
+      for (const ref of missing) {
+        if (!todoByRef.has(ref)) todoByRef.set(ref, null)
+      }
+    }
+
+    const persons = refs
+      .map((it) => todoByRef.get(it))
+      .filter((it): it is ToDo => it != null && it.attachedSpace === undefined)
+      .map((it) => it.user)
+      .filter((it) => !spaceByPerson.has(it))
+    if (persons.length === 0) return
+    const spaces = await client.find<PersonSpace>(
+      DOMAIN_SPACE,
+      { _class: contact.class.PersonSpace, person: { $in: persons } },
+      { projection: { _id: 1, person: 1 } }
+    )
+    for (const ps of spaces) {
+      spaceByPerson.set(ps.person, ps._id)
+    }
+    for (const person of persons) {
+      if (!spaceByPerson.has(person)) spaceByPerson.set(person, null)
+    }
+  }
+
+  client.logger.log('moving work slots to target space', {})
+
+  let processed = 0
+  let unresolved = 0
+  const unresolvedExamples: Array<Ref<WorkSlot>> = []
+
+  const iterator = await client.traverse<WorkSlot>(DOMAIN_EVENT, {
+    _class: { $in: workSlotClasses },
+    space: calendarPlugin.space.Calendar
+  })
+
+  try {
+    while (true) {
+      const slots = await iterator.next(200)
+      if (slots === null || slots.length === 0) break
+
+      const operations: { filter: MigrationDocumentQuery<Doc>, update: MigrateUpdate<Doc> }[] = []
+
+      await resolveBatch(slots.map((it) => it.attachedTo))
+
+      for (const slot of slots) {
+        const todo = todoByRef.get(slot.attachedTo)
+        const space = todo?.attachedSpace ?? (todo != null ? (spaceByPerson.get(todo.user) ?? undefined) : undefined)
+
+        if (space === undefined) {
+          unresolved++
+          if (unresolvedExamples.length < 10) {
+            unresolvedExamples.push(slot._id)
+          }
+          continue
+        }
+
+        operations.push({
+          filter: { _id: slot._id },
+          update: { space }
+        })
+      }
+
+      if (operations.length > 0) {
+        await client.bulk(DOMAIN_EVENT, operations)
+      }
+
+      processed += slots.length
+      client.logger.log('...processed work slots', { count: processed })
+    }
+  } finally {
+    await iterator.close()
+  }
+
+  if (unresolved > 0) {
+    client.logger.error('could not resolve target space for work slots, left in calendar space', {
+      count: unresolved,
+      examples: unresolvedExamples
+    })
+  }
+
+  client.logger.log('finished moving work slots to target space', { processed, unresolved })
+}
 
 async function fillProps (client: MigrationClient): Promise<void> {
   await client.update(
@@ -52,6 +160,11 @@ export const timeOperation: MigrateOperation = {
         func: async (client) => {
           await fillProps(client)
         }
+      },
+      {
+        state: 'move-workslots-to-target-space',
+        mode: 'upgrade',
+        func: moveWorkSlotsToTargetSpace
       }
     ])
   },

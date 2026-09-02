@@ -2196,6 +2196,9 @@ importers:
       '@hcengineering/text-ydoc':
         specifier: workspace:^0.7.18
         version: link:../../foundations/core/packages/text-ydoc
+      '@hcengineering/time':
+        specifier: workspace:^0.7.0
+        version: link:../../plugins/time
       '@hcengineering/tracker':
         specifier: workspace:^0.7.0
         version: link:../../plugins/tracker
@@ -27133,6 +27136,9 @@ importers:
       '@hcengineering/view-resources':
         specifier: workspace:^0.7.0
         version: link:../view-resources
+      '@hcengineering/workbench':
+        specifier: workspace:^0.7.0
+        version: link:../workbench
       '@hcengineering/workbench-resources':
         specifier: workspace:^0.7.0
         version: link:../workbench-resources
@@ -40950,6 +40956,9 @@ importers:
       '@hcengineering/api-client':
         specifier: workspace:^0.7.18
         version: link:../../foundations/core/packages/api-client
+      '@hcengineering/calendar':
+        specifier: workspace:^0.7.0
+        version: link:../../plugins/calendar
       '@hcengineering/chunter':
         specifier: workspace:^0.7.0
         version: link:../../plugins/chunter
@@ -40983,6 +40992,9 @@ importers:
       '@hcengineering/task':
         specifier: workspace:^0.7.0
         version: link:../../plugins/task
+      '@hcengineering/time':
+        specifier: workspace:^0.7.0
+        version: link:../../plugins/time
       '@hcengineering/tracker':
         specifier: workspace:^0.7.0
         version: link:../../plugins/tracker

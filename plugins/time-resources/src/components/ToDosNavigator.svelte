@@ -30,6 +30,7 @@
   export let mode: ToDosMode
   export let tag: Ref<TagElementType> | undefined
   export let currentDate: Date
+  export let separatorName: string = 'time'
 
   const currentAccount = getCurrentAccount()
   const currentUser = getCurrentEmployee()
@@ -168,6 +169,7 @@
           }}
         />
       {/each}
+
       <div class="min-h-3 flex-no-shrink" />
 
       <div class="hulyAccordionItem-container border" class:noBorder={tags.length === 0}>
@@ -249,7 +251,7 @@
   </div>
   {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
     <Separator
-      name={'time'}
+      name={separatorName}
       float={$deviceInfo.navigator.float ? 'navigator' : true}
       index={0}
       disabledWhen={['panel-aside']}

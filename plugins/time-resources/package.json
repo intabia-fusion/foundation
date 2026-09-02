@@ -9,6 +9,8 @@
     "build:docs": "api-extractor run --local",
     "format": "format src",
     "svelte-check": "do-svelte-check",
+    "test": "jest --passWithNoTests --silent",
+    "_phase:test": "jest --passWithNoTests --silent",
     "_phase:svelte-check": "do-svelte-check",
     "build:watch": "compile ui",
     "_phase:build": "compile ui",
@@ -66,6 +68,7 @@
     "fast-equals": "^6.0.3",
     "@hcengineering/activity": "workspace:^0.7.0",
     "@hcengineering/activity-resources": "workspace:^0.7.0",
+    "@hcengineering/workbench": "workspace:^0.7.0",
     "@hcengineering/workbench-resources": "workspace:^0.7.0"
   }
 }

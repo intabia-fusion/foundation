@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { AccessLevel, Calendar, Event, generateEventId, getAllEvents } from '@hcengineering/calendar'
-  import { getCurrentEmployee } from '@hcengineering/contact'
+  import { getCurrentEmployee, getCurrentEmployeeSpace } from '@hcengineering/contact'
   import {
     Class,
     Doc,
@@ -266,7 +266,7 @@
           participants: [me],
           modifiedOn: Date.now(),
           date: e.detail.date.getTime(),
-          space: calendar.space.Calendar,
+          space: getCurrentEmployeeSpace(),
           user: myPrimaryId,
           dueDate: new Date(e.detail.date).setMinutes(new Date(e.detail.date).getMinutes() + 30)
         }

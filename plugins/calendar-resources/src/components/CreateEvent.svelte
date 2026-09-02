@@ -22,7 +22,7 @@
     Visibility,
     generateEventId
   } from '@hcengineering/calendar'
-  import { getCurrentEmployee, Person } from '@hcengineering/contact'
+  import { getCurrentEmployee, getCurrentEmployeeSpace, Person } from '@hcengineering/contact'
   import core, { Class, Doc, Markup, Ref, Space, generateId, getCurrentAccount } from '@hcengineering/core'
   import presentation, {
     createQuery,
@@ -52,8 +52,11 @@
   import EventTimeEditor from './EventTimeEditor.svelte'
   import EventTimeExtraButton from './EventTimeExtraButton.svelte'
   import LocationEditor from './LocationEditor.svelte'
+  import ParticipantsBusy from './ParticipantsBusy.svelte'
   import ReccurancePopup from './ReccurancePopup.svelte'
   import VisibilityEditor from './VisibilityEditor.svelte'
+
+  let busyPersons = new Set<Ref<Person>>()
 
   const acc = getCurrentAccount()
   const currentUser = getCurrentEmployee()
@@ -88,7 +91,7 @@
 
   const spaceQ = createQuery()
   let space: Space | undefined = undefined
-  spaceQ.query(core.class.Space, { _id: calendar.space.Calendar }, (res) => {
+  spaceQ.query(core.class.Space, { _id: getCurrentEmployeeSpace() }, (res) => {
     space = res[0]
   })
 
@@ -114,7 +117,7 @@
     if (rules.length > 0) {
       await client.addCollection(
         calendar.class.ReccuringEvent,
-        calendar.space.Calendar,
+        getCurrentEmployeeSpace(),
         attachedTo,
         attachedToClass,
         'events',
@@ -145,7 +148,7 @@
     } else {
       await client.addCollection(
         calendar.class.Event,
-        calendar.space.Calendar,
+        getCurrentEmployeeSpace(),
         attachedTo,
         attachedToClass,
         'events',
@@ -236,7 +239,8 @@
     </div>
     <div class="block rightCropPadding">
       <LocationEditor focusIndex={10010} bind:value={location} />
-      <EventParticipants focusIndex={10011} bind:participants bind:externalParticipants />
+      <EventParticipants focusIndex={10011} bind:participants bind:externalParticipants {busyPersons} />
+      <ParticipantsBusy {participants} date={startDate} {dueDate} bind:busyPersons />
     </div>
     <div class="block">
       <DocCreateExtComponent manager={docCreateManager} kind={'body'} />

@@ -51,6 +51,8 @@
   import TimeDuration from './TimeDuration.svelte'
 
   export let events: Event[]
+  // Read-only backdrop, e.g. colleagues' busy time: laid out per day, never in the event columns.
+  export let backgroundEvents: Event[] = []
   export let selectedDate: Date = new Date()
   export let currentDate: Date = selectedDate
   export let displayedDaysCount = 7
@@ -161,6 +163,95 @@
     ? getWeekStart(currentDate, $deviceInfo.firstDayOfWeek)
     : new Date(new Date(currentDate).setHours(0, 0, 0, 0))
   $: calendarEvents = toCalendar(events, weekStart, displayedDaysCount, startHour, displayedHours + startHour)
+  // A colleague's busy time is cut against my own events: the clashing parts become thin
+  // stripes drawn over my card, the free parts stay wide and carry the name as usual.
+  const backdropStripe: number = 14
+  const backdropInset: number = 4
+
+  interface BackdropSegment {
+    id: string
+    day: number
+    date: Timestamp
+    dueDate: Timestamp
+    title: string
+    narrow: boolean
+    lane: number
+    cols: number
+    index: number
+  }
+
+  const clipToDay = (events: Event[], day: number): Array<{ event: Event, date: Timestamp, dueDate: Timestamp }> => {
+    const targetDay = new Date(weekStart)
+    targetDay.setDate(targetDay.getDate() + day)
+    const dayStart = new Date(targetDay).setHours(startHour, 0, 0, 0)
+    const dayEnd = new Date(targetDay).setHours(displayedHours + startHour, 0, 0, 0)
+    return events
+      .filter((it) => !it.allDay && it.date < dayEnd && it.dueDate > dayStart)
+      .map((event) => ({
+        event,
+        date: Math.max(event.date, dayStart),
+        dueDate: Math.min(event.dueDate, dayEnd)
+      }))
+  }
+
+  const mkSegment = (
+    event: Event,
+    day: number,
+    date: Timestamp,
+    dueDate: Timestamp,
+    narrow: boolean,
+    lane: number
+  ): BackdropSegment => ({
+    id: `${event._id}-${day}-${date}-${narrow ? 'n' : 'w'}`,
+    day,
+    date,
+    dueDate,
+    title: event.title,
+    narrow,
+    lane,
+    cols: 1,
+    index: 0
+  })
+
+  const buildSegments = (mine: Event[], backdrop: Event[], days: number, persons: string[]): BackdropSegment[] => {
+    const result: BackdropSegment[] = []
+    for (let day = 0; day < days; day++) {
+      const busy = clipToDay(mine, day)
+        .map((it) => ({ date: it.date, dueDate: it.dueDate }))
+        .sort((a, b) => a.date - b.date)
+      const wide: BackdropSegment[] = []
+      clipToDay(backdrop, day).forEach(({ event, date, dueDate }) => {
+        const lane = persons.indexOf(event.participants?.[0] ?? '')
+        // No person, no lane of its own - it would silently share one with the first colleague.
+        if (lane < 0) return
+        let cursor = date
+        for (const slot of busy) {
+          if (slot.dueDate <= cursor || slot.date >= dueDate) continue
+          if (slot.date > cursor) wide.push(mkSegment(event, day, cursor, slot.date, false, lane))
+          result.push(mkSegment(event, day, Math.max(cursor, slot.date), Math.min(dueDate, slot.dueDate), true, lane))
+          cursor = Math.min(dueDate, slot.dueDate)
+        }
+        if (cursor < dueDate) wide.push(mkSegment(event, day, cursor, dueDate, false, lane))
+      })
+      // Wide segments never clash with my events, only with each other - share the column.
+      wide.sort((a, b) => a.date - b.date)
+      wide.forEach((segment) => {
+        const group = wide.filter((it) => it.date < segment.dueDate && it.dueDate > segment.date)
+        segment.cols = group.length
+        segment.index = group.indexOf(segment)
+      })
+      result.push(...wide)
+    }
+    return result
+  }
+
+  $: backdropPersons = Array.from(new Set(backgroundEvents.map((it) => it.participants?.[0] ?? ''))).sort()
+  $: backgroundItems = buildSegments(
+    events.filter((it) => !it.allDay),
+    backgroundEvents,
+    displayedDaysCount,
+    backdropPersons
+  )
 
   let timer: any
   let container: HTMLElement
@@ -442,6 +533,41 @@
       rem(0.125) +
       (cols - index - 1) * elWidth +
       (cols - index - 1) * rem(0.125)
+    return result
+  }
+  const getBackdropRect = (item: BackdropSegment): CalendarElementRect => {
+    const result = { ...nullCalendarElement }
+    const checkDate = new Date(weekStart.getTime() + MILLISECONDS_IN_DAY * item.day)
+    const startDay = checkDate.setHours(startHour, 0, 0, 0)
+    const endDay = checkDate.setHours(displayedHours - 1, 59, 59, 999)
+    const startTime = item.date <= startDay ? { hours: startHour, mins: 0 } : convertToTime(item.date)
+    const endTime = item.dueDate > endDay ? { hours: displayedHours - startHour, mins: 0 } : convertToTime(item.dueDate)
+    result.top =
+      (showHeader ? rem(heightHeader) : 0) +
+      styleAD +
+      cellHeight * startTime.hours +
+      (startTime.mins / 60) * cellHeight +
+      getGridOffset(startTime.mins)
+    result.bottom =
+      (showFooter ? rem(2) + 1 : 0) +
+      cellHeight * (displayedHours - startHour - endTime.hours - 1) +
+      ((60 - endTime.mins) / 60) * cellHeight +
+      getGridOffset(endTime.mins, true)
+    const tail = (displayedDaysCount - item.day - 1) * colWidth
+    if (item.narrow) {
+      // One lane per person, inset from the right edge so my card's border stays visible.
+      const fromRight = rem(0.125) + backdropInset + backdropStripe * (backdropPersons.length - 1 - item.lane)
+      result.width = backdropStripe
+      result.right = tail + fromRight
+      result.left = rem(3.5) + (item.day + 1) * colWidth - fromRight - backdropStripe
+    } else {
+      const elWidth = (colWidth - rem(0.25) - (item.cols - 1) * rem(0.125)) / item.cols
+      result.width = elWidth
+      result.left =
+        rem(3.5) + item.day * colWidth + item.index * elWidth + item.index * rem(0.125) + rem(0.125) + cellBorder
+      result.right =
+        tail + rem(0.125) + (item.cols - item.index - 1) * elWidth + (item.cols - item.index - 1) * rem(0.125)
+    }
     return result
   }
   const getADRect = (id: string, day?: number, fixRow?: boolean): CalendarElementRect => {
@@ -1115,6 +1241,19 @@
           </div>
         {/if}
       {/each}
+      {#each backgroundItems as item (item.id)}
+        {@const rect = getBackdropRect(item)}
+        <div
+          class="background-element"
+          class:narrow={item.narrow}
+          style:top={`${rect.top}px`}
+          style:bottom={`${rect.bottom}px`}
+          style:left={`${rect.left}px`}
+          style:right={`${rect.right}px`}
+        >
+          <span class="overflow-label">{item.title}</span>
+        </div>
+      {/each}
     {/key}
     {#key currentDate}
       {#if nowLineTop !== -1}
@@ -1220,6 +1359,34 @@
   }
   .clear-cell {
     background-color: $timeline-bg-color;
+  }
+  .background-element {
+    position: absolute;
+    display: flex;
+    align-items: flex-start;
+    padding: 0.125rem 0.375rem;
+    border: 1px solid rgba(127, 127, 127, 0.3);
+    border-radius: 0.25rem;
+    // Theme-agnostic grey: the backdrop has to read against both light and dark grids.
+    background-color: rgba(127, 127, 127, 0.18);
+    color: var(--theme-dark-color);
+    font-size: 0.6875rem;
+    overflow: hidden;
+    // Purely decorative: clicks must reach the grid cell (create event) and the card below.
+    pointer-events: none;
+
+    // Outline only, with the name running down the stripe - there is no room for it flat.
+    &.narrow {
+      align-items: center;
+      justify-content: center;
+      padding: 0.25rem 0;
+      border-radius: 0.125rem;
+      border-color: rgba(127, 127, 127, 0.6);
+      background-color: transparent;
+      line-height: 1;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+    }
   }
   .calendar-element {
     position: absolute;

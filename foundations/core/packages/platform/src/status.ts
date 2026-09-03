@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -18,7 +19,7 @@
  * @packageDocumentation
  */
 
-import type { StatusCode } from './platform'
+import type { IntlString, StatusCode } from './platform'
 import platform from './platform'
 
 /**
@@ -33,6 +34,15 @@ export enum Severity {
 }
 
 /**
+ * Options for Status
+ * @public
+ */
+export interface StatusOptions {
+  timeout?: number
+  propagate?: boolean
+}
+
+/**
  * Status of an operation
  * @public
  */
@@ -40,11 +50,21 @@ export class Status<P extends Record<string, any> = any> {
   readonly severity: Severity
   readonly code: StatusCode<P>
   readonly params: P
+  readonly notLocalizedParams?: Record<string, IntlString>
+  readonly options?: StatusOptions
 
-  constructor (severity: Severity, code: StatusCode<P>, params: P) {
+  constructor (
+    severity: Severity,
+    code: StatusCode<P>,
+    params: P,
+    notLocalizedParams?: Record<string, IntlString>,
+    options?: StatusOptions
+  ) {
     this.severity = severity
     this.code = code
     this.params = params
+    this.notLocalizedParams = notLocalizedParams
+    this.options = options
   }
 }
 
@@ -52,13 +72,37 @@ export class Status<P extends Record<string, any> = any> {
  * Error object wrapping `Status`
  * @public
  */
-export class PlatformError<P extends Record<string, any>> extends Error {
+export class PlatformError<P extends Record<string, any> = any> extends Error {
   readonly status: Status<P>
 
   constructor (status: Status<P>) {
     super(`${status.severity}: ${status.code} ${JSON.stringify(status.params)}`)
     this.status = status
   }
+
+  get propagate (): boolean {
+    return this.status.options?.propagate === true
+  }
+
+  get timeout (): number | undefined {
+    return this.status.options?.timeout
+  }
+}
+
+/**
+ * Helper to check if a platform error should be propagated to client callers
+ * @public
+ */
+export function isPlatformPropagateError (err: unknown): boolean {
+  return err instanceof PlatformError && err.status?.options?.propagate === true
+}
+
+export function isInfoError (err: unknown): boolean {
+  return err instanceof PlatformError && err.status?.severity === Severity.INFO
+}
+
+export function isOkError (err: unknown): boolean {
+  return err instanceof PlatformError && err.status?.severity === Severity.OK
 }
 
 /**

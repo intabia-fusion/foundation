@@ -25,7 +25,7 @@
     Label,
     showPopup
   } from '@hcengineering/ui'
-  import { EditBoxPopup } from '@hcengineering/view-resources'
+  import EditEstimationPopup from './EditEstimationPopup.svelte'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../../plugin'
   import IssuePresenter from '../IssuePresenter.svelte'
@@ -96,26 +96,15 @@
       <div
         class="ml-2 mr-4"
         on:click={(evt) => {
-          showPopup(
-            EditBoxPopup,
-            {
-              value: object.estimation === 0 ? undefined : object.estimation,
-              format,
-              kind,
-              placeholder: tracker.string.Estimation,
-              maxDigitsAfterPoint: 3
-            },
-            eventToHTMLElement(evt),
-            (res) => {
-              if (typeof res === 'number') {
-                if (_value !== res) {
-                  _value = res
-                  void client.update(object, { estimation: res })
-                  object.estimation = res
-                }
+          showPopup(EditEstimationPopup, { value: object.estimation }, eventToHTMLElement(evt), (res) => {
+            if (typeof res === 'number') {
+              if (_value !== res) {
+                _value = res
+                void client.update(object, { estimation: res })
+                object.estimation = res
               }
             }
-          )
+          })
         }}
       >
         <EstimationStatsPresenter value={object} estimation={_value} />

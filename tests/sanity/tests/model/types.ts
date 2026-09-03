@@ -16,12 +16,6 @@ export type SpaceTypes =
   | 'Boards'
   | 'Github'
 
-export enum TaskTypes {
-  Task = 'Task',
-  Subtask = 'Sub-task',
-  TaskAndSubtask = 'Task & Sub-task'
-}
-
 export enum LinkedChannelTypes {
   Issue = 'Issue',
   Vacancy = 'Vacancy',

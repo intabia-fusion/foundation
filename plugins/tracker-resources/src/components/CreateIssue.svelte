@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -28,6 +29,7 @@
     getCurrentAccount,
     makeCollabId,
     makeDocCollabId,
+    type Markup,
     type PersonId,
     Ref,
     SortingOrder,
@@ -37,6 +39,7 @@
   import preference, { SpacePreference } from '@hcengineering/preference'
   import {
     Card,
+    ComponentExtensions,
     createMarkup,
     createQuery,
     DocCreateExtComponent,
@@ -51,7 +54,7 @@
   } from '@hcengineering/presentation'
   import tags, { type TagElement, TagReference } from '@hcengineering/tags'
   import { TaskType } from '@hcengineering/task'
-  import { TaskKindSelector } from '@hcengineering/task-resources'
+  import { TaskKindSelector, taskTypeStore } from '@hcengineering/task-resources'
   import { EmptyMarkup, isEmptyMarkup } from '@hcengineering/text'
   import {
     Component as ComponentType,
@@ -69,18 +72,21 @@
   import {
     addNotification,
     Button,
+    ButtonWithDropdown,
     Component,
     createFocusManager,
     DatePresenter,
     EditBox,
     FocusHandler,
     IconAttachment,
+    IconDropdown,
     Label,
+    navigate,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
-  import view from '@hcengineering/view'
-  import { ObjectBox } from '@hcengineering/view-resources'
+  import view, { type ObjectPanel } from '@hcengineering/view'
+  import { getObjectLinkFragment, ObjectBox } from '@hcengineering/view-resources'
   import { createEventDispatcher, onDestroy } from 'svelte'
 
   import { activeComponent, activeMilestone, generateIssueShortLink, updateIssueRelation } from '../issues'
@@ -132,6 +138,17 @@
   let object = getDefaultObjectFromDraft() ?? getDefaultObject(id)
   let isAssigneeTouched = false
   let kind: Ref<TaskType> | undefined = undefined
+
+  $: if (kind !== undefined && parentIssue !== undefined) {
+    const taskType = $taskTypeStore.get(kind)
+
+    if (taskType !== undefined && taskType.allowAnyParent !== true) {
+      const allowed = taskType.allowedAsChildOf ?? []
+      if (!allowed.includes(parentIssue.kind)) {
+        clearParentIssue()
+      }
+    }
+  }
 
   let templateId: Ref<IssueTemplate> | undefined = draft?.template?.template
   let appliedTemplateId: Ref<IssueTemplate> | undefined = draft?.template?.template
@@ -224,7 +241,13 @@
     }
     return base
   }
-  fillDefaults(hierarchy, object, tracker.class.Issue)
+  $: taskType = kind !== undefined ? $taskTypeStore.get(kind) : undefined
+  $: issueClass =
+    taskType?.targetClass != null && hierarchy.hasClass(taskType.targetClass)
+      ? taskType.targetClass
+      : (taskType?.ofClass ?? tracker.class.Issue)
+
+  $: fillDefaults(hierarchy, object, issueClass)
 
   let currentProject: Project | undefined
 
@@ -260,7 +283,7 @@
     templateId = undefined
     template = undefined
     object = getDefaultObject(undefined, true)
-    fillDefaults(hierarchy, object, tracker.class.Issue)
+    fillDefaults(hierarchy, object, issueClass ?? tracker.class.Issue)
   }
 
   $: if (templateId !== undefined) {
@@ -348,7 +371,7 @@
     if (object.kind !== undefined) {
       kind = object.kind
     }
-    fillDefaults(hierarchy, object, tracker.class.Issue)
+    fillDefaults(hierarchy, object, issueClass)
   }
 
   $: if (template !== undefined) {
@@ -405,6 +428,57 @@
     return value.trim()
   }
 
+  /** Remembers the assistant conversation in the draft, so an unfinished issue reopens with it. */
+  function setAssistConversation (id: Ref<Doc> | undefined): void {
+    object.assistConversation = id
+  }
+
+  /**
+   * Apply a draft proposed by the AI assistant. The description goes in through the editor's own
+   * setContent, so it lands as a regular transaction and Ctrl+Z undoes it like any other edit -
+   * re-creating the editor would throw its history away.
+   */
+  function applyAssistedDraft (draft: {
+    title: string
+    description: Markup
+    subIssues: string[]
+    priority?: number
+    estimation?: number
+    dueDate?: string
+    labels?: string[]
+  }): void {
+    if (draft.title.trim() !== '') object.title = draft.title
+    object.description = draft.description
+    descriptionBox?.setContent(draft.description)
+    if (draft.priority !== undefined) object.priority = draft.priority as IssuePriority
+    if (draft.estimation !== undefined) object.estimation = draft.estimation
+    if (draft.dueDate !== undefined) {
+      const parsed = Date.parse(draft.dueDate)
+      if (!isNaN(parsed)) object.dueDate = parsed
+    }
+    if (draft.labels !== undefined) void applyAssistedLabels(draft.labels)
+    // Reuse existing rows by title, so a re-apply keeps fields the user already filled in.
+    const prevByTitle = new Map(object.subIssues.map((s) => [s.title, s]))
+    object.subIssues = draft.subIssues.map((title) => {
+      const prev = prevByTitle.get(title)
+      // Consumed, so two draft rows sharing a title get two objects instead of one aliased twice.
+      if (prev !== undefined) {
+        prevByTitle.delete(title)
+        return prev
+      }
+      return {
+        ...getDefaultObject(generateId()),
+        title,
+        description: '',
+        kind: kind ?? ('' as Ref<TaskType>),
+        space: _space as Ref<Project>,
+        subIssues: [],
+        dueDate: null,
+        labels: []
+      }
+    })
+  }
+
   let subIssuesComponent: SubIssues
 
   export function canClose (): boolean {
@@ -445,7 +519,13 @@
     void updateCurrentProjectPref(_space)
   }
 
+  /** What the last successful create produced; the dropdown actions work on it. */
+  let created: { id: Ref<Issue>, identifier: string } | undefined
+  // Bumped when the form starts over, so the assistant drops the finished conversation.
+  let assistSession = 0
+
   async function createIssue (): Promise<void> {
+    created = undefined
     const _id: Ref<Issue> = generateId()
     if (
       !canSave ||
@@ -488,6 +568,7 @@
         rank: '',
         comments: 0,
         subIssues: 0,
+        collaborators: 0,
         dueDate: object.dueDate,
         parents:
           parentIssue != null
@@ -512,14 +593,14 @@
       }
 
       if (!isEmptyMarkup(object.description)) {
-        const collabId = makeCollabId(tracker.class.Issue, _id, 'description')
+        const collabId = makeCollabId(issueClass, _id, 'description')
         value.description = await createMarkup(collabId, object.description)
       }
 
       await docCreateManager.commit(operations, _id, currentProject, value, 'pre')
 
       await operations.addCollection(
-        tracker.class.Issue,
+        issueClass,
         _space,
         parentIssue?._id ?? tracker.ids.NoParent,
         parentIssue?._class ?? tracker.class.Issue,
@@ -529,7 +610,7 @@
       )
       await docCreateManager.commit(operations, _id, currentProject, value, 'post')
       for (const label of object.labels) {
-        await operations.addCollection(label._class, label.space, _id, tracker.class.Issue, 'labels', {
+        await operations.addCollection(label._class, label.space, _id, issueClass, 'labels', {
           title: label.title,
           color: label.color,
           tag: label.tag
@@ -538,20 +619,14 @@
 
       if (relatedTo !== undefined && client.getHierarchy().isDerived(relatedTo._class, tracker.class.Issue)) {
         // The new issue is not committed yet, so pass its ref directly instead of findOne
-        await updateIssueRelation(
-          operations,
-          relatedTo as Issue,
-          { _id, _class: tracker.class.Issue },
-          'relations',
-          '$push'
-        )
+        await updateIssueRelation(operations, relatedTo as Issue, { _id, _class: issueClass }, 'relations', '$push')
       }
 
       await descriptionBox?.createAttachments(_id, operations)
       const result = await operations.commit()
 
       if (relatedTo !== undefined && !client.getHierarchy().isDerived(relatedTo._class, tracker.class.Issue)) {
-        const doc = await client.findOne(tracker.class.Issue, { _id })
+        const doc = await client.findOne(issueClass, { _id })
         if (doc !== undefined) {
           const update = await getResource(activity.backreference.Update)
           await update(doc, 'relations', [relatedTo], tracker.string.AddedReference)
@@ -595,6 +670,7 @@
         ...analyticsProps
       })
       console.log('createIssue measure', result, Date.now() - d1)
+      created = { id: _id, identifier: value.identifier }
     } catch (err: any) {
       resetObject()
       draftController.remove()
@@ -605,10 +681,54 @@
     }
   }
 
+  // "Create" alone closes the dialog (Card does that after okAction). These two do something
+  // else afterwards, so they run the create themselves.
+  async function createAndOpen (): Promise<void> {
+    await createIssue()
+    if (created === undefined) return
+    const issue = await client.findOne(tracker.class.Issue, { _id: created.id })
+    dispatch('close')
+    if (issue === undefined) return
+    const hierarchy = client.getHierarchy()
+    // ObjectPanel.component is AnyComponent; tracker's own `Component` class shadows the name here.
+    const panel = hierarchy.classHierarchyMixin<Doc, ObjectPanel>(issue._class, view.mixin.ObjectPanel)
+    const loc = await getObjectLinkFragment(hierarchy, issue, {}, panel?.component ?? view.component.EditDoc)
+    navigate(loc)
+  }
+
+  async function createAndNew (): Promise<void> {
+    await createIssue()
+    if (created === undefined) return
+    // Same dialog, empty form: the point is entering several issues in a row. The assistant
+    // starts over too - its conversation was about the issue that is now created.
+    resetObject()
+    objectId = generateId()
+    descriptionBox?.removeDraft(false)
+    assistSession++
+  }
+
+  // Plain "create" is the main button itself, so the dropdown only carries what it cannot do.
+  $: createActions = [
+    { id: 'create-open', label: tracker.string.CreateAndOpen },
+    { id: 'create-new', label: tracker.string.CreateAndNew }
+  ]
+
+  /** Only labels that already exist are applied: the assistant must not invent taxonomy. */
+  async function applyAssistedLabels (names: string[]): Promise<void> {
+    const wanted = names.map((n) => n.trim()).filter((n) => n !== '')
+    if (wanted.length === 0) return
+    const elements = await client.findAll(tags.class.TagElement, { title: { $in: wanted } })
+    const existing = new Set(object.labels.map((l) => l.tag))
+    for (const element of elements) {
+      if (existing.has(element._id)) continue
+      object.labels = [...object.labels, tagAsRef(element)]
+    }
+  }
+
   async function setParentIssue (): Promise<void> {
     showPopup(
       SetParentIssueActionPopup,
-      { value: { ...object, space: _space, attachedTo: parentIssue?._id } },
+      { value: { ...object, space: _space, attachedTo: parentIssue?._id }, kind },
       'top',
       (selectedIssue) => {
         if (selectedIssue !== undefined) {
@@ -769,6 +889,8 @@
     originalIssue,
     preferences
   }
+
+  $: parentType = parentIssue?.kind
 </script>
 
 <FocusHandler {manager} />
@@ -832,8 +954,11 @@
       <TaskKindSelector
         projectType={currentProject?.type}
         bind:value={kind}
+        {parentType}
         baseClass={tracker.class.Issue}
         size={'small'}
+        showAlways={true}
+        width="10rem"
       />
       {#if relatedTo}
         <div class="lower mr-2">
@@ -854,10 +979,32 @@
       <DocCreateExtComponent manager={docCreateManager} kind={'title'} space={currentProject} props={extraProps} />
     </div>
   </svelte:fragment>
+  <svelte:fragment slot="header-actions">
+    <ComponentExtensions extension={tracker.extensions.CreateIssueHeaderActions} />
+  </svelte:fragment>
   <svelte:fragment slot="subheader">
     {#if parentIssue}
       <ParentIssue issue={parentIssue} on:close={clearParentIssue} />
     {/if}
+  </svelte:fragment>
+  <svelte:fragment slot="aside">
+    <ComponentExtensions
+      extension={tracker.extensions.CreateIssueAssist}
+      props={{
+        title: object.title,
+        description: object.description,
+        subIssues: object.subIssues.map((s) => s.title),
+        projectName: currentProject?.name,
+        objectId: _space,
+        objectClass: tracker.class.Project,
+        apply: applyAssistedDraft,
+        created,
+        resultClass: tracker.class.Issue,
+        session: assistSession,
+        conversationId: object.assistConversation,
+        onConversation: setAssistConversation
+      }}
+    />
   </svelte:fragment>
   <div id="issue-name" class="m-3 clear-mins">
     <EditBox
@@ -882,7 +1029,7 @@
         showButtons={false}
         kind={'indented'}
         isScrollable={false}
-        kitOptions={{ reference: true }}
+        kitOptions={{ reference: true, leftMenu: false }}
         enableAttachments={false}
         bind:content={object.description}
         placeholder={tracker.string.IssueDescriptionPlaceholder}
@@ -919,6 +1066,7 @@
         <StatusEditor
           focusIndex={3}
           value={{ ...object, kind }}
+          isCreate={true}
           kind={'regular'}
           size={'large'}
           defaultIssueStatus={currentProject?.defaultIssueStatus}
@@ -1058,29 +1206,24 @@
   <svelte:fragment slot="buttons">
     <DocCreateExtComponent manager={docCreateManager} kind={'buttons'} space={currentProject} props={extraProps} />
   </svelte:fragment>
-  <svelte:fragment slot="after-buttons" let:handleOkClick let:okProcessing let:focusIndex let:canSave let:okLabel>
-    <DocCreateExtComponent
-      manager={docCreateManager}
-      kind={'createButton'}
-      space={currentProject}
-      props={{
-        ...extraProps,
-        handleOkClick,
-        okProcessing,
-        focusIndex,
-        canSave,
-        okLabel
+  <!-- Rendered directly, not through DocCreateExtComponent: an extension that replaces the create
+       button would drop the create-and-open / create-and-new actions with it. -->
+  <svelte:fragment slot="after-buttons" let:handleOkClick let:okProcessing let:canSave let:okLabel>
+    <ButtonWithDropdown
+      loading={okProcessing}
+      disabled={canSave !== true}
+      label={okLabel}
+      kind={'primary'}
+      size={'large'}
+      justify={'center'}
+      dropdownIcon={IconDropdown}
+      dropdownItems={createActions}
+      mainButtonId={'issue-create-button'}
+      on:click={handleOkClick}
+      on:dropdown-selected={(ev) => {
+        if (ev.detail === 'create-open') void createAndOpen()
+        else if (ev.detail === 'create-new') void createAndNew()
       }}
-    >
-      <Button
-        loading={okProcessing}
-        focusIndex={10001}
-        disabled={canSave !== true}
-        label={okLabel}
-        kind={'primary'}
-        size={'large'}
-        on:click={handleOkClick}
-      />
-    </DocCreateExtComponent>
+    />
   </svelte:fragment>
 </Card>

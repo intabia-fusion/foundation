@@ -24,12 +24,14 @@
   export let disableSubmit = false
   export let clearOnSubmit = true
 
-  const dispatch = createEventDispatcher()
+  const dispatch = createEventDispatcher<{
+    update: { message: Markup, attachments: number }
+  }>()
 
   let objectId = generateId()
 
   function onUpdate (event: CustomEvent<{ message: Markup, attachments: number }>): void {
-    dispatch('update', event.detail.message)
+    dispatch('update', event.detail)
   }
 </script>
 

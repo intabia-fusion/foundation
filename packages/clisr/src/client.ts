@@ -25,8 +25,6 @@ import {
   FRAME_OP_STATUS_RESP,
   FRAME_HELLO,
   FRAME_HELLO_RESP,
-  FRAME_MSGPACK,
-  FRAME_MSGPACK_SNAPPY,
   FRAME_BINARY,
   FRAME_BINARY_RESP,
   ClientConnectEvent,
@@ -39,12 +37,19 @@ import {
   encodeBinaryRequest,
   encodeBinaryResponse,
   decodeBinaryResponse,
-  decodeBinaryRequest
+  decodeBinaryRequest,
+  isJsonBody,
+  legacyWireFormat,
+  defaultFormats,
+  parseFormatId,
+  readDataFrame,
+  wireCodecs,
+  type WireFormat
 } from './types'
 import { type RateLimitInfo, type ReqId, type Response, RPCHandler } from '@hcengineering/rpc'
 import { type MeasureContext } from '@hcengineering/measurements'
 import { randomUUID } from 'crypto'
-import { sendFrame as sharedSendFrame } from './frame-utils'
+import { decodeFrameBody, sendFrame as sharedSendFrame } from './frame-utils'
 
 // Lazy-import snappy at runtime to avoid initializing native handles during test collection
 let _snappyCompress: ((input: any) => Promise<any>) | undefined
@@ -71,6 +76,13 @@ const lazyUncompress = async (input: any): Promise<any> => {
     throw new Error('snappy uncompress function not available')
   }
   return await _snappyUncompress(input)
+}
+
+// Rollback lever: CLISR_FORMATS='msgpack/snappy' puts the wire back on msgpack without a code
+// change. Comma separated, best first.
+const envFormats = (): string[] | undefined => {
+  const v = process.env.CLISR_FORMATS
+  return v === undefined || v === '' ? undefined : v.split(',').map((it) => it.trim())
 }
 
 const SECOND = 1000
@@ -104,6 +116,10 @@ export class ClisrClient {
   private pingResponse: number = Date.now()
 
   private helloReceived: boolean = false
+
+  // What we offer at hello, and what the server actually picked.
+  private readonly offeredFormats: string[]
+  private format: WireFormat = { ...legacyWireFormat }
 
   private serverVersion: string | undefined
 
@@ -153,6 +169,12 @@ export class ClisrClient {
       })
     } else {
       this.sessionId = randomUUID().toString()
+    }
+    this.offeredFormats = opt?.formats ?? envFormats() ?? defaultFormats
+    // A typo in CLISR_FORMATS would otherwise show up only as a silent fall back to msgpack.
+    const unknown = this.offeredFormats.filter((it) => parseFormatId(it) === undefined)
+    if (unknown.length > 0) {
+      ctx.warn('ignoring wire formats this build cannot speak', { formats: unknown })
     }
     this.rpcHandler = (opt?.useGlobalRPCHandler ?? true) ? globalRPCHandler : new RPCHandler()
     this.pushHandler(handler)
@@ -307,6 +329,10 @@ export class ClisrClient {
       return
     }
     this.helloReceived = true
+    // A server without negotiation answers with no `format`: stay on msgpack.
+    this.format = (helloResp.format !== undefined ? parseFormatId(helloResp.format) : undefined) ?? {
+      ...legacyWireFormat
+    }
 
     // Notify all waiting connection listeners
     const handlers = this.onConnectHandlers.splice(0, this.onConnectHandlers.length)
@@ -540,7 +566,7 @@ export class ClisrClient {
       const sendFn = (data: Uint8Array): void => {
         this.websocket?.send(data)
       }
-      await sharedSendFrame(this.ctx, sendFn, responseToSend, this.compress, true)
+      await sharedSendFrame(this.ctx, sendFn, responseToSend, this.compress, this.format)
 
       // Remove from pending responses after successful send
       this.pendingResponses.delete(respId)
@@ -586,6 +612,7 @@ export class ClisrClient {
   private openConnection (ctx: MeasureContext, socketId: number): void {
     // Force binary mode for simplicity
     this.helloReceived = false
+    this.format = { ...legacyWireFormat }
     // Use defined factory or browser default one.
     const clientSocketFactory =
       this.opt?.socketFactory ??
@@ -727,7 +754,7 @@ export class ClisrClient {
                     (data) => this.websocket?.send(data),
                     responseToSend,
                     this.compress,
-                    true
+                    this.format
                   )
                 }
               } catch (err: any) {
@@ -743,7 +770,7 @@ export class ClisrClient {
                   (data) => this.websocket?.send(data),
                   errorResponse,
                   this.compress,
-                  true
+                  this.format
                 )
               }
             } else {
@@ -755,7 +782,13 @@ export class ClisrClient {
                 id: reqId,
                 time: Date.now()
               }
-              await sharedSendFrame(this.ctx, (data) => this.websocket?.send(data), errorResponse, this.compress, true)
+              await sharedSendFrame(
+                this.ctx,
+                (data) => this.websocket?.send(data),
+                errorResponse,
+                this.compress,
+                this.format
+              )
             }
           } catch (err: any) {
             this.ctx.error('failed to handle binary request', { err })
@@ -765,7 +798,8 @@ export class ClisrClient {
         if (ft === FRAME_HELLO_RESP || ft === FRAME_HELLO) {
           const payload = u8.subarray(1)
           try {
-            const resp = this.rpcHandler.readResponse<any>(payload, true)
+            const codec = isJsonBody(payload) ? wireCodecs.json : wireCodecs.msgpack
+            const resp = codec.decodeResponse(this.rpcHandler, payload)
             if (ft === FRAME_HELLO_RESP) {
               await this.handleMsg(socketId, resp)
             } else {
@@ -778,30 +812,19 @@ export class ClisrClient {
           }
           return
         }
-        if (ft === FRAME_MSGPACK) {
+        const frame = readDataFrame(u8, this.format)
+        if (frame !== undefined) {
           try {
-            // Direct msgpack frame (uncompressed)
-            const resp = this.rpcHandler.readResponse<any>(u8.subarray(1), true)
+            const resp = await decodeFrameBody(
+              this.rpcHandler,
+              frame.body,
+              frame.codec,
+              frame.compressed,
+              this.uncompress
+            )
             await this.handleMsg(socketId, resp)
           } catch (err: any) {
-            this.ctx.error('failed to parse msgpack frame', { err })
-            this.websocket?.close()
-          }
-          return
-        }
-        if (ft === FRAME_MSGPACK_SNAPPY) {
-          try {
-            const dec = await this.uncompress(u8.subarray(1))
-            let buf: Uint8Array
-            if (Buffer.isBuffer(dec)) {
-              buf = new Uint8Array(dec.buffer, dec.byteOffset, dec.byteLength)
-            } else {
-              buf = dec as unknown as Uint8Array
-            }
-            const resp = this.rpcHandler.readResponse<any>(buf, true)
-            await this.handleMsg(socketId, resp)
-          } catch (err: any) {
-            this.ctx.error('failed to parse msgpack-snappy frame', { err })
+            this.ctx.error('failed to parse data frame', { err, frame: ft })
             this.websocket?.close()
           }
           return
@@ -905,10 +928,12 @@ export class ClisrClient {
         id: -1,
         token: this.tokenProvider(),
         sessionId: this.sessionId,
-        clientHost: this.clientHost
+        clientHost: this.clientHost,
+        formats: this.offeredFormats
       }
-      // Serialize as binary and send as FRAME_HELLO (no extra compression)
-      const dta = this.rpcHandler.serialize(helloRequest, true)
+      // Hello itself stays msgpack: the format is not agreed yet, and every server version
+      // reads this frame that way.
+      const dta = wireCodecs.msgpack.encode(this.rpcHandler, helloRequest)
       try {
         const out = new Uint8Array(1 + dta.byteLength)
         out[0] = FRAME_HELLO
@@ -994,7 +1019,7 @@ export class ClisrClient {
                 const sendFn = (data: Uint8Array): void => {
                   this.websocket?.send(data)
                 }
-                await sharedSendFrame(this.ctx, sendFn, msg, this.compress, true)
+                await sharedSendFrame(this.ctx, sendFn, msg, this.compress, this.format)
               } catch (err: any) {
                 this.ctx.error('failed to send request', { err })
                 this.websocket?.close()

@@ -1,0 +1,25 @@
+{
+  "string": {
+    "AISettings": "Impostazioni IA",
+    "TokenLimitReachedMonth": "Token IA esauriti. Acquistane altri nelle impostazioni dello spazio di lavoro (Impostazioni -> Abbonamento) o attendi il periodo successivo.",
+    "AIServiceUnavailable": "Il servizio IA è temporaneamente non disponibile. Riprova più tardi.",
+    "AIEmptyResponse": "Non sono riuscita a produrre una risposta. Riformula la domanda o riprova.",
+    "AILevel": "Livello IA",
+    "AILevelHint": "Tetto del livello di qualità per questo spazio di lavoro",
+    "AILevelCapabilities": "Capacità dei livelli",
+    "AILevelCapabilitiesHint": "Cosa può fare ogni livello.",
+    "AILevelChat": "Conversazioni",
+    "AILevelTalk": "Discutere",
+    "AILevelSummary": "Riassumere",
+    "AILevelTasks": "Gestione attività",
+    "Language": "Lingua",
+    "LanguageHint": "Lingua predefinita per le risposte del bot (es. it, en). Vuoto = predefinito del pod.",
+    "AssistIssue": "{name}",
+    "AssistIssueApply": "Applica",
+    "AssistIssueThreadStart": "Bozza di attività{project, select, undefined {} other { in {project}}}",
+    "AssistIssueNewContext": "Nuovo contesto",
+    "AssistIssueApplyAgain": "Applica di nuovo",
+    "AssistIssueAppliedMark": "Applicato",
+    "ProposedEstimation": "Stima: {hours} h"
+  }
+}

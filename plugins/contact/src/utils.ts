@@ -35,8 +35,7 @@ import {
   toIdMap,
   TxApplyResult,
   TxFactory,
-  DocumentUpdate,
-  SocialIdType
+  DocumentUpdate
 } from '@hcengineering/core'
 import platform, { getMetadata, PlatformError } from '@hcengineering/platform'
 import { ColorDefinition } from '@hcengineering/ui'
@@ -44,7 +43,6 @@ import contact, {
   AvatarProvider,
   AvatarType,
   Channel,
-  ChannelProvider,
   Contact,
   Employee,
   Person,
@@ -592,32 +590,6 @@ export async function ensureEmployeeForPerson (
             'ensureEmployee'
           )
           await client.tx(applyTx)
-
-          if (socialId.type === SocialIdType.PHONE) {
-            const existingChannel = await client.findOne(contact.class.Channel, {
-              attachedTo: personRef,
-              provider: socialId.type as Ref<ChannelProvider>,
-              value: socialId.value
-            })
-
-            if (existingChannel == null) {
-              const createChannelTx = txFactory.createTxCollectionCUD(
-                contact.class.Person,
-                personRef,
-                contact.space.Contacts,
-                'channels',
-                txFactory.createTxCreateDoc(contact.class.Channel, contact.space.Contacts, {
-                  attachedTo: personRef,
-                  attachedToClass: contact.class.Person,
-                  collection: 'channels',
-                  provider: contact.channelProvider.Phone,
-                  value: socialId.value
-                })
-              )
-
-              await client.tx(createChannelTx)
-            }
-          }
         })
       } else {
         // If not confirmed locally can be attached to a different person (persons merge scenario)
@@ -663,6 +635,34 @@ export async function ensureEmployeeForPerson (
 
           await client.tx(updateSocialIdentityTx)
         }
+      }
+    }
+
+    // Phone is not a social id: it is never verified, so it lives on the global person as a hint.
+    const phoneHint = globalPerson?.phoneHint
+    if (phoneHint != null && phoneHint !== '') {
+      const existingChannel = await client.findOne(contact.class.Channel, {
+        attachedTo: personRef,
+        provider: contact.channelProvider.Phone,
+        value: phoneHint
+      })
+
+      if (existingChannel == null) {
+        const createChannelTx = txFactory.createTxCollectionCUD(
+          contact.class.Person,
+          personRef,
+          contact.space.Contacts,
+          'channels',
+          txFactory.createTxCreateDoc(contact.class.Channel, contact.space.Contacts, {
+            attachedTo: personRef,
+            attachedToClass: contact.class.Person,
+            collection: 'channels',
+            provider: contact.channelProvider.Phone,
+            value: phoneHint
+          })
+        )
+
+        await client.tx(createChannelTx)
       }
     }
 

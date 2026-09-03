@@ -1,0 +1,52 @@
+{
+  "source": "local",
+  "model": "Ternary-Bonsai-27B-mlx-2bit",
+  "endpoint": "http://127.0.0.1:8000/v1",
+  "maxModelLen": 68000,
+  "checkedAt": "2026-08-23T16:27:38.066Z",
+  "checks": [
+    {
+      "id": "toolCall",
+      "title": "зовёт инструмент нативно, аргументы валидным JSON",
+      "required": true,
+      "status": "ok",
+      "detail": "city=Париж"
+    },
+    {
+      "id": "toolLoop",
+      "title": "после результата инструмента даёт финальный текст",
+      "required": true,
+      "status": "ok",
+      "detail": "В Париже сейчас 21 градус, ясно."
+    },
+    {
+      "id": "restraint",
+      "title": "не зовёт инструмент, когда он не нужен",
+      "required": true,
+      "status": "ok",
+      "detail": "ответила текстом"
+    },
+    {
+      "id": "language",
+      "title": "отвечает на языке из инструкции",
+      "required": true,
+      "status": "ok",
+      "detail": "3/3 на нужном языке"
+    },
+    {
+      "id": "structuredOutput",
+      "title": "соблюдает строгую json-схему (нужно судье)",
+      "required": false,
+      "status": "ok",
+      "detail": "схема соблюдена"
+    },
+    {
+      "id": "outputCap",
+      "title": "сообщает об упоре в лимит вывода (нужно продолжению ответа)",
+      "required": false,
+      "status": "ok",
+      "detail": "finish_reason=length"
+    }
+  ],
+  "ok": true
+}

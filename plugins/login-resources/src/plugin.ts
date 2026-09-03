@@ -95,6 +95,13 @@ export default mergeIds(loginId, login, {
     HowToLogin: '' as IntlString,
     AlreadySignedIn: '' as IntlString,
     ExpiredLink: '' as IntlString,
-    ExpiredLinkDescription: '' as IntlString
+    ExpiredLinkDescription: '' as IntlString,
+    Continue: '' as IntlString,
+    CheckingLink: '' as IntlString,
+    InvalidLink: '' as IntlString,
+    ConfirmationFailed: '' as IntlString,
+    AlreadyRegistered: '' as IntlString,
+    RegistrationComplete: '' as IntlString,
+    RegistrationCompleteHint: '' as IntlString
   }
 })

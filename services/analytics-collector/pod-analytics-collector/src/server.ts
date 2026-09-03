@@ -302,9 +302,18 @@ export function createServer (ctx: MeasureContext): Express {
   // child ctx per metric name and end() it with the value - this writes
   // a normal "name" subtree visible in stats.
   const clientCtx = ctx.newChild('client', {})
-  const recordClient = (name: string, value: number, labels: Record<string, string | number | boolean>): void => {
+  const recordClient = (
+    name: string,
+    value: number,
+    labels: Record<string, string | number | boolean>,
+    count: number = 1
+  ): void => {
+    // end() takes no argument, so end(value) recorded a ~0ms duration instead of the value.
     const child = clientCtx.newChild(name, labels, { span: 'disable' })
-    child.end(value)
+    if (child.metrics !== undefined) {
+      child.metrics.value += value
+      child.metrics.operations += count
+    }
   }
 
   app.post(
@@ -340,8 +349,11 @@ export function createServer (ctx: MeasureContext): Express {
           const value = typeof props.value === 'number' ? props.value : Number(props.value)
           if (metricName !== '' && Number.isFinite(value)) {
             const labels = typeof props.labels === 'object' && props.labels !== null ? props.labels : {}
-            recordOTELMetric('client', metricName, value, { ...labels, distinct_id: evt.distinct_id })
-            recordClient(metricName, value, sanitizeLabels(labels))
+            // The client folds a window into {count, sum}; older clients send one value, count 1.
+            const count = typeof props.count === 'number' && props.count > 0 ? props.count : 1
+            // No distinct_id here: one series per user is unbounded cardinality in a metrics store.
+            recordOTELMetric('client', metricName, value / count, sanitizeLabels(labels))
+            recordClient(metricName, value, sanitizeLabels(labels), count)
           }
         } else {
           reportOTEL('info', evt.event, evt.timestamp, { ...evt.properties, distinct_id: evt.distinct_id })

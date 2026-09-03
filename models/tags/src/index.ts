@@ -15,7 +15,7 @@
 import { type Class, type Doc, type Domain, IndexKind, type Ref } from '@hcengineering/core'
 import { ArrOf, type Builder, Index, Model, Prop, TypeNumber, TypeRef, TypeString, UX } from '@hcengineering/model'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
-import view from '@hcengineering/model-view'
+import view, { createAttributeApplier } from '@hcengineering/model-view'
 import { type Asset, type IntlString } from '@hcengineering/platform'
 import type {
   ExpertKnowledge,
@@ -124,6 +124,8 @@ export function createModel (builder: Builder): void {
   builder.mixin(tags.class.TagReference, core.class.Class, view.mixin.AttributeFilterPresenter, {
     presenter: tags.component.TagsFilterPresenter
   })
+
+  createAttributeApplier(builder, core.class.Doc, 'labels', tags.function.LabelsApplier)
 
   builder.createDoc(
     view.class.FilterMode,

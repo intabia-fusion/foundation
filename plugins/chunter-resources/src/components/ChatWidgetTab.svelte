@@ -60,6 +60,7 @@
   highlighted={selected}
   orientation="vertical"
   kind={tab.isPinned ? 'secondary' : 'primary'}
+  italic={tab.isPinned !== true && tab.isKept !== true}
   {icon}
   iconProps={tab.iconProps}
   canClose={!tab.isPinned}

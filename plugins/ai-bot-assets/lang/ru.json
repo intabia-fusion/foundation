@@ -1,0 +1,25 @@
+{
+  "string": {
+    "AISettings": "Настройки ИИ",
+    "TokenLimitReachedMonth": "Закончились токены ИИ. Докупите токены в настройках рабочего пространства (Настройки -> Подписка) или дождитесь начала следующего периода.",
+    "AIServiceUnavailable": "Сервис ИИ временно недоступен. Попробуйте позже.",
+    "AIEmptyResponse": "Не удалось сформировать ответ. Переформулируйте вопрос или попробуйте ещё раз.",
+    "AILevel": "Уровень ИИ",
+    "AILevelHint": "Потолок уровня качества для этого пространства",
+    "AILevelCapabilities": "Возможности уровней",
+    "AILevelCapabilitiesHint": "Что умеет каждый уровень.",
+    "AILevelChat": "Разговоры",
+    "AILevelTalk": "Обсудить",
+    "AILevelSummary": "Подвести итоги",
+    "AILevelTasks": "Управление задачами",
+    "Language": "Язык",
+    "LanguageHint": "Язык ответов бота (напр. ru, en). Пусто = по умолчанию пода.",
+    "AssistIssue": "{name}",
+    "AssistIssueApply": "Применить",
+    "AssistIssueThreadStart": "Черновик задачи{project, select, undefined {} other { в проекте {project}}}",
+    "AssistIssueNewContext": "Новый контекст",
+    "AssistIssueApplyAgain": "Применить снова",
+    "AssistIssueAppliedMark": "Применено",
+    "ProposedEstimation": "Оценка: {hours} ч"
+  }
+}

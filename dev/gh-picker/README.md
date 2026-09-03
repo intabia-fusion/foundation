@@ -22,6 +22,86 @@ ln -s $(pwd)/dev/gh-picker/gh-picker /usr/local/bin/gh-picker
 ./dev/gh-picker/gh-picker -branch upstream/main
 ```
 
+## CLI режим (без TUI)
+
+```bash
+gh-picker report [flags]      # что осталось перенести по группе пакетов
+gh-picker packages [flags]    # сводка расхождений по всем пакетам
+gh-picker skip <hash>...      # решили не переносить -> убрать из report
+gh-picker unskip <hash>...
+gh-picker applied <hash>...   # отметить применённым в ~/.gh-picker/<repo>.json
+```
+
+Без `-check` состояние берётся из patch-id (`git log --cherry-pick`), applied cache и
+ignore store. Ни один из трёх не видит порт, который у нас лёг squash-ем или был
+переработан - для этого нужен `-check`.
+
+`report` флаги:
+
+| Флаг | По умолчанию | Описание |
+|------|--------------|----------|
+| `-branch` | `upstream/develop` | remote ref для сравнения |
+| `-local` | `HEAD` | локальный ref |
+| `-group` | `card,process` | `card`, `process`, `all` или список |
+| `-paths` | - | явные pathspec через запятую, перебивает `-group` |
+| `-author` | - | подстрока автора (`-author bykhov`) |
+| `-state` | `todo` | `todo`, `applied`, `skipped`, `any` |
+| `-files` | false | показать затронутые файлы |
+| `-check` | false | пофайловая проверка контента против HEAD (медленно, ловит squash/переработанные порты) |
+| `-no-cherry` | false | не отбрасывать коммиты, чей patch-id уже есть локально |
+| `-json` | false | JSON |
+
+Порядок вывода - от старых к новым, то есть порядок cherry-pick. Отбор уже
+применённого - `git log --cherry-pick` (по patch-id) плюс applied cache и
+ignore store, общие с TUI.
+
+```bash
+# что от Дениса надо перенести по карточкам/процессам
+./dev/gh-picker/gh-picker report -author bykhov
+# только процессы, с файлами
+./dev/gh-picker/gh-picker report -group process -files
+# где ещё расходимся и насколько
+./dev/gh-picker/gh-picker packages -min 5
+```
+
+`packages`: `INCOMING` - коммитов надо забрать из upstream, `OUTGOING` - наших,
+которых нет в upstream. Пакет = первые два сегмента пути (`plugins/card`).
+
+## Пакетный cherry-pick
+
+`dev/pick-upstream.sh <файл-с-хэшами> [лог]` - последовательный cherry-pick с
+`-x -X ours`: любой конфликт разрешается в нашу пользу, пустые после этого коммиты
+скипаются, каждый севший коммит отмечается в applied cache. Батч не останавливается:
+то что git не смог применить вообще - `--abort` и `FAILED` в логе.
+
+Список хэшей берётся из `gh-picker report -json`. `-x` кладёт upstream-хэш в
+сообщение - следующий прогон опознает порт по трейлеру.
+
+Важно: `-X ours` разрешает конфликтующие хунки молча, cherry-pick при этом
+"успешен". После батча обязательно:
+
+1. сравнить каждый севший коммит с оригиналом (numstat по файлам) - ловит
+   потерянные строки;
+2. `cd <pkg> && rushx svelte-check` в каждом затронутом svelte-пакете - ловит
+   подменённые (шаблон ссылается на переменную, которой в скрипте нет). Ни
+   eslint, ни tsc это не видят. `rush svelte-check` вывод глотает, гонять
+   только в самом пакете.
+
+См. `docs/memory/upstream-sync.md`.
+
+## Чистка тегов upstream
+
+`dev/clean-upstream-tags.sh` удаляет локальные теги, которые пришли из
+`upstream` и отсутствуют в `origin`/`haiodo`. Dry run по умолчанию.
+
+```bash
+./dev/clean-upstream-tags.sh          # показать
+./dev/clean-upstream-tags.sh --apply  # удалить + remote.upstream.tagOpt=--no-tags
+FROM=upstream KEEP=origin,haiodo ./dev/clean-upstream-tags.sh
+```
+
+Удаляются только локальные теги, remote не трогается.
+
 ## Режимы
 
 | Режим | Описание |
@@ -94,7 +174,8 @@ Incoming коммиты, которые уже точно применены (в
 
 ## Файлы
 
-- `main.go` - CLI
+- `main.go` - CLI, диспетч подкоманд
+- `report.go` - `report` / `packages` / `skip` / `unskip`
 - `ui.go` - Model, KeyMap, styles, Init
 - `update.go` - Update loop, обработчики клавиш, prompt
 - `render.go` - View и все render* функции

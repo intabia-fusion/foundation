@@ -159,6 +159,9 @@
     "GroupByStatus": "По статусу",
     "GroupByDate": "По дате",
     "SpeakingWhileMuted": "Микрофон выключен - вас не слышат",
-    "SpeakingWhileMutedAlert": "Предупреждать, когда говорю при выключенном микрофоне"
+    "SpeakingWhileMutedAlert": "Предупреждать, когда говорю при выключенном микрофоне",
+    "SwitchWorkspaceInMeeting": "Вы находитесь во встрече",
+    "SwitchWorkspaceLeaveMeeting": "Переключение пространства отключит вас от текущей встречи.",
+    "SwitchWorkspaceEndsMeeting": "Это ваш офис: переключение пространства отключит вас и завершит встречу для всех участников."
   }
 }

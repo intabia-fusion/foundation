@@ -14,18 +14,22 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type SubscriptionData, SubscriptionStatus, SubscriptionType } from '@hcengineering/account-client'
+  import {
+    type SubscriptionData,
+    type WorkspacePurchase,
+    SubscriptionStatus,
+    SubscriptionType
+  } from '@hcengineering/account-client'
   import {
     type SubscribeRequest,
     type CheckoutStatus,
     type BillingPeriod,
     PaymentError
   } from '@hcengineering/payment-client'
-  import { type PlanItem, type PlanConfig, type PackageItem } from '@hcengineering/billing'
+  import { type PlanItem, type PlanConfig, type PackageItem, planCharge } from '@hcengineering/billing'
   import { getMetadata, translate, getEmbeddedLabel } from '@hcengineering/platform'
   import presentation, { MessageBox, getClient, addTxListener, removeTxListener } from '@hcengineering/presentation'
   import core, {
-    UsageStatus,
     type WorkspaceUuid,
     type Tx,
     type TxWorkspaceEvent,
@@ -46,16 +50,20 @@
     showPopup,
     addNotification,
     NotificationSeverity,
-    Switcher
+    Switcher,
+    ticker
   } from '@hcengineering/ui'
   import { onMount, onDestroy } from 'svelte'
   import support from '@hcengineering/support'
   import contact, { getCurrentEmployee, formatName } from '@hcengineering/contact'
 
   import plugin from '../plugin'
-  import { getAccountClient, getPaymentClient, resolveLocale } from '../utils'
+  import { getAccountClient, getBillingClient, getPaymentClient, resolveLocale, checkWorkspaceLimits } from '../utils'
+  import { subscriptionStore } from '../stores/subscription'
+  import type { WorkspaceTokenWindows } from '@hcengineering/billing-client'
 
   import UsageSection from './UsageSection.svelte'
+  import TokenWindows from './TokenWindows.svelte'
   import BillingErrorNotification from './BillingErrorNotification.svelte'
   import ChangeSeatsDialog from './ChangeSeatsDialog.svelte'
   import PackageChangeDialog from './PackageChangeDialog.svelte'
@@ -72,8 +80,13 @@
   $: yearlyDiscount = Math.max(0, ...Object.values(plans).map((p) => p.yearlyDiscount ?? 0))
 
   let currentSubscription: SubscriptionData | undefined = undefined
-  let currentPackageSubscription: SubscriptionData | undefined = undefined
+  // Per-category active package subscriptions (storage and ai are independent slots).
+  let currentStoragePackageSub: SubscriptionData | undefined = undefined
+  let currentAiPackageSub: SubscriptionData | undefined = undefined
   let allSubscriptions: SubscriptionData[] = []
+  let purchaseHistory: WorkspacePurchase[] = []
+  $: purchasables = planConfig?.purchasables ?? {}
+  let tokenWindows: WorkspaceTokenWindows | undefined = undefined
 
   // Disable pay buttons if another user is paying now
   const OTHER_CHECKOUT_FALLBACK_TTL_MS = 15 * 60 * 1000
@@ -95,9 +108,41 @@
     currentSubscription != null ? (plans[currentSubscription.plan] ?? currentSubscription.plan) : undefined
   // Compare plans by key, not object identity: resolveLocale() rebuilds the plans map each tick.
   $: currentPlanKey = currentSubscription?.plan
-  $: currentPackage = currentPackageSubscription != null ? packages[currentPackageSubscription.plan] : undefined
+  $: currentStoragePackage = currentStoragePackageSub != null ? packages[currentStoragePackageSub.plan] : undefined
+  $: currentAiPackage = currentAiPackageSub != null ? packages[currentAiPackageSub.plan] : undefined
+  // UsageSection is storage-scoped (disk usage) -> feed it the storage package only.
+  $: currentPackageSubscription = currentStoragePackageSub
+  $: currentPackage = currentStoragePackage
+  // Active package slots to render inside the plan card (only categories with a connected package).
+  $: currentPackageEntries = (
+    [
+      { sub: currentStoragePackageSub, pkg: currentStoragePackage, category: 'storage' },
+      { sub: currentAiPackageSub, pkg: currentAiPackage, category: 'ai' }
+    ] as Array<{ sub: SubscriptionData | undefined, pkg: PackageItem | undefined, category: PackageCategory }>
+  ).filter((e) => e.pkg !== undefined)
   // Packages are available on any tier, including free/no-plan.
   $: arePackagesAvailable = Object.keys(packages).length > 0
+
+  type PackageCategory = 'storage' | 'ai'
+  function pkgCategory (pkgKey: string): PackageCategory {
+    return packages[pkgKey]?.category === 'ai' ? 'ai' : 'storage'
+  }
+  function currentSubForCategory (category: PackageCategory): SubscriptionData | undefined {
+    return category === 'ai' ? currentAiPackageSub : currentStoragePackageSub
+  }
+  function setCurrentSubForCategory (category: PackageCategory, value: SubscriptionData | undefined): void {
+    if (category === 'ai') {
+      currentAiPackageSub = value
+    } else {
+      currentStoragePackageSub = value
+    }
+    // Connect/replace/cancel applied server-side without a checkout round-trip: the token budget moved
+    // too, so re-read it instead of leaving the indicator on the pre-operation limit.
+    void refreshTokenWindows()
+  }
+  function isPackageSubCanceled (sub: SubscriptionData | undefined): boolean {
+    return sub?.canceledAt !== undefined && sub.canceledAt > 0
+  }
   let loading = true
   let pollingCheckoutId: string | null = null
   let isPolling = false
@@ -111,12 +156,14 @@
   const MAX_POLL_ATTEMPTS = 120
   const POLL_INTERVAL = 2000
   let destroyed = false
+  let mounted = false
   let pollErrorCount = 0
   let pollErrorShown = false
   let configError = false
   const DEFAULT_LOCALE = 'ru'
 
-  let usageInfo: UsageStatus | null = null
+  // Usage comes from the shared subscription store, refreshed by the ticker below.
+  $: usageInfo = $subscriptionStore.usageInfo ?? null
 
   $: isCurrentCanceled = currentSubscription?.canceledAt !== undefined && currentSubscription.canceledAt > 0
   // Unpaid = the cancel is immediate on the server (isImmediateCancel in pod-tbank-subscriptions).
@@ -144,8 +191,6 @@
     readOnly: boolean,
     curTrial: boolean
   ): boolean => !readOnly && (curKey === undefined || curKey !== planKey || (curTrial && planItem.free !== true))
-  $: isPackageCanceled =
-    currentPackageSubscription?.canceledAt !== undefined && currentPackageSubscription.canceledAt > 0
 
   let paymentPeriod: BillingPeriod = 'monthly'
 
@@ -157,10 +202,6 @@
   $: currentSubRecurrent = currentSubscription?.providerData?.recurrent !== false
   // One-off purchase: nothing renews and nothing can be canceled — it just runs out at periodEnd.
   $: isCurrentOneOff = currentSubscription != null && !currentSubRecurrent
-
-  // Same consent, tracked separately for the package subscription (independent of the tier).
-  $: currentPackageRecurrent = currentPackageSubscription?.providerData?.recurrent !== false
-  $: isPackageOneOff = currentPackageSubscription != null && !currentPackageRecurrent
 
   // Instant provider (mock) already activated the subscription server-side: refetch instead of
   // redirecting to a checkout page. Real providers return instant=false -> redirect as before.
@@ -255,30 +296,40 @@
       return
     }
 
-    // Replacing package when another package exists: show a proration preview (charge for a bigger
+    const category = pkgCategory(pkgKey)
+    const cancelSub = currentSubForCategory(category)
+
+    // Disconnecting the currently connected package of this category.
+    if (cancelSub !== undefined && pkgKey === cancelSub.plan) {
+      void handlePackageCancel(cancelSub, category)
+      return
+    }
+
+    // Replacing the active package in this category: show a proration preview (charge for a bigger
     // package, renewal-date shift for a smaller one). Client-side preview, server recomputes on apply.
-    if (currentPackageSubscription !== undefined) {
-      const replaceSub = currentPackageSubscription
+    if (cancelSub !== undefined) {
+      const replaceSub = cancelSub
+      const replacePkg = packages[replaceSub.plan]
       const target = packages[pkgKey]
       const targetPriceKopecks = Math.round(Number(target?.priceMonthly ?? 0) * 100)
       showPopup(
         PackageChangeDialog,
         {
           subscription: replaceSub,
-          currentLabel: currentPackage?.description ?? '',
+          currentLabel: replacePkg?.description ?? '',
           targetLabel: target?.description ?? pkgKey,
           targetPriceKopecks,
-          currency: target?.currency ?? currentPackage?.currency ?? '',
-          // Default to the consent already on the package subscription.
-          recurrent: currentPackageRecurrent
+          currency: target?.currency ?? replacePkg?.currency ?? '',
+          // Default to the consent already on the package subscription being replaced.
+          recurrent: cancelSub.providerData?.recurrent !== false
         },
         undefined,
         (result?: { recurrent: boolean }) => {
           if (result == null) return
-          void executePackageUpdate(replaceSub.id, pkgKey, result.recurrent)
+          void executePackageUpdate(replaceSub.id, pkgKey, category, result.recurrent)
         }
       )
-      // Connecting package, no package connected yet
+      // Connecting package, no package connected yet in this category.
     } else {
       showPackageCheckout(pkgKey)
     }
@@ -310,6 +361,7 @@
   async function executePackageUpdate (
     subscriptionId: string,
     pkgKey: string,
+    category: PackageCategory,
     recurrent: boolean = false,
     force?: boolean,
     attempt = 0
@@ -327,16 +379,16 @@
       if ('checkoutUrl' in result) {
         await applyCheckout(result)
       } else {
-        currentPackageSubscription = result
+        setCurrentSubForCategory(category, result)
       }
     } catch (error) {
       if (error instanceof PaymentError && error.reason === 'in_flight' && attempt < CHECKOUT_INFLIGHT_RETRIES) {
         await new Promise((resolve) => setTimeout(resolve, CHECKOUT_INFLIGHT_DELAY))
-        await executePackageUpdate(subscriptionId, pkgKey, recurrent, force, attempt + 1)
+        await executePackageUpdate(subscriptionId, pkgKey, category, recurrent, force, attempt + 1)
         return
       }
       const handled = await handleCheckoutError(error, async () => {
-        await executePackageUpdate(subscriptionId, pkgKey, recurrent, true)
+        await executePackageUpdate(subscriptionId, pkgKey, category, recurrent, true)
       })
       if (!handled) {
         console.error('Error replacing package:', error)
@@ -361,6 +413,45 @@
       await createCheckout(workspace, request)
     } catch (error) {
       console.error('Error subscribing to package:', error)
+      await showErrorNotification()
+    }
+  }
+
+  // One-time catalog purchase (an AI token top-up). Always one-off (recurrent:false), no card saved.
+  function buyPurchasable (sku: string): void {
+    const item = purchasables[sku]
+    if (item === undefined) return
+    showPopup(
+      PlanCheckoutDialog,
+      {
+        label: plugin.string.ConfirmBuy,
+        okLabel: plugin.string.Buy,
+        perSeat: false,
+        selectablePeriod: false,
+        hideRecurrent: true,
+        currency: item.currency ?? '',
+        chargeFor: () => Number(item.priceMonthly ?? 0)
+      },
+      undefined,
+      (result?: { recurrent: boolean }) => {
+        if (result == null) return
+        void subscribePurchasable(sku)
+      }
+    )
+  }
+
+  async function subscribePurchasable (plan: string): Promise<void> {
+    if (paymentClient == null) return
+    const workspace = getMetadata(presentation.metadata.WorkspaceUuid)
+    if (workspace === undefined) {
+      console.warn('Workspace metadata not available')
+      return
+    }
+    try {
+      const request: SubscribeRequest = { type: SubscriptionType.Purchase, plan, recurrent: false }
+      await createCheckout(workspace, request)
+    } catch (error) {
+      console.error('Error buying purchasable:', error)
       await showErrorNotification()
     }
   }
@@ -407,29 +498,16 @@
     return item?.priceMonthlyPerUser != null ? Number(item.priceMonthlyPerUser) : NaN
   }
 
-  // Yearly discount factor for a plan (e.g. 15% -> 0.85). 1 when no discount.
-  function discountFactor (item: PlanItem | undefined): number {
-    const p = item?.yearlyDiscount ?? 0
-    return 1 - p / 100
-  }
-
   // Effective monthly price (per seat if applicable)
   function monthly (base: number, item: PlanItem | undefined, period: BillingPeriod): number {
     if (period !== 'yearly') return base
-    return Math.round(base * discountFactor(item))
+    const yd = item?.yearlyDiscount ?? 0
+    return Math.round(base * (1 - yd / 100))
   }
 
-  // Full amount charged for a plan in the given period (monthly/yearly with discount), at an
-  // explicit seat count. Flat plans ignore seats.
+  // Full amount charged for a plan in the given period, in whole rubles (the dialogs display rubles).
   function planChargeFor (item: PlanItem | undefined, seats: number, period: BillingPeriod): number {
-    if (item == null || item.free === true) return 0
-    const perUser = monthlyPerUserBase(item)
-    if (Number.isFinite(perUser)) {
-      return period === 'yearly' ? monthly(perUser, item, period) * 12 * seats : perUser * seats
-    }
-    const n = Number(item.priceMonthly)
-    if (!Number.isFinite(n)) return 0
-    return period === 'yearly' ? monthly(n, item, period) : n
+    return planCharge(item, seats, period) / 100
   }
 
   // Downgrade to the free plan moves no money: keep the plain confirmation box, no seats/period/recurrent.
@@ -582,16 +660,9 @@
   // Full recurring price (kopecks) for the current plan at a given seat count and the active period.
   // Mirrors planChargeFor but pinned to the current plan and its stored period, in kopecks.
   function recurringPriceForCurrent (seats: number): number {
-    if (currentPlan == null || typeof currentPlan === 'string' || currentPlan.free === true) return 0
+    if (currentPlan == null || typeof currentPlan === 'string') return 0
     const period: BillingPeriod = currentSubscription?.providerData?.period === 'yearly' ? 'yearly' : 'monthly'
-    const perUser = monthlyPerUserBase(currentPlan)
-    if (Number.isFinite(perUser)) {
-      const rub = period === 'yearly' ? monthly(perUser, currentPlan, period) * 12 * seats : perUser * seats
-      return Math.round(rub * 100)
-    }
-    const n = Number(currentPlan.priceMonthly)
-    if (!Number.isFinite(n)) return 0
-    return Math.round((period === 'yearly' ? monthly(n, currentPlan, period) : n) * 100)
+    return planCharge(currentPlan, seats, period)
   }
 
   // Open the seat-change dialog for the active per-seat tier; confirm applies via updateSubscriptionPlan
@@ -631,7 +702,7 @@
       $themeStore.language ?? DEFAULT_LOCALE
     )
     const link = document.createElement('a')
-    link.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`
+    link.href = `mailto:${String(email)}?subject=${encodeURIComponent(subject)}`
     link.rel = 'noopener noreferrer'
     link.style.display = 'none'
     document.body.appendChild(link)
@@ -735,12 +806,11 @@
     }
   }
 
-  // Schedule a package cancel — mirror of handleCancel for the tier.
-  async function handlePackageCancel (): Promise<void> {
-    if (paymentClient == null || currentPackageSubscription?.id === undefined || isPackageCanceled || isPackageBusy) {
+  // Schedule a package cancel — mirror of handleCancel for the tier, scoped to one category slot.
+  async function handlePackageCancel (cancelSub: SubscriptionData, category: PackageCategory): Promise<void> {
+    if (paymentClient == null || cancelSub.id === undefined || isPackageSubCanceled(cancelSub) || isPackageBusy) {
       return
     }
-    const cancelSub = currentPackageSubscription
     showPopup(MessageBox, {
       label: plugin.string.ConfirmCancelPackage,
       message: isPackageUnpaid
@@ -754,7 +824,7 @@
         try {
           isPackageBusy = true
           // Paid package: scheduled cancel, stays Active until periodEnd. Unpaid: canceled right away.
-          currentPackageSubscription = await paymentClient.cancelSubscription(cancelSub.id)
+          setCurrentSubForCategory(category, await paymentClient.cancelSubscription(cancelSub.id))
         } catch (error) {
           console.error('Error canceling package:', error)
           await showErrorNotification()
@@ -765,12 +835,11 @@
     })
   }
 
-  // Reverse a scheduled package cancel — mirror of handleUncancel for the tier.
-  async function handlePackageUncancel (): Promise<void> {
-    if (paymentClient == null || currentPackageSubscription?.id === undefined || !isPackageCanceled || isPackageBusy) {
+  // Reverse a scheduled package cancel — mirror of handleUncancel for the tier, scoped to one slot.
+  async function handlePackageUncancel (uncancelSub: SubscriptionData, category: PackageCategory): Promise<void> {
+    if (paymentClient == null || uncancelSub.id === undefined || !isPackageSubCanceled(uncancelSub) || isPackageBusy) {
       return
     }
-    const uncancelSub = currentPackageSubscription
     showPopup(MessageBox, {
       label: plugin.string.ConfirmUncancel,
       message: plugin.string.UncancelDescription,
@@ -780,7 +849,7 @@
         }
         try {
           isPackageBusy = true
-          currentPackageSubscription = await paymentClient.uncancelSubscription(uncancelSub.id)
+          setCurrentSubForCategory(category, await paymentClient.uncancelSubscription(uncancelSub.id))
         } catch (error) {
           console.error('Error uncanceling package:', error)
           await showErrorNotification()
@@ -831,6 +900,13 @@
     })
   }
 
+  async function refreshTokenWindows (): Promise<void> {
+    const billingClient = getBillingClient()
+    const workspace = getMetadata(presentation.metadata.WorkspaceUuid)
+    if (billingClient === null || workspace === undefined) return
+    tokenWindows = await billingClient.getWorkspaceTokenWindows(workspace).catch(() => undefined)
+  }
+
   async function fetchSubscriptions (): Promise<void> {
     loading = true
 
@@ -845,26 +921,22 @@
       const subscriptions = await accountClient.getSubscriptions(workspace, false)
       allSubscriptions = subscriptions
       currentSubscription = pickDisplaySubscription(subscriptions, SubscriptionType.Tier)
-      currentPackageSubscription = pickDisplaySubscription(subscriptions, SubscriptionType.Package)
+      // Pick one active package per category independently.
+      const allPackageSubs = subscriptions.filter(
+        (s) =>
+          s.type === SubscriptionType.Package &&
+          DISPLAY_STATUS_PRIORITY.includes(s.status as SubscriptionStatus) &&
+          s.providerData?.pending !== true
+      )
+      currentStoragePackageSub = allPackageSubs.find((s) => (packages[s.plan]?.category ?? 'storage') === 'storage')
+      currentAiPackageSub = allPackageSubs.find((s) => packages[s.plan]?.category === 'ai')
+      await refreshTokenWindows()
+      purchaseHistory = await accountClient.getPurchases(workspace).catch(() => [])
     } catch (err) {
       console.error('Error fetching current plan:', err)
       await showErrorNotification()
     } finally {
       loading = false
-    }
-  }
-
-  async function fetchUsageStats (): Promise<void> {
-    try {
-      const accountClient = getAccountClient()
-      if (accountClient == null) return
-
-      const workspaceInfo = await accountClient.getWorkspaceInfo(false)
-      usageInfo = workspaceInfo.usageInfo ?? null
-    } catch (err) {
-      console.error('Error fetching usage stats:', err)
-      await showErrorNotification()
-      usageInfo = null
     }
   }
 
@@ -947,6 +1019,13 @@
   }
 
   $: isCheckoutPolling = pollingCheckoutId !== null
+  $: isBusy = isUpdating || isCanceling || isUncanceling || isPackageBusy || isRetrying || isCheckoutPolling
+
+  // A refresh started before a payment operation can land after it and push a pre-operation
+  // subscription back into the store, desyncing the banner/indicator from this page.
+  $: if ($ticker > 0 && mounted && !isBusy) {
+    void checkWorkspaceLimits()
+  }
 
   function formatEndDate (endDate: number, lang: string): string {
     const date = new Date(endDate)
@@ -1015,10 +1094,12 @@
       await fetchSubscriptions()
 
       // Then fetch usage stats
-      await fetchUsageStats()
+      await checkWorkspaceLimits()
 
       // Then check if we need to poll for a new subscription from checkout
       checkForCheckoutParam()
+
+      mounted = true
     })()
   })
 
@@ -1068,7 +1149,7 @@
                     plan={currentPlan}
                     pkg={currentPackage}
                     tierSub={currentSubscription}
-                    pkgSub={currentPackageSubscription}
+                    pkgSub={currentStoragePackageSub}
                   />
                 </div>
               {/if}
@@ -1185,26 +1266,27 @@
                   </div>
                 {/if}
 
-                {#if currentPackage !== undefined}
+                {#each currentPackageEntries as entry (entry.category)}
+                  {@const pkgCanceled = isPackageSubCanceled(entry.sub)}
                   <div class="current-package-block flex-col flex-gap-2">
                     <Label label={plugin.string.AdditionalPackage} />
                     <div class="current-tier-card-title">
                       <div class="flex-row-center">
-                        <div class="fs-title">{currentPackage?.description}</div>
-                        {#if isPackageCanceled}
+                        <div class="fs-title">{entry.pkg?.description}</div>
+                        {#if pkgCanceled}
                           <div class="status-badge-warning ml-2 text-md">
                             <Label label={plugin.string.CancelScheduled} />
                           </div>
-                        {:else if currentPackageSubscription?.status === 'active'}
+                        {:else if entry.sub?.status === 'active'}
                           <div class="status-badge-active ml-2 text-md"><Label label={plugin.string.Active} /></div>
                         {/if}
                       </div>
-                      {#if currentPackageSubscription?.amount != null}
+                      {#if entry.sub?.amount != null}
                         <div class="flex-row-center items-end">
                           <span class="fs-title text-xl">
                             {formatAmount(
-                              currentPackageSubscription.amount,
-                              currentPackage.currency ?? '',
+                              entry.sub.amount,
+                              entry.pkg?.currency ?? '',
                               $themeStore.language ?? DEFAULT_LOCALE
                             )}
                           </span>
@@ -1215,42 +1297,40 @@
                       {/if}
                     </div>
                     <div class="curr-tier-footer">
-                      {#if currentPackageSubscription?.periodEnd}
-                        {@const pkgDate = formatEndDate(
-                          currentPackageSubscription.periodEnd,
-                          $themeStore.language ?? DEFAULT_LOCALE
-                        )}
-                        {#if isPackageCanceled || isPackageOneOff}
+                      {#if entry.sub?.periodEnd}
+                        {@const pkgDate = formatEndDate(entry.sub.periodEnd, $themeStore.language ?? DEFAULT_LOCALE)}
+                        {#if pkgCanceled}
                           <div><Label label={plugin.string.SubscriptionValidUntil} params={{ date: pkgDate }} /></div>
                         {:else}
                           <div><Label label={plugin.string.SubscriptionRenews} params={{ date: pkgDate }} /></div>
                         {/if}
                       {/if}
 
-                      {#if !isReadOnly}
-                        {#if !isPackageCanceled && !isPackageOneOff}
+                      {#if !isReadOnly && entry.sub !== undefined}
+                        {@const pkgSub = entry.sub}
+                        {#if !pkgCanceled}
                           <Button
                             label={plugin.string.Disconnect}
                             kind="ghost"
                             disabled={loading || isCheckoutPolling || isUpdating || isPackageBusy}
                             on:click={() => {
-                              void handlePackageCancel()
+                              void handlePackageCancel(pkgSub, entry.category)
                             }}
                           />
-                        {:else if isPackageCanceled}
+                        {:else if pkgCanceled}
                           <Button
                             label={plugin.string.UncancelSubscription}
                             kind="primary"
                             disabled={loading || isCheckoutPolling || isUpdating || isPackageBusy}
                             on:click={() => {
-                              void handlePackageUncancel()
+                              void handlePackageUncancel(pkgSub, entry.category)
                             }}
                           />
                         {/if}
                       {/if}
                     </div>
                   </div>
-                {/if}
+                {/each}
                 {#if currentSubscription?.status === 'past_due' && currentSubscription.providerData?.pending !== true}
                   <div class="past-due-warning flex-col flex-gap-2">
                     <div class="flex-row-center flex-gap-2">
@@ -1283,6 +1363,9 @@
                     tierSub={currentSubscription}
                     pkgSub={currentPackageSubscription}
                   />
+                  {#if tokenWindows !== undefined}
+                    <TokenWindows windows={tokenWindows} />
+                  {/if}
                 </div>
               {/if}
             </div>
@@ -1415,53 +1498,145 @@
       </div>
 
       {#if Object.keys(packages).length > 0}
+        {@const storagePackages = Object.entries(packages).filter(([, p]) => (p.category ?? 'storage') === 'storage')}
+        {@const aiPackages = Object.entries(packages).filter(([, p]) => p.category === 'ai')}
+        {#each [{ label: plugin.string.AdditionalSpace, entries: storagePackages, currentSub: currentStoragePackageSub }, { label: plugin.string.AITokens, entries: aiPackages, currentSub: currentAiPackageSub }] as group (group.label)}
+          {#if group.entries.length > 0}
+            <div class="flex-col flex-gap-4 packages-section">
+              <div class="section-title">
+                <Label label={group.label} />
+              </div>
+              {#if arePackagesAvailable || group.currentSub !== undefined}
+                <Scroller
+                  contentDirection="horizontal"
+                  buttons={false}
+                  showOverflowArrows
+                  shrink={false}
+                  noFade={false}
+                >
+                  <div class="flex-stretch flex-gap-4 flex-no-shrink mb-3">
+                    {#each group.entries as [pkgKey, pkgItem] (pkgKey)}
+                      {@const priceLocale = $themeStore.language ?? DEFAULT_LOCALE}
+                      {@const isConnected = group.currentSub?.plan === pkgKey}
+                      {@const isEligible = pkgItem.eligiblePlans?.includes(currentSubscription?.plan ?? '') ?? false}
+                      <div class="tier-card">
+                        <div class="tier-card-content">
+                          <div class="package-item">
+                            <IconStorage size="medium" />
+                            <span class="fs-title text-lg">{pkgItem.description}</span>
+                          </div>
+                          <div class="flex-row-center items-end">
+                            <span class="fs-title text-l">
+                              {pkgItem.priceMonthly.toLocaleString(priceLocale)}
+                              {pkgItem.currency}
+                            </span>
+                            <span class="ml-1 lower">
+                              <Label label={plugin.string.Monthly} />
+                            </span>
+                          </div>
+                          <div class="tier-card-footer">
+                            {#if !isReadOnly}
+                              <Button
+                                dataId={`package${isConnected ? 'Disconnect' : 'Connect'}-${pkgKey}`}
+                                label={isConnected ? plugin.string.Disconnect : plugin.string.Connect}
+                                size={'large'}
+                                kind={isConnected ? 'regular' : 'secondary'}
+                                disabled={loading ||
+                                  isCheckoutPolling ||
+                                  isUpdating ||
+                                  (!isConnected && !isEligible) ||
+                                  (!isConnected && otherPackageCheckoutActive)}
+                                showTooltip={!isConnected && otherPackageCheckoutActive
+                                  ? { label: plugin.string.OtherCheckoutActiveTooltip }
+                                  : undefined}
+                                on:click={() => {
+                                  void handleChangePackage(pkgKey)
+                                }}
+                              />
+                            {/if}
+                          </div>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </Scroller>
+              {:else}
+                <div class="no-plan-container flex-col flex-gap-4">
+                  <div class="fs-title text-md"><Label label={plugin.string.UpgradeToAccessPackages} /></div>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        {/each}
+      {/if}
+
+      {#if Object.keys(purchasables).length > 0}
         <div class="flex-col flex-gap-4 packages-section">
           <div class="section-title">
-            <Label label={plugin.string.AdditionalSpace} />
+            <Label label={plugin.string.PurchasableCatalog} />
           </div>
-          {#if arePackagesAvailable}
-            <Scroller contentDirection="horizontal" buttons={false} showOverflowArrows shrink={false} noFade={false}>
-              <div class="flex-stretch flex-gap-4 flex-no-shrink mb-3">
-                {#each Object.entries(packages) as [pkgKey, pkgItem] (pkgItem.description)}
-                  {@const priceLocale = $themeStore.language ?? DEFAULT_LOCALE}
-                  <div class="tier-card">
-                    <div class="tier-card-content">
-                      <div class="package-item">
-                        <IconStorage size="medium" />
-                        <span class="fs-title text-lg">{pkgItem.description}</span>
-                      </div>
-                      <div class="flex-row-center items-end">
-                        <span class="fs-title text-l">
-                          {pkgItem.priceMonthly.toLocaleString(priceLocale)}
-                          {pkgItem.currency}
-                        </span>
-                        <span class="ml-1 lower">
-                          <Label label={plugin.string.Monthly} />
-                        </span>
-                      </div>
-                      <div class="tier-card-footer">
-                        {#if !isReadOnly && currentPackageSubscription?.plan !== pkgKey}
-                          <Button
-                            label={plugin.string.Connect}
-                            size={'large'}
-                            kind={'secondary'}
-                            dataId={`packageConnect-${pkgKey}`}
-                            disabled={loading || isCheckoutPolling || isUpdating || otherPackageCheckoutActive}
-                            showTooltip={otherPackageCheckoutActive
-                              ? { label: plugin.string.OtherCheckoutActiveTooltip }
-                              : undefined}
-                            on:click={() => {
-                              void handleChangePackage(pkgKey)
-                            }}
-                          />
-                        {/if}
-                      </div>
+          <Scroller contentDirection="horizontal" buttons={false} showOverflowArrows shrink={false} noFade={false}>
+            <div class="flex-stretch flex-gap-4 flex-no-shrink mb-3">
+              {#each Object.entries(purchasables) as [sku, item] (sku)}
+                {@const priceLocale = $themeStore.language ?? DEFAULT_LOCALE}
+                {@const isEligible = item.eligiblePlans?.includes(currentSubscription?.plan ?? '') ?? false}
+                <div class="tier-card">
+                  <div class="tier-card-content">
+                    <div class="package-item">
+                      <IconStorage size="medium" />
+                      <span class="fs-title text-lg">{item.description}</span>
+                    </div>
+                    <div class="flex-row-center items-end">
+                      <span class="fs-title text-l"
+                        >{item.priceMonthly.toLocaleString(priceLocale)} {item.currency}</span
+                      >
+                    </div>
+                    <div class="tier-card-footer">
+                      {#if !isReadOnly}
+                        <Button
+                          dataId={`purchasableBuy-${sku}`}
+                          label={plugin.string.Buy}
+                          size={'large'}
+                          kind={'secondary'}
+                          disabled={loading || isCheckoutPolling || isUpdating || !isEligible}
+                          on:click={() => {
+                            buyPurchasable(sku)
+                          }}
+                        />
+                      {/if}
                     </div>
                   </div>
-                {/each}
+                </div>
+              {/each}
+            </div>
+          </Scroller>
+        </div>
+      {/if}
+
+      {#if purchaseHistory.length > 0}
+        <div class="flex-col flex-gap-4 packages-section">
+          <div class="section-title">
+            <Label label={plugin.string.PurchaseHistory} />
+          </div>
+          <div class="flex-col flex-gap-2">
+            {#each purchaseHistory as p (p.id)}
+              {@const statusLabel =
+                p.status === 'consumed'
+                  ? plugin.string.PurchaseStatusConsumed
+                  : p.status === 'active'
+                    ? plugin.string.PurchaseStatusActive
+                    : p.status === 'failed'
+                      ? plugin.string.PurchaseStatusFailed
+                      : plugin.string.PurchaseStatusPending}
+              <div class="flex-row-center flex-gap-4 purchase-row">
+                <span class="flex-grow">{purchasables[p.sku]?.description ?? p.sku}</span>
+                <span class="dark-color text-sm">
+                  {p.createdOn != null ? new Date(p.createdOn).toLocaleDateString($themeStore.language) : ''}
+                </span>
+                <span class="text-sm"><Label label={statusLabel} /></span>
               </div>
-            </Scroller>
-          {/if}
+            {/each}
+          </div>
         </div>
       {/if}
     </div>

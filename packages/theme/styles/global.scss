@@ -180,3 +180,16 @@ body {
     overflow: visible !important;
   }
 }
+
+// Honours the OS "reduce motion" setting. Not zero: a 0s transition never fires transitionend,
+// which some components wait for before cleaning up.
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

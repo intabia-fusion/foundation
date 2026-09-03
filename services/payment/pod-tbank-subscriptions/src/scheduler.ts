@@ -22,7 +22,9 @@ import {
   notifyPaymentFailed,
   notifyPaymentSucceeded,
   notifyReceiptBlocked,
-  buildChargeDescription
+  notifyUpcoming,
+  buildChargeDescription,
+  type UpcomingKind
 } from './notifications'
 import {
   isPendingFirstPayment,
@@ -444,6 +446,75 @@ async function expireOneOffSubscriptions (ctx: MeasureContext, storage: Subscrip
 }
 
 /**
+ * Classify an active tbank subscription for the upcoming-expiry reminder, or null when it needs none.
+ */
+function classifyUpcoming (sub: Subscription): UpcomingKind | null {
+  if (sub.status !== SubscriptionStatus.Active) return null
+  if (sub.providerData?.pending === true) return null
+  // Same predicate needsRenewal uses to suppress the charge — the period ends at the scheduled cancel.
+  if (sub.willCancelAt != null && sub.periodEnd != null && sub.periodEnd >= sub.willCancelAt) return 'canceled'
+  if (sub.providerData?.recurrent === false) return 'oneoff'
+  // A recurrent sub without a saved card cannot be charged; it lapses like a one-off.
+  if (sub.providerData?.rebillId === undefined) return 'oneoff'
+  return 'recurrent'
+}
+
+/**
+ * Email the owner `UpcomingNoticeDays` before a subscription is charged or runs out.
+ * `providerData.upcomingNotifiedFor` holds the date a reminder was last sent.
+ */
+async function notifyUpcomingExpiry (ctx: MeasureContext, storage: SubscriptionStorage, config: Config): Promise<void> {
+  try {
+    const now = Date.now()
+    const noticeMs = config.UpcomingNoticeDays * DAY_MS
+    let sent = 0
+
+    // dueAt is in the notice window and has not passed yet
+    const inWindow = (dueAt: number | undefined): dueAt is number =>
+      dueAt != null && dueAt > now && dueAt - now <= noticeMs
+
+    const remind = async (sub: Subscription, kind: UpcomingKind, dueAt: number): Promise<boolean> => {
+      if (sub.providerData?.upcomingNotifiedFor === dueAt) return false
+
+      // Re-fetch to avoid racing a concurrent renewal/cancel/plan change that moved the date.
+      const fresh = await storage.getById(sub.id)
+      if (fresh === null) return false
+      if (fresh.providerData?.upcomingNotifiedFor === dueAt) return false
+      // Re-derive the date from the fresh record: a renewal that landed mid-cycle shifts periodEnd.
+      const freshDue = kind === 'trial' ? fresh.trialEnd : fresh.periodEnd
+      if (freshDue !== dueAt || !inWindow(freshDue)) return false
+      if (kind !== 'trial' && classifyUpcoming(fresh) !== kind) return false
+
+      await storage.upsert({
+        ...fresh,
+        providerData: { ...fresh.providerData, upcomingNotifiedFor: dueAt }
+      })
+      await notifyUpcoming(ctx, storage, config, fresh, kind, dueAt)
+      return true
+    }
+
+    // Paid tbank subscriptions: charge date (recurrent) or end of access (one-off / canceled).
+    for (const sub of await storage.getCandidates()) {
+      const kind = classifyUpcoming(sub)
+      if (kind === null || !inWindow(sub.periodEnd)) continue
+      if (await remind(sub, kind, sub.periodEnd)) sent++
+    }
+
+    // Trials live on provider 'trial' with no periodEnd, so they need their own lookup.
+    for (const sub of await storage.getTrialCandidates()) {
+      if (!inWindow(sub.trialEnd)) continue
+      if (await remind(sub, 'trial', sub.trialEnd)) sent++
+    }
+
+    if (sent > 0) {
+      ctx.info('Upcoming-expiry reminders sent', { sent, noticeDays: config.UpcomingNoticeDays })
+    }
+  } catch (err) {
+    ctx.error('Upcoming-expiry reminder error', { err })
+  }
+}
+
+/**
  * Finalize scheduled cancellations.
  * Once `now >= willCancelAt` the subscription is terminated: status
  * Canceled and the saved card removed at TBank.
@@ -550,6 +621,10 @@ export function startScheduler (
     await expireOneOffSubscriptions(ctx, storage)
   }
 
+  const upcomingNoticeCycle = async (): Promise<void> => {
+    await notifyUpcomingExpiry(ctx, storage, config)
+  }
+
   const schedulerIntervalMs = intervalMinutes * 60 * 1000
   ctx.info('Starting subscription renewal scheduler', { intervalMinutes, gracePeriodDays: config.GracePeriodDays })
 
@@ -559,6 +634,7 @@ export function startScheduler (
   void graceCycle()
   void scheduledCancelCycle()
   void oneOffExpiryCycle()
+  void upcomingNoticeCycle()
   const timer = setInterval(trackRenewal, schedulerIntervalMs)
   // Cleanup runs less frequently — once per cycle is fine; abandoned subs are rare
   const cleanupTimer = setInterval(() => {
@@ -576,6 +652,10 @@ export function startScheduler (
   const oneOffExpiryTimer = setInterval(() => {
     void oneOffExpiryCycle()
   }, schedulerIntervalMs)
+  // Upcoming-expiry reminders run on their own timer (email only, no charge — no drain needed).
+  const upcomingNoticeTimer = setInterval(() => {
+    void upcomingNoticeCycle()
+  }, schedulerIntervalMs)
 
   return {
     close: async () => {
@@ -584,6 +664,7 @@ export function startScheduler (
       clearInterval(graceTimer)
       clearInterval(scheduledCancelTimer)
       clearInterval(oneOffExpiryTimer)
+      clearInterval(upcomingNoticeTimer)
       // Only the renewal cycle is drained: it issues a charge (real money), so a lost upsert orphans
       // the payment. Cleanup/grace upserts are not drained — they re-fetch and re-check, so a missed
       // one is simply redone on the next tick (idempotent, no money lost).

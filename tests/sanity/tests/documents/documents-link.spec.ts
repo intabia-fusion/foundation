@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import { DocumentContentPage } from '../model/documents/document-content-page'
 import { DocumentsPage } from '../model/documents/documents-page'
 import { NewDocument } from '../model/documents/types'

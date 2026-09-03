@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import { CommonTrackerPage } from '../model/tracker/common-tracker-page'
 import { IssuesDetailsPage } from '../model/tracker/issues-details-page'
 import { IssuesPage } from '../model/tracker/issues-page'
@@ -14,7 +14,7 @@ import {
   performPanelTest
 } from './tracker.utils'
 import { SettingsPage } from '../model/settings-page'
-import { TaskTypes } from '../model/types'
+import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
 test.use({
   storageState: PlatformSetting
 })
@@ -88,7 +88,7 @@ test.describe('Tracker tests', () => {
     const issuesPage = new IssuesPage(page)
     const assignee = 'Chen Rosamund'
     const status = 'In Progress'
-    const time = 0.25
+    const time = '15m'
     const name = getIssueName()
     await issuesPage.createAndOpenIssue(name, assignee, status)
     await issuesPage.clickOnReportedTimeEditor()
@@ -152,7 +152,9 @@ test.describe('Tracker tests', () => {
     const issuesPage = new IssuesPage(page)
     const issueName = 'Draft issue'
     await navigate(page)
-    await issuesPage.clickIssuesIndex(2)
+    // Name the project, not a position: nth(2) meant the third project's Issues, which exists
+    // only once other specs have created one.
+    await new TrackerNavigationMenuPage(page).issuesLinkForProject('Default').click()
     await issuesPage.clickNewIssue()
     await issuesPage.clickAndFillIssueName(issueName)
     await issuesPage.clickAndFillIssueDescription(issueName)
@@ -160,7 +162,7 @@ test.describe('Tracker tests', () => {
     await issuesPage.selectPriority()
     await issuesPage.clickAssignee()
     await issuesPage.setEstimation()
-    await issuesPage.inputTextPlaceholderFill('1')
+    await issuesPage.fillEstimationPopup(page, '1')
     await issuesPage.setDueDate('19')
     await issuesPage.pressEscapeTwice()
     await issuesPage.clickOnDraftIssue()
@@ -194,7 +196,7 @@ test.describe('Tracker tests', () => {
     await issuesPage.openViewOptionsAndToggleShouldShowAll()
   })
 
-  test.describe('TaskKindSelector tests', () => {
+  test.describe('Task types in Kanban', () => {
     let settingsPage: SettingsPage
 
     const taskTypeName = `Bug-${generateId(4)}`
@@ -206,49 +208,23 @@ test.describe('Tracker tests', () => {
       await settingsPage.openProfileMenu()
       await settingsPage.openSettings()
       await settingsPage.selectSpaceType('Default', 'Tracker')
-      await settingsPage.addTaskType(taskTypeName, TaskTypes.TaskAndSubtask)
+      await settingsPage.addTaskType(taskTypeName)
 
       await page.goto(`${PlatformURI}/workbench/sanity-ws/tracker/tracker%3Aproject%3ADefaultProject/issues`)
       await page.waitForLoadState('networkidle')
     })
 
-    test('task-type-selection-persists-after-popup-close', async ({ page }) => {
-      await page.click(ViewletSelectors.Board)
-
-      await page.click('button[data-id="btnSelectTaskType"]')
-      await page.waitForSelector(`.menu-item:has-text("${taskTypeName}")`)
-      await page.click(`.menu-item:has-text("${taskTypeName}")`)
-
-      await expect(page.locator('button[data-id="btnSelectTaskType"]')).toContainText(taskTypeName)
-
-      await page.click('button:has-text("New issue")')
-      await page.waitForSelector('form.antiCard')
-      await page.keyboard.press('Escape')
-      await page.waitForSelector('form.antiCard', { state: 'detached' })
-
-      await expect(page.locator('button[data-id="btnSelectTaskType"]')).toContainText(taskTypeName)
-    })
-
-    test('task-type-filter-cleared-on-switch-to-list', async ({ page }) => {
+    test('all task types are displayed together on kanban board', async ({ page }) => {
       const issueDefault = getIssueName('default-type')
       const issueBug = getIssueName('bug-type')
       await createIssue(page, { name: issueDefault })
       await createIssue(page, { name: issueBug, taskType: taskTypeName })
 
       await page.click(ViewletSelectors.Board)
-      await page.click('button[data-id="btnSelectTaskType"]')
-      await page.click(`.menu-item:has-text("${taskTypeName}")`)
+      await page.locator('[data-id="kanban-column"]').first().waitFor({ state: 'visible', timeout: 10000 })
 
+      await expect(page.locator('.panel-container').filter({ hasText: issueDefault })).toBeVisible()
       await expect(page.locator('.panel-container').filter({ hasText: issueBug })).toBeVisible()
-      await expect(page.locator('.panel-container').filter({ hasText: issueDefault })).toHaveCount(0)
-
-      const issuesPage = new IssuesPage(page)
-      await page.click(ViewletSelectors.Table)
-
-      await issuesPage.searchIssueByName(issueDefault)
-      await expect(page.locator('.list-container')).toContainText(issueDefault)
-      await issuesPage.searchIssueByName(issueBug)
-      await expect(page.locator('.list-container')).toContainText(issueBug)
     })
   })
 })

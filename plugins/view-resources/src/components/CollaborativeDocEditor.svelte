@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,25 +15,81 @@
 -->
 <script lang="ts">
   import contact from '@hcengineering/contact'
-  import { Doc } from '@hcengineering/core'
+  import { Blob, Doc, makeDocCollabId, Ref } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
-  import { KeyedAttribute } from '@hcengineering/presentation'
-  import { CollaborativeAttributeSectionBox } from '@hcengineering/text-editor-resources'
+  import { getAttribute, getClient, getMarkup, KeyedAttribute } from '@hcengineering/presentation'
+  import { CollaborativeAttributeSectionBox, StyledTextBox } from '@hcengineering/text-editor-resources'
   import { AnySvelteComponent } from '@hcengineering/ui'
   import { getCollaborationUser } from '../utils'
 
   export let object: Doc
   export let key: KeyedAttribute
+  export let draft = false
+  export let onChange: ((val: any) => void) | undefined = undefined
+
+  const client = getClient()
+
+  let markupContent: string | undefined = undefined
+
+  $: rawValue = getAttribute(client, object, key)
+
+  $: if (draft) {
+    if (rawValue != null && rawValue !== '') {
+      if (typeof rawValue === 'string' && rawValue.startsWith('{')) {
+        markupContent = rawValue
+      } else {
+        void getMarkup(makeDocCollabId(object, key.key), rawValue as Ref<Blob>).then((res) => {
+          markupContent = res ?? ''
+        })
+      }
+    } else {
+      markupContent = ''
+    }
+  }
 
   const user = getCollaborationUser()
   let userComponent: AnySvelteComponent | undefined
   void getResource(contact.component.CollaborationUserAvatar).then((component) => {
     userComponent = component
   })
+
+  function handleValueChange (evt: CustomEvent<string | null>): void {
+    const val = evt.detail === null ? undefined : evt.detail
+    markupContent = val ?? ''
+    if (onChange) {
+      onChange(val)
+    }
+  }
 </script>
 
-{#key object._id}
-  {#key key.key}
-    <CollaborativeAttributeSectionBox {object} {key} {user} {userComponent} label={key.attr.label} />
+{#if draft}
+  <StyledTextBox
+    content={markupContent ?? ''}
+    alwaysEdit
+    focusable
+    mode={2}
+    hideExtraButtons
+    maxHeight="none"
+    isScrollable={false}
+    on:value={handleValueChange}
+    on:changeContent={handleValueChange}
+  />
+{:else}
+  {#key object._id}
+    {#key key.key}
+      <CollaborativeAttributeSectionBox {object} {key} {user} {userComponent} label={key.attr.label} />
+    {/key}
   {/key}
-{/key}
+{/if}
+
+<style lang="scss">
+  .no-header {
+    :global(.antiSection-header) {
+      display: none !important;
+    }
+    :global(.antiSection) {
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }
+  }
+</style>

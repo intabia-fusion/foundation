@@ -123,10 +123,27 @@
   }
 
   function clearActiveTrack (track: Track | undefined): void {
-    if (track !== activeTrack) return
-    hasActiveTrack = false
-    activeTrack?.detach()
-    activeTrack = null
+    if (track === activeTrack) {
+      hasActiveTrack = false
+      activeTrack?.detach()
+      activeTrack = null
+    }
+    // Another participant may still be sharing: without this rescan their stream silently
+    // vanishes from the UI when whoever we were showing stops.
+    scanForScreenShare()
+  }
+
+  function scanForScreenShare (): void {
+    for (const participant of lk.remoteParticipants.values()) {
+      for (const publication of participant.trackPublications.values()) {
+        if (trySetActiveTrack(publication.track)) return
+      }
+    }
+    if (showLocalTrack) {
+      for (const publication of lk.localParticipant.trackPublications.values()) {
+        if (trySetActiveTrack(publication.track)) return
+      }
+    }
   }
 
   function onTrackSubscribed (
@@ -153,34 +170,29 @@
     clearActiveTrack(publication.track)
   }
 
+  let destroyed = false
+
   onMount(async () => {
     await liveKitClient.awaitConnect()
+    // onDestroy may have already run while we awaited the connection.
+    if (destroyed) return
 
     lk.on(RoomEvent.TrackSubscribed, onTrackSubscribed)
     lk.on(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed)
-    for (const participant of lk.remoteParticipants.values()) {
-      for (const publication of participant.trackPublications.values()) {
-        if (trySetActiveTrack(publication.track)) break
-      }
-    }
-
     if (showLocalTrack) {
       lk.on(RoomEvent.LocalTrackPublished, onLocalTrackPublished)
       lk.on(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished)
-      for (const publication of lk.localParticipant.trackPublications.values()) {
-        if (trySetActiveTrack(publication.track)) break
-      }
     }
+    scanForScreenShare()
   })
 
   onDestroy(() => {
+    destroyed = true
     activeTrack?.detach(screen)
     lk.off(RoomEvent.TrackSubscribed, onTrackSubscribed)
     lk.off(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed)
-    if (showLocalTrack) {
-      lk.off(RoomEvent.LocalTrackPublished, onLocalTrackPublished)
-      lk.off(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished)
-    }
+    lk.off(RoomEvent.LocalTrackPublished, onLocalTrackPublished)
+    lk.off(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished)
   })
 </script>
 

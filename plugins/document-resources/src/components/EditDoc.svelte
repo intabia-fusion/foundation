@@ -56,7 +56,8 @@
     ParentsNavigator,
     RelationsEditor,
     restrictionStore,
-    showMenu
+    showMenu,
+    openDocInSidebar
   } from '@hcengineering/view-resources'
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
 
@@ -72,6 +73,9 @@
   export let _id: Ref<Document>
   export let readonly: boolean = false
   export let embedded: boolean = false
+  // Sidebar preview renders embedded but still needs its own close button.
+  export let allowClose: boolean = !embedded
+  export let isSidebar: boolean = false
 
   $: locked = doc?.lockedBy != null
   $: readonly = $restrictionStore.readonly || locked
@@ -297,13 +301,15 @@
   }
 </script>
 
-<FocusHandler {manager} />
+{#if !embedded && !isSidebar}
+  <FocusHandler {manager} />
+{/if}
 
 {#if doc !== undefined}
   <Panel
     withoutActivity={!loadedDocumentContent}
     object={doc}
-    allowClose={!embedded}
+    {allowClose}
     isAside={true}
     customAside={aside}
     bind:selectedAside
@@ -351,6 +357,20 @@
         <ComponentExtensions
           extension={view.extensions.EditDocTitleExtension}
           props={{ size: 'medium', kind: 'ghost', _id: doc._id, _class: doc._class, value: doc, readonly }}
+        />
+      {/if}
+      {#if !embedded && doc}
+        <Button
+          icon={view.icon.DetailsFilled}
+          iconProps={{ size: 'medium' }}
+          kind={'icon'}
+          dataId={'btnOpenInSidebar'}
+          showTooltip={{ label: view.string.OpenInSidebar, direction: 'bottom' }}
+          on:click={() => {
+            if (doc !== undefined) {
+              void openDocInSidebar(doc)
+            }
+          }}
         />
       {/if}
       {#if !$restrictionStore.disableActions}

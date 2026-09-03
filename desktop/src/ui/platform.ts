@@ -144,6 +144,7 @@ import '@hcengineering/admin-assets'
 import '@hcengineering/huly-mail-assets'
 import '@hcengineering/ai-assistant-assets'
 import '@hcengineering/rating-assets'
+import '@hcengineering/workflow-assets'
 
 import analyticsCollector, { analyticsCollectorId } from '@hcengineering/analytics-collector'
 import { concatLink, coreId } from '@hcengineering/core'
@@ -152,6 +153,7 @@ import presentation, { createFileStorage, presentationId } from '@hcengineering/
 import print, { printId } from '@hcengineering/print'
 import sign from '@hcengineering/sign'
 import textEditor, { textEditorId } from '@hcengineering/text-editor'
+import { workflowId } from '@hcengineering/workflow'
 
 import { AccentColorType, initThemeStore, setDefaultLanguage, setForceAccent } from '@hcengineering/theme'
 import { configureNotifications } from './notifications'
@@ -254,6 +256,7 @@ function configureI18n (): void {
   addStringsLoader(documentId, async (lang: string) => await import(`@hcengineering/document-assets/lang/${lang}.json`))
   addStringsLoader(timeId, async (lang: string) => await import(`@hcengineering/time-assets/lang/${lang}.json`))
   addStringsLoader(githubId, async (lang: string) => await import(`@hcengineering/github-assets/lang/${lang}.json`))
+  addStringsLoader(aiBotId, async (lang: string) => await import(`@hcengineering/ai-bot-resources/lang/${lang}.json`))
   addStringsLoader(
     documentsId,
     async (lang: string) => await import(`@hcengineering/controlled-documents-assets/lang/${lang}.json`)
@@ -300,6 +303,7 @@ function configureI18n (): void {
     async (lang: string) => await import(`@hcengineering/ai-assistant-assets/lang/${lang}.json`)
   )
   addStringsLoader(ratingId, async (lang: string) => await import(`@hcengineering/rating-assets/lang/${lang}.json`))
+  addStringsLoader(workflowId, async (lang: string) => await import(`@hcengineering/workflow-assets/lang/${lang}.json`))
 }
 
 export class PlatformBranding {
@@ -504,6 +508,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   addLocation(printId, () => import(/* webpackChunkName: "print" */ '@hcengineering/print-resources'))
   addLocation(exportId, () => import(/* webpackChunkName: "export" */ '@hcengineering/export-resources'))
   addLocation(textEditorId, () => import(/* webpackChunkName: "text-editor" */ '@hcengineering/text-editor-resources'))
+  addLocation(workflowId, () => import(/* webpackChunkName: "workflow" */ '@hcengineering/workflow-resources'))
   addLocation(
     testManagementId,
     () => import(/* webpackChunkName: "test-management" */ '@hcengineering/test-management-resources')

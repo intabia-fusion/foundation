@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { IssuesDetailsPage } from '../model/tracker/issues-details-page'
@@ -6,6 +6,7 @@ import { Issue, NewIssue } from '../model/tracker/types'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
 import { prepareNewIssueWithOpenStep } from './common-steps'
 import { IssueCommentPopup } from '../model/tracker/issue-comment-popup'
+import { TEST_ESTIMATIONS } from './tracker.utils'
 
 test.use({
   storageState: PlatformSetting
@@ -71,9 +72,7 @@ test.describe('Tracker issue tests', () => {
       ...editIssue
     })
 
-    const estimations = ['0', '1', '1.25', '1.259', '1.26', '1.27', '1.5', '1.75', '2', '7', '8', '9', '9.5']
-
-    for (const input of estimations) {
+    for (const input of TEST_ESTIMATIONS) {
       await issuesDetailsPage.editIssue({
         estimation: input
       })

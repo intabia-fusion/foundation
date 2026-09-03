@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { faker } from '@faker-js/faker'
 import { Integration, IntegrationSecret } from '@hcengineering/account'
 import { buildSocialIdString, IntegrationKind, SocialIdType } from '@hcengineering/core'

@@ -196,7 +196,10 @@ export default plugin(coreId, {
     TypeRef: '' as Asset,
     TypeArray: '' as Asset,
     TypeEnumOf: '' as Asset,
-    TypeCollection: '' as Asset
+    TypeCollection: '' as Asset,
+    TypePersonId: '' as Asset,
+    Status: '' as Asset,
+    Time: '' as Asset
   },
   mixin: {
     ConfigurationElement: '' as Ref<Mixin<ConfigurationElement>>,

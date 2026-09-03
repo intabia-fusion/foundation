@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -76,7 +77,8 @@ const hangTimeout = 5 * 60 * SECOND
 const dialTimeout = 30 * SECOND
 // After visibilitychange -> visible we probe with short timeout.
 const visibilityProbeTimeout = 1 * SECOND
-// Jitter window for reconnect resend storm.
+// Jitter (ms) applied to reconnect retries after a failed attempt and to pending-request
+// resend, so a herd of clients doesn't redial/resend on the same tick.
 const reconnectJitterMs = 300
 // Throttle window for noisy diagnostics logs in hot paths.
 const diagLogThrottleMs = 5 * SECOND
@@ -190,6 +192,12 @@ class Connection implements ClientConnection {
 
     this.installVisibilityHandler()
 
+    if (typeof globalThis !== 'undefined') {
+      ;(globalThis as any).__connStatsPush = async () => {
+        await this.reportStats()
+      }
+    }
+
     this.scheduleOpen(this.ctx, false)
   }
 
@@ -283,13 +291,7 @@ class Connection implements ClientConnection {
       }
 
       if (!this.closed) {
-        void broadcastEvent(ConnectionStatsEvent, {
-          sent: this.sentCount,
-          received: this.receivedCount,
-          sentBytes: this.sentBytes,
-          receivedBytes: this.receivedBytes,
-          latency: this.latency
-        })
+        void this.reportStats()
         const sinceLastPong = platformNow() - this.pingResponse
         if (sinceLastPong > pingTimeout * 2 && this.requests.size > 0) {
           console.log('[conn] ping tick - no pong but pending requests', {
@@ -317,7 +319,21 @@ class Connection implements ClientConnection {
     }, pingTimeout)
   }
 
+  // Cumulative traffic counters for client.ws.* metrics. On globalThis too: the tick is 10s
+  // and a test page lives seconds, so a teardown asks explicitly - see __analyticsFlush.
+  async reportStats (): Promise<void> {
+    await broadcastEvent(ConnectionStatsEvent, {
+      sent: this.sentCount,
+      received: this.receivedCount,
+      sentBytes: this.sentBytes,
+      receivedBytes: this.receivedBytes,
+      latency: this.latency
+    })
+  }
+
   async close (): Promise<void> {
+    // Last report before the socket goes: a short-lived page never reaches the 10s ping tick.
+    void this.reportStats()
     this.closed = true
     clearTimeout(this.openAction)
     clearTimeout(this.dialTimer)
@@ -384,10 +400,16 @@ class Connection implements ClientConnection {
         if (this.delay === 0) {
           this.openConnection(ctx, socketId)
         } else {
-          this.openAction = setTimeout(() => {
-            this.openAction = undefined
-            this.openConnection(ctx, socketId)
-          }, this.delay * 1000)
+          // delay>0 means a prior attempt failed (transactor down / herd). Jitter the backoff
+          // so clients don't all retry on the same tick; a clean first reconnect stays immediate.
+          const jitter = Math.floor(Math.random() * reconnectJitterMs)
+          this.openAction = setTimeout(
+            () => {
+              this.openAction = undefined
+              this.openConnection(ctx, socketId)
+            },
+            this.delay * 1000 + jitter
+          )
         }
       }
     }
@@ -403,7 +425,6 @@ class Connection implements ClientConnection {
   receivedBytes = 0
   latency = 0 // ping/pong round-trip, ms
   private lastPingSent = 0
-
   handleMsg (
     socketId: number,
     resp: Response<any>,
@@ -461,6 +482,7 @@ class Connection implements ClientConnection {
         }
 
         if (promise !== undefined) {
+          this.requests.delete(resp.id)
           promise.reject(new PlatformError(resp.error))
         }
       }
@@ -615,8 +637,6 @@ class Connection implements ClientConnection {
           resp.id,
           'error: ',
           resp.error,
-          'result: ',
-          resp.result,
           this.workspace,
           this.user
         )
@@ -803,7 +823,9 @@ class Connection implements ClientConnection {
         workspace: this.workspace
       })
       if (!this.closed) void broadcastEvent(ConnectionStatusEvent, false)
-      this.scheduleOpen(this.ctx, true)
+      // Immediate redial for a clean disconnect; if the transactor is down the failed
+      // attempt bumps delay and scheduleOpen jitters the retry herd (see reconnectJitterMs).
+      if (!this.closed) this.scheduleOpen(this.ctx, true)
     }
     wsocket.onopen = () => {
       if (this.websocket !== wsocket) {

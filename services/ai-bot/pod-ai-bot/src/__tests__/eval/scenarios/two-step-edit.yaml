@@ -1,0 +1,27 @@
+name: two-step-edit
+mode: thread
+lang: ru
+world:
+  document:
+    title: Регламент выпуска
+    body: |
+      # Регламент выпуска
+
+      Выпуск раз в неделю.
+
+      ## Роли
+      Релиз-менеджер отвечает за выпуск.
+requirements:
+  - id: R1
+    text: обе правки в теле документа
+  - id: R2
+    text: вторая правка не отменила первую
+turns:
+  - ask: Замени "раз в неделю" на "раз в две недели".
+  - ask: Добавь в конец раздел "Откат" про возврат на предыдущую версию.
+expect:
+  document:
+    contains: ['раз в две недели', 'Откат', 'Релиз-менеджер']
+    notContains: ['Выпуск раз в неделю']
+  toolsCalled: [propose_new_document]
+  maxRoundsTotal: 8

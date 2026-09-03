@@ -14,7 +14,7 @@
 //
 
 import { MeasureMetricsContext } from '@hcengineering/core'
-import { bench, describeBench } from './bench'
+import { bench, describeBench } from '@hcengineering/measurements'
 
 describeBench('MeasureMetricsContext.with bench', () => {
   it('with - no-op sync wrap, empty params', async () => {

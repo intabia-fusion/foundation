@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import { Blob, Ref, generateId, type WorkspaceIds } from '@hcengineering/core'
+import { Blob, Ref, generateId, type TxMeta, type WorkspaceIds } from '@hcengineering/core'
 import { decodeToken } from '@hcengineering/server-token'
 import { onAuthenticatePayload } from '@hocuspocus/server'
 import { ClientFactory, simpleClientFactory } from './platform'
@@ -24,6 +24,7 @@ export interface Context {
   clientFactory: ClientFactory
 
   content?: Ref<Blob>
+  meta?: TxMeta
 }
 
 interface WithContext {
@@ -41,11 +42,15 @@ export function buildContext (data: onAuthenticatePayload, wsIds: WorkspaceIds):
   const decodedToken = decodeToken(data.token)
 
   const content = (data.requestParameters.get('content') as Ref<Blob>) ?? undefined
+  const silentParam = data.requestParameters.get('silent')
+  const isSilent = silentParam === 'true' ? true : context.meta?.silent === true ? true : undefined
+  const meta: TxMeta | undefined = isSilent !== undefined ? { ...(context.meta ?? {}), silent: isSilent } : context.meta
 
   return {
     connectionId,
     wsIds,
     clientFactory: simpleClientFactory(decodedToken),
-    content
+    content,
+    meta
   }
 }

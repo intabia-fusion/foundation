@@ -1,0 +1,75 @@
+# CockroachDB stand override. Base compose is Postgres-only.
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.cockroach.yaml -p sanity up -d
+services:
+  cockroach:
+    image: cockroachdb/cockroach:v24.1.2
+    command: start-single-node --insecure
+    ports:
+      - "26258:26257"
+    restart: unless-stopped
+
+  db-migrator:
+    depends_on:
+      cockroach:
+        condition: service_started
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+  account:
+    links:
+      - cockroach
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+      - STORAGE_CONFIG=${DATALAKE_STORAGE_CONFIG}
+      - PROCEED_V7_MONGO=false
+  transactor0:
+    links:
+      - cockroach
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+      - STORAGE_CONFIG=${DATALAKE_STORAGE_CONFIG}
+  workspace:
+    links:
+      - cockroach
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+      - ACCOUNTS_DB_URL=${DB_COCKROACH_URL}
+      - STORAGE_CONFIG=${DATALAKE_STORAGE_CONFIG}
+  fulltext:
+    links:
+      - cockroach
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+      - STORAGE_CONFIG=${DATALAKE_STORAGE_CONFIG}
+  notifications:
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+  activity:
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+  time-machine:
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+  billing:
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+  love:
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+  datalake:
+    depends_on:
+      cockroach:
+        condition: service_started
+    ports:
+      - 4031:4031
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+  front0:
+    environment:
+      - STORAGE_CONFIG=${DATALAKE_STORAGE_CONFIG}
+      - FILES_URL=http://localhost:4031/blob/:workspace/:blobId/:filename
+      - UPLOAD_URL=http://localhost:4031/upload/form-data/:workspace
+      - DATALAKE_URL=http://localhost:4031
+      - PREVIEW_URL=http://localhost:8083/_preview
+  collaborator0:
+    environment:
+      - STORAGE_CONFIG=${DATALAKE_STORAGE_CONFIG}

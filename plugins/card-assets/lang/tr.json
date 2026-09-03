@@ -81,7 +81,11 @@
     "SectionUnlocked": "Bölüm {section} kilidi açıldı",
     "LayoutAuto": "Otomatik",
     "SingleColumn": "Tek sütun",
+    "BaseType": "Temel tür",
+    "BaseTypeDescription": "Bu türü yalnızca üst tür olarak kullanın. Kartlar yalnızca alt türlerinden oluşturulabilir.",
     "TwoColumns": "İki sütun",
-    "Grid": "Izgara"
+    "Grid": "Izgara",
+    "RichtextProperties": "Zengin metin alanları",
+    "ShowAllVersions": "Tüm sürümleri göster"
   }
 }

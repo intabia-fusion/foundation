@@ -43,6 +43,14 @@ const dbTypes = {
   }
 }
 
+/**
+ * Adding a column and reading it must be two separate migrations.
+ *
+ * CockroachDB parses a multi-statement batch as a whole, so a backfill sitting next to its own
+ * ADD COLUMN fails with "column does not exist" and the migration retries forever - the workspace
+ * pod then stops processing anything. PostgreSQL runs the same batch fine, so this only shows up on
+ * the cockroach regions. See v35/v36 and v32/v33.
+ */
 export function getMigrations (ns: string, flavor: DBFlavor): [string, string][] {
   if (flavor === 'unknown') {
     throw new Error('Cannot generate migrations for an unknown database flavor.')
@@ -92,7 +100,14 @@ export function getMigrations (ns: string, flavor: DBFlavor): [string, string][]
     getV31Migration(ns, flavor),
     getV32Migration(ns, flavor),
     getV33Migration(ns),
-    getV34Migration(ns)
+    getV34Migration(ns),
+    getV35Migration(ns, flavor),
+    getV36Migration(ns),
+    getV37Migration(ns),
+    getV38Migration(ns),
+    getV39Migration(ns, flavor),
+    getV40Migration(ns),
+    getV41Migration(ns)
   ]
 }
 
@@ -945,7 +960,7 @@ function getV31Migration (ns: string, flavor: DBFlavor): [string, string] {
     CREATE TABLE IF NOT EXISTS ${ns}.payment_operation (
         id ${types.string} NOT NULL DEFAULT gen_random_uuid()::TEXT,
         provider ${types.string} NOT NULL,
-        operation ${types.string} NOT NULL, -- init_charge | webhook | charge_recurrent | cancel | refund
+        operation ${types.string} NOT NULL, -- init_charge | webhook | charge_recurrent | cancel | refund | update
         status ${types.string}, -- provider/webhook status (CONFIRMED|REJECTED|...) or success/failed
         payment_id ${types.string}, -- provider charge id
         order_id ${types.string},
@@ -1032,6 +1047,140 @@ function getV34Migration (ns: string): [string, string] {
     `
     ALTER TABLE ${ns}.workspace
     ADD COLUMN IF NOT EXISTS disabled_features_override TEXT[];
+    `
+  ]
+}
+
+function getV35Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v35_admin_action_log',
+    `
+    /* ======= A D M I N   A C T I O N   L O G ======= */
+    /* No FK on actor/target on purpose: the log must outlive the rows it describes
+       (account deletion, person purge), and targets may be workspaces or social ids. */
+    CREATE TABLE IF NOT EXISTS ${ns}.admin_action (
+        id ${types.string} NOT NULL DEFAULT gen_random_uuid()::TEXT,
+        actor ${types.string} NOT NULL, -- admin account uuid from the token
+        actor_email ${types.string},
+        action ${types.string} NOT NULL,
+        target ${types.string}, -- person/workspace uuid the action was applied to
+        target_label ${types.string}, -- readable name/email/url, kept for deleted targets
+        data JSONB,
+        created_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+
+        CONSTRAINT admin_action_pk PRIMARY KEY (id)
+    );
+
+    CREATE INDEX IF NOT EXISTS admin_action_created_idx ON ${ns}.admin_action (created_on);
+    CREATE INDEX IF NOT EXISTS admin_action_target_idx ON ${ns}.admin_action (target);
+    `
+  ]
+}
+
+function getV36Migration (ns: string): [string, string] {
+  return [
+    'account_db_v36_person_phone_hint',
+    `
+    /* Existing phone social ids stay in place and are reused once SMS verification lands. */
+    ALTER TABLE ${ns}.person ADD COLUMN IF NOT EXISTS phone_hint TEXT;
+    `
+  ]
+}
+
+function getV37Migration (ns: string): [string, string] {
+  return [
+    'account_db_v37_person_phone_hint_backfill',
+    /* Separate migration on purpose: a multi-statement batch is parsed as a whole, so an UPDATE
+       reading phone_hint next to the ADD COLUMN fails with "column does not exist". Same reason
+       v33 was split off from v32. */
+    `
+    UPDATE ${ns}.person p
+       SET phone_hint = s.value
+      FROM (
+        SELECT DISTINCT ON (person_uuid) person_uuid, value
+          FROM ${ns}.social_id
+         WHERE type = 'phone'
+         ORDER BY person_uuid, created_on DESC
+      ) s
+     WHERE s.person_uuid = p.uuid AND p.phone_hint IS NULL;
+    `
+  ]
+}
+
+function getV38Migration (ns: string): [string, string] {
+  return [
+    'account_db_v38_subscription_provider_status_trial_end_idx',
+    /* Trial expiry sweeps ask for (provider, status, trial_end <= now); without this the query
+       scans every trialing row of the provider and filters by date in memory. */
+    `
+    CREATE INDEX IF NOT EXISTS subscription_provider_status_trial_end_idx
+        ON ${ns}.subscription (provider, status, trial_end);
+    `
+  ]
+}
+
+function getV39Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v39_workspace_purchase',
+    `
+    /* ======= W O R K S P A C E   P U R C H A S E ======= */
+    /* Generic one-time purchases of catalog SKUs (AI usage reset now; skins/themes later). History of
+       what a workspace bought; account stays domain-agnostic — the SKU effect (e.g. resetting the AI
+       usage window) is interpreted and applied by the owning pod (aibot), not here. Consumable purchases
+       flip to 'consumed' once that pod applied the effect; entitlements (future) stay 'active'. */
+
+    CREATE TABLE IF NOT EXISTS ${ns}.workspace_purchase (
+        id ${types.string} NOT NULL DEFAULT gen_random_uuid()::TEXT,
+        workspace_uuid ${types.string} NOT NULL,
+        account_uuid ${types.string} NOT NULL, -- who bought
+        sku ${types.string} NOT NULL,
+        category ${types.string},
+        status ${types.string} NOT NULL, -- pending | active | consumed | failed
+        amount ${types.int8}, -- minor units (kopecks)
+        payment_id ${types.string},
+        provider ${types.string},
+        raw JSONB,
+        created_on BIGINT NOT NULL DEFAULT current_epoch_ms(),
+        activated_on BIGINT,
+
+        CONSTRAINT workspace_purchase_pk PRIMARY KEY (id)
+    );
+
+    CREATE INDEX IF NOT EXISTS workspace_purchase_workspace_idx ON ${ns}.workspace_purchase (workspace_uuid);
+    CREATE INDEX IF NOT EXISTS workspace_purchase_payment_id_idx ON ${ns}.workspace_purchase (payment_id);
+    `
+  ]
+}
+
+function getV40Migration (ns: string): [string, string] {
+  return [
+    'account_db_v40_workspace_purchase_dedup',
+    /* Separate migration on purpose: pre-dedup (DML) has to settle before the unique index (DDL) in
+       v41 — see v32/v33 for why a schema change is kept out of the same migration as data changes. The
+       payment pod dedups purchases by (payment_id, provider) with a racy SELECT-then-INSERT (no DB
+       constraint backed it), so a real duplicate pair may already exist. Keep the oldest row per group. */
+    `
+    DELETE FROM ${ns}.workspace_purchase wp
+     WHERE wp.payment_id IS NOT NULL
+       AND wp.id NOT IN (
+         SELECT DISTINCT ON (payment_id, provider) id
+           FROM ${ns}.workspace_purchase
+          WHERE payment_id IS NOT NULL
+          ORDER BY payment_id, provider, created_on ASC, id ASC
+       );
+    `
+  ]
+}
+
+function getV41Migration (ns: string): [string, string] {
+  return [
+    'account_db_v41_workspace_purchase_unique',
+    /* Partial: payment_id is null for non-payment purchases, which must stay unconstrained. */
+    `
+    CREATE UNIQUE INDEX IF NOT EXISTS workspace_purchase_payment_provider_unique
+      ON ${ns}.workspace_purchase (payment_id, provider) WHERE payment_id IS NOT NULL;
     `
   ]
 }

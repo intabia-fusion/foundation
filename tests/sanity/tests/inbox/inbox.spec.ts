@@ -1,24 +1,29 @@
 import { faker } from '@faker-js/faker'
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { ApiEndpoint } from '../API/Api'
 import { ChannelPage } from '../model/channel-page'
 import { SignUpData } from '../model/common-types'
 import { InboxPage } from '../model/inbox.ts/inbox-page'
 import { LeftSideMenuPage } from '../model/left-side-menu-page'
-import { LoginPage } from '../model/login-page'
 import { PlanningPage } from '../model/planning/planning-page'
 import { MenuItems, NotificationsPage } from '../model/profile/notifications-page'
 import { UserProfilePage } from '../model/profile/user-profile-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
 import { SignInJoinPage } from '../model/signin-page'
 import { TeamPage } from '../model/team-page'
 import { IssuesDetailsPage } from '../model/tracker/issues-details-page'
 import { createNewIssueData, prepareNewIssueWithOpenStep } from '../tracker/common-steps'
-import { attachScreenshot, generateTestData, getTimeForPlanner, PlatformURI, setTestOptions } from '../utils'
+import {
+  attachScreenshot,
+  createAccountAndWorkspace,
+  generateId,
+  generateTestData,
+  getInviteLink,
+  getTimeForPlanner,
+  setTestOptions
+} from '../utils'
 
 test.describe('Inbox tests', () => {
   let leftSideMenuPage: LeftSideMenuPage
-  let loginPage: LoginPage
   let issuesDetailsPage: IssuesDetailsPage
   let inboxPage: InboxPage
   let api: ApiEndpoint
@@ -34,19 +39,13 @@ test.describe('Inbox tests', () => {
       password: '1234'
     }
     leftSideMenuPage = new LeftSideMenuPage(page)
-    loginPage = new LoginPage(page)
     issuesDetailsPage = new IssuesDetailsPage(page)
     inboxPage = new InboxPage(page)
     api = new ApiEndpoint(request)
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
     await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
-    await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    await (await page.goto(`${PlatformURI}`))?.finished()
-    await setTestOptions(page)
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
-    // await (await page.goto(`${PlatformURI}/workbench/${data.workspaceName}`))?.finished()
+    // Straight into the workspace from the account token: the login form plus the workspace
+    // picker are three page loads and cost about a second per test.
+    await createAccountAndWorkspace(page, request, data, 'tracker')
   })
 
   test('User is able to create a task, assign a himself and see it inside the inbox', async ({ page }) => {
@@ -92,15 +91,11 @@ test.describe('Inbox tests', () => {
   })
 
   test('User is able to assign someone else and he should see the inbox task', async ({ page, browser }) => {
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-    const linkText = await page.locator('.antiPopup .link').textContent()
+    const linkText = await getInviteLink(page)
     const page2 = await browser.newPage()
     try {
       const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
       const inboxPageSecond = new InboxPage(page2)
-      await leftSideMenuPage.clickOnCloseInvite()
       await page2.goto(linkText ?? '')
       await setTestOptions(page2)
       const joinPage = new SignInJoinPage(page2)
@@ -117,16 +112,12 @@ test.describe('Inbox tests', () => {
   })
 
   test('User is able to assign someone else and he should be able to open the task', async ({ page, browser }) => {
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-    const linkText = await page.locator('.antiPopup .link').textContent()
+    const linkText = await getInviteLink(page)
     const page2 = await browser.newPage()
     try {
       const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
       const issuesDetailsPageSecond = new IssuesDetailsPage(page2)
       const inboxPageSecond = new InboxPage(page2)
-      await leftSideMenuPage.clickOnCloseInvite()
       await page2.goto(linkText ?? '')
       await setTestOptions(page2)
       const joinPage = new SignInJoinPage(page2)
@@ -148,16 +139,12 @@ test.describe('Inbox tests', () => {
     }
   })
   test.skip('User is able to create a task, assign a other user and close it from inbox', async ({ page, browser }) => {
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-    const linkText = await page.locator('.antiPopup .link').textContent()
+    const linkText = await getInviteLink(page)
     const page2 = await browser.newPage()
     try {
       const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
       const issuesDetailsPageSecond = new IssuesDetailsPage(page2)
       const inboxPageSecond = new InboxPage(page2)
-      await leftSideMenuPage.clickOnCloseInvite()
       await page2.goto(linkText ?? '')
       await setTestOptions(page2)
       const joinPage = new SignInJoinPage(page2)
@@ -186,15 +173,11 @@ test.describe('Inbox tests', () => {
     const channelPage = new ChannelPage(page)
     await leftSideMenuPage.clickNotification()
     await inboxPage.clearAll()
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-    const linkText = await page.locator('.antiPopup .link').textContent()
+    const linkText = await getInviteLink(page)
     const page2 = await browser.newPage()
     try {
       const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
       const inboxPageSecond = new InboxPage(page2)
-      await leftSideMenuPage.clickOnCloseInvite()
       await page2.goto(linkText ?? '')
       await setTestOptions(page2)
       const joinPage = new SignInJoinPage(page2)
@@ -204,17 +187,20 @@ test.describe('Inbox tests', () => {
       await leftSideMenuPageSecond.clickNotification()
       await inboxPage2.clearAll()
 
+      const message = `Test message ${generateId(5)}`
       await leftSideMenuPage.clickChunter()
       await channelPage.clickChannel('general')
-      await channelPage.sendMessage('Test message')
+      await channelPage.sendMessage(message)
 
-      await channelPage.checkMessageExist('Test message', true, 'Test message')
+      await channelPage.checkMessageExist(message, true, message)
       await leftSideMenuPage.clickNotification()
 
-      await inboxPage.checkIfInboxChatExists('Channel general', false)
+      // "general" is shared with every other worker, so asserting that the channel is absent from
+      // the sender's inbox fails whenever somebody else posts there. Assert on this message.
+      await inboxPage.checkIfInboxChatExists(message, false)
       await inboxPageSecond.checkIfInboxChatExists('Channel general', true)
       await inboxPageSecond.clickOnInboxChat('Channel general')
-      await inboxPageSecond.checkIfTextInChatIsPresent('Test message')
+      await inboxPageSecond.checkIfTextInChatIsPresent(message)
     } finally {
       await page2.close()
     }
@@ -227,16 +213,12 @@ test.describe('Inbox tests', () => {
     const channelPage = new ChannelPage(page)
     await leftSideMenuPage.clickNotification()
     await inboxPage.clearAll()
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-    const linkText = await page.locator('.antiPopup .link').textContent()
+    const linkText = await getInviteLink(page)
     const page2 = await browser.newPage()
     try {
       const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
       const inboxPageSecond = new InboxPage(page2)
       const notificationPageSecond = new NotificationsPage(page2)
-      await leftSideMenuPage.clickOnCloseInvite()
       await page2.goto(linkText ?? '')
       await setTestOptions(page2)
       const joinPage = new SignInJoinPage(page2)
@@ -249,7 +231,10 @@ test.describe('Inbox tests', () => {
       await userProfilePageSecond.clickOnNotificationsButton()
       await notificationPageSecond.clickMenuItem(MenuItems.CHAT)
       await notificationPageSecond.toggleChatMessage()
-      await page.waitForTimeout(1000)
+      // Joining the workspace adds the user to `general` and `random`, and those notifications land
+      // after the clearAll above. Clear again here so only the message below can fill the inbox.
+      await leftSideMenuPageSecond.clickNotification()
+      await inboxPageSecond.clearAll()
       await leftSideMenuPage.clickChunter()
       await channelPage.clickChannel('general')
       await channelPage.sendMessage('Test message')
@@ -265,16 +250,12 @@ test.describe('Inbox tests', () => {
     const channelPage = new ChannelPage(page)
     await leftSideMenuPage.clickNotification()
     await inboxPage.clearAll()
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-    const linkText = await page.locator('.antiPopup .link').textContent()
+    const linkText = await getInviteLink(page)
     const page2 = await browser.newPage()
     try {
       const channelPage2 = new ChannelPage(page2)
       const leftSideMenuPage2 = new LeftSideMenuPage(page2)
       const inboxPage2 = new InboxPage(page2)
-      await leftSideMenuPage.clickOnCloseInvite()
       await page2.goto(linkText ?? '')
 
       const joinPage2 = new SignInJoinPage(page2)
@@ -317,11 +298,7 @@ test.describe('Inbox tests', () => {
   test.skip('Checking the ability to receive a task and schedule it', async ({ page, browser }) => {
     await leftSideMenuPage.clickNotification()
     await inboxPage.clearAll()
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-    const linkText = await page.locator('.antiPopup .link').textContent()
-    await leftSideMenuPage.clickOnCloseInvite()
+    const linkText = await getInviteLink(page)
 
     const page2 = await browser.newPage()
     try {

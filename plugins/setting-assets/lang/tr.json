@@ -220,7 +220,15 @@
     "SelectUsers": "Kullanıcıları seç",
     "ShowInTitle": "Başlıkta göster",
     "SpaceMembersOnly": "Yalnızca alan üyeleri",
-    "Reset": "Sıfırla"
+    "OverrideAttribute": "Özniteliği geçersiz kıl",
+    "Required": "Zorunlu",
+    "Reset": "Sıfırla",
+    "ConfirmOperation": "İşlemi onayla",
+    "Confirm": "Onayla",
+    "OtpCode": "Kod",
+    "OtpSent": "E-postanıza bir kod gönderildi",
+    "OtpSendFailed": "Kod gönderilemedi",
+    "SendCode": "Kod gönder"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

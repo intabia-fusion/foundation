@@ -16,7 +16,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import { extractToken, getAccountClient } from '@hcengineering/server-client'
 import { AccountRole, systemAccountUuid } from '@hcengineering/core'
-import { Token } from '@hcengineering/server-token'
+import { ADMIN_SESSION_TTL_SEC, hasAdminSession, isHumanAdmin, Token } from '@hcengineering/server-token'
 
 interface RequestWithAuth extends Request {
   token?: Token
@@ -37,11 +37,16 @@ export const withAdmin = (req: RequestWithAuth, res: Response, next: NextFunctio
     res.status(401).json({ message: 'Token error' }).end()
     return
   }
-  if (req.token.account !== systemAccountUuid && req.token.extra?.admin !== 'true') {
+  // Same gate as the transactor and stats: an admin token without a fresh second factor is not enough.
+  if (req.token.account !== systemAccountUuid && !isAdminSession(req.token)) {
     res.status(401).json({ message: 'Admins only' }).end()
     return
   }
   next()
+}
+
+function isAdminSession (token: Token): boolean {
+  return isHumanAdmin(token) && hasAdminSession(token, ADMIN_SESSION_TTL_SEC)
 }
 
 export const withOwner = (req: RequestWithAuth, res: Response, next: NextFunction): void => {
@@ -53,25 +58,28 @@ const withOwnerAsync = async (req: RequestWithAuth, res: Response, next: NextFun
     res.status(401).json({ message: 'Token error' }).end()
     return
   }
+  // system/admin sessions may inspect any workspace (admin panel); skip the ws-match + owner check.
+  if (req.token.account === systemAccountUuid || isAdminSession(req.token)) {
+    next()
+    return
+  }
   if ((req.token.workspace as string) !== req.params.workspace) {
     res.status(401).json({ message: 'Workspace mismatch' }).end()
     return
   }
-  if (req.token.account !== systemAccountUuid && req.token.extra?.admin !== 'true') {
-    const accountClient = getAccountClient(req.headers.authorization?.split(' ')[1])
-    const loginInfo = await accountClient.getLoginInfoByToken()
-    if (loginInfo == null) {
-      res.status(403).json({ message: 'Missing auth info' }).end()
-      return
-    }
-    if (!('role' in loginInfo)) {
-      res.status(401).json({ message: 'Missing workspace role' }).end()
-      return
-    }
-    if (loginInfo.role !== AccountRole.Owner) {
-      res.status(401).json({ message: 'Workspace owners only' }).end()
-      return
-    }
+  const accountClient = getAccountClient(req.headers.authorization?.split(' ')[1])
+  const loginInfo = await accountClient.getLoginInfoByToken()
+  if (loginInfo == null) {
+    res.status(403).json({ message: 'Missing auth info' }).end()
+    return
+  }
+  if (!('role' in loginInfo)) {
+    res.status(401).json({ message: 'Missing workspace role' }).end()
+    return
+  }
+  if (loginInfo.role !== AccountRole.Owner) {
+    res.status(401).json({ message: 'Workspace owners only' }).end()
+    return
   }
 
   next()

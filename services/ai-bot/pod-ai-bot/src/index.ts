@@ -14,14 +14,28 @@
 //
 import { config } from 'dotenv'
 
-import { startQueue } from './queue'
+import { startQueue, startEventRouterMode, startLlmRouterMode, startSttWorkerMode } from './queue'
 import aibotConfig from './config'
 import { startClient } from './client'
 
 config()
 
-if (aibotConfig.Mode === 'queue') {
-  void startQueue()
-} else {
-  void startClient()
+switch (aibotConfig.Mode) {
+  case 'event-router':
+    void startEventRouterMode()
+    break
+  case 'llm-router':
+    void startLlmRouterMode()
+    break
+  case 'stt-worker':
+    void startSttWorkerMode()
+    break
+  case 'client':
+    void startClient()
+    break
+  case 'all':
+  case 'queue':
+  default:
+    void startQueue()
+    break
 }

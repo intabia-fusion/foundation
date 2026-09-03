@@ -4,7 +4,7 @@ import { NewProject } from './types'
 
 export class NewProjectPage extends CommonTrackerPage {
   popupHeader = (): Locator =>
-    this.page.locator('form[id="tracker:string:NewProject"] div[class*="title"]:last-child', {
+    this.page.locator('.hulyModal-container .hulyHeader-titleGroup', {
       hasText: 'New project'
     })
 
@@ -13,7 +13,9 @@ export class NewProjectPage extends CommonTrackerPage {
   inputDescription = (): Locator => this.page.locator('div[id="project-description"] input')
   buttonChooseIcon = (): Locator => this.page.locator('div.antiGrid-row button.only-icon')
   buttonMakePrivate = (): Locator => this.page.locator('[id="project-private"]')
-  buttonCreateProject = (): Locator => this.page.locator('form[id="tracker:string:NewProject"] button[type="submit"]')
+  buttonCreateProject = (): Locator =>
+    this.page.locator('.hulyModal-footer').getByRole('button', { name: 'Create', exact: true })
+
   projectTypeButton = (): Locator =>
     this.page.locator('div[class*="header"]', { hasText: 'Project type' }).locator('xpath=..').locator('button')
 

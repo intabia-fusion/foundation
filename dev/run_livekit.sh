@@ -7,9 +7,12 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/livekit-dev-config.yaml"
+LOG_DIR="$SCRIPT_DIR/.livekit"
+LOG_FILE="$LOG_DIR/livekit.log"
 
 echo "[LiveKit] Starting LiveKit server in development mode..."
 echo "[LiveKit] Config file: $CONFIG_FILE"
+echo "[LiveKit] Log file: $LOG_FILE"
 echo "[LiveKit] Webhook URL: http://127.0.0.1:8098/webhook"
 echo "[LiveKit] Server port: 7880"
 echo "[LiveKit] RTC UDP port: 7882"
@@ -35,5 +38,15 @@ if lsof -Pi :7880 -sTCP:LISTEN -t >/dev/null 2>&1; then
     echo "[LiveKit] Attempting to start anyway..."
 fi
 
+mkdir -p "$LOG_DIR"
+# Keep the previous run: a slow join is usually diagnosed by comparing it with the
+# session before it.
+if [ -f "$LOG_FILE" ]; then
+    mv -f "$LOG_FILE" "$LOG_FILE.prev"
+fi
+
 echo "[LiveKit] Starting server..."
-livekit-server --config "$CONFIG_FILE"
+# Log to file and to the terminal. `set -o pipefail` so a livekit crash still fails
+# the script through the tee pipe.
+set -o pipefail
+livekit-server --config "$CONFIG_FILE" 2>&1 | tee "$LOG_FILE"

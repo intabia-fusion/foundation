@@ -220,7 +220,15 @@
     "ImportDocumentDescription": "Grants users ability to import documents into the workspace",
     "SelectUsers": "Select users",
     "ShowInTitle": "Show in title",
-    "SpaceMembersOnly": "Space members only"
+    "SpaceMembersOnly": "Space members only",
+    "OverrideAttribute": "Override attribute",
+    "Required": "Required",
+    "ConfirmOperation": "Confirm operation",
+    "Confirm": "Confirm",
+    "OtpCode": "Code",
+    "OtpSent": "A code has been sent to your email",
+    "OtpSendFailed": "Failed to send the code",
+    "SendCode": "Send code"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

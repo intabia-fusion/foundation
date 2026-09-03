@@ -13,10 +13,11 @@
 // limitations under the License.
 //
 
-import { type AccountUuid, type Tx, type WorkspaceUuid } from '@hcengineering/core'
+import { type AccountUuid, type Tx } from '@hcengineering/core'
 
+// Addressed to the account: the tx carries the full unread map, and the transactor applies it
+// wherever that account has a session.
 export interface QueueOnlineUserTx {
-  workspaceUuid: WorkspaceUuid
   tx: Tx
   account: AccountUuid
 }

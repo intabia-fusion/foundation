@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import {
   generateId,
   PlatformSetting,
@@ -40,23 +40,25 @@ test.describe('Planning ToDo tests', () => {
       slots: [
         {
           dateStart: 'today',
-          timeStart: '1000',
+          // Early hours: the other specs book 09:00-18:30, and an event under 44px wide renders
+          // no contents at all (EventElement.svelte), so an overlapping slot cannot be asserted.
+          timeStart: '0200',
           dateEnd: {
             day: dateEnd.getDate().toString(),
             month: (dateEnd.getMonth() + 1).toString(),
             year: dateEnd.getFullYear().toString()
           },
-          timeEnd: '1400'
+          timeEnd: '0300'
         },
         {
           dateStart: 'today',
-          timeStart: '1500',
+          timeStart: '0700',
           dateEnd: {
             day: dateEnd.getDate().toString(),
             month: (dateEnd.getMonth() + 1).toString(),
             year: dateEnd.getFullYear().toString()
           },
-          timeEnd: '1800'
+          timeEnd: '0800'
         }
       ]
     }
@@ -67,6 +69,14 @@ test.describe('Planning ToDo tests', () => {
 
     await planningPage.checkToDoExist(toDoSeveralSlots.title)
     await planningPage.openToDoByName(toDoSeveralSlots.title)
+    // Counts below are absolute on a seeded todo, so a leftover slot makes this unpassable.
+    // Dropping one needs a reload or the next slot never reaches the calendar (UBERF-4273).
+    if (await planningPage.clearTimeSlots()) {
+      await planningPage.clickButtonCardClose()
+      await page.reload()
+      await planningNavigationMenuPage.clickOnButtonToDoAll()
+      await planningPage.openToDoByName(toDoSeveralSlots.title)
+    }
 
     if (toDoSeveralSlots.slots != null) {
       await planningPage.clickButtonCreateAddSlot()
@@ -107,13 +117,15 @@ test.describe('Planning ToDo tests', () => {
       slots: [
         {
           dateStart: 'today',
-          timeStart: '0900',
+          // Early hours: the other specs book 09:00-18:30, and an event under 44px wide renders
+          // no contents at all (EventElement.svelte), so an overlapping slot cannot be asserted.
+          timeStart: '0500',
           dateEnd: {
             day: dateEnd.getDate().toString(),
             month: (dateEnd.getMonth() + 1).toString(),
             year: dateEnd.getFullYear().toString()
           },
-          timeEnd: '1800'
+          timeEnd: '0600'
         }
       ]
     }
@@ -123,6 +135,14 @@ test.describe('Planning ToDo tests', () => {
     const planningPage = new PlanningPage(page)
     await planningPage.checkToDoExist(deleteTimeSlot.title)
     await planningPage.openToDoByName(deleteTimeSlot.title)
+    // A failed attempt leaves its slot behind and the counts below are absolute, so retries would
+    // only report 2 and 3. The reload is the one the test already does after its delete.
+    if (await planningPage.clearTimeSlots()) {
+      await planningPage.clickButtonCardClose()
+      await page.reload()
+      await planningNavigationMenuPage.clickOnButtonToDoAll()
+      await planningPage.openToDoByName(deleteTimeSlot.title)
+    }
 
     if (deleteTimeSlot.slots != null) {
       await planningPage.clickButtonCreateAddSlot()
@@ -156,7 +176,9 @@ test.describe('Planning ToDo tests', () => {
     dateEndTomorrow.setDate(dateEndTomorrow.getDate() + 1)
 
     const toDoSeveralSlots: NewToDo = {
-      title: 'Plan work for several days',
+      // Own ToDo, not the seeded one: the test adds two slots and then reads them back by row
+      // index, so any slot left on the ToDo by an earlier run shifts every index by one.
+      title: `Plan work for several days-${generateId()}`,
       slots: [
         {
           dateStart: 'today',
@@ -185,6 +207,7 @@ test.describe('Planning ToDo tests', () => {
     const planningNavigationMenuPage = new PlanningNavigationMenuPage(page)
     await planningNavigationMenuPage.clickOnButtonToDoAll()
 
+    await planningPage.createNewToDo({ title: toDoSeveralSlots.title })
     await planningPage.checkToDoExist(toDoSeveralSlots.title)
     await planningPage.openToDoByName(toDoSeveralSlots.title)
     if (toDoSeveralSlots.slots != null) {

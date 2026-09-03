@@ -13,14 +13,26 @@
 // limitations under the License.
 //
 
-import type { AccountAggregatedInfo, WorkspaceInfoWithBilling } from '@hcengineering/account-client'
+import type {
+  AccountAggregatedInfo,
+  AccountsFilter,
+  AdminAction,
+  WorkspaceInfoWithBilling
+} from '@hcengineering/account-client'
 
-import { getAccountClient, getAllSubscriptions, listWorkspacesPaged } from './utils'
+import { getAccountClient, getAllSubscriptions, listWorkspacesPaged, requestAdminOtpCode } from './utils'
 
 const PAGE = 1000
 
-export type ReportId = 'accounts' | 'workspaces' | 'paid'
+export type ReportId = 'accounts' | 'workspaces' | 'paid' | 'admin-actions'
 export type ReportFormat = 'csv' | 'pdf'
+
+/** Builders pick what they support: accounts uses search/filter, admin-actions uses search/action */
+export interface ReportOptions {
+  search?: string
+  filter?: AccountsFilter
+  action?: string
+}
 
 interface Kpi {
   n: string | number
@@ -238,17 +250,15 @@ async function fetchAllWorkspaces (): Promise<WorkspaceInfoWithBilling[]> {
 }
 
 /** All accounts: registration date (earliest social id), last visit, workspaces */
-async function accountsReport (): Promise<Report> {
+async function accountsReport (opts?: ReportOptions): Promise<Report> {
   const client = getAccountClient()
   const all: AccountAggregatedInfo[] = []
   for (let skip = 0; ; skip += PAGE) {
-    const page = await client.listAccounts(undefined, skip, PAGE, 'name')
+    const page = await client.listAccounts(opts?.search, skip, PAGE, 'name', opts?.filter)
     all.push(...page)
     if (page.length < PAGE) break
   }
-  // createdOn is returned by listAccounts but missing from the core SocialId type
-  const registeredOf = (a: (typeof all)[number]): number =>
-    Math.min(...a.socialIds.map((s) => Number((s as { createdOn?: number }).createdOn ?? Infinity)))
+  const registeredOf = (a: (typeof all)[number]): number => Number(a.registeredOn ?? Infinity)
   const emailOf = (a: (typeof all)[number]): string =>
     a.socialIds.find((s) => s.type === 'email')?.value ?? a.socialIds[0]?.value ?? ''
 
@@ -274,10 +284,17 @@ async function accountsReport (): Promise<Report> {
     .sort((a, b) => (registeredBy.get(b.uuid) ?? 0) - (registeredBy.get(a.uuid) ?? 0))
     .slice(0, 15)
 
+  const criteria = [
+    opts?.filter?.noWorkspaces === true ? 'без пространств' : undefined,
+    opts?.filter?.pendingOnly === true ? 'незавершённые регистрации' : undefined,
+    opts?.filter?.inactiveDays !== undefined ? `не заходили ${opts.filter.inactiveDays}+ дн.` : undefined,
+    opts?.search != null && opts.search !== '' ? `поиск "${opts.search}"` : undefined
+  ].filter((s) => s != null)
+
   return {
-    name: stamp('accounts'),
+    name: stamp(criteria.length > 0 ? 'accounts-filtered' : 'accounts'),
     title: 'Регистрации пользователей',
-    sub: `Всего ${all.length} аккаунтов`,
+    sub: `Всего ${all.length} аккаунтов${criteria.length > 0 ? ` · ${criteria.join(', ')}` : ''}`,
     headers: ['uuid', 'name', 'email', 'registered_on', 'last_visit', 'days_inactive', 'workspaces'],
     rows,
     kpis: [
@@ -449,14 +466,78 @@ async function paidReport (): Promise<Report> {
   }
 }
 
-const builders: Record<ReportId, () => Promise<Report>> = {
-  accounts: accountsReport,
-  workspaces: workspacesReport,
-  paid: paidReport
+/** Admin audit trail */
+async function adminActionsReport (opts?: ReportOptions): Promise<Report> {
+  const client = getAccountClient()
+  const all: AdminAction[] = []
+  for (let skip = 0; ; skip += PAGE) {
+    const res = await client.listAdminActions({ search: opts?.search, action: opts?.action, skip, limit: PAGE })
+    all.push(...res.actions)
+    if (all.length >= res.total || res.actions.length < PAGE) break
+  }
+
+  const rows = all.map((a) => [
+    fmtDate(a.createdOn),
+    a.actorEmail ?? '',
+    a.actor,
+    a.action,
+    a.target ?? '',
+    a.targetLabel ?? '',
+    a.data != null ? JSON.stringify(a.data) : ''
+  ])
+
+  const byAction = new Map<string, number>()
+  for (const a of all) byAction.set(a.action, (byAction.get(a.action) ?? 0) + 1)
+  const topActions = [...byAction.entries()].sort((x, y) => y[1] - x[1]).slice(0, 10)
+
+  return {
+    name: stamp('admin-actions'),
+    title: 'Действия администраторов',
+    sub: `Всего ${all.length} записей${opts?.action != null ? ` · ${opts.action}` : ''}`,
+    headers: ['time', 'actor_email', 'actor_uuid', 'action', 'target', 'target_label', 'data'],
+    rows,
+    kpis: [
+      { n: all.length, l: 'Всего действий', cls: 'acc' },
+      { n: new Set(all.map((a) => a.actor)).size, l: 'Администраторов', cls: 'tea' },
+      { n: all.filter((a) => activeWithin(a.createdOn, 30)).length, l: 'За 30 дней' },
+      { n: byAction.size, l: 'Типов операций' }
+    ],
+    charts: [
+      { title: 'Действия администраторов по месяцам', cls: 'acc', points: monthlySeries(all.map((a) => a.createdOn)) }
+    ],
+    pdfTables: [
+      {
+        title: 'Частые операции',
+        sub: 'Топ 10',
+        headers: ['Операция', 'Количество'],
+        rows: topActions
+      },
+      {
+        title: 'Последние действия',
+        sub: 'Новые сверху, топ 20',
+        headers: ['Дата', 'Администратор', 'Операция', 'Объект'],
+        rows: all
+          .slice(0, 20)
+          .map((a) => [fmtDay(a.createdOn), a.actorEmail ?? a.actor, a.action, a.targetLabel ?? a.target ?? ''])
+      }
+    ]
+  }
 }
 
-export async function downloadReport (id: ReportId, format: ReportFormat): Promise<void> {
-  const report = await builders[id]()
+const builders: Record<ReportId, (opts?: ReportOptions) => Promise<Report>> = {
+  accounts: accountsReport,
+  workspaces: workspacesReport,
+  paid: paidReport,
+  'admin-actions': adminActionsReport
+}
+
+export async function downloadReport (id: ReportId, format: ReportFormat, opts?: ReportOptions): Promise<void> {
+  // Bulk PII leaves the panel here: confirm with a second factor so the export is auditable.
+  const code = await requestAdminOtpCode()
+  if (code === undefined) return
+  await getAccountClient().adminConfirmExport(id, opts as Record<string, any> | undefined, code)
+
+  const report = await builders[id](opts)
   if (format === 'csv') {
     downloadCsv(report)
   } else {

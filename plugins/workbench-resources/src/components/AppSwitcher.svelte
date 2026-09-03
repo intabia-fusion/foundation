@@ -17,8 +17,8 @@
   import type { Application } from '@hcengineering/workbench'
   import { createQuery } from '@hcengineering/presentation'
   import workbench from '@hcengineering/workbench'
-  import { hideApplication, isAllowedToRole, showApplication } from '../utils'
-  import { Loading, IconCheck, Label, Icon } from '@hcengineering/ui'
+  import { getDefaultHiddenApps, hideApplication, isAllowedToRole, showApplication } from '../utils'
+  import { Loading, IconCheck, Label, Icon, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { getMetadata } from '@hcengineering/platform'
   // import Drag from './icons/Drag.svelte'
 
@@ -54,6 +54,7 @@
   }
 
   let loaded: boolean = false
+  let storedHiddenIds: Array<Ref<Application>> = []
   let hiddenAppsIds: Array<Ref<Application>> = []
   const hiddenAppsIdsQuery = createQuery()
   hiddenAppsIdsQuery.query(
@@ -62,19 +63,22 @@
       space: core.space.Workspace
     },
     (res) => {
-      hiddenAppsIds = res.map((r) => r.attachedTo)
+      storedHiddenIds = res.map((r) => r.attachedTo)
       loaded = true
     }
   )
 
+  // Defaults count as hidden only until the first toggle, and that toggle rewrites `storedHiddenIds`,
+  // so deriving from it keeps the checkmarks in step.
+  $: defaultHidden = getDefaultHiddenApps($deviceInfo.appsMini)
+  $: hiddenAppsIds = [...storedHiddenIds, ...apps.filter((it) => defaultHidden.includes(it.alias)).map((it) => it._id)]
+
   const me = getCurrentAccount()
 
+  // No `hiddenAppsIds` check: this list is the toggle UI, so a hidden app must stay visible here
+  // with its checkmark cleared - otherwise it could never be switched back on.
   const filteredApps = apps.filter(
-    (it) =>
-      !hiddenAppsIds.includes(it._id) &&
-      isAllowedToRole(it.accessLevel, me) &&
-      it.position !== 'top' &&
-      !isExcludedApp(it.alias)
+    (it) => isAllowedToRole(it.accessLevel, me) && it.position !== 'top' && !isExcludedApp(it.alias)
   )
 
   function isExcludedApp (alias: string): boolean {

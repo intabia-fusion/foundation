@@ -13,6 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import { adminFetch } from '../../utils'
   import { getMetadata } from '@hcengineering/platform'
   import presentation, { isAdminUser, type OverviewStatistics } from '@hcengineering/presentation'
   import { Button, Label, TabList, type TabItem } from '@hcengineering/ui'
@@ -32,13 +33,12 @@
   ]
 
   // Live service stats (in-memory on the stats pod)
-  const token: string = getMetadata(presentation.metadata.Token) ?? ''
   const statsEndpoint = getMetadata(presentation.metadata.StatsUrl)
   let overview: OverviewStatistics | undefined
 
   async function loadOverview (): Promise<void> {
     try {
-      const res = await fetch(statsEndpoint + `/api/v1/overview?token=${token}`, {})
+      const res = await adminFetch(statsEndpoint + '/api/v1/overview')
       overview = await res.json()
     } catch (err) {
       console.error(err)

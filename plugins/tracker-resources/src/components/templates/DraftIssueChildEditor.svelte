@@ -194,6 +194,7 @@
       <div id="sub-issue-status-editor">
         <StatusEditor
           value={object}
+          isCreate={true}
           kind="no-border"
           size="small"
           shouldShowLabel={true}

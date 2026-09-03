@@ -44,10 +44,9 @@
       return await translate(ui.string.Yesterday, {}, lang)
     } else {
       const dayOfWeek = new Intl.DateTimeFormat(lang, { weekday: 'long' }).format(date)
-      const day = new Intl.DateTimeFormat(lang, { day: '2-digit' }).format(date)
-      const month = new Intl.DateTimeFormat(lang, { month: 'long' }).format(date)
+      const dayMonth = new Intl.DateTimeFormat(lang, { day: '2-digit', month: 'long' }).format(date)
 
-      return `${dayOfWeek} ${day} ${month}`
+      return `${dayOfWeek} ${dayMonth}`
     }
   }
 </script>

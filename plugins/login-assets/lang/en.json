@@ -106,6 +106,13 @@
     "ExpiredLink": "This invite link has expired",
     "ExpiredLinkDescription": "Please request a new invite link",
     "UsageConditions": "Terms of Use",
-    "IntabiaFusion": "Intabia Fusion"
+    "IntabiaFusion": "Intabia Fusion",
+    "Continue": "Continue",
+    "AlreadyRegistered": "You are already registered on the platform",
+    "RegistrationComplete": "Registration is complete",
+    "RegistrationCompleteHint": "Create your own workspace, or ask the owner of an existing one for an access link.",
+    "CheckingLink": "Checking the link...",
+    "InvalidLink": "This link is no longer valid",
+    "ConfirmationFailed": "Could not complete the registration"
   }
 }

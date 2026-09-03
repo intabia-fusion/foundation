@@ -1,0 +1,172 @@
+# Dev ai-bot SERVER registry (mounted at /var/cfg/config.yaml on the `aibot` pod).
+# Reference: services/ai-bot/pod-ai-bot/config.example.yaml
+#
+# The server routes by LEVEL: each request carries a level, the dispatcher sends it
+# to the provider that serves it.
+#   low  -> clisr (local model run by the connected aibot_client_llm worker)
+#   middle/pro/max -> GigaChat cloud (Lite/Pro/Max), called directly from the pod
+#     using the real API usage for token accounting.
+#
+# ${VAR} placeholders are expanded from the pod environment (see config.ts), so the
+# GigaChat auth key is not stored in this file.
+
+llm:
+  defaultLevel: low
+
+  # Level classes: shared UI/accounting metadata, no concrete model.
+  # tokenMultiplier = internal billed factor; displayMultiplier = UI "xN" shown to user.
+  models:
+    low:
+      order: 0
+      label: Базовый
+      description: Базовая модель
+      # tokenMultiplier bills the on-prem security surcharge, not raw compute cost.
+      tokenMultiplier: 2
+      displayMultiplier: 1
+      # Small local model: chat only, it handles tool calls poorly.
+      features:
+        talk: false
+        summary: false
+        tasks: false
+    mock:
+      order: 1
+      label: Мок
+      description: Детерминированный мок, модель не нужна
+      # Mock test level: no `features` block so tool calls stay available; costs nothing.
+      tokenMultiplier: 0
+      displayMultiplier: 0
+    low-plus:
+      order: 5
+      label: Базовый+
+      description: Локальная модель с инструментами
+      # Disabled: flip to true when the client worker runs a tools-capable local model
+      # (dev/config-aibot-client.yaml serves low-plus).
+      enabled: true
+      tokenMultiplier: 1
+      displayMultiplier: 1
+    middle:
+      order: 10
+      label: Стандарт
+      description: GigaChat-2 (облако)
+      tokenMultiplier: 1.2
+      displayMultiplier: 1
+    pro:
+      order: 20
+      label: Профи
+      description: GigaChat-2-Pro (облако)
+      tokenMultiplier: 9.24
+      displayMultiplier: 8
+    max:
+      order: 30
+      label: Максимум
+      description: GigaChat-2-Max (облако)
+      tokenMultiplier: 12
+      displayMultiplier: 10
+    ultra:
+      order: 50
+      label: Ультра 3
+      description: GigaChat-3-Ultra (облако)
+      # Disabled: GigaChat-3-Ultra is not yet available on the current plan (API returns 404).
+      enabled: false
+      tokenMultiplier: 20
+      displayMultiplier: 20
+
+  providers:
+    - id: clisr
+      provider: clisr
+      concurrency: 4
+      batch: 1
+      endpoint: ws://aibot:4010
+      serves:
+        low:
+          model: Base
+          capabilities:
+            maxContextTokens: 8192
+            maxOutputTokens: 2048
+        low-plus:
+          model: Base
+          capabilities:
+            maxContextTokens: 8192
+            maxOutputTokens: 2048
+        # Routed to the same worker; there the `mock` level is bound to the mock provider.
+        mock:
+          model: Base
+          capabilities:
+            maxContextTokens: 32768
+
+    - id: gigachat
+      provider: gigachat
+      concurrency: 2
+      batch: 1
+      endpoint: https://gigachat.devices.sberbank.ru/api/v1/
+      endpointConfig:
+        # GIGACHAT_AUTH_KEY is the base64 "client_id:client_secret" Authorization key.
+        credentials: "${GIGACHAT_AUTH_KEY}"
+        scope: GIGACHAT_API_PERS
+      serves:
+        middle:
+          model: GigaChat-2
+          capabilities:
+            tools: true
+            maxContextTokens: 128000
+            # Explicit answer cap. 4096 cut long tool calls short (finish_reason=length, empty body);
+            # 10k fits a big proposal in one call and still bounds a runaway generation.
+            maxOutputTokens: 4096
+        pro:
+          model: GigaChat-2-Pro
+          capabilities:
+            tools: true
+            maxContextTokens: 128000
+            # Explicit answer cap. 4096 cut long tool calls short (finish_reason=length, empty body);
+            # 10k fits a big proposal in one call and still bounds a runaway generation.
+            maxOutputTokens: 8192
+        max:
+          model: GigaChat-2-Max
+          capabilities:
+            tools: true
+            maxContextTokens: 128000
+            # Explicit answer cap. 4096 cut long tool calls short (finish_reason=length, empty body);
+            # 10k fits a big proposal in one call and still bounds a runaway generation.
+            maxOutputTokens: 8192
+        ultra:
+          model: GigaChat-3-Ultra
+          capabilities:
+            tools: true
+            maxContextTokens: 128000
+            maxOutputTokens: 8192
+
+# ASR registry, mirrors llm: above. tokenMultiplier here bills per SECOND of audio,
+# not per token. Absent -> transcription disabled for the pod.
+asr:
+  defaultLevel: default
+
+  models:
+    default:
+      order: 0
+      label: Базовый
+      description: Локальное распознавание
+      enabled: true
+      tokenMultiplier: 1
+      displayMultiplier: 1
+    premium:
+      order: 10
+      label: Локально openai
+      description: OpenAI (Локально)
+      enabled: true
+      tokenMultiplier: 1
+      displayMultiplier: 1
+
+  providers:
+    - id: clisr
+      provider: server
+      serves:
+        default:
+          model: default
+
+    - id: openai-local
+      provider: openai
+      serves:
+        premium:
+          model: gigaam
+          url: http://10.0.2.2:9007
+          apiKey: key

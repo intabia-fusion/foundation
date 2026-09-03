@@ -13,7 +13,13 @@ import {
   type Participant
 } from 'livekit-client'
 import { translate } from '@hcengineering/platform'
-import { getMediaDevices, getSelectedSpeakerId, type MediaSession } from '@hcengineering/media'
+import {
+  getMediaDevices,
+  getSelectedCamId,
+  getSelectedMicId,
+  getSelectedSpeakerId,
+  type MediaSession
+} from '@hcengineering/media'
 import { LoveEvents } from '@hcengineering/love'
 import { useMedia } from '@hcengineering/media-resources'
 import { get, writable } from 'svelte/store'
@@ -121,6 +127,7 @@ export class LiveKitClient {
     }
     try {
       const setupMediaSession = async (): Promise<void> => {
+        this.closeMediaSession()
         this.currentMediaSession = await useMedia({
           state: {
             camera: this.currentSessionSupportsVideo ? { enabled: $myPreferences?.camEnabled ?? true } : undefined,
@@ -165,9 +172,7 @@ export class LiveKitClient {
     } catch (error) {
       console.error('[LiveKitClient.connect] Connection failed', { error, state: this.liveKitRoom.state })
       lkIsConnecting.set(false)
-      this.currentMediaSession?.close()
-      this.currentMediaSession?.removeAllListeners()
-      this.currentMediaSession = undefined
+      this.closeMediaSession()
       throw error
     }
   }
@@ -177,13 +182,22 @@ export class LiveKitClient {
     screenSharingState.set(ScreenSharingState.Inactive)
     clearTimeout(this.lastParticipantNotificationTimeout)
     const me = this.liveKitRoom.localParticipant
-    await Promise.all([me.setScreenShareEnabled(false), me.setCameraEnabled(false), me.setMicrophoneEnabled(false)])
-    await this.liveKitRoom.disconnect()
-    this.currentSessionSupportsVideo = false
+    try {
+      await Promise.all([me.setScreenShareEnabled(false), me.setCameraEnabled(false), me.setMicrophoneEnabled(false)])
+      await this.liveKitRoom.disconnect()
+    } finally {
+      this.currentSessionSupportsVideo = false
+      this.closeMediaSession()
+    }
+    console.log('[LiveKitClient.disconnect] Disconnected', { state: this.liveKitRoom.state })
+  }
+
+  // Every leak of this registers a second entry in the global media `sessions` store, and the
+  // aggregated mic state is an OR across all of them - a stale one freezes the mic button.
+  private closeMediaSession (): void {
     this.currentMediaSession?.close()
     this.currentMediaSession?.removeAllListeners()
     this.currentMediaSession = undefined
-    console.log('[LiveKitClient.disconnect] Disconnected', { state: this.liveKitRoom.state })
   }
 
   async awaitConnect (): Promise<void> {
@@ -451,21 +465,31 @@ export class LiveKitClient {
   }
 
   async updateActiveDevices (): Promise<void> {
-    await this.setActiveCamera(this.currentMediaSession?.state.camera?.deviceId)
-    await this.setActiveMicrophone(this.currentMediaSession?.state.microphone?.deviceId)
+    // Fall back to the stored choice: a session created muted carries no deviceId.
+    await this.setActiveCamera(this.currentMediaSession?.state.camera?.deviceId ?? getSelectedCamId())
+    await this.setActiveMicrophone(this.currentMediaSession?.state.microphone?.deviceId ?? getSelectedMicId())
     await this.setCameraEnabled(this.currentMediaSession?.state.camera?.enabled ?? false)
     await this.setMicrophoneEnabled(this.currentMediaSession?.state.microphone?.enabled ?? false)
   }
 
   async setActiveCamera (deviceId: string | undefined): Promise<void> {
-    if (deviceId === undefined || deviceId === null) return
+    if (deviceId === undefined || deviceId === null || deviceId === '') return
     if (!this.currentSessionSupportsVideo) return
-    await this.liveKitRoom.switchActiveDevice('videoinput', deviceId, true)
+    try {
+      await this.liveKitRoom.switchActiveDevice('videoinput', deviceId, true)
+    } catch (error) {
+      // Stored device may be gone; LiveKit keeps the previous default.
+      console.warn('[LiveKitClient.setActiveCamera] failed to switch camera', { deviceId, error })
+    }
   }
 
   async setActiveMicrophone (deviceId: string | undefined): Promise<void> {
-    if (deviceId === undefined || deviceId === null) return
-    await this.liveKitRoom.switchActiveDevice('audioinput', deviceId, true)
+    if (deviceId === undefined || deviceId === null || deviceId === '') return
+    try {
+      await this.liveKitRoom.switchActiveDevice('audioinput', deviceId, true)
+    } catch (error) {
+      console.warn('[LiveKitClient.setActiveMicrophone] failed to switch microphone', { deviceId, error })
+    }
   }
 
   async setActiveSpeaker (deviceId: string | undefined): Promise<void> {

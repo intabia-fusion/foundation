@@ -52,6 +52,7 @@ import process, {
 } from '@hcengineering/process'
 import { QueueTopic, TriggerControl } from '@hcengineering/server-core'
 import { ProcessMessage } from '@hcengineering/server-process'
+import time from '@hcengineering/time'
 import {
   AddRelation,
   AddTag,
@@ -72,6 +73,7 @@ import {
   LockField,
   LockSection,
   MatchCardCheck,
+  RequiredFieldsFilledCheck,
   RequestApproval,
   RunSubProcess,
   UnlockCard,
@@ -83,6 +85,7 @@ import { FieldChangedRollback, ToDoCancellRollback, ToDoCloseRollback } from './
 import {
   Absolute,
   Add,
+  AllMatchValue,
   All,
   Append,
   Ceil,
@@ -106,6 +109,8 @@ import {
   Insert,
   LastValue,
   LowerCase,
+  MarkupFromString,
+  StringFromIdentifier,
   Max,
   Min,
   Modulo,
@@ -128,11 +133,14 @@ import {
   Sqrt,
   StringFromBoolean,
   StringFromDate,
+  StringFromMarkup,
   StringFromNumber,
   Subtract,
   Trim,
   UpperCase,
-  YearFromDate
+  YearFromDate,
+  StringFromEnum,
+  EnumFromString
 } from './transform'
 
 async function putEventToQueue (value: Omit<ProcessMessage, 'account'>, control: TriggerControl): Promise<void> {
@@ -296,6 +304,34 @@ export async function OnExecutionContinue (txes: Tx[], control: TriggerControl):
     )
   }
   return []
+}
+
+export async function OnExecutionDone (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  const res: Tx[] = []
+  for (const tx of txes) {
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    if (tx.space !== core.space.Tx) continue
+    const updateTx = tx as TxUpdateDoc<Execution>
+    if (!control.hierarchy.isDerived(updateTx.objectClass, process.class.Execution)) continue
+    if (updateTx.operations.status !== ExecutionStatus.Done) continue
+
+    const todos = await control.findAll(control.ctx, process.class.ProcessToDo, {
+      execution: updateTx.objectId,
+      doneOn: null
+    })
+    if (todos.length === 0) continue
+
+    const workslots = await control.findAll(control.ctx, time.class.WorkSlot, {
+      attachedTo: { $in: todos.map((todo) => todo._id) }
+    })
+    const todosWithWorkslots = new Set(workslots.map((workslot) => workslot.attachedTo as string))
+
+    for (const todo of todos) {
+      if (todosWithWorkslots.has(todo._id as string)) continue
+      res.push(control.txFactory.createTxRemoveDoc(todo._class, todo.space, todo._id))
+    }
+  }
+  return res
 }
 
 export async function OnProcessRemove (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
@@ -583,7 +619,11 @@ export async function OnCardUpdate (txes: Tx[], control: TriggerControl): Promis
     const ops = isUpdateTx(cudTx) ? cudTx.operations : cudTx.attributes
     await putEventToQueue(
       {
-        event: [process.trigger.OnCardUpdate, process.trigger.WhenFieldChanges],
+        event: [
+          process.trigger.OnCardUpdate,
+          process.trigger.WhenFieldChanges,
+          process.trigger.WhenRequiredFieldsFilled
+        ],
         card: cudTx.objectId,
         createdOn: tx.modifiedOn,
         _id: tx._id,
@@ -644,6 +684,8 @@ function getName (current: ProcessContext | undefined, method: Method<Doc>, acti
 
 async function syncContext (control: TriggerControl, _process: Process): Promise<Tx | undefined> {
   const transitions = control.modelDb.findAllSync(process.class.Transition, { process: _process._id })
+  // _process belongs to a model shared across workspaces, build the new context aside.
+  const context: Record<ContextId, ProcessContext> = { ..._process.context }
   const exists = new Set<ContextId>()
   let changed = false
   let index = 1
@@ -652,7 +694,7 @@ async function syncContext (control: TriggerControl, _process: Process): Promise
       if (action.context != null) {
         exists.add(action.context._id)
         const method = control.modelDb.findObject(action.methodId)
-        const current = _process.context[action.context._id]
+        const current = context[action.context._id]
         if (method?.createdContext != null) {
           changed = true
           const ctx: SelectedExecutionContext = {
@@ -660,7 +702,7 @@ async function syncContext (control: TriggerControl, _process: Process): Promise
             id: action.context._id,
             key: ''
           }
-          _process.context[action.context._id] = {
+          context[action.context._id] = {
             name: getName(current, method, action),
             _class: action.context._class ?? method.createdContext._class,
             action: action._id,
@@ -681,7 +723,7 @@ async function syncContext (control: TriggerControl, _process: Process): Promise
           }
           const parentType = result.type._class === core.class.ArrOf ? (result.type as ArrOf<Doc>).of : result.type
           const _class = parentType._class === core.class.RefTo ? (parentType as RefTo<Doc>).to : parentType._class
-          _process.context[result._id] = {
+          context[result._id] = {
             name: result.name,
             isResult: true,
             type: result.type,
@@ -696,9 +738,9 @@ async function syncContext (control: TriggerControl, _process: Process): Promise
     }
   }
   const newContext: Record<ContextId, ProcessContext> = {}
-  for (const key of Object.keys(_process.context) as ContextId[]) {
+  for (const key of Object.keys(context) as ContextId[]) {
     if (exists.has(key)) {
-      newContext[key] = _process.context[key]
+      newContext[key] = context[key]
       continue
     }
     changed = true
@@ -726,6 +768,7 @@ export default async () => ({
     CheckToDoCancelled,
     FieldChangedCheck,
     MatchCardCheck,
+    RequiredFieldsFilledCheck,
     CheckSubProcessesDone,
     CheckSubProcessMatch,
     CheckTime,
@@ -779,6 +822,7 @@ export default async () => ({
     EmptyValue,
     ExecutionInitiator,
     ExecutionStarted,
+    AllMatchValue,
     FirstMatchValue,
     Filter,
     StringFromNumber,
@@ -793,7 +837,12 @@ export default async () => ({
     DayFromDate,
     DateDifference,
     Min,
-    Max
+    Max,
+    StringFromMarkup,
+    MarkupFromString,
+    StringFromIdentifier,
+    StringFromEnum,
+    EnumFromString
   },
   rollbacks: {
     ToDoCloseRollback,
@@ -809,6 +858,7 @@ export default async () => ({
     OnProcessToDoClose,
     OnProcessToDoRemove,
     OnExecutionContinue,
+    OnExecutionDone,
     OnCustomEvent,
     OnExecutionRemove,
     OnCardCreate,

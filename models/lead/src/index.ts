@@ -35,7 +35,7 @@ import { type ViewOptionsModel } from '@hcengineering/view'
 import lead from './plugin'
 import { defineSpaceType } from './spaceType'
 import { definePermissions } from './permissions'
-import { TCustomer, TFunnel, TLead } from './types'
+import { TCustomer, TFunnel, TLead, TLeadTaskType } from './types'
 
 export { leadId } from '@hcengineering/lead'
 export { leadOperation } from './migration'
@@ -44,7 +44,7 @@ export * from './spaceType'
 export * from './types'
 
 export function createModel (builder: Builder): void {
-  builder.createModel(TFunnel, TLead, TCustomer)
+  builder.createModel(TFunnel, TLead, TLeadTaskType, TCustomer)
 
   builder.mixin(lead.class.Lead, core.class.Class, activity.mixin.ActivityDoc, {})
 

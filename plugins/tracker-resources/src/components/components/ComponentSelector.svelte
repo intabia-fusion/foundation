@@ -124,7 +124,9 @@
       },
       eventToHTMLElement(event),
       (result: any) => {
-        onChange?.(result)
+        if (result !== undefined) {
+          onChange?.(result)
+        }
         selectPopupResult = undefined
       }
     )
@@ -137,7 +139,7 @@
     placeholder={popupPlaceholder}
     space={popupSpace}
     on:close={(evt) => {
-      if (onChange !== undefined) onChange(evt.detail)
+      if (evt.detail !== undefined && onChange !== undefined) onChange(evt.detail)
     }}
   />
 {:else}

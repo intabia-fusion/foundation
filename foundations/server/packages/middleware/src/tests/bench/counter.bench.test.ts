@@ -14,7 +14,7 @@
 //
 
 import { labelsKey, OneSecondCountersImpl } from '@hcengineering/server-core'
-import { bench, describeBench } from './bench'
+import { bench, describeBench } from '@hcengineering/measurements'
 
 describeBench('counter/labels bench', () => {
   it('labelsKey - undefined', async () => {

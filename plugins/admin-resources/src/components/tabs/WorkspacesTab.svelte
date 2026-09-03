@@ -37,7 +37,6 @@
     Button,
     ButtonMenu,
     CheckBox,
-    Expandable,
     IconArrowRight,
     IconCopy,
     IconDetails,
@@ -54,21 +53,23 @@
     ticker
   } from '@hcengineering/ui'
   import { workbenchId } from '@hcengineering/workbench'
-  import { onDestroy } from 'svelte'
+  import { formatMinutes } from '@hcengineering/billing-resources'
+  import { onDestroy, onMount } from 'svelte'
 
   import adminRes from '../../plugin'
   import CreateWorkspaceDialog from '../CreateWorkspaceDialog.svelte'
   import WorkspaceDetails from '../WorkspaceDetails.svelte'
   import {
     getAccountClient,
+    getBillingClient,
     getRegionInfo,
     listWorkspacesPaged,
     loadPlanOptions,
-    performWorkspaceOperation,
     performWorkspaceOperationWithOtp,
     requestAdminOtpCode,
     type PlanOptions,
-    type WorkspaceInfo
+    type WorkspaceInfo,
+    adminFetch
   } from '../../utils'
 
   export let refreshTick: number = 0
@@ -85,7 +86,7 @@
     window.open(url, '_blank')
   }
 
-  // Destructive events (delete/archive/migrate-to) require an emailed OTP code; ask before running.
+  // Every workspace operation requires an emailed OTP code; ask before running.
   async function otpGuardedOp (ws: string | string[], event: WorkspaceUserOperation, ...params: any[]): Promise<void> {
     const code = await requestAdminOtpCode()
     if (code === undefined) return
@@ -97,24 +98,37 @@
     Name = '2',
     BackupDate = '3',
     BackupSize = '4',
-    LastVisit = '5'
+    LastVisit = '5',
+    Tokens = '6',
+    Minutes = '7',
+    Members = '8'
   }
 
   let sortingRule = SortingRule.LastVisit
+  let sortAsc = false
 
-  const sortRules: Record<SortingRule, IntlString> = {
-    [SortingRule.Activity]: adminRes.string.SortActiveUsers,
-    [SortingRule.Name]: adminRes.string.SortName,
-    [SortingRule.BackupDate]: adminRes.string.SortBackupDate,
-    [SortingRule.BackupSize]: adminRes.string.SortBackupSize,
-    [SortingRule.LastVisit]: adminRes.string.SortLastVisit
+  // Names read best A-Z, every other column starts from the biggest/most recent.
+  function sortBy (rule: SortingRule): void {
+    if (sortingRule === rule) {
+      sortAsc = !sortAsc
+      return
+    }
+    sortingRule = rule
+    sortAsc = rule === SortingRule.Name
   }
 
-  // ButtonMenu.title takes a plain string, so translate the selected sort label
-  let sortTitle = ''
-  $: void translate(sortRules[sortingRule], {}, $themeStore.language).then((t) => {
-    sortTitle = t
-  })
+  // Reactive on purpose: a plain function called with a constant argument would never be
+  // re-evaluated, so every marker but the initial one stayed empty.
+  $: sortMark = (rule: SortingRule): string => (sortingRule === rule ? (sortAsc ? ' ↑' : ' ↓') : '')
+  $: ariaSort = (rule: SortingRule): 'ascending' | 'descending' | 'none' =>
+    sortingRule === rule ? (sortAsc ? 'ascending' : 'descending') : 'none'
+
+  function sortOnKey (e: KeyboardEvent, rule: SortingRule): void {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      sortBy(rule)
+    }
+  }
 
   // Activity sorts the current page by live stats; the rest are server-side
   const serverSort: Record<SortingRule, WorkspacesSortKey | undefined> = {
@@ -122,7 +136,10 @@
     [SortingRule.Name]: 'name',
     [SortingRule.BackupDate]: 'backupDate',
     [SortingRule.BackupSize]: 'backupSize',
-    [SortingRule.LastVisit]: 'lastVisit'
+    [SortingRule.LastVisit]: 'lastVisit',
+    [SortingRule.Tokens]: undefined,
+    [SortingRule.Minutes]: undefined,
+    [SortingRule.Members]: undefined
   }
 
   // Individual filters
@@ -187,12 +204,37 @@
   let billingPlanFilter = ''
   let showBillingExpired = false
   let showTrialingOnly = false
+  // Paid-only view of a tier: 'business' plus this gives Business without the trials.
+  let excludeTrialing = false
   let plans: PlanOptions | null = null
   void loadPlanOptions($themeStore.language ?? 'en').then((p) => {
     plans = p
   })
 
   let loadFailed = false
+
+  // Best-effort: billing may be unconfigured in the admin panel, columns just stay empty then.
+  let aiTokensByWs = new Map<string, number>()
+  let asrMinutesByWs = new Map<string, number>()
+
+  async function loadBillingUsage (): Promise<void> {
+    const billingClient = getBillingClient()
+    if (billingClient === null) return
+    try {
+      const [breakdown, transcript] = await Promise.all([
+        billingClient.getWorkspaceBreakdown(1000, 0),
+        billingClient.getTranscriptUsage('workspace')
+      ])
+      aiTokensByWs = new Map(breakdown.map((it) => [it.workspace, it.usedRolling30d]))
+      asrMinutesByWs = new Map(transcript.map((it) => [it.workspace ?? '', (it.durationSeconds ?? 0) / 60]))
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  onMount(() => {
+    void loadBillingUsage()
+  })
 
   const loadPage = reduceCalls(async (): Promise<void> => {
     const res = await listWorkspacesPaged({
@@ -202,9 +244,10 @@
       attemptsGte: showGrAttempts ? 1 : undefined,
       billingPlan: billingPlanFilter !== '' ? billingPlanFilter : undefined,
       billingStatus: showTrialingOnly ? 'trialing' : undefined,
+      billingStatusNot: excludeTrialing ? 'trialing' : undefined,
       billingExpired: showBillingExpired ? true : undefined,
       sort: serverSort[sortingRule] ?? 'lastVisit',
-      order: sortingRule === SortingRule.Name ? 'asc' : 'desc',
+      order: sortAsc ? 'asc' : 'desc',
       skip: pageSkip,
       limit: pageLimit
     })
@@ -218,11 +261,13 @@
   $: queryKey = JSON.stringify({
     searchDebounced,
     sortingRule,
+    sortAsc,
     modes,
     region: showSelectedRegionOnly ? filterRegionId : null,
     attempts: showGrAttempts,
     billingPlanFilter,
     showTrialingOnly,
+    excludeTrialing,
     showBillingExpired
   })
   let prevQueryKey = ''
@@ -243,7 +288,8 @@
   }
 
   // Group expand state survives page reloads/refresh (keyed by dayRanges group)
-  const expandedGroups: Record<string, boolean> = {}
+  // Undefined means "never touched" and renders open; only an explicit false collapses a group.
+  const expandedGroups: Record<string, boolean | undefined> = {}
   $: if (searchDebounced.length > 0) {
     for (const k of Object.keys(dayRanges)) expandedGroups[k] = true
   }
@@ -265,14 +311,24 @@
     return false
   }
 
-  // Server returns the page filtered/sorted; page-local: inactive filter (live stats) and Activity sort
+  // Server returns the page filtered/sorted; page-local: inactive filter (live stats) and Activity/Tokens/Minutes sort
   $: sortedWorkspaces = workspaces
     .filter((it) => (showInactive ? isWorkspaceInactive(it, statsByWorkspace.get(it.uuid)) : true))
     .sort((a, b) => {
+      const dir = sortAsc ? -1 : 1
       if (sortingRule === SortingRule.Activity) {
         const aStats = statsByWorkspace.get(a.uuid ?? '')
         const bStats = statsByWorkspace.get(b.uuid ?? '')
-        return (bStats?.sessions?.length ?? 0) - (aStats?.sessions?.length ?? 0)
+        return ((bStats?.sessions?.length ?? 0) - (aStats?.sessions?.length ?? 0)) * dir
+      }
+      if (sortingRule === SortingRule.Tokens) {
+        return ((aiTokensByWs.get(b.uuid ?? '') ?? 0) - (aiTokensByWs.get(a.uuid ?? '') ?? 0)) * dir
+      }
+      if (sortingRule === SortingRule.Minutes) {
+        return ((asrMinutesByWs.get(b.uuid ?? '') ?? 0) - (asrMinutesByWs.get(a.uuid ?? '') ?? 0)) * dir
+      }
+      if (sortingRule === SortingRule.Members) {
+        return ((b.usageInfo?.usage.membersCount ?? 0) - (a.usageInfo?.usage.membersCount ?? 0)) * dir
       }
       return 0
     })
@@ -283,12 +339,10 @@
 
   let backupable: WorkspaceInfo[] = []
 
-  const token: string = getMetadata(presentation.metadata.Token) ?? ''
-
   const endpoint = getMetadata(presentation.metadata.StatsUrl)
 
   async function fetchStats (time: number): Promise<void> {
-    await fetch(endpoint + `/api/v1/overview?token=${token}`, {})
+    await adminFetch(endpoint + '/api/v1/overview')
       .then(async (json) => {
         data = await json.json()
       })
@@ -361,27 +415,28 @@
     backupIdx = newBackupIdx
   }
 
+  // Buckets by time since the last visit; the last one collects everything older.
   const dayRanges = {
-    Hour: [-1, 0.1],
-    HalfDay: [0.1, 0.5],
-    Day: [0.5, 1],
-    Week: [1, 7],
-    Weeks: [7, 14],
-    Month: [14, 30],
-    Months1: [30, 60],
-    Months2: [60, 90],
-    Months3: [90, 180],
-    'Six Month': [180, 270],
-    'Nine Months': [270, 365],
-    Years: [365, 10000000]
+    '< 1d': [-1, 1],
+    '< 3d': [1, 3],
+    '< 7d': [3, 7],
+    '< 1m': [7, 30],
+    '< 3m': [30, 90],
+    '> 3m': [90, 10000000]
   }
 
   let limit = 50
 
-  $: groupped = groupByArray(sortedWorkspaces, (it) => {
-    const lastUsageDays = Math.round((10 * (now - (it.lastVisit ?? 0))) / (1000 * 3600 * 24)) / 10
-    return Object.entries(dayRanges).find(([_k, v]) => v[0] < lastUsageDays && lastUsageDays <= v[1])?.[0] ?? 'Years'
-  })
+  // Buckets make sense only while the list is ordered by last visit; any other sort would be
+  // invisible inside them, so it switches to one flat group.
+  $: byLastVisit = sortingRule === SortingRule.LastVisit
+  $: groupped = byLastVisit
+    ? groupByArray(sortedWorkspaces, (it) => {
+      const lastUsageDays = Math.round((10 * (now - (it.lastVisit ?? 0))) / (1000 * 3600 * 24)) / 10
+      return Object.entries(dayRanges).find(([_k, v]) => v[0] < lastUsageDays && lastUsageDays <= v[1])?.[0] ?? '> 3m'
+    })
+    : new Map([['', sortedWorkspaces]])
+  $: groupKeys = byLastVisit ? Object.keys(dayRanges) : ['']
 
   let regionInfo: RegionInfo[] = []
 
@@ -419,6 +474,13 @@
         ? filteredRegionRef.name
         : filteredRegionRef.region
       : ''
+
+  function fmtTokens (n: number): string {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k'
+    return `${n}`
+  }
 </script>
 
 <div class="anticrm-panel flex-row flex-grow" style:overflow-y={'auto'}>
@@ -443,12 +505,9 @@
             label={adminRes.string.ReindexAll}
             size={'small'}
             on:click={() => {
-              showPopup(MessageBox, {
-                label: adminRes.string.ReindexAll,
-                message: adminRes.string.PleaseConfirm,
-                action: async () => {
-                  await getAccountClient().adminReindexAllWorkspaces()
-                }
+              void requestAdminOtpCode().then(async (code) => {
+                if (code === undefined) return
+                await getAccountClient().adminReindexAllWorkspaces(code)
               })
             }}
           />
@@ -502,18 +561,7 @@
   </div>
 
   <div class="p-3 flex-row-center flex-wrap filters-row">
-    <span class="mr-1"><Label label={adminRes.string.SortingOrder} /></span>
-    <ButtonMenu
-      selected={sortingRule}
-      autoSelectionIfOne
-      title={sortTitle}
-      items={Object.entries(sortRules).map((it) => ({ id: it[0], label: it[1] }))}
-      on:selected={(it) => {
-        sortingRule = it.detail
-      }}
-    />
-
-    <span class="ml-4 mr-1"><Label label={adminRes.string.MigrationRegion} /></span>
+    <span class="mr-1"><Label label={adminRes.string.MigrationRegion} /></span>
     <ButtonMenu
       selected={selectedRegionId}
       autoSelectionIfOne
@@ -557,275 +605,454 @@
     />
     <span class="ml-3 mr-1"><Label label={adminRes.string.TrialingOnly} /></span>
     <CheckBox bind:checked={showTrialingOnly} />
+    <span class="ml-3 mr-1"><Label label={adminRes.string.NoTrial} /></span>
+    <CheckBox bind:checked={excludeTrialing} />
     <span class="ml-3 mr-1"><Label label={adminRes.string.BillingExpired} /></span>
     <CheckBox bind:checked={showBillingExpired} />
   </div>
-  <div class="fs-title p-1">
-    <Scroller maxHeight={40} noStretch={true}>
-      <div class="mr-4">
-        {#each Object.keys(dayRanges) as k}
-          {@const v = groupped.get(k) ?? []}
-          {@const hasMore = (groupped.get(k) ?? []).length > limit}
-          {@const activeV = v.filter((it) => isActiveMode(it.mode) && it.region !== selectedRegionId).slice(0, limit)}
-          {@const activeAll = v.filter((it) => isActiveMode(it.mode))}
-          {@const archivedV = v.filter((it) => isArchivingMode(it.mode))}
-          {@const deletedV = v.filter((it) => isDeletingMode(it.mode))}
-          {@const maintenance = v.length - activeAll.length - archivedV.length - deletedV.length}
-          {@const grByRegion = groupByArray(v, (it) => regionTitles[it.region ?? ''])}
-          {#if v.length > 0}
-            <Expandable expandable={true} bordered={true} bind:expanded={expandedGroups[k]}>
-              <svelte:fragment slot="title">
-                <span class="fs-title focused-button flex-row-center">
-                  {k} -
-                  {#if hasMore}
-                    {limit} of {v.length}
-                  {:else}
-                    {v.length}
-                  {/if}
-                  {#if maintenance > 0}
-                    - maitenance: {maintenance}
-                  {/if}
-                  {#if grByRegion.size > 1}
-                    {#each grByRegion.entries() as [k, v]}
-                      <div class="p-1">
-                        {k ?? ''}: {v.length}
-                      </div>
-                    {/each}
-                  {/if}
-                </span>
-              </svelte:fragment>
-              <svelte:fragment slot="title-tools">
-                {#if hasMore}
-                  <div class="ml-4">
-                    <Button
-                      label={adminRes.string.MoreItems}
-                      kind={'link'}
-                      on:click={() => {
-                        limit += 50
-                      }}
-                    />
-                  </div>
-                {/if}
-              </svelte:fragment>
-              <svelte:fragment slot="tools">
-                {#if !readOnly && activeAll.length > 0}
-                  <Button
-                    icon={IconStop}
-                    label={adminRes.string.MassArchive}
-                    labelParams={{ count: activeAll.length }}
-                    kind={'ghost'}
-                    on:click={() => {
-                      void otpGuardedOp(
-                        activeAll.map((it) => it.uuid),
-                        'archive'
-                      ).then(() => {
-                        void loadPage()
-                      })
-                    }}
-                  />
-                {/if}
-
-                {#if !readOnly && regionInfo.length > 0 && activeV.length > 0}
-                  <Button
-                    icon={IconArrowRight}
-                    kind={'positive'}
-                    label={adminRes.string.MassMigrate}
-                    labelParams={{ count: activeV.length, region: selectedRegionName ?? '' }}
-                    on:click={() => {
-                      void otpGuardedOp(
-                        activeV.map((it) => it.uuid),
-                        'migrate-to',
-                        selectedRegionId
-                      ).then(() => {
-                        void loadPage()
-                      })
-                    }}
-                  />
-                {/if}
-              </svelte:fragment>
-              {#each v.slice(0, limit) as workspace}
-                {@const wsName = workspace.name}
-                {@const lastUsageDays = Math.round((now - (workspace.lastVisit ?? 0)) / (1000 * 3600 * 24))}
-                {@const bIdx = backupIdx.get(workspace.uuid)}
-                {@const stats = statsByWorkspace.get(workspace.uuid ?? '')}
-                <!-- svelte-ignore a11y-click-events-have-key-events -->
-                <!-- svelte-ignore a11y-no-static-element-interactions -->
-                <tr class="flex fs-title cursor-pointer focused-button bordered" id={`${workspace.uuid}`}>
-                  <div class="label overflow-label p-1 flex flex-row-center" style:width={'15rem'}>
-                    {wsName}
-                    {#if stats}
+  <div class="p-1 select-text-i">
+    <div class="table-scroll">
+      <table class="workspaces-table">
+        <thead>
+          <tr>
+            <th
+              class="sortable"
+              class:sorted={sortingRule === SortingRule.Name}
+              aria-sort={ariaSort(SortingRule.Name)}
+              tabindex="0"
+              on:click={() => {
+                sortBy(SortingRule.Name)
+              }}
+              on:keydown={(e) => {
+                sortOnKey(e, SortingRule.Name)
+              }}
+            >
+              <Label label={adminRes.string.Workspace} />{sortMark(SortingRule.Name)}
+            </th>
+            <th
+              class="sortable"
+              class:sorted={sortingRule === SortingRule.Activity}
+              aria-sort={ariaSort(SortingRule.Activity)}
+              tabindex="0"
+              title="Open sessions right now"
+              on:click={() => {
+                sortBy(SortingRule.Activity)
+              }}
+              on:keydown={(e) => {
+                sortOnKey(e, SortingRule.Activity)
+              }}
+            >
+              <Label label={adminRes.string.Sessions} />{sortMark(SortingRule.Activity)}
+            </th>
+            <th title="Transactions and queries served in the last 5 minutes">
+              <Label label={adminRes.string.Ops5m} />
+            </th>
+            <th><Label label={adminRes.string.Region} /></th>
+            <th
+              class="sortable"
+              class:sorted={sortingRule === SortingRule.LastVisit}
+              aria-sort={ariaSort(SortingRule.LastVisit)}
+              tabindex="0"
+              on:click={() => {
+                sortBy(SortingRule.LastVisit)
+              }}
+              on:keydown={(e) => {
+                sortOnKey(e, SortingRule.LastVisit)
+              }}
+            >
+              <Label label={adminRes.string.LastVisit} />{sortMark(SortingRule.LastVisit)}
+            </th>
+            <th
+              class="sortable"
+              class:sorted={sortingRule === SortingRule.Members}
+              aria-sort={ariaSort(SortingRule.Members)}
+              tabindex="0"
+              on:click={() => {
+                sortBy(SortingRule.Members)
+              }}
+              on:keydown={(e) => {
+                sortOnKey(e, SortingRule.Members)
+              }}
+            >
+              <Label label={adminRes.string.Members} />{sortMark(SortingRule.Members)}
+            </th>
+            <th><Label label={adminRes.string.Mode} /></th>
+            <th><Label label={adminRes.string.Plan} /></th>
+            <th
+              class="sortable"
+              class:sorted={sortingRule === SortingRule.Tokens}
+              aria-sort={ariaSort(SortingRule.Tokens)}
+              tabindex="0"
+              on:click={() => {
+                sortBy(SortingRule.Tokens)
+              }}
+              on:keydown={(e) => {
+                sortOnKey(e, SortingRule.Tokens)
+              }}
+            >
+              <Label label={adminRes.string.AITokens} />{sortMark(SortingRule.Tokens)}
+            </th>
+            <th
+              class="sortable"
+              class:sorted={sortingRule === SortingRule.Minutes}
+              aria-sort={ariaSort(SortingRule.Minutes)}
+              tabindex="0"
+              on:click={() => {
+                sortBy(SortingRule.Minutes)
+              }}
+              on:keydown={(e) => {
+                sortOnKey(e, SortingRule.Minutes)
+              }}
+            >
+              <Label label={adminRes.string.MeetingMinutes} />{sortMark(SortingRule.Minutes)}
+            </th>
+            <th><Label label={adminRes.string.Attempts} /></th>
+            <th><Label label={adminRes.string.Progress} /></th>
+            <th
+              class="sortable"
+              class:sorted={sortingRule === SortingRule.BackupSize}
+              aria-sort={ariaSort(SortingRule.BackupSize)}
+              tabindex="0"
+              on:click={() => {
+                sortBy(SortingRule.BackupSize)
+              }}
+              on:keydown={(e) => {
+                sortOnKey(e, SortingRule.BackupSize)
+              }}
+            >
+              <Label label={adminRes.string.SortBackupSize} />{sortMark(SortingRule.BackupSize)}
+            </th>
+            <th
+              class="sortable"
+              class:sorted={sortingRule === SortingRule.BackupDate}
+              aria-sort={ariaSort(SortingRule.BackupDate)}
+              tabindex="0"
+              on:click={() => {
+                sortBy(SortingRule.BackupDate)
+              }}
+              on:keydown={(e) => {
+                sortOnKey(e, SortingRule.BackupDate)
+              }}
+            >
+              <Label label={adminRes.string.LastBackup} />{sortMark(SortingRule.BackupDate)}
+            </th>
+            <th><Label label={adminRes.string.Actions} /></th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each groupKeys as k}
+            {@const v = groupped.get(k) ?? []}
+            {@const hasMore = v.length > limit}
+            {@const activeV = v.filter((it) => isActiveMode(it.mode) && it.region !== selectedRegionId).slice(0, limit)}
+            {@const activeAll = v.filter((it) => isActiveMode(it.mode))}
+            {@const archivedV = v.filter((it) => isArchivingMode(it.mode))}
+            {@const deletedV = v.filter((it) => isDeletingMode(it.mode))}
+            {@const maintenance = v.length - activeAll.length - archivedV.length - deletedV.length}
+            {@const grByRegion = groupByArray(v, (it) => regionTitles[it.region ?? ''])}
+            {@const expanded = expandedGroups[k] !== false}
+            {#if v.length > 0}
+              <!-- svelte-ignore a11y-click-events-have-key-events -->
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <tr class="group-row cursor-pointer" on:click={() => (expandedGroups[k] = !expanded)}>
+                <td colspan="15">
+                  <div class="flex-row-center flex-gap-2">
+                    <span class="fs-title">
+                      {expanded ? '▾' : '▸'}
+                      {#if k !== ''}
+                        {k}
+                      {:else}
+                        <Label label={adminRes.string.Total} />
+                      {/if}
                       -
-                      <div class="ml-1">
-                        {stats.sessions?.length ?? 0}
-
+                      {#if hasMore}
+                        {limit} of {v.length}
+                      {:else}
+                        {v.length}
+                      {/if}
+                    </span>
+                    {#if maintenance > 0}
+                      <span class="content-dark-color">maintenance: {maintenance}</span>
+                    {/if}
+                    {#if grByRegion.size > 1}
+                      {#each grByRegion.entries() as [region, list]}
+                        <span class="content-dark-color">{region ?? ''}: {list.length}</span>
+                      {/each}
+                    {/if}
+                    <div class="flex-grow" />
+                    {#if hasMore}
+                      <Button
+                        label={adminRes.string.MoreItems}
+                        kind={'link'}
+                        on:click={(ev) => {
+                          ev.stopPropagation()
+                          limit += 50
+                        }}
+                      />
+                    {/if}
+                    {#if !readOnly && activeAll.length > 0}
+                      <Button
+                        icon={IconStop}
+                        label={adminRes.string.MassArchive}
+                        labelParams={{ count: activeAll.length }}
+                        kind={'ghost'}
+                        on:click={(ev) => {
+                          ev.stopPropagation()
+                          void otpGuardedOp(
+                            activeAll.map((it) => it.uuid),
+                            'archive'
+                          ).then(() => {
+                            void loadPage()
+                          })
+                        }}
+                      />
+                    {/if}
+                    {#if !readOnly && regionInfo.length > 0 && activeV.length > 0}
+                      <Button
+                        icon={IconArrowRight}
+                        kind={'positive'}
+                        label={adminRes.string.MassMigrate}
+                        labelParams={{ count: activeV.length, region: selectedRegionName ?? '' }}
+                        on:click={(ev) => {
+                          ev.stopPropagation()
+                          void otpGuardedOp(
+                            activeV.map((it) => it.uuid),
+                            'migrate-to',
+                            selectedRegionId
+                          ).then(() => {
+                            void loadPage()
+                          })
+                        }}
+                      />
+                    {/if}
+                  </div>
+                </td>
+              </tr>
+              {#if expanded}
+                {#each v.slice(0, limit) as workspace}
+                  {@const lastUsageDays = Math.round((now - (workspace.lastVisit ?? 0)) / (1000 * 3600 * 24))}
+                  {@const bIdx = backupIdx.get(workspace.uuid)}
+                  {@const stats = statsByWorkspace.get(workspace.uuid ?? '')}
+                  <tr class="focused-button" id={`${workspace.uuid}`}>
+                    <td>
+                      <div class="flex-row-center">
+                        <span class="label overflow-label">{workspace.name}</span>
+                        <Button
+                          icon={IconOpen}
+                          size={'small'}
+                          kind={'ghost'}
+                          on:click={() => select(workspace.url)}
+                          showTooltip={{ label: adminRes.string.OpenWorkspaceUrl }}
+                        />
+                        <Button
+                          icon={IconCopy}
+                          size={'small'}
+                          kind={'ghost'}
+                          on:click={() => copyTextToClipboard(workspace.uuid)}
+                          showTooltip={{ label: adminRes.string.CopyUuid }}
+                        />
+                        <Button
+                          icon={IconDetails}
+                          size={'small'}
+                          kind={'ghost'}
+                          on:click={() => {
+                            showPopup(WorkspaceDetails, { workspace })
+                          }}
+                          showTooltip={{ label: adminRes.string.Details }}
+                        />
+                      </div>
+                    </td>
+                    <td>{stats ? (stats.sessions?.length ?? 0) : ''}</td>
+                    <td>
+                      {#if stats}
                         {(stats.sessions ?? []).reduceRight(
                           (p, it) => p + (it.mins5.tx + it.mins5.find) + (it.current.tx + it.current.find),
                           0
                         )}
+                      {/if}
+                    </td>
+                    <td>{workspace.region ?? ''}</td>
+                    <td>{lastUsageDays} days</td>
+                    <td title="Members holding a seat (AI bot excluded), refreshed by billing">
+                      {workspace.usageInfo?.usage.membersCount ?? '-'}
+                    </td>
+                    <td>{workspace.mode ?? '-'}</td>
+                    <td>
+                      {#if workspace.billingPlan != null}
+                        {plans?.labels[workspace.billingPlan] ?? workspace.billingPlan}
+                        {#if workspace.billingStatus !== 'active'}
+                          <span class="ml-1 content-dark-color">({workspace.billingStatus})</span>
+                        {/if}
+                      {:else}
+                        -
+                      {/if}
+                    </td>
+                    <td title="Rolling 30-day usage (not aligned to billing period)">
+                      {fmtTokens(aiTokensByWs.get(workspace.uuid) ?? 0)}
+                    </td>
+                    <td>{formatMinutes(asrMinutesByWs.get(workspace.uuid) ?? 0)}</td>
+                    <td>
+                      <div class="flex-row-center">
+                        {workspace.processingAttempts}
+                        {#if !readOnly && workspace.processingAttempts > 0}
+                          <Button
+                            on:click={() => {
+                              showPopup(MessageBox, {
+                                label: adminRes.string.ResetAttempts,
+                                labelProps: { url: workspace.url },
+                                message: adminRes.string.PleaseConfirm,
+                                action: async () => {
+                                  await otpGuardedOp(workspace.uuid, 'reset-attempts')
+                                }
+                              })
+                            }}
+                            icon={IconDownOutline}
+                            size={'small'}
+                            kind={'ghost'}
+                          />
+                        {/if}
                       </div>
-                    {/if}
-                    <div class="ml-1 flex flex-row-center">
-                      <Button
-                        icon={IconOpen}
-                        size={'small'}
-                        on:click={() => select(workspace.url)}
-                        showTooltip={{ label: adminRes.string.OpenWorkspaceUrl }}
-                      />
-                      <Button
-                        icon={IconCopy}
-                        size={'small'}
-                        on:click={() => copyTextToClipboard(workspace.uuid)}
-                        showTooltip={{ label: adminRes.string.CopyUuid }}
-                      />
-                      <Button
-                        icon={IconDetails}
-                        size={'small'}
-                        on:click={() => {
-                          showPopup(WorkspaceDetails, { workspace })
-                        }}
-                        showTooltip={{ label: adminRes.string.Details }}
-                      />
-                    </div>
-                  </div>
-                  <div class="label overflow-label p-1 flex flex-row-center" style:width={'5rem'}>
-                    {workspace.region ?? ''}
-                  </div>
-                  <div class="label overflow-label p-1 flex flex-row-center" style:width={'5rem'}>
-                    {lastUsageDays} days
-                  </div>
-                  <div class="label overflow-label p-1 flex flex-row-center" style:width={'8rem'}>
-                    {workspace.mode ?? '-'}
-                  </div>
-                  <div class="label overflow-label p-1 flex flex-row-center" style:width={'8rem'}>
-                    {#if workspace.billingPlan != null}
-                      {plans?.labels[workspace.billingPlan] ?? workspace.billingPlan}
-                      {#if workspace.billingStatus !== 'active'}
-                        <span class="ml-1 content-dark-color">({workspace.billingStatus})</span>
+                    </td>
+                    <td>
+                      {#if workspace.processingProgress !== 100 && workspace.processingProgress !== 0}
+                        {workspace.processingProgress}%
                       {/if}
-                    {:else}
-                      -
-                    {/if}
-                  </div>
-                  <div class="label overflow-label flex flex-row-center" style:width={'5rem'}>
-                    {workspace.processingAttempts}
-                    {#if !readOnly && workspace.processingAttempts > 0}
-                      <Button
-                        on:click={() => {
-                          showPopup(MessageBox, {
-                            label: adminRes.string.ResetAttempts,
-                            labelProps: { url: workspace.url },
-                            message: adminRes.string.PleaseConfirm,
-                            action: async () => {
-                              await performWorkspaceOperation(workspace.uuid, 'reset-attempts')
-                            }
-                          })
-                        }}
-                        icon={IconDownOutline}
-                        size={'small'}
-                        kind={'ghost'}
-                      />
-                    {/if}
-                  </div>
-                  <div class="flex flex-row-center" style:width={'5rem'}>
-                    {#if workspace.processingProgress !== 100 && workspace.processingProgress !== 0}
-                      ({workspace.processingProgress}%)
-                    {/if}
-                  </div>
-                  <div class="flex flex-row-center" style:width={'8rem'}>
-                    {#if workspace.backupInfo != null}
-                      {@const sz = Math.max(
-                        workspace.backupInfo.backupSize,
-                        workspace.backupInfo.dataSize + workspace.backupInfo.blobsSize
-                      )}
-                      {@const szGb = Math.round((sz * 100) / 1024) / 100}
-                      {#if szGb > 0}
-                        {Math.round((sz * 100) / 1024) / 100}Gb
-                      {:else}
-                        {Math.round(sz * 100) / 100}Mb
+                    </td>
+                    <td>
+                      {#if workspace.backupInfo != null}
+                        {@const sz = Math.max(
+                          workspace.backupInfo.backupSize,
+                          workspace.backupInfo.dataSize + workspace.backupInfo.blobsSize
+                        )}
+                        {@const szGb = Math.round((sz * 100) / 1024) / 100}
+                        {#if szGb > 0}
+                          {szGb}Gb
+                        {:else}
+                          {Math.round(sz * 100) / 100}Mb
+                        {/if}
                       {/if}
-                    {/if}
-                    {#if bIdx != null}
-                      [#{bIdx}]
-                    {/if}
-                  </div>
-                  <div class="flex flex-row-center" style:width={'8rem'}>
-                    {#if workspace.backupInfo != null}
-                      {@const hours = Math.round((now - workspace.backupInfo.lastBackup) / (1000 * 3600))}
-
-                      {#if hours > 24}
-                        {Math.round(hours / 24)} days
-                      {:else}
-                        {hours} hours
+                      {#if bIdx != null}
+                        [#{bIdx}]
                       {/if}
-                    {/if}
-                  </div>
-                  <div class="flex flex-row-center p-1">
-                    {#if !readOnly && workspace.mode === 'active'}
-                      <Button
-                        icon={IconStop}
-                        size={'small'}
-                        label={adminRes.string.Archive}
-                        kind={'ghost'}
-                        on:click={() => {
-                          void otpGuardedOp(workspace.uuid, 'archive').then(() => {
-                            void loadPage()
-                          })
-                        }}
-                      />
-                    {/if}
-
-                    {#if !readOnly && workspace.mode === 'archived'}
-                      <Button
-                        icon={IconStart}
-                        size={'small'}
-                        kind={'ghost'}
-                        label={adminRes.string.Unarchive}
-                        on:click={() => {
-                          showPopup(MessageBox, {
-                            label: adminRes.string.UnarchiveWorkspace,
-                            labelProps: { url: workspace.url },
-                            message: adminRes.string.PleaseConfirm,
-                            action: async () => {
-                              await performWorkspaceOperation(workspace.uuid, 'unarchive')
-                            }
-                          })
-                        }}
-                      />
-                    {/if}
-                    {#if !readOnly && regionInfo.length > 0 && workspace.mode === 'active' && (workspace.region ?? '') !== selectedRegionId}
-                      <Button
-                        icon={IconArrowRight}
-                        size={'small'}
-                        kind={'positive'}
-                        label={adminRes.string.Migrate}
-                        on:click={() => {
-                          void otpGuardedOp(workspace.uuid, 'migrate-to', selectedRegionId).then(() => {
-                            void loadPage()
-                          })
-                        }}
-                      />
-                    {/if}
-
-                    {#if !readOnly && superAdminMode && !isDeletingMode(workspace.mode) && !isArchivingMode(workspace.mode)}
-                      <Button
-                        icon={IconStop}
-                        size={'small'}
-                        kind={'dangerous'}
-                        label={adminRes.string.Delete}
-                        on:click={() => {
-                          void otpGuardedOp(workspace.uuid, 'delete').then(() => {
-                            void loadPage()
-                          })
-                        }}
-                      />
-                    {/if}
-                  </div>
-                </tr>
-              {/each}
-            </Expandable>
-          {/if}
-        {/each}
-      </div>
-    </Scroller>
+                    </td>
+                    <td>
+                      {#if workspace.backupInfo != null}
+                        {@const hours = Math.round((now - workspace.backupInfo.lastBackup) / (1000 * 3600))}
+                        {#if hours > 24}
+                          {Math.round(hours / 24)} days
+                        {:else}
+                          {hours} hours
+                        {/if}
+                      {/if}
+                    </td>
+                    <td>
+                      <div class="flex-row-center">
+                        {#if !readOnly && workspace.mode === 'active'}
+                          <Button
+                            icon={IconStop}
+                            size={'small'}
+                            label={adminRes.string.Archive}
+                            kind={'ghost'}
+                            on:click={() => {
+                              void otpGuardedOp(workspace.uuid, 'archive').then(() => {
+                                void loadPage()
+                              })
+                            }}
+                          />
+                        {/if}
+                        {#if !readOnly && workspace.mode === 'archived'}
+                          <Button
+                            icon={IconStart}
+                            size={'small'}
+                            kind={'ghost'}
+                            label={adminRes.string.Unarchive}
+                            on:click={() => {
+                              showPopup(MessageBox, {
+                                label: adminRes.string.UnarchiveWorkspace,
+                                labelProps: { url: workspace.url },
+                                message: adminRes.string.PleaseConfirm,
+                                action: async () => {
+                                  await otpGuardedOp(workspace.uuid, 'unarchive')
+                                }
+                              })
+                            }}
+                          />
+                        {/if}
+                        {#if !readOnly && regionInfo.length > 0 && workspace.mode === 'active' && (workspace.region ?? '') !== selectedRegionId}
+                          <Button
+                            icon={IconArrowRight}
+                            size={'small'}
+                            kind={'positive'}
+                            label={adminRes.string.Migrate}
+                            on:click={() => {
+                              void otpGuardedOp(workspace.uuid, 'migrate-to', selectedRegionId).then(() => {
+                                void loadPage()
+                              })
+                            }}
+                          />
+                        {/if}
+                        {#if !readOnly && superAdminMode && !isDeletingMode(workspace.mode) && !isArchivingMode(workspace.mode)}
+                          <Button
+                            icon={IconStop}
+                            size={'small'}
+                            kind={'dangerous'}
+                            label={adminRes.string.Delete}
+                            on:click={() => {
+                              void otpGuardedOp(workspace.uuid, 'delete').then(() => {
+                                void loadPage()
+                              })
+                            }}
+                          />
+                        {/if}
+                      </div>
+                    </td>
+                  </tr>
+                {/each}
+              {/if}
+            {/if}
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
+
+<style lang="scss">
+  .table-scroll {
+    max-height: 40rem;
+    overflow: auto;
+  }
+  .workspaces-table {
+    width: 100%;
+    // Every cell is nowrap, so this keeps the columns readable and hands the rest to the scroller.
+    min-width: max-content;
+    border-collapse: collapse;
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    th.sortable:focus-visible {
+      outline: 2px solid var(--primary-button-default);
+      outline-offset: -2px;
+    }
+    th.sorted {
+      color: var(--theme-caption-color);
+    }
+    th,
+    td {
+      text-align: left;
+      white-space: nowrap;
+      padding: 0.35rem 1rem 0.35rem 0;
+      border-bottom: 1px solid var(--theme-divider-color, #8883);
+    }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--theme-comp-header-color);
+    }
+    .group-row td {
+      font-weight: 600;
+      background: var(--theme-comp-header-color);
+    }
+  }
+</style>

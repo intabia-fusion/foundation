@@ -31,14 +31,7 @@
   import notification, { notificationId } from '@hcengineering/notification'
   import { AppNotificator, NotificationClientImpl } from '@hcengineering/notification-resources'
   import { broadcastEvent, getMetadata, getResource, IntlString, translate } from '@hcengineering/platform'
-  import {
-    ActionContext,
-    ComponentExtensions,
-    createQuery,
-    getClient,
-    isAdminUser,
-    reduceCalls
-  } from '@hcengineering/presentation'
+  import { ActionContext, ComponentExtensions, createQuery, getClient, reduceCalls } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting'
   import support from '@hcengineering/support'
   import {
@@ -166,7 +159,9 @@
 
   const linkProviders = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
 
-  const mobileAdaptive = $deviceInfo.isMobile && $deviceInfo.minWidth
+  // Reactive, not const: it gates whether the sidebar is rendered at all, and PanelInstance sizes
+  // itself off the same breakpoint on every resize - a stale value makes the panel overlap it.
+  $: mobileAdaptive = $deviceInfo.isMobile && $deviceInfo.minWidth
   const defaultNavigator = !(getMetadata(workbench.metadata.NavigationExpandedDefault) ?? true)
   const savedNavigator = localStorage.getItem('hiddenNavigator')
   let hiddenNavigator: boolean = savedNavigator !== null ? savedNavigator === 'true' : defaultNavigator
@@ -463,6 +458,11 @@
             }
           }
           loc.path.length = len
+          // Re-check: fetching the default space is awaited, and a click on the navigator made
+          // in the meantime already moved us to another app - do not navigate back over it.
+          if (getCurrentLocation().path[2] !== undefined) {
+            return
+          }
           if (navigate(loc)) {
             return
           }
@@ -671,7 +671,9 @@
     oldNavVisible !== $deviceInfo.navigator.visible ||
     oldASideVisible !== ($sidebarStore.variant !== SidebarVariant.MINI)
   ) {
-    if (mobileAdaptive && $deviceInfo.navigator.float) {
+    // Inlined instead of `mobileAdaptive`: this block writes $deviceInfo, so reading the reactive
+    // var here would be a cycle. Same expression, same dependency this block already has.
+    if ($deviceInfo.isMobile && $deviceInfo.minWidth && $deviceInfo.navigator.float) {
       if ($deviceInfo.navigator.visible && $sidebarStore.variant !== SidebarVariant.MINI) {
         if (oldNavVisible) $deviceInfo.navigator.visible = false
         else $sidebarStore.variant = SidebarVariant.MINI
@@ -776,7 +778,7 @@
   }
 </script>
 
-{#if $myEmployeeStore != null && deactivated && !isAdminUser()}
+{#if $myEmployeeStore != null && deactivated}
   <div class="flex-col-center justify-center h-full flex-grow">
     <h1><Label label={workbench.string.AccountDisabled} /></h1>
     <Label label={workbench.string.AccountDisabledDescr} />
@@ -791,7 +793,7 @@
       }}
     />
   </div>
-{:else if $myEmployeeStore != null || account.role === AccountRole.Owner || isAdminUser()}
+{:else if $myEmployeeStore != null || account.role === AccountRole.Owner}
   <ActionHandler {currentSpace} />
   <svg class="svg-mask">
     <clipPath id="notify-normal">
@@ -1044,10 +1046,12 @@
           {/if}
         </div>
       </div>
-      {#if $sidebarStore.variant === SidebarVariant.EXPANDED && !$sidebarStore.float}
-        <Separator name={'main'} index={0} color={'transparent'} separatorSize={0} short />
+      {#if !mobileAdaptive}
+        {#if $sidebarStore.variant === SidebarVariant.EXPANDED && !$sidebarStore.float}
+          <Separator name={'main'} index={0} color={'transparent'} separatorSize={0} short />
+        {/if}
+        <WidgetsBar />
       {/if}
-      <WidgetsBar />
     </div>
   </div>
   <Dock />
@@ -1104,6 +1108,8 @@
     .antiPanel-application.horizontal {
       border-radius: 0 0 var(--medium-BorderRadius) var(--medium-BorderRadius);
       border-top: none;
+      // Bar height is driven by its buttons - without this they sit flush against both edges.
+      padding-block: 0.25rem;
     }
     .antiPanel-application:not(.horizontal) {
       border-radius: var(--medium-BorderRadius) 0 0 var(--medium-BorderRadius);
@@ -1116,9 +1122,11 @@
     display: flex;
     align-items: center;
     z-index: 1;
+    // Must give way to the info-box (help + avatar) instead of pushing it off screen.
+    min-width: 0;
 
     &.portrait {
-      margin-left: 1rem;
+      margin-left: 0.5rem;
 
       .logo-container {
         margin-right: 0.5rem;
@@ -1151,21 +1159,22 @@
     .logo-container.mini,
     .topmenu-container.mini {
       position: fixed;
-      top: 4px;
+      top: 8px;
     }
     .logo-container.mini {
-      left: 4px;
-      width: 1.75rem;
-      height: 1.75rem;
+      left: 8px;
+      width: 2.25rem;
+      height: 2.25rem;
     }
     .topmenu-container.mini {
-      left: calc(1.75rem + 8px);
+      left: calc(2.25rem + 12px);
     }
   }
 
   .info-box {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
 
     &.vertical {
       flex-direction: column;

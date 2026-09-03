@@ -126,7 +126,7 @@ export type PropertyType = any
 export interface UXObject extends Obj {
   label: IntlString
   icon?: Asset
-  color?: number
+  color?: number | number[] | Ref<Blob>
   hidden?: boolean
   readonly?: boolean
 }
@@ -234,6 +234,7 @@ export interface Attribute<T extends PropertyType> extends Doc, UXObject {
   defaultValue?: any
   automationOnly?: boolean
   rank?: Rank
+  required?: boolean
   activity?: { set?: IntlString, unset?: IntlString }
 
   // Extra customization properties
@@ -324,6 +325,7 @@ export interface PluginConfiguration extends Doc {
   // If defined, will only remove classes in list.
   classFilter?: Ref<Class<Obj>>[]
   mixinFilter?: Ref<Mixin<Doc>>[]
+  objectIdFilter?: Ref<Doc>[]
 }
 
 /**
@@ -639,10 +641,13 @@ export interface Person {
   uuid: PersonUuid
   firstName: string
   lastName: string
+  // No SMS verification yet, so a phone cannot be a social id.
+  phoneHint?: string
 }
 
 export interface PersonInfo extends BasePerson {
   socialIds: SocialId[]
+  phoneHint?: string
 }
 
 /**
@@ -911,7 +916,7 @@ export interface WorkspaceInfo {
   billingAccount?: PersonUuid // Should always be set for NEW workspaces
   allowReadOnlyGuest?: boolean // Should always be set for NEW workspaces
   allowGuestSignUp?: boolean // Should always be set for NEW workspaces
-  passwordAgingRule?: number // in days
+  passwordAgingRule?: number | null // in days, null disables the rule
   disabledFeaturesOverride?: string[] // Features from DISABLED_FEATURES to re-enable for this workspace
 }
 

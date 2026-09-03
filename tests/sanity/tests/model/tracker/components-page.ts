@@ -30,10 +30,13 @@ export class ComponentsPage extends CommonTrackerPage {
   }
 
   async openComponentByName (componentName: string): Promise<void> {
+    await this.expandCollapsedCategories()
     await this.componentLink(componentName).click()
   }
 
   async checkComponentNotExist (componentName: string): Promise<void> {
+    // Without expanding, a folded category makes this assertion pass for the wrong reason.
+    await this.expandCollapsedCategories()
     await expect(this.componentLink(componentName)).toHaveCount(0)
   }
 }

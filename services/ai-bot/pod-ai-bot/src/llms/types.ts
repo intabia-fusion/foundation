@@ -15,7 +15,7 @@
 
 import type { MeasureContext, WorkspaceUuid } from '@hcengineering/core'
 import type { PersonMessage } from '@hcengineering/ai-bot'
-import type { HistoryRecord } from '../types'
+import type { AILevel } from '../config'
 import type { RunnableTools, BaseFunctionsArgs } from 'openai/lib/RunnableFunction'
 
 /**
@@ -28,33 +28,93 @@ export interface ChatMessage {
 }
 
 /**
- * Result of a simple chat completion call.
- * - `text` contains the assistant output (if any)
- * - `usage` is an optional token usage estimate (provider-normalized)
- * - `created` optionally carries provider returned timestamp (unix seconds)
+ * Token usage for a single LLM call; source of truth is the provider `usage`.
  */
-export interface ChatCompletionResult {
-  text?: string
-  usage?: number
-  created?: number
+export interface TokenUsage {
+  promptTokens: number
+  completionTokens: number
+  // Reasoning tokens, when reported separately. Already counted inside completionTokens -
+  // kept apart for diagnostics only, never added on top when billing.
+  reasoningTokens?: number
 }
 
-/**
- * Result of a tools-enabled chat completion run.
- * - `completion` is the final assistant output after any tool-thinking sections
- * - `usage` is an optional token usage estimate
- */
+/** Total billable tokens for a usage record. */
+export function totalTokens (usage?: TokenUsage): number {
+  if (usage === undefined) return 0
+  return usage.promptTokens + usage.completionTokens
+}
+
+/** Raw `usage` shape returned by OpenAI/GigaChat APIs. */
+export interface ApiUsage {
+  prompt_tokens?: number
+  completion_tokens?: number
+  completion_tokens_details?: { reasoning_tokens?: number }
+}
+
+/** Normalize a provider API `usage` object to `TokenUsage` (source of truth). */
+export function usageFromApi (usage?: ApiUsage): TokenUsage | undefined {
+  if (usage === undefined) return undefined
+  const reasoning = usage.completion_tokens_details?.reasoning_tokens
+  return {
+    promptTokens: usage.prompt_tokens ?? 0,
+    completionTokens: usage.completion_tokens ?? 0,
+    ...(reasoning !== undefined && reasoning > 0 ? { reasoningTokens: reasoning } : {})
+  }
+}
+
+/** Result of a tools-enabled chat completion run: final `completion` text and provider `usage`. */
 export interface ChatCompletionWithToolsResult {
   completion?: string
-  usage?: number
+  usage?: TokenUsage
+  // Tools called while producing this answer, for the conversation snapshot.
+  toolTranscript?: ToolResult[]
+  // The user stopped the run: the completion is what one final step could assemble.
+  cancelled?: boolean
 }
 
 /**
- * Result for summary request - summary and effective token count.
+ * Optional observation/steering of a tool run: `onProgress` fires after every model round (so the
+ * user sees tokens accumulate), `isCancelled` is checked between rounds - a cancelled run stops
+ * calling tools and answers once with what it already has.
  */
-export interface RequestSummaryResult {
-  summary?: string
-  tokens: number
+export interface ToolLoopHooks {
+  onProgress?: (progress: { iteration: number, usage: TokenUsage }) => void
+  isCancelled?: () => Promise<boolean> | boolean
+}
+
+/** Serializable tool definition (OpenAI function schema) passed to a provider step. */
+export interface ToolDefinition {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+}
+
+/** A tool call requested by the model (executed by the caller, not the provider). */
+export interface ToolCall {
+  id: string
+  name: string
+  arguments: string
+}
+
+/** Result of executing a tool call, fed back into the next model step. */
+export interface ToolResult {
+  id: string
+  name: string
+  content: string
+  // Original call arguments, replayed so the model sees a consistent assistant turn.
+  arguments?: string
+}
+
+/**
+ * One step of a tool-using conversation: the model either returns final `content`
+ * or requests `toolCalls`. The caller executes calls and resubmits results.
+ */
+export interface ChatToolStepResult {
+  content?: string
+  toolCalls?: ToolCall[]
+  usage?: TokenUsage
+  // The model stopped at its output cap (finish_reason 'length'), so `content` is cut mid-thought.
+  truncated?: boolean
 }
 
 /**
@@ -63,11 +123,8 @@ export interface RequestSummaryResult {
 export type ContextMode = 'direct' | 'thread'
 
 /**
- * Main LLM provider interface.
- *
- * Implementations must provide these methods. Keep implementations
- * robust (catch errors internally) – callers often expect `undefined`
- * when the provider cannot fulfill the request.
+ * Main LLM provider interface. Implementations should catch errors internally -
+ * callers often expect `undefined` on failure, not a thrown exception.
  */
 export interface LLMProvider {
   /**
@@ -88,55 +145,79 @@ export interface LLMProvider {
     workspace: WorkspaceUuid,
     messages: PersonMessage[],
     lang: string,
-    description?: string
+    description?: string,
+    level?: AILevel
   ) => Promise<string | undefined>
 
   /**
-   * Create a standard chat completion.
-   * - `message` is the user/system prompt
-   * - `history` are prior messages in helper shape
-   * Returns normalized result (text + usage).
+   * Fix ASR errors in a raw voice-note transcript (uses the given level's model).
+   * Optional: providers without it just skip correction, keeping the raw text.
    */
-  createChatCompletion: (
+  correctTranscript?: (
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
-    message: ChatMessage,
-    user?: string,
-    history?: ChatMessage[],
-    skipCache?: boolean,
-    reason?: string
-  ) => Promise<ChatCompletionResult | undefined>
+    text: string,
+    lang?: string,
+    level?: AILevel
+  ) => Promise<string | undefined>
 
   /**
-   * Create a chat completion that can use tools (provider-specific).
-   * Tools are pre-built and passed ready to use; provider just needs to execute them.
-   * This keeps the provider abstraction clean - callers handle WorkspaceClient context.
+   * Fold the older part of a conversation into a structured summary (see prompts.yaml
+   * `compactConversation`). Optional: a provider without it simply never compacts, and the
+   * window trim keeps behaving as before.
+   */
+  compactConversation?: (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    transcript: string,
+    lang: string,
+    previousSummary?: string,
+    level?: AILevel
+  ) => Promise<string | undefined>
+
+  /**
+   * Create a chat completion that can use tools (provider-specific); tools are pre-built and
+   * ready to use, callers handle WorkspaceClient context.
    */
   createChatCompletionWithTools: (
     tools: RunnableTools<BaseFunctionsArgs>,
     message: ChatMessage,
     contextMode: ContextMode,
-    assistantMemory: string,
-    userMemory: string,
-    sharedContext: string,
+    sharedPrompt: string,
+    personalContext: string,
     user: string,
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
     history?: ChatMessage[],
     skipCache?: boolean,
-    reason?: string
+    reason?: string,
+    level?: AILevel,
+    lang?: string,
+    hooks?: ToolLoopHooks
   ) => Promise<ChatCompletionWithToolsResult | undefined>
 
   /**
-   * Request a compact, factual summary of conversation history.
-   * The provider may use its own token counting/encoding internally.
+   * Run a single tool-using model step without executing tools: returns `toolCalls` for the
+   * caller (clisr pod) to run and resubmit. Optional: providers without function-calling may omit it.
    */
-  requestSummary: (
+  chatToolStep?: (
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
-    personMemory: string,
-    history: HistoryRecord[]
-  ) => Promise<RequestSummaryResult>
+    message: ChatMessage,
+    contextMode: ContextMode,
+    sharedPrompt: string,
+    personalContext: string,
+    user: string,
+    toolDefinitions: ToolDefinition[],
+    priorToolResults: ToolResult[],
+    history?: ChatMessage[],
+    skipCache?: boolean,
+    reason?: string,
+    level?: AILevel,
+    lang?: string,
+    // Text already produced when the model hit its cap: the step must continue it, not restart.
+    continueFrom?: string
+  ) => Promise<ChatToolStepResult | undefined>
 
   /**
    * Best-effort token counting for a sequence of `ChatMessage`.
@@ -144,8 +225,3 @@ export interface LLMProvider {
    */
   countTokens: (messages: ChatMessage[]) => number
 }
-
-/**
- * Factory signature used to create providers from environment/config.
- */
-export type LLMFactory = (ctx: MeasureContext) => LLMProvider | undefined

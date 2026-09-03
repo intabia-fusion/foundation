@@ -96,7 +96,7 @@
     "FullSize": "Dimensione intera",
     "UseMaxWidth": "Larghezza massima",
     "Sidebar": "Barra laterale",
-    "FontSize ": "Dimensione del carattere",
+    "FontSize": "Dimensione del carattere",
     "Language": "Lingua",
     "DaysWOValue": "{days, plural, =1 {giorno} other {giorni}}",
     "WeeksWOValue": "{weeks, plural, =1 {settimana} other {settimane}}",

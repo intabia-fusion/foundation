@@ -30,6 +30,7 @@ export {
 } from './schemas'
 export * from './version'
 export * from './storage'
+export * from './lastTx'
 export { convertDoc, createTables } from './utils'
 
 export * from '@hcengineering/postgres-base'

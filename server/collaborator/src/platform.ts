@@ -20,6 +20,7 @@ import core, {
   SocialId,
   pickPrimarySocialId,
   systemAccountUuid,
+  TxMeta,
   TxOperations,
   WorkspaceUuid
 } from '@hcengineering/core'
@@ -40,7 +41,12 @@ async function getAccountSocialIds (account: AccountUuid): Promise<SocialId[]> {
   return await accountClient.getSocialIds()
 }
 
-async function getTxOperations (client: Client, token: Token, isDerived: boolean = false): Promise<TxOperations> {
+async function getTxOperations (
+  client: Client,
+  token: Token,
+  isDerived: boolean = false,
+  meta?: TxMeta
+): Promise<TxOperations> {
   let primarySocialString: PersonId
 
   if (token.account === systemAccountUuid) {
@@ -50,14 +56,15 @@ async function getTxOperations (client: Client, token: Token, isDerived: boolean
     primarySocialString = pickPrimarySocialId(socialIds)._id
   }
 
-  return new TxOperations(client, primarySocialString, isDerived)
+  return new TxOperations(client, primarySocialString, isDerived, meta)
 }
 
 /**
  * @public
  */
 export interface ClientFactoryParams {
-  derived: boolean
+  derived?: boolean
+  meta?: TxMeta
 }
 
 /**
@@ -71,8 +78,9 @@ export type ClientFactory = (params?: ClientFactoryParams) => Promise<TxOperatio
 export function simpleClientFactory (token: Token): ClientFactory {
   return async (params?: ClientFactoryParams) => {
     const derived = params?.derived ?? false
+    const meta = params?.meta
     const client = await connect(generateToken(systemAccountUuid, token.workspace, { service: 'collaborator' }))
-    return await getTxOperations(client, token, derived)
+    return await getTxOperations(client, token, derived, meta)
   }
 }
 
@@ -82,8 +90,9 @@ export function simpleClientFactory (token: Token): ClientFactory {
 export function reusableClientFactory (token: Token, controller: Controller): ClientFactory {
   return async (params?: ClientFactoryParams) => {
     const derived = params?.derived ?? false
+    const meta = params?.meta
     const workspaceClient = await controller.get(token.workspace)
-    return await getTxOperations(workspaceClient.client, token, derived)
+    return await getTxOperations(workspaceClient.client, token, derived, meta)
   }
 }
 

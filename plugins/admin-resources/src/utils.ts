@@ -31,11 +31,13 @@ import {
 } from '@hcengineering/account-client'
 import { type WorkspaceInfoWithStatus, type WorkspaceUserOperation } from '@hcengineering/core'
 import login, { loginId } from '@hcengineering/login'
-import { getMetadata, PlatformError } from '@hcengineering/platform'
-import presentation from '@hcengineering/presentation'
+import { getMetadata, PlatformError, setMetadata } from '@hcengineering/platform'
+import presentation, { decodeTokenPayload } from '@hcengineering/presentation'
 import { navigate, showPopup } from '@hcengineering/ui'
 
 import AdminOtpDialog from './components/AdminOtpDialog.svelte'
+
+export { getBillingClient } from '@hcengineering/billing-resources'
 
 export type WorkspaceInfo = WorkspaceInfoWithStatus & {
   processingAttempts: number
@@ -104,6 +106,14 @@ export async function getPaymentMonthlyStats (from: number, to: number): Promise
 
 export async function getAllSubscriptions (): Promise<SubscriptionInfo[]> {
   return await safe(async () => await getAccountClient().getAllSubscriptions(), [])
+}
+
+/** Money for display: kopecks -> "1 500 ₽" */
+export function fmtAmount (kopecks: number | string | undefined, currency: string = '₽'): string {
+  // amount is INT8 — the PG driver returns it as a string.
+  const n = Number(kopecks)
+  if (kopecks == null || !Number.isFinite(n)) return '-'
+  return `${Math.round(n / 100).toLocaleString('ru')} ${currency}`
 }
 
 export interface PlanOptions {
@@ -189,6 +199,39 @@ export async function performWorkspaceOperationWithOtp (
     }
     return false
   }
+}
+
+/**
+ * Management endpoints (transactor, stats, account) take the admin token from the Authorization
+ * header. A token in the query string ends up in proxy and browser-history logs.
+ */
+export async function adminFetch (url: string, init: RequestInit = {}): Promise<Response> {
+  const token = getMetadata(presentation.metadata.Token)
+  return await fetch(url, {
+    ...init,
+    headers: { ...init.headers, ...(token != null ? { Authorization: `Bearer ${token}` } : {}) }
+  })
+}
+
+/** Mirrors ADMIN_SESSION_TTL_SEC on the account side. */
+const ADMIN_SESSION_TTL_SEC = 43200
+
+/**
+ * True while the current token carries a second factor stamped less than ADMIN_SESSION_TTL_SEC ago.
+ * Every admin RPC demands it; the panel shows the OTP form until it does.
+ */
+export function hasAdminSession (): boolean {
+  const mfaAt = decodeTokenPayload(getMetadata(presentation.metadata.Token) ?? '').extra?.mfaAt
+  if (mfaAt == null) return false
+  const at = parseInt(String(mfaAt))
+  return Number.isFinite(at) && Math.floor(Date.now() / 1000) - at <= ADMIN_SESSION_TTL_SEC
+}
+
+/** Exchanges the login token for a session token and persists it in the auth cookie. */
+export async function openAdminSession (otpCode: string): Promise<void> {
+  const { token } = await getAccountClient().verifyAdminSession(otpCode)
+  setMetadata(presentation.metadata.Token, token)
+  await getAccountClient(token).setCookie()
 }
 
 /** Show the admin OTP dialog and resolve with the entered code, or undefined if cancelled */

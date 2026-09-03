@@ -1,0 +1,23 @@
+name: past-week-loads-history
+mode: direct
+lang: ru
+world:
+  history:
+    - role: user
+      content: На прошлой неделе решили переносить биллинг на новый тариф с первого числа.
+      archived: true
+    - role: assistant
+      content: Договорились, что старые подписки доживают до конца периода.
+      archived: true
+    - role: user
+      content: Сегодня посмотрим метрики.
+requirements:
+  - id: R1
+    text: за прошлым периодом идёт в историю, а не выдумывает
+turns:
+  - ask: Что мы решили на прошлой неделе про биллинг?
+expect:
+  toolsCalled: [load_thread_history]
+  answer:
+    contains: [тариф]
+  maxRoundsTotal: 4

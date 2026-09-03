@@ -24,12 +24,49 @@
   export let id: string | undefined = undefined
   export let name: string | undefined = undefined
   export let disabled: boolean = false
+  export let inputmode: 'email' | 'tel' | undefined = undefined
 </script>
 
 <div class="editbox{error ? ' error' : ''}" style={width ? 'width: ' + width : ''}>
   {#if password}
     <input
       type="password"
+      class:nolabel={!label}
+      {id}
+      {name}
+      bind:value
+      on:blur
+      on:change
+      on:keyup
+      on:input
+      autocomplete="off"
+      placeholder=" "
+      spellcheck="false"
+      autocapitalize="off"
+      {disabled}
+    />
+  {:else if inputmode === 'email'}
+    <input
+      type="email"
+      inputmode="email"
+      class:nolabel={!label}
+      {id}
+      {name}
+      bind:value
+      on:blur
+      on:change
+      on:keyup
+      on:input
+      autocomplete="off"
+      placeholder=" "
+      spellcheck="false"
+      autocapitalize="off"
+      {disabled}
+    />
+  {:else if inputmode === 'tel'}
+    <input
+      type="tel"
+      inputmode="tel"
       class:nolabel={!label}
       {id}
       {name}

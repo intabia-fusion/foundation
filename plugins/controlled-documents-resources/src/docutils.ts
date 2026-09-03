@@ -290,11 +290,13 @@ export async function createDocumentSnapshotAndEdit (client: TxOperations, docum
 
   await op.commit()
 
-  await client.update(document, { $unset: { controlledState: true } })
-
+  // Copy before unlocking: once controlledState is gone the editor is live, and anything typed
+  // into it races the copy - the revision then keeps whatever the document held at that moment.
   const source = makeDocCollabId(document, 'content')
   const target = makeCollabId(documents.class.ControlledDocumentSnapshot, newSnapshotId, 'content')
   await copyMarkup(source, target)
+
+  await client.update(document, { $unset: { controlledState: true } })
 }
 
 export function getDocumentTrainingClass (hierarchy: Hierarchy): Class<DocumentTraining> {

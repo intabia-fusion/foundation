@@ -22,10 +22,10 @@ const { join } = require('path')
 const { existsSync } = require('fs')
 const { performance } = require('perf_hooks')
 
-const { 
-  isPhaseCached, 
+const {
+  isPhaseCached,
   markPhaseCompleted,
-  invalidateCache 
+  invalidatePhase
 } = require('../libs/cache')
 
 // ANSI color codes
@@ -99,9 +99,9 @@ async function runTranspilePhase(graph, packageNames, concurrency, options = {})
       }
     }
 
-    // Invalidate cache if force or upstream changes
+    // Only this phase is stale; other phases keep their own hashes.
     if (force || hasUpstreamChanges) {
-      invalidateCache(packagePath)
+      invalidatePhase(packagePath, 'transpile')
     }
 
     try {

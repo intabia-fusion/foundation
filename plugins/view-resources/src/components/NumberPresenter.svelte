@@ -20,6 +20,7 @@
 
   export let value: number | undefined
   export let label: IntlString
+  export let placeholder: IntlString = label
   export let onChange: ((value: number | undefined) => void) | undefined = undefined
   export let kind: 'no-border' | 'link' | 'list' = 'link'
   export let readonly = false
@@ -27,7 +28,7 @@
 </script>
 
 {#if onChange !== undefined && !readonly}
-  <NumberEditor {onChange} {value} {label} {kind} {attribute} />
+  <NumberEditor {onChange} {value} {label} {placeholder} {kind} {attribute} />
 {:else}
   <span>{value != null ? value : ''}</span>
 {/if}

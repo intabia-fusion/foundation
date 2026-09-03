@@ -22,10 +22,19 @@ class GenericWorkerPool {
     this.recycleAfter = poolOptions.recycleAfter || 0 // 0 = never recycle by count
     this.recycleMemoryMB = poolOptions.recycleMemoryMB || 0 // 0 = never recycle by memory
     this.workerTaskCount = new Map()
+    // A slot's generation increases on every (re)spawn. Events from a replaced worker
+    // carry a stale generation and are ignored, so a dying worker cannot evict its successor.
+    this.workerGeneration = new Map()
+    this.respawnCount = new Map()
+    this.maxRespawns = poolOptions.maxRespawns ?? 5
   }
 
   _spawnWorker(i) {
     const worker = new Worker(this.workerPath, this.workerOptions)
+    const generation = (this.workerGeneration.get(i) ?? 0) + 1
+    this.workerGeneration.set(i, generation)
+    const isCurrent = () => this.workerGeneration.get(i) === generation
+
     worker._workerId = i
     this.workerStats.set(i, { totalIdleTime: 0, totalWorkTime: 0, taskCount: 0, lastTaskCompletedAt: null })
     this.workerTaskCount.set(i, 0)
@@ -41,10 +50,12 @@ class GenericWorkerPool {
         }
       }
       worker.on('message', onMessage)
+      worker.on('error', resolve)
+      worker.on('exit', resolve)
     })
 
     worker.on('message', (msg) => {
-      if (msg.id !== undefined) {
+      if (msg.id !== undefined && isCurrent()) {
         const callback = this.callbacks.get(msg.id)
         if (callback) {
           this.callbacks.delete(msg.id)
@@ -86,11 +97,12 @@ class GenericWorkerPool {
     })
 
     worker.on('error', (err) => {
+      if (!isCurrent()) return
       this._failWorkerTask(i, err)
     })
 
     worker.on('exit', (code) => {
-      if (this.terminated) return
+      if (this.terminated || !isCurrent()) return
       if (code !== 0) {
         this._failWorkerTask(i, new Error(`Worker ${i} exited with code ${code}`))
       }
@@ -103,11 +115,13 @@ class GenericWorkerPool {
   async _recycleWorker(i) {
     const oldWorker = this.workers[i]
     if (!oldWorker) return
-    try { oldWorker.postMessage({ type: 'exit' }) } catch {}
-    try { await oldWorker.terminate() } catch {}
+    // Bump the generation before terminating so the old worker's exit event is ignored.
     this.workerTaskCount.set(i, 0)
     const ready = this._spawnWorker(i)
+    try { oldWorker.postMessage({ type: 'exit' }) } catch {}
+    try { await oldWorker.terminate() } catch {}
     await ready
+    if (this.terminated) return
     this.available.push(this.workers[i])
     this._processNext()
   }
@@ -132,20 +146,42 @@ class GenericWorkerPool {
         callback({ success: false, error: err.message || String(err) })
       }
     }
-    // Remove dead worker from available pool; fail pending tasks if no workers remain
+
     const worker = this.workers[workerId]
     if (worker) {
       const idx = this.available.indexOf(worker)
       if (idx >= 0) this.available.splice(idx, 1)
       this.workers[workerId] = null
+      try { worker.terminate() } catch {}
     }
-    const aliveCount = this.workers.filter(w => w !== null).length
-    if (aliveCount === 0 && this.pending.length > 0) {
-      const pendingErr = new Error('All workers died, cannot process remaining tasks')
-      while (this.pending.length > 0) {
-        const { resolve } = this.pending.shift()
-        resolve({ success: false, error: pendingErr.message })
-      }
+    if (this.terminated) return
+
+    // A dead slot used to stay dead forever, so tasks queued afterwards never settled
+    // and the build hung silently. Replace the worker instead, up to a sane cap.
+    const respawns = this.respawnCount.get(workerId) ?? 0
+    if (respawns < this.maxRespawns) {
+      this.respawnCount.set(workerId, respawns + 1)
+      this._spawnWorker(workerId).then(() => {
+        if (this.terminated) return
+        const fresh = this.workers[workerId]
+        if (fresh) {
+          this.available.push(fresh)
+          this._processNext()
+        }
+      }).catch(() => this._drainPendingIfDead())
+      return
+    }
+
+    this._drainPendingIfDead()
+  }
+
+  // With no worker left alive, waiting tasks can only be failed — never left unsettled.
+  _drainPendingIfDead() {
+    if (this.workers.some(w => w !== null)) return
+    const pendingErr = 'All workers died, cannot process remaining tasks'
+    while (this.pending.length > 0) {
+      const { resolve } = this.pending.shift()
+      resolve({ success: false, error: pendingErr })
     }
   }
 
@@ -199,21 +235,16 @@ class GenericWorkerPool {
 
   validate(cwd, options = {}) {
     const { srcDir = 'src' } = options
-    return new Promise((resolve, reject) => {
-      const task = {
-        id: ++this.taskId,
-        type: 'validate',
-        cwd,
-        srcDir
-      }
-
-      this.pending.push({ task, resolve, reject })
-      this._processNext()
-    })
+    return this.runTask('validate', cwd, { srcDir })
   }
 
   runTask(type, cwd, options = {}) {
     return new Promise((resolve, reject) => {
+      // A terminated pool has no workers, so queueing here would never settle.
+      if (this.terminated) {
+        resolve({ success: false, error: new Error('Worker pool has been terminated') })
+        return
+      }
       const task = {
         id: ++this.taskId,
         type,
@@ -241,9 +272,11 @@ class GenericWorkerPool {
 // Alias for backwards compatibility
 const ValidateWorkerPool = GenericWorkerPool
 
-async function getWorkerPool(size) {
-  if (!workerPool) {
-    workerPool = new GenericWorkerPool(size, join(__dirname, '..', 'validate-worker.js'))
+// A terminated pool must never be handed out again — its workers are gone and
+// every task submitted to it would hang.
+async function getWorkerPool(size, poolOptions = {}) {
+  if (!workerPool || workerPool.terminated) {
+    workerPool = new GenericWorkerPool(size, join(__dirname, '..', 'validate-worker.js'), poolOptions)
     await workerPool.init()
   }
   return workerPool
@@ -251,7 +284,7 @@ async function getWorkerPool(size) {
 
 async function getNamedWorkerPool(name, size, workerPath, poolOptions = {}) {
   let pool = namedPools.get(name)
-  if (!pool) {
+  if (!pool || pool.terminated) {
     pool = new GenericWorkerPool(size, workerPath, poolOptions)
     await pool.init()
     namedPools.set(name, pool)

@@ -22,6 +22,9 @@ import {
 } from '@hcengineering/server-core'
 import { LIMITS_PROVIDER_VAR, PLAN_LIMITS_MAP_KEY, PLAN_LIMITS_VAR } from './planLimits'
 
+// Whether limits are wired is a property of the deployment, so report it once per process.
+let noProviderReported = false
+
 const ZERO_LIMITS: PlanLimits = {
   usersLimit: 0,
   storageLimitGB: 0,
@@ -61,7 +64,11 @@ export class PlanLimitsBootMiddleware extends BaseMiddleware implements Middlewa
     try {
       const provider = this.context.contextVars[LIMITS_PROVIDER_VAR] as LimitsProvider | undefined
       if (provider === undefined) {
-        ctx.warn('PlanLimitsBootMiddleware: LimitsProvider not set in contextVars, limits disabled')
+        // A deployment-wide condition - warning once says as much as warning per workspace.
+        if (!noProviderReported) {
+          noProviderReported = true
+          ctx.warn('PlanLimitsBootMiddleware: LimitsProvider not set in contextVars, limits disabled')
+        }
         this.context.contextVars[PLAN_LIMITS_VAR] = ZERO_LIMITS
         return
       }

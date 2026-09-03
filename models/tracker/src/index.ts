@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -41,7 +42,7 @@ import {
   TIssue,
   TIssueStatus,
   TIssueTemplate,
-  TIssueTypeData,
+  TIssueTaskType,
   TMilestone,
   TProject,
   TProjectTargetPreference,
@@ -358,8 +359,7 @@ function defineApplication (
                 ['all', tracker.string.All, {}],
                 ['active', tracker.string.Active, {}],
                 ['backlog', tracker.string.Backlog, {}]
-              ],
-              allProjectsTypes: true
+              ]
             }
           },
           {
@@ -444,6 +444,7 @@ export function createModel (builder: Builder): void {
     TProject,
     TComponent,
     TIssue,
+    TIssueTaskType,
     TIssueTemplate,
     TIssueStatus,
     TTypeIssuePriority,
@@ -556,6 +557,7 @@ export function createModel (builder: Builder): void {
       query: tracker.completion.IssueQuery,
       context: ['search', 'mention', 'spotlight'],
       classToSearch: tracker.class.Issue,
+      includeChilds: true,
       priority: 300
     },
     tracker.completion.IssueCategory
@@ -657,6 +659,7 @@ function defineSpaceType (builder: Builder): void {
       icon: tracker.icon.Issue,
       name: tracker.string.Issue,
       statusCategoriesFunc: tracker.function.GetIssueStatusCategories,
+      defaultStatusesFunc: tracker.function.GetIssueDefaultStatuses,
       openTasks: tracker.function.OpenIssuesOfTaskType
     },
     tracker.descriptors.Issue
@@ -690,7 +693,12 @@ function defineSpaceType (builder: Builder): void {
   }
 
   // Create default task type
-  builder.createModel(TIssueTypeData)
+  builder.createModel(TIssueTaskType)
+
+  builder.mixin(tracker.class.IssueTaskType, core.class.Class, task.mixin.TaskTypeClass, {
+    taskType: tracker.taskTypes.Issue,
+    projectType: pluginState.ids.ClassingProjectType
+  })
 
   builder.createDoc(
     task.class.TaskType,
@@ -699,12 +707,13 @@ function defineSpaceType (builder: Builder): void {
       parent: pluginState.ids.ClassingProjectType,
       statuses: classicStatuses,
       descriptor: tracker.descriptors.Issue,
-      name: 'Issue',
-      kind: 'both',
+      name: 'Classic Issue',
       ofClass: tracker.class.Issue,
-      targetClass: tracker.mixin.IssueTypeData,
+      targetClass: tracker.class.IssueTaskType,
       statusClass: tracker.class.IssueStatus,
       statusCategories: classicIssueTaskStatuses.map((it) => it.category),
+      isRootTaskType: true,
+      allowAnyParent: true,
       allowedAsChildOf: [tracker.taskTypes.Issue],
       icon: tracker.icon.Issue
     },

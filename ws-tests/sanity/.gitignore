@@ -3,3 +3,6 @@ test-results/*
 allure-report
 allure-results
 .auth
+playwright-report.json
+step-report.ndjson
+runs

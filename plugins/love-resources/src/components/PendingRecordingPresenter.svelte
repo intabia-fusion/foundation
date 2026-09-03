@@ -38,7 +38,11 @@
       <span class="label">{value.name}</span>
     </span>
   {:else if type === 'link'}
-    <div class="flex-row-center pending-recording-container" use:tooltip={{ label: getEmbeddedLabel(value.name) }}>
+    <div
+      class="flex-row-center pending-recording-container"
+      data-id="pending-recording"
+      use:tooltip={{ label: getEmbeddedLabel(value.name) }}
+    >
       {#if shouldShowAvatar}
         <div class="icon recording-icon">
           <Icon icon={love.icon.Record} size={'medium'} />
@@ -82,9 +86,11 @@
 
   .pending-recording-container {
     flex-shrink: 0;
-    width: auto;
+    // Fixed width so several recordings line up; the name ellipsises instead of
+    // stretching the plate. Full name stays in the tooltip.
+    width: 22rem;
+    max-width: 100%;
     height: 3rem;
-    min-width: 14rem;
     border-radius: 0.25rem;
     gap: 0;
 
@@ -104,6 +110,8 @@
     .info-container {
       padding: 0.5rem 0.75rem;
       width: 100%;
+      // Flex children default to min-width:auto, which blocks the ellipsis.
+      min-width: 0;
       height: 100%;
       background-color: var(--theme-button-default);
       border: 1px solid var(--theme-button-border);

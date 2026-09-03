@@ -159,6 +159,9 @@
     "GroupByStatus": "By status",
     "GroupByDate": "By date",
     "SpeakingWhileMuted": "You are muted - others can't hear you",
-    "SpeakingWhileMutedAlert": "Alert me when I speak while muted"
+    "SpeakingWhileMutedAlert": "Alert me when I speak while muted",
+    "SwitchWorkspaceInMeeting": "You are in a meeting",
+    "SwitchWorkspaceLeaveMeeting": "Switching the workspace will disconnect you from the current meeting.",
+    "SwitchWorkspaceEndsMeeting": "This is your office: switching the workspace will disconnect you and end the meeting for everyone."
   }
 }

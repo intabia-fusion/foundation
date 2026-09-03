@@ -20,13 +20,14 @@ import { dirname, resolve } from 'path'
 import { existsSync } from 'fs'
 
 function getAdminToken (): string {
-  return generateToken(systemAccountUuid, undefined, { admin: 'true' })
+  // Transactor /api/v1/manage accepts the system account; no admin flag needed.
+  return generateToken(systemAccountUuid, undefined, { service: 'tool' })
 }
 
 export async function startProfile (transactorUrl: string): Promise<void> {
   const token = getAdminToken()
-  const url = `${transactorUrl}/api/v1/manage?token=${token}&operation=profile-start`
-  const resp = await fetch(url, { method: 'PUT' })
+  const url = `${transactorUrl}/api/v1/manage?operation=profile-start`
+  const resp = await fetch(url, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })
   if (!resp.ok) {
     throw new Error(`Failed to start profiling: ${resp.status} ${resp.statusText}`)
   }
@@ -35,8 +36,8 @@ export async function startProfile (transactorUrl: string): Promise<void> {
 
 export async function stopProfile (transactorUrl: string, outputPath?: string): Promise<string> {
   const token = getAdminToken()
-  const url = `${transactorUrl}/api/v1/manage?token=${token}&operation=profile-stop`
-  const resp = await fetch(url, { method: 'PUT' })
+  const url = `${transactorUrl}/api/v1/manage?operation=profile-stop`
+  const resp = await fetch(url, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })
   if (!resp.ok) {
     throw new Error(`Failed to stop profiling: ${resp.status} ${resp.statusText}`)
   }

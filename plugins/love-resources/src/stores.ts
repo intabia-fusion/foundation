@@ -26,6 +26,20 @@ export const rooms = writable<Room[]>([])
 export const meetings = writable<MeetingMinutes[]>([])
 export const pendingRecordings = writable<PendingRecording[]>([])
 
+// Raised for the whole join, from the click to the LiveKit session. `myConnectingSessionId`
+// only covers the tail of it, so buttons looked idle while video was already coming up.
+const connectingOps = writable<number>(0)
+export const connectingToMeeting = derived(connectingOps, (n) => n > 0)
+
+export async function withConnectingToMeeting<T> (op: () => Promise<T>): Promise<T> {
+  connectingOps.update((n) => n + 1)
+  try {
+    return await op()
+  } finally {
+    connectingOps.update((n) => Math.max(0, n - 1))
+  }
+}
+
 export const myOffice = derived(rooms, (val) => {
   const personId = getCurrentEmployee()
   return val.find((p) => (p as Office).person === personId) as Office | undefined
@@ -110,11 +124,21 @@ async function filterParticipantInfo (value: ParticipantInfo[]): Promise<Partici
   for (const val of value) {
     if (aiPerson !== undefined && val.person === aiPerson) {
       map.set(val._id, val)
-    } else {
+      continue
+    }
+    // Two rows of one person mean the old session is not cleaned up yet. Query order is not
+    // guaranteed, so pick the newest deterministically - otherwise `myInfo` flickers.
+    const seen = map.get(val.person)
+    if (seen === undefined || isNewerParticipantInfo(val, seen)) {
       map.set(val.person, val)
     }
   }
   return Array.from(map.values())
+}
+
+function isNewerParticipantInfo (a: ParticipantInfo, b: ParticipantInfo): boolean {
+  if (a.modifiedOn !== b.modifiedOn) return a.modifiedOn > b.modifiedOn
+  return a._id > b._id
 }
 
 const officeLoaded = writable(false)

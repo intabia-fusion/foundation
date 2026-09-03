@@ -14,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getMetadata, setMetadata } from '@hcengineering/platform'
+  import { getMetadata } from '@hcengineering/platform'
   import presentation from '@hcengineering/presentation'
   import {
     Location,
@@ -23,13 +23,13 @@
     getCurrentLocation,
     location,
     navigate,
-    setMetadataLocalStorage,
     desktopPlatform
   } from '@hcengineering/ui'
   import { onDestroy, onMount } from 'svelte'
   import Auth from './Auth.svelte'
   import Confirmation from './Confirmation.svelte'
   import ConfirmationSend from './ConfirmationSend.svelte'
+  import Registered from './Registered.svelte'
   import CreateWorkspaceForm from './CreateWorkspaceForm.svelte'
   import Join from './Join.svelte'
   import AutoJoin from './AutoJoin.svelte'
@@ -40,8 +40,8 @@
   import SelectWorkspace from './SelectWorkspace.svelte'
   import SignupForm from './SignupForm.svelte'
   import SelectDownloads from './SelectDownloads.svelte'
-  import { Pages, getAccount, pages } from '..'
-  import { goTo } from '../utils'
+  import { Pages, pages } from '..'
+  import { goTo, restoreSession } from '../utils'
   import login from '../plugin'
   import LoginAppBase from './LoginAppBase.svelte'
 
@@ -103,18 +103,15 @@
     }
 
     if (getMetadata(presentation.metadata.Token) == null) {
-      const lastAccount = fetchMetadataLocalStorage(login.metadata.LastAccount)
-      if (lastAccount != null) {
-        try {
-          const loginInfo = await getAccount(false)
-          if (loginInfo != null) {
-            setMetadata(presentation.metadata.Token, loginInfo.token)
-            setMetadataLocalStorage(login.metadata.LoginAccount, loginInfo.account)
-            updatePageLoc(getCurrentLocation())
-          }
-        } catch (err: any) {
-          // do nothing
+      try {
+        // Was gated on LastAccount, so a cookie-only session left `selectWorkspace`
+        // unroutable while the form already showed "Signed in as".
+        await restoreSession()
+        if (getMetadata(presentation.metadata.Token) != null) {
+          updatePageLoc(getCurrentLocation())
         }
+      } catch (err: any) {
+        // do nothing
       }
     }
   }
@@ -153,6 +150,8 @@
       <Confirmation />
     {:else if page === 'confirmationSend'}
       <ConfirmationSend />
+    {:else if page === 'registered'}
+      <Registered />
     {:else if page === 'auth'}
       <Auth />
     {:else if page === 'changePassword'}

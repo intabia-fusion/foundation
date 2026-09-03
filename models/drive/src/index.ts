@@ -103,7 +103,7 @@ export class TResource extends TDoc implements Resource {
   @ReadOnly()
     path!: Ref<Resource>[]
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments?: number
 
   @Prop(TypeRef(drive.class.FileVersion), drive.string.Version)

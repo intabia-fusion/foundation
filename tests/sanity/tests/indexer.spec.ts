@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { NewDocument } from './model/documents/types'
 import { LeftSideMenuPage } from './model/left-side-menu-page'
 import { DocumentsPage } from './model/documents/documents-page'
@@ -7,13 +7,14 @@ import { IssuesPage } from './model/tracker/issues-page'
 import { IssuesDetailsPage } from './model/tracker/issues-details-page'
 import { SpotlightPopup } from './model/spotlight-popup'
 import { generateId, PlatformSetting, PlatformURI } from './utils'
+import { retryIntervals } from './retry'
 import { NewIssue } from './model/tracker/types'
 import { SignUpData } from './model/common-types'
 import { LoginPage } from './model/login-page'
 import { SignUpPage } from './model/signup-page'
 import { SelectWorkspacePage } from './model/select-workspace-page'
 
-const retryOptions = { intervals: [1000, 1500, 2500], timeout: 60000 }
+const retryOptions = { intervals: retryIntervals, timeout: 60000 }
 test.use({
   storageState: PlatformSetting
 })

@@ -35,7 +35,7 @@
 
 {#if value}
   {#if kind === 'table-attrs'}
-    <button class="hulyTableAttr-content__row-icon-wrapper" on:click>
+    <button class="hulyTableAttr-content__row-icon-wrapper {size}" on:click>
       <IssueStatusIcon
         {value}
         {size}

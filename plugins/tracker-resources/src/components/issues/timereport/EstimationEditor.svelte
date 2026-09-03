@@ -18,7 +18,8 @@
   import { getClient } from '@hcengineering/presentation'
   import { Issue, IssueDraft } from '@hcengineering/tracker'
   import { Button, ButtonKind, ButtonSize, eventToHTMLElement, showPopup } from '@hcengineering/ui'
-  import { EditBoxPopup, FixedColumn } from '@hcengineering/view-resources'
+  import { FixedColumn } from '@hcengineering/view-resources'
+  import EditEstimationPopup from './EditEstimationPopup.svelte'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../../plugin'
   import EstimationPopup from './EstimationPopup.svelte'
@@ -47,8 +48,8 @@
     if (kind === 'list') {
       showPopup(EstimationPopup, { value: value.estimation, format: 'number', object: value }, 'top')
     } else {
-      showPopup(EditBoxPopup, { value: value.estimation, format: 'number' }, eventToHTMLElement(event), (res) => {
-        if (res !== undefined) {
+      showPopup(EditEstimationPopup, { value: value.estimation }, eventToHTMLElement(event), (res) => {
+        if (typeof res === 'number') {
           changeEstimation(res)
         }
       })

@@ -4,20 +4,20 @@ import { NewProject } from './types'
 
 export class EditProjectPage extends CommonTrackerPage {
   popupHeader = (): Locator =>
-    this.page.locator('form[id="tracker:string:EditProject"] div[class*="title"]:last-child', {
+    this.page.locator('.hulyModal-container .hulyHeader-titleGroup', {
       hasText: 'Edit project'
     })
 
-  inputTitle = (): Locator => this.page.locator('form[id="tracker:string:EditProject"] div[id="project-title"] input')
-  inputIdentifier = (): Locator =>
-    this.page.locator('form[id="tracker:string:EditProject"] div[id="project-identifier"] input')
+  inputTitle = (): Locator => this.page.locator('.hulyModal-container div[id="project-title"] input')
+  inputIdentifier = (): Locator => this.page.locator('.hulyModal-container div[id="project-identifier"] input')
 
-  inputDescription = (): Locator =>
-    this.page.locator('form[id="tracker:string:EditProject"] div[id="project-description"] input')
+  inputDescription = (): Locator => this.page.locator('.hulyModal-container div[id="project-description"] input')
 
   buttonChooseIcon = (): Locator => this.page.locator('div.antiGrid-row button.only-icon')
   buttonMakePrivate = (): Locator => this.page.locator('[id="project-private"]')
-  buttonSaveProject = (): Locator => this.page.locator('form[id="tracker:string:EditProject"] button[type="submit"]')
+  buttonSaveProject = (): Locator =>
+    this.page.locator('.hulyModal-footer').getByRole('button', { name: 'Save', exact: true })
+
   buttonIcons = (): Locator => this.page.locator('form[id="view:string:ChooseIcon"] div.float-left > button')
   buttonSaveIcons = (): Locator =>
     this.page.locator('form[id="view:string:ChooseIcon"] div[class*="footer"] button[type="submit"]')

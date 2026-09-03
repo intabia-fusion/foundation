@@ -14,10 +14,10 @@
 //
 
 import type { AttachedDoc, Class, Doc, Ref } from '@hcengineering/core'
-import type { Asset, IntlString, Plugin } from '@hcengineering/platform'
+import type { Asset, IntlString, Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import { AnyComponent } from '@hcengineering/ui'
-import { FilterMode } from '@hcengineering/view'
+import type { AttributeApplierFn, FilterMode } from '@hcengineering/view'
 
 export * from './analytics'
 
@@ -122,6 +122,9 @@ const tagsPlugin = plugin(tagsId, {
   filter: {
     FilterTagsIn: '' as Ref<FilterMode>,
     FilterTagsNin: '' as Ref<FilterMode>
+  },
+  function: {
+    LabelsApplier: '' as Resource<AttributeApplierFn>
   }
 })
 

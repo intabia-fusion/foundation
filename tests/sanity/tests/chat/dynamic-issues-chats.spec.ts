@@ -1,17 +1,14 @@
-import { test } from '@playwright/test'
-import { ApiEndpoint } from '../API/Api'
+import { test } from '../fixtures'
+import { LeftSideMenuPage } from '../model/left-side-menu-page'
 import { ChannelPage } from '../model/channel-page'
 import { SignUpData } from '../model/common-types'
-import { LeftSideMenuPage } from '../model/left-side-menu-page'
-import { LoginPage } from '../model/login-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
 import {
-  PlatformURI,
+  createAccount,
+  createAccountAndWorkspace,
+  generateId,
   generateTestData,
   generateUser,
   getInviteLink,
-  createAccount,
-  generateId,
   getSecondPageByInvite
 } from '../utils'
 import { IssuesDetailsPage } from '../model/tracker/issues-details-page'
@@ -24,8 +21,6 @@ test.describe.configure({ mode: 'parallel' })
 test.describe('Dynamic issues chats', () => {
   let leftSideMenuPage: LeftSideMenuPage
   let channelPage: ChannelPage
-  let loginPage: LoginPage
-  let api: ApiEndpoint
   let newUser2: SignUpData
   let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
 
@@ -35,15 +30,10 @@ test.describe('Dynamic issues chats', () => {
 
     leftSideMenuPage = new LeftSideMenuPage(page)
     channelPage = new ChannelPage(page)
-    loginPage = new LoginPage(page)
 
-    api = new ApiEndpoint(request)
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-    await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    await (await page.goto(`${PlatformURI}`))?.finished()
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
+    // Straight into the workspace from the account token: the login form plus the workspace
+    // picker are three page loads and cost about a second per test.
+    await createAccountAndWorkspace(page, request, data, 'tracker')
   })
 
   test('User can create issue for himself and see linked chat', async ({ page, browser, request }) => {

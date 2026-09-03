@@ -2,14 +2,11 @@
   import contact, { Person, Employee } from '@hcengineering/contact'
   import { EmployeePresenter } from '@hcengineering/contact-resources'
   import { getClient } from '@hcengineering/presentation'
-  import { getCurrentLocation, location, Location } from '@hcengineering/ui'
-  import { decodeObjectURI } from '@hcengineering/view'
-  import { AccountUuid, getCurrentAccount } from '@hcengineering/core'
-  import { chunterId, createDirect } from '@hcengineering/chunter'
+  import { location, Location } from '@hcengineering/ui'
+  import { chunterId } from '@hcengineering/chunter'
   import { notificationId } from '@hcengineering/notification'
 
-  import { openChannel } from '../navigation'
-  import chunter from '../plugin'
+  import { openDirectForPerson } from '../utils'
 
   export let person: Person | undefined
 
@@ -31,21 +28,7 @@
 
   async function openEmployeeDirect (): Promise<void> {
     if (person === undefined) return
-    const client = getClient()
-    const me = getCurrentAccount()
-    if (person.personUuid == null) return
-
-    const dm = await createDirect(client, [me.uuid, person.personUuid as AccountUuid])
-    if (dm == null) return
-
-    const loc = getCurrentLocation()
-    const [_id] = decodeObjectURI(loc.path[3]) ?? []
-
-    if (_id === dm) {
-      return
-    }
-
-    openChannel(dm, chunter.class.DirectMessage, undefined, true)
+    await openDirectForPerson(person)
   }
 </script>
 

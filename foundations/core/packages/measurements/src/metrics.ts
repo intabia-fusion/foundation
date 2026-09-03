@@ -331,7 +331,7 @@ function toJson (m: Metrics): any {
   for (const [k, v] of Object.entries(m.measurements ?? {})) {
     obj[
       `${k} ${v.value} ${v.operations} ${
-        v.operations > 1 ? Math.round((v.value / (v.operations > 0 ? m.operations : 1)) * 100) / 100 : ''
+        v.operations > 1 ? Math.round((v.value / (v.operations > 0 ? v.operations : 1)) * 100) / 100 : ''
       }`
     ] = toJson(v)
   }

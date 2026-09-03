@@ -1,0 +1,21 @@
+name: task-from-discussion
+mode: thread
+lang: ru
+world:
+  history:
+    - role: user
+      content: Импорт CSV падает на файлах больше 10 мегабайт, воспроизводится стабильно.
+    - role: assistant
+      content: Похоже на таймаут парсера.
+requirements:
+  - id: R1
+    text: создана ровно одна задача про падающий импорт CSV
+  - id: R2
+    text: содержимое задачи не продублировано в тексте ответа
+turns:
+  - ask: Заведи задачу по этому обсуждению.
+expect:
+  issues:
+    count: 1
+  toolsCalled: [propose_task]
+  maxRoundsTotal: 4

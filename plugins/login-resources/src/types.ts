@@ -22,6 +22,7 @@ export interface Field {
   i18n: IntlString
   password?: boolean
   optional?: boolean
+  inputmode?: 'email' | 'tel'
   short?: boolean
   disabled?: boolean
   rules?: Array<{

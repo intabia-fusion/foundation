@@ -20,6 +20,7 @@ import {
   type MediaSession,
   type MediaSessionEvents,
   getMediaDevices,
+  getSelectedMicId,
   cleanupDeviceLabel
 } from '@hcengineering/media'
 import { type IntlString, getEmbeddedLabel } from '@hcengineering/platform'
@@ -63,10 +64,12 @@ export async function useMedia (options: UseMediaOptions): Promise<MediaSession>
     deviceId: mediaDevices.activeCamera?.deviceId
   })
 
-  if (session.state.microphone?.enabled === true) {
+  if (session.state.microphone !== undefined) {
+    // deviceId must be set even when joining muted, otherwise the consumer has
+    // nothing to bind and the first unmute grabs the browser default device.
     session.setMicrophone({
-      enabled: mediaDevices.activeMicrophone !== undefined,
-      deviceId: mediaDevices.activeMicrophone?.deviceId
+      enabled: session.state.microphone.enabled && mediaDevices.activeMicrophone !== undefined,
+      deviceId: mediaDevices.activeMicrophone?.deviceId ?? getSelectedMicId()
     })
   }
 

@@ -1,0 +1,12 @@
+name: smalltalk-no-tools
+mode: direct
+lang: ru
+requirements:
+  - id: R1
+    text: на обычное приветствие отвечает текстом, без инструментов
+turns:
+  - ask: Привет! Как дела?
+expect:
+  worldUnchanged: true
+  forbidTools: [propose_task, load_thread_history]
+  maxRoundsTotal: 1

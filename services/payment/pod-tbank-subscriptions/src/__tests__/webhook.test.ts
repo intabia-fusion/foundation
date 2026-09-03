@@ -157,6 +157,106 @@ describe('processWebhook (consumer)', () => {
     expect(storage.upsert).not.toHaveBeenCalled()
   })
 
+  // AUTHORIZED is a hold: audited in the ledger, but never activates and never frees the claim.
+  test.each([
+    ['already settled', 'CONFIRMED'],
+    ['still held', 'AUTHORIZED']
+  ])('AUTHORIZED webhook (%s) -> recorded only, no activation', async (_name, actualStatus) => {
+    const pendingSub = {
+      ...activeSub,
+      status: SubscriptionStatus.PastDue,
+      providerData: { ...activeSub.providerData, pending: true }
+    }
+    const storage = makeStorage(pendingSub)
+    const tbank = makeTbank(true, { Success: true, Status: actualStatus })
+    await processWebhook(
+      newCtx(),
+      baseConfig,
+      tbank,
+      storage,
+      { PaymentId: 'pay_1', Status: 'AUTHORIZED', Amount: 49900 },
+      true
+    )
+    expect(storage.logOperation).toHaveBeenCalledWith(expect.objectContaining({ status: 'AUTHORIZED' }))
+    expect(storage.upsert).not.toHaveBeenCalled()
+    expect(storage.releaseCheckout).not.toHaveBeenCalled()
+  })
+
+  test('CONFIRMED webhook but GetState still reports a hold -> alarms and activates anyway', async () => {
+    const pendingSub = {
+      ...activeSub,
+      status: SubscriptionStatus.PastDue,
+      providerData: { ...activeSub.providerData, pending: true }
+    }
+    const storage = makeStorage(pendingSub)
+    const ctx = newCtx()
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as any
+    try {
+      await processWebhook(
+        ctx,
+        baseConfig,
+        makeTbank(true, { Success: true, Status: 'AUTHORIZED' }),
+        storage,
+        { PaymentId: 'pay_1', Status: 'CONFIRMED', Amount: 49900 },
+        true
+      )
+    } finally {
+      global.fetch = realFetch
+    }
+    expect(ctx.error).toHaveBeenCalledWith(expect.stringContaining('GetState still reports a hold'), expect.anything())
+    const activated = storage.upsert.mock.calls.find((c: any[]) => c[0].status === SubscriptionStatus.Active)
+    expect(activated).toBeDefined()
+  })
+
+  test('CONFIRMED webhook after a recorded AUTHORIZED -> activates and sends the receipt', async () => {
+    const pendingSub = {
+      ...activeSub,
+      status: SubscriptionStatus.PastDue,
+      providerData: { ...activeSub.providerData, pending: true }
+    }
+    const storage = makeStorage(pendingSub)
+    const mailConfig = { ...baseConfig, MailUrl: 'http://mail', MailFrom: 'noreply@x.com' }
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as any
+    try {
+      await processWebhook(
+        newCtx(),
+        mailConfig,
+        makeTbank(true, { Success: true, Status: 'CONFIRMED' }),
+        storage,
+        { PaymentId: 'pay_1', Status: 'CONFIRMED', Amount: 49900, RebillId: 'reb_final' },
+        true
+      )
+    } finally {
+      global.fetch = realFetch
+    }
+    const activated = storage.upsert.mock.calls.find((c: any[]) => c[0].status === SubscriptionStatus.Active)
+    expect(activated).toBeDefined()
+    expect(activated[0].providerData.rebillId).toBe('reb_final')
+    expect(storage.releaseCheckout).toHaveBeenCalled()
+  })
+
+  test('GetState Success:false -> warns and activates on the verified webhook alone', async () => {
+    const pendingSub = {
+      ...activeSub,
+      status: SubscriptionStatus.PastDue,
+      providerData: { ...activeSub.providerData, pending: true }
+    }
+    const storage = makeStorage(pendingSub)
+    const ctx = newCtx()
+    const tbank = makeTbank(true, { Success: false, ErrorCode: '9999', Message: 'Internal error' })
+    await processWebhook(
+      ctx,
+      baseConfig,
+      tbank,
+      storage,
+      { PaymentId: 'pay_1', Status: 'CONFIRMED', Amount: 49900 },
+      true
+    )
+    expect(ctx.warn).toHaveBeenCalledWith(expect.stringContaining('Success:false'), expect.anything())
+    const activated = storage.upsert.mock.calls.find((c: any[]) => c[0].status === SubscriptionStatus.Active)
+    expect(activated).toBeDefined()
+  })
+
   test('repeat CONFIRMED on already-Active non-pending sub -> idempotent, no upsert', async () => {
     const storage = makeStorage(activeSub)
     await processWebhook(
@@ -267,6 +367,57 @@ describe('processWebhook (consumer)', () => {
     expect(storage.releaseCheckout).toHaveBeenCalledWith('pay_1')
   })
 
+  // The AUTHORIZED -> CONFIRMED pair the DEMO terminal sends: the hold is only recorded, and the
+  // CONFIRMED that follows does the whole activation (claim release + receipt + final RebillId).
+  test('AUTHORIZED then CONFIRMED: the hold is recorded, CONFIRMED activates and releases the claim', async () => {
+    const draft = {
+      ...activeSub,
+      status: SubscriptionStatus.PastDue,
+      providerData: { ...activeSub.providerData, pending: true, paymentId: 8958842784 }
+    }
+    const storage = makeStorage(draft)
+    const notification = { PaymentId: 8958842784, Status: 'AUTHORIZED', Amount: 100000, RebillId: 1 }
+
+    await processWebhook(newCtx(), baseConfig, makeTbank(true), storage, notification, true)
+
+    // The hold neither activates the sub nor frees the claim; the draft stays pending for CONFIRMED.
+    expect(storage.upsert).not.toHaveBeenCalled()
+    expect(storage.releaseCheckout).not.toHaveBeenCalled()
+
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as any
+    try {
+      await processWebhook(
+        newCtx(),
+        baseConfig,
+        makeTbank(true),
+        storage,
+        { ...notification, Status: 'CONFIRMED' },
+        true
+      )
+    } finally {
+      global.fetch = realFetch
+    }
+    const activated = storage.upsert.mock.calls.at(-1)[0]
+    expect(activated.status).toBe(SubscriptionStatus.Active)
+    expect(activated.providerData.pending).toBe(false)
+    expect(storage.releaseCheckout).toHaveBeenCalledWith('8958842784')
+  })
+
+  // Draft already gone (e.g. cleaned up): the claim must not leak on the early sub-null return.
+  test('CONFIRMED with no matching subscription still releases the claim', async () => {
+    const storage = makeStorage(null)
+    await processWebhook(
+      newCtx(),
+      baseConfig,
+      makeTbank(true),
+      storage,
+      { PaymentId: 'pay_x', Status: 'CONFIRMED', Amount: 100 },
+      true
+    )
+    expect(storage.releaseCheckout).toHaveBeenCalledWith('pay_x')
+    expect(storage.upsert).not.toHaveBeenCalled()
+  })
+
   test('CONFIRMED with pendingReplacement cancels the old subscription', async () => {
     const newSub = {
       ...activeSub,
@@ -294,6 +445,38 @@ describe('processWebhook (consumer)', () => {
     const canceled = storage.upsert.mock.calls.find((c: any[]) => c[0].id === 'tbank_1')
     expect(canceled).toBeDefined()
     expect(canceled[0].status).toBe(SubscriptionStatus.Canceled)
+  })
+
+  test('CONFIRMED purchase cancels nothing: purchases coexist and share the tier card', async () => {
+    const purchase = {
+      ...activeSub,
+      id: 'purchase_2',
+      type: 'purchase',
+      plan: 'tokens-1m',
+      providerSubscriptionId: 'pay_2',
+      status: SubscriptionStatus.PastDue,
+      providerData: { pending: true, paymentId: 'pay_2' }
+    }
+    const earlierPurchase = {
+      ...purchase,
+      id: 'purchase_1',
+      providerSubscriptionId: 'pay_1',
+      status: SubscriptionStatus.Active
+    }
+    const storage = makeStorage(purchase)
+    storage.getAll = jest.fn().mockResolvedValue([earlierPurchase, activeSub, purchase])
+
+    await processWebhook(
+      newCtx(),
+      baseConfig,
+      makeTbank(true),
+      storage,
+      { PaymentId: 'pay_2', Status: 'CONFIRMED', Amount: 49900 },
+      true
+    )
+
+    const canceled = storage.upsert.mock.calls.filter((c: any[]) => c[0].status === SubscriptionStatus.Canceled)
+    expect(canceled).toHaveLength(0)
   })
 
   test('delta-upgrade CONFIRMED: activated sub bills the FULL recurring price from the draft, not the delta', async () => {

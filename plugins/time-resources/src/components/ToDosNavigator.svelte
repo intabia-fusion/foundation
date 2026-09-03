@@ -4,7 +4,7 @@
   import { getCurrentEmployee } from '@hcengineering/contact'
   import { Ref, getCurrentAccount } from '@hcengineering/core'
   import { Asset, getMetadata, getResource, IntlString } from '@hcengineering/platform'
-  import { createQuery } from '@hcengineering/presentation'
+  import { createQuery, isDisabled } from '@hcengineering/presentation'
   import { NavFooter } from '@hcengineering/workbench-resources'
   import tagsPlugin, { TagElement as TagElementType } from '@hcengineering/tags'
   import ui, {
@@ -116,7 +116,9 @@
 
   function getHeaderMenuActions (): Action[] {
     const actions: Action[] = []
-    if (getMetadata(calendar.metadata.CalDavServerURL)) {
+    const caldavUrl = getMetadata(calendar.metadata.CalDavServerURL)
+
+    if (!isDisabled('caldav') && caldavUrl != null && caldavUrl !== '') {
       actions.push({
         label: calendar.string.CalDavAccess,
         icon: IconLink,

@@ -1,10 +1,7 @@
-import { expect, test, type Page } from '@playwright/test'
-import { PlatformURI, generateId, generateTestData } from '../utils'
-import { ApiEndpoint } from '../API/Api'
-import { LoginPage } from '../model/login-page'
+import { expect, test, type Page } from '../fixtures'
+import { createAccountAndWorkspace, generateId, generateTestData } from '../utils'
 import { ContractPage } from '../model/contacts/contract-page'
 import { UserProfilePage } from '../model/profile/user-profile-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
 
 // Settings sidebar navigator is only rendered while the Settings app is active
 // (see plugins/setting-resources/src/components/WorkspaceSettings.svelte, NavGroup id
@@ -12,24 +9,17 @@ import { SelectWorkspacePage } from '../model/select-workspace-page'
 const settingsNavGroup = (page: Page): ReturnType<Page['locator']> => page.locator('#navGroup-setting')
 
 test.describe('workbench navigation after class settings tests', () => {
-  let loginPage: LoginPage
   let userProfilePage: UserProfilePage
   let contractPage: ContractPage
-  let api: ApiEndpoint
   let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
 
   test.beforeEach(async ({ page, request }) => {
     data = generateTestData()
-    loginPage = new LoginPage(page)
     userProfilePage = new UserProfilePage(page)
     contractPage = new ContractPage(page)
-    api = new ApiEndpoint(request)
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-    await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    await (await page.goto(`${PlatformURI}`))?.finished()
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
+    // Straight into the workspace from the account token: the login form plus the workspace
+    // picker are three page loads and cost about a second per test.
+    await createAccountAndWorkspace(page, request, data)
   })
 
   test('back from class settings restores the app navigator', async ({ page }) => {

@@ -646,7 +646,9 @@ export class LiveQuery implements WithTx, Client {
       current = this.asMixin(current, q._class)
     }
     if (current !== undefined && this.match(q, current)) {
-      q.result.updateDoc(current, false)
+      // Clone: docCache hands the same object to every query in the batch, and later $inc txes
+      // are applied per query - a shared object would be incremented once per subscriber.
+      q.result.updateDoc(current)
       this.refs.updateDocuments(q, [current])
     } else {
       if (q.options?.limit === q.result.length) {
@@ -786,8 +788,12 @@ export class LiveQuery implements WithTx, Client {
       } else {
         // $inc is commutative, so an equal-timestamp $inc-only tx (derived counter
         // txes share the parent tx timestamp) is applied locally instead of
-        // re-fetching the doc from the server.
+        // re-fetching the doc from the server — UNLESS the doc was freshly loaded
+        // from the server at this exact modifiedOn timestamp (in which case it already
+        // incorporates the $inc from the database).
+        const isLoadedAtSameTs = q.result.isLoadedAtModifiedOn(tx.objectId, tx.modifiedOn)
         const incOnlyAtSameTime =
+          !isLoadedAtSameTs &&
           updatedDoc.modifiedOn === tx.modifiedOn &&
           tx.operations.$inc != null &&
           Object.keys(tx.operations).every((k) => k === '$inc')
@@ -1069,9 +1075,12 @@ export class LiveQuery implements WithTx, Client {
       }
       const value = (lookup as any)[key]
       const tkey = checkMixinKey(key, _class, this.client.getHierarchy())
+      const refId = getObjectValue(tkey, doc)
+      if (refId == null) continue
+
       if (Array.isArray(value)) {
         const [_class, nested] = value
-        ;(result as any)[key] = await this.findOne(_class, { _id: getObjectValue(tkey, doc) })
+        ;(result as any)[key] = await this.findOne(_class, { _id: refId })
         const nestedResult = {}
         const parent = (result as any)[key]
         if (parent !== undefined) {
@@ -1081,7 +1090,7 @@ export class LiveQuery implements WithTx, Client {
           })
         }
       } else {
-        ;(result as any)[key] = await this.findOne(value, { _id: getObjectValue(tkey, doc) })
+        ;(result as any)[key] = await this.findOne(value, { _id: refId })
       }
     }
   }
@@ -1695,6 +1704,9 @@ export class LiveQuery implements WithTx, Client {
   }
 
   private async __updateDoc (q: Query, updatedDoc: WithLookup<Doc>, tx: TxUpdateDoc<Doc>): Promise<void> {
+    if (q.result instanceof ResultArray) {
+      q.result.clearLoadedModifiedOn(tx.objectId)
+    }
     TxProcessor.updateDoc2Doc(updatedDoc, tx)
 
     const ops = {

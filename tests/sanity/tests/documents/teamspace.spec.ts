@@ -1,9 +1,8 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { TestData } from '../chat/types'
 import { SignUpData } from '../model/common-types'
 import { DocumentsPage } from '../model/documents/documents-page'
 import { NewTeamspace } from '../model/documents/types'
-import { LeftSideMenuPage } from '../model/left-side-menu-page'
 import { SignInJoinPage } from '../model/signin-page'
 import {
   createAccount,
@@ -22,13 +21,11 @@ test.use({
 })
 
 test.describe('Teamspace tests', () => {
-  let leftSideMenuPage: LeftSideMenuPage
   let documentsPage: DocumentsPage
 
   test.beforeEach(async ({ page }) => {
-    leftSideMenuPage = new LeftSideMenuPage(page)
     documentsPage = new DocumentsPage(page)
-    await (await page.goto(`${PlatformURI}/workbench/sanity-ws`))?.finished()
+    await (await page.goto(`${PlatformURI}/workbench/sanity-ws/document`))?.finished()
   })
 
   test('Create a teamspace', async ({ page }) => {
@@ -38,18 +35,19 @@ test.describe('Teamspace tests', () => {
       private: false
     }
 
-    await leftSideMenuPage.clickDocuments()
     await documentsPage.checkTeamspaceNotExist(newTeamspace.title)
     await documentsPage.createNewTeamspace(newTeamspace)
     await documentsPage.checkTeamspaceExist(newTeamspace.title)
   })
 
   test('Archive teamspace', async ({ page }) => {
+    // Create the teamspace here instead of archiving a fixture from the stand's init data:
+    // archiving is one-way, so the fixture-based test only ever passed on a fresh stand.
     const archiveTeamspace: NewTeamspace = {
-      title: 'Teamspace for archive'
+      title: `Teamspace for archive-${generateId()}`
     }
 
-    await leftSideMenuPage.clickDocuments()
+    await documentsPage.createNewTeamspace(archiveTeamspace)
     await documentsPage.checkTeamspaceExist(archiveTeamspace.title)
     await documentsPage.moreActionTeamspace(archiveTeamspace.title, 'Archive')
     await documentsPage.pressYesForPopup(page)
@@ -68,7 +66,6 @@ test.describe('Teamspace tests', () => {
       private: false
     }
 
-    await leftSideMenuPage.clickDocuments()
     await documentsPage.checkTeamspaceNotExist(editTeamspace.title)
     await documentsPage.createNewTeamspace(editTeamspace)
     await documentsPage.checkTeamspaceExist(editTeamspace.title)
@@ -80,7 +77,7 @@ test.describe('Teamspace tests', () => {
 
   test('Auto-join teamspace', async ({ page, request, browser }) => {
     const testData: TestData = generateTestData()
-    await createAccountAndWorkspace(page, request, testData)
+    await createAccountAndWorkspace(page, request, testData, 'document')
     const newUser2: SignUpData = generateUser()
     await createAccount(request, newUser2)
 
@@ -90,7 +87,6 @@ test.describe('Teamspace tests', () => {
       private: false,
       autoJoin: true
     }
-    await leftSideMenuPage.clickDocuments()
     await documentsPage.checkTeamspaceNotExist(autojoinTeamspace.title)
     await documentsPage.createNewTeamspace(autojoinTeamspace)
     const linkText = await getInviteLink(page)
@@ -111,7 +107,7 @@ test.describe('Teamspace tests', () => {
 
   test('Join teamspace', async ({ page, request, browser }) => {
     const testData: TestData = generateTestData()
-    await createAccountAndWorkspace(page, request, testData)
+    await createAccountAndWorkspace(page, request, testData, 'document')
     const newUser2: SignUpData = generateUser()
     await createAccount(request, newUser2)
 
@@ -119,7 +115,6 @@ test.describe('Teamspace tests', () => {
       title: `Join Teamspace-${generateId()}`,
       description: 'Join Teamspace description'
     }
-    await leftSideMenuPage.clickDocuments()
     await documentsPage.checkTeamspaceNotExist(joinTeamspace.title)
     await documentsPage.createNewTeamspace(joinTeamspace)
     const linkText = await getInviteLink(page)

@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -22,6 +23,7 @@
     Component,
     IconDescription,
     NavItem,
+    resolvedLocationStore,
     Scroller,
     Separator,
     defineSeparators,
@@ -58,6 +60,19 @@
   const sectionRefs: Record<string, HTMLElement | undefined> = {}
 
   defineSeparators('spaceTypeEditor', secondNavSeparators)
+
+  let lastScrolledFragment: string | undefined = undefined
+
+  $: fragment = $resolvedLocationStore.fragment
+  $: if (fragment != null && fragment !== lastScrolledFragment && sectionRefs[fragment] != null) {
+    lastScrolledFragment = fragment
+    const target = sectionRefs[fragment]
+    setTimeout(() => {
+      target?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+  } else if (fragment == null) {
+    lastScrolledFragment = undefined
+  }
 </script>
 
 {#if type !== undefined && descriptor !== undefined}
@@ -86,7 +101,11 @@
         <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
           <div class="hulyComponent-content gap">
             {#each editorDescriptor.sections as section}
-              <div bind:this={sectionRefs[section.id]} class:hulyTableAttr-container={!section.withoutContainer}>
+              <div
+                id={section.id}
+                bind:this={sectionRefs[section.id]}
+                class:hulyTableAttr-container={!section.withoutContainer}
+              >
                 <Component
                   is={section.component}
                   disabled={readonly}

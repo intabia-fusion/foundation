@@ -215,7 +215,15 @@
     "SelectUsers": "Vybrat uživatele",
     "ShowInTitle": "Zobrazit v názvu",
     "SpaceMembersOnly": "Pouze členové prostoru",
-    "Reset": "Resetovat"
+    "OverrideAttribute": "Přepsat atribut",
+    "Required": "Povinné",
+    "Reset": "Resetovat",
+    "ConfirmOperation": "Potvrzení operace",
+    "Confirm": "Potvrdit",
+    "OtpCode": "Kód",
+    "OtpSent": "Kód byl odeslán na váš e-mail",
+    "OtpSendFailed": "Kód se nepodařilo odeslat",
+    "SendCode": "Odeslat kód"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

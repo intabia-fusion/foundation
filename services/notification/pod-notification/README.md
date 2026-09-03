@@ -1,6 +1,6 @@
 # Notification Service
 
-A microservice for sending push notifications via the web push protocol.
+A microservice for sending push notifications: web push to browsers, APNs to iOS and FCM to Android.
 
 ## Overview
 
@@ -8,12 +8,18 @@ The notification service is a background worker that consumes user notification 
 
 ## Features
 
-- **Kafka Consumer**: Consumes messages from `user-notifications` topic.
-- **Web Push Delivery**: Delivers push notifications directly to browsers.
-- **VAPID Authentication**: Secures notification delivery with VAPID key signing.
-- **Automatic Subscription Cleanup**: Cleans up expired, unregistered, or invalid push subscriptions directly in the database using the transactor API if `ACCOUNTS_URL` and `SERVER_SECRET` are configured.
-- **Robust Error Handling**: Prevents loops/crashes when processing invalid JSON bodies or encountering network timeouts.
-- **Graceful Shutdown**: Properly closes Kafka consumers on shutdown to prevent partition rebalance lags.
+- **Web Push Notifications**: Send push notifications to web browsers
+- **Native Push**: APNs and FCM delivery for the mobile apps, chosen per subscription
+- **VAPID Support**: Secure authentication using VAPID keys
+- **Subscription Management**: Handles expired and invalid subscriptions
+- **Token Authentication**: Optional bearer token authentication
+- **Error Handling**: Automatic cleanup of invalid subscriptions
+
+## Prerequisites
+
+- Node.js (version specified in package.json)
+- VAPID key pair for web push authentication
+- Valid push subscriptions from client applications
 
 ## Configuration
 
@@ -26,11 +32,46 @@ The service is configured via environment variables:
 | `PUSH_PUBLIC_KEY` | No | - | VAPID public key for signing push notifications |
 | `PUSH_PRIVATE_KEY` | No | - | VAPID private key for signing push notifications |
 | `PUSH_SUBJECT` | No | `mailto:hey@huly.io` | VAPID subject (email or URL) |
-| `TTL` | No | `86400` | Time-to-live for push notifications in seconds (default is 24 hours) |
-| `QUEUE_CONFIG` | Yes | - | Kafka broker addresses and configuration |
-| `QUEUE_REGION` | No | - | The Kafka partition region to connect to |
-| `ACCOUNTS_URL` | No | - | URL of the internal accounts service, required for failed subscription cleanups |
-| `SERVER_SECRET` / `SECRET` | No | - | Shared secret used to sign service tokens for database cleanups |
+| `APNS_KEY_ID` | No | - | Key ID of the APNs `.p8` key |
+| `APNS_TEAM_ID` | No | - | Apple developer team ID |
+| `APNS_KEY` | No | - | The `.p8` private key; `\n` stands for newlines |
+| `APNS_TOPIC` | No | - | App bundle id, e.g. `intabia.platform.mobile` |
+| `APNS_PRODUCTION` | No | `true` | `false` sends to the APNs sandbox |
+| `FCM_SERVICE_ACCOUNT` | No | - | Firebase service-account JSON, verbatim |
+
+Each transport is optional: a subscription whose transport is unconfigured is skipped
+rather than failed, so a deployment that only serves browsers needs no new variables.
+
+### Native subscriptions
+
+A native app has no service worker and therefore no Web Push subscription - Apple issues
+`web.push.apple.com` endpoints to Safari only, and Android has no equivalent. Both platforms
+hand out a device token instead, and it travels in the same `PushSubscription.endpoint`
+field under a scheme of its own:
+
+| Endpoint | Transport |
+|----------|-----------|
+| `apns://<device-token>` | APNs |
+| `fcm://<registration-token>` | FCM |
+| anything else | Web Push |
+
+Neither the notification model nor the trigger that collects subscriptions knows about the
+split: they still pass one list, and the service still answers with the subscriptions that
+turned out to be dead so the caller can delete them.
+
+APNs sends an alert push rather than a silent one - waking a sleeping phone is the point,
+and `content-available` alone is throttled by iOS. FCM carries a `notification` block, so
+Android draws the banner itself while the process is asleep.
+
+### APNs and FCM credentials
+
+The APNs key is created in the Apple developer console (Keys, "Apple Push Notifications
+service"), downloaded once as a `.p8` file and never again. A free provisioning profile
+carries no push entitlement, so a paid team is required.
+
+The FCM credentials are the service-account JSON from the Firebase console
+(Project settings, Service accounts, "Generate new private key"). The legacy server key is
+not supported - Google switched it off in 2024.
 
 ### VAPID Keys Generation
 

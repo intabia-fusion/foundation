@@ -8,6 +8,7 @@ void esbuild.build({
     bundle: true,
     minify: true,
     keepNames: true,
+    sourcemap: 'external',
     loader: { ".node": "file" },
     platform: 'node',
     outfile: 'bundle/bundle.js',

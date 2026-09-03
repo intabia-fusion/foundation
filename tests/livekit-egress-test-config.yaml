@@ -33,6 +33,12 @@ storage:
     min_retry_delay: 500ms
     max_retry_delay: 5s
 
+# The CI runner has 4 vCPU and egress defaults reserve 3-4 of them for a Chrome-backed room
+# composite, so video recordings were never accepted while audio-only ones (cost 1) went through.
+cpu_cost:
+  room_composite_cpu_cost: 1
+  web_cpu_cost: 1
+
 session_limits:
   file_output_max_duration: 1h
   stream_output_max_duration: 30m

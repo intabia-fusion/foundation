@@ -237,8 +237,6 @@ export class FullTextIndexPipeline implements FullTextPipeline {
     classes: Ref<Class<Doc>>[],
     control?: ConsumerControl
   ): Promise<void> {
-    ctx.warn('reindex verify document structure', { domain, workspace: this.workspace.uuid })
-
     let processed = 0
     await ctx.with(
       'reindex domain',
@@ -296,7 +294,9 @@ export class FullTextIndexPipeline implements FullTextPipeline {
         workspace: this.workspace.uuid
       }
     )
-    ctx.info('reindex done', { domain, processed })
+    if (processed > 0) {
+      ctx.info('reindex done', { domain, processed })
+    }
   }
 
   async dropWorkspace (control?: ConsumerControl): Promise<void> {
@@ -589,11 +589,12 @@ export class FullTextIndexPipeline implements FullTextPipeline {
     // We need to update hierarchy and local model if required.
     for (const tx of docEvents) {
       try {
-        this.hierarchy.tx(tx)
         const domain = this.hierarchy.findDomain(tx.objectClass)
         if (domain === DOMAIN_MODEL) {
           await this.model.tx(tx)
         }
+        // After the model: hierarchy skips updates of model-owned docs and indexes by the new state.
+        this.hierarchy.tx(tx)
       } catch (err: any) {
         ctx.error('failed to process tx', { err, tx })
         Analytics.handleError(err)

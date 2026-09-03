@@ -34,8 +34,6 @@ import {
   FRAME_PONG,
   FRAME_HELLO,
   FRAME_HELLO_RESP,
-  FRAME_MSGPACK,
-  FRAME_MSGPACK_SNAPPY,
   FRAME_BINARY,
   FRAME_BINARY_RESP,
   FRAME_OP_STATUS,
@@ -44,6 +42,11 @@ import {
   type Session,
   type HelloRequest,
   type HelloResponse,
+  formatId,
+  isJsonBody,
+  legacyWireFormat,
+  negotiateFormat,
+  readDataFrame,
   callbackMethod,
   decodeBinaryRequest,
   encodeBinaryResponse,
@@ -52,7 +55,7 @@ import {
 } from './types'
 import { randomUUID } from 'crypto'
 import { setTimeout } from 'timers'
-import { sendFrame as sharedSendFrame } from './frame-utils'
+import { codecFor, sendFrame as sharedSendFrame } from './frame-utils'
 import { unknownError } from '@hcengineering/platform'
 
 // Lazy-import snappy at runtime to avoid initializing native handles during test collection
@@ -185,6 +188,37 @@ export class ClisrServer {
     })
   }
 
+  private slotWaiters: Array<() => void> = []
+
+  /** A request finished, so a capacity slot may have freed: wake whoever is waiting for one. */
+  private notifySlotFree (): void {
+    const waiters = this.slotWaiters
+    this.slotWaiters = []
+    for (const w of waiters) {
+      try {
+        w()
+      } catch (_e) {}
+    }
+  }
+
+  /** Waits for a freed slot rather than polling for it; `ms` is only an upper bound. */
+  private async waitForSlot (ms: number): Promise<void> {
+    if (this.closed) return
+    await new Promise<void>((resolve) => {
+      const done = (): void => {
+        clearTimeout(timer)
+        const si = this.slotWaiters.indexOf(done)
+        if (si >= 0) this.slotWaiters.splice(si, 1)
+        const ci = this.closeWaiters.indexOf(done)
+        if (ci >= 0) this.closeWaiters.splice(ci, 1)
+        resolve()
+      }
+      const timer = setTimeout(done, ms)
+      this.slotWaiters.push(done)
+      this.closeWaiters.push(done)
+    })
+  }
+
   private isClosedError (err: any): boolean {
     return err?.code === 'SERVER_CLOSED'
   }
@@ -305,6 +339,7 @@ export class ClisrServer {
       rr.reject(new Error(`Session reconnect timeout (client: ${clientInfo})`))
     }
     session.requests.clear()
+    this.notifySlotFree()
 
     for (const eh of this.eventHandlers) {
       try {
@@ -344,6 +379,7 @@ export class ClisrServer {
         this.requests.set(id, promise)
         promise.onDone = () => {
           socket.requests.delete(id.toString())
+          this.notifySlotFree()
         }
 
         promise.sendData = (): void => {
@@ -372,6 +408,17 @@ export class ClisrServer {
         span: 'skip'
       }
     )
+  }
+
+  /** Least loaded eligible client, round-robin among ties; `undefined` when every one is full. */
+  pickSession (sessions: Session[]): Session | undefined {
+    const free = sessions.filter((s) => s.requests.size < (s.options?.capacity ?? Number.POSITIVE_INFINITY))
+    if (free.length === 0) {
+      return undefined
+    }
+    const minLoad = free.reduce((min, s) => Math.min(min, s.requests.size), Number.POSITIVE_INFINITY)
+    const idle = free.filter((s) => s.requests.size === minLoad)
+    return idle[this.cindex++ % idle.length]
   }
 
   // Perform a round robin call to one of the connected clients and wait for response from it
@@ -425,8 +472,18 @@ export class ClisrServer {
       waitDelay = this.retryBackoffStartMs
 
       attempt++
-      const num = this.cindex++
-      const s = sessions[num % sessions.length]
+      const s = this.pickSession(sessions)
+      if (s === undefined) {
+        const now = Date.now()
+        if (now - lastNoSessionsLog > RetryLogIntervalMs) {
+          lastNoSessionsLog = now
+          ctx.warn('request waiting for client capacity', { method, attempt, delayMs: waitDelay })
+        }
+        await this.waitForSlot(waitDelay)
+        waitDelay = this.nextBackoff(waitDelay)
+        continue
+      }
+      waitDelay = this.retryBackoffStartMs
       const clientInfo = s.clientHost ?? s.sessionId
       try {
         const res = await ctx.with(method, {}, (ctx) =>
@@ -526,6 +583,7 @@ export class ClisrServer {
         // Ensure cleanup regardless of resolve/reject path.
         this.requests.delete(id)
         ;(promise.session ?? session).requests.delete(id)
+        this.notifySlotFree()
       }
     })
   }
@@ -576,8 +634,18 @@ export class ClisrServer {
       waitDelay = this.retryBackoffStartMs
 
       attempt++
-      const num = this.cindex++
-      const s = sessions[num % sessions.length]
+      const s = this.pickSession(sessions)
+      if (s === undefined) {
+        const now = Date.now()
+        if (now - lastNoSessionsLog > RetryLogIntervalMs) {
+          lastNoSessionsLog = now
+          ctx.warn('binary request waiting for client capacity', { method, attempt, delayMs: waitDelay })
+        }
+        await this.waitForSlot(waitDelay)
+        waitDelay = this.nextBackoff(waitDelay)
+        continue
+      }
+      waitDelay = this.retryBackoffStartMs
       const clientInfo = s.clientHost ?? s.sessionId
 
       try {
@@ -780,9 +848,9 @@ export class ClisrServer {
           }
 
           if (ft === FRAME_HELLO || ft === FRAME_HELLO_RESP) {
-            // Hello frames carry RPC-serialized payload (no compression)
+            // Hello carries an RPC-serialized payload (no compression) in either encoding.
             const payload = buff.slice(1)
-            const request = session.socket.readRequest(payload, true)
+            const request = session.socket.readRequest(payload, !isJsonBody(payload))
             await this.handleRequest(session, request)
             return
           }
@@ -830,42 +898,39 @@ export class ClisrServer {
             return
           }
 
-          if (ft === FRAME_MSGPACK) {
-            // Direct msgpack frame (uncompressed)
-            try {
-              const request = session.socket.readRequest(buff.slice(1), true)
-              await this.handleRequest(session, request)
-            } catch (err: any) {
-              this.ctx.error('failed to parse msgpack frame', { err })
-              session.socket.close()
-            }
-            return
-          }
-
-          if (ft === FRAME_MSGPACK_SNAPPY) {
-            // Body is compressed msgpack data - decompress first
-            let requestBuffer: Buffer
-            try {
-              const dec = await this.uncompress(buff.slice(1))
-              if (Buffer.isBuffer(dec)) {
-                requestBuffer = dec
-              } else if (dec instanceof Uint8Array) {
-                requestBuffer = Buffer.from(dec.buffer, dec.byteOffset, dec.byteLength)
-              } else {
-                throw new Error('decompress returned unexpected type')
+          const frame = readDataFrame(buff, session.socket.format)
+          if (frame !== undefined) {
+            // A view, not a copy: this runs on every incoming message.
+            let body: Buffer = Buffer.from(frame.body.buffer, frame.body.byteOffset, frame.body.byteLength)
+            if (frame.compressed) {
+              try {
+                const dec = await this.uncompress(body)
+                if (Buffer.isBuffer(dec)) {
+                  body = dec
+                } else if (dec instanceof Uint8Array) {
+                  body = Buffer.from(dec.buffer, dec.byteOffset, dec.byteLength)
+                } else {
+                  throw new Error('decompress returned unexpected type')
+                }
+              } catch (err: any) {
+                this.ctx.error('failed to decompress incoming message', {
+                  err,
+                  len: buff.length,
+                  sid: session.sid,
+                  preview: buff.slice(0, Math.min(20, buff.length)).toString('hex')
+                })
+                session.socket.close()
+                return
               }
+            }
+            let request: Request<any>
+            try {
+              request = codecFor(frame.codec).decodeRequest(this.rpcHandler, body)
             } catch (err: any) {
-              this.ctx.error('failed to decompress incoming message', {
-                err,
-                len: buff.length,
-                sid: session.sid,
-                preview: buff.slice(0, Math.min(20, buff.length)).toString('hex')
-              })
+              this.ctx.error('failed to parse data frame', { err, frame: ft })
               session.socket.close()
               return
             }
-
-            const request = session.socket.readRequest(requestBuffer, true)
             await this.handleRequest(session, request)
             return
           }
@@ -971,7 +1036,8 @@ export class ClisrServer {
       this.requests.delete(request.id)
       if (rr !== undefined) {
         const [response, error] = request.params
-        if (error !== undefined) {
+        // JSON turns an explicit `undefined` slot into null, so an absent error reads as null here.
+        if (error != null) {
           // Handle error response from client
           const errorMessage = error.message ?? 'Unknown error from client callback'
           const err = new Error(errorMessage)
@@ -1137,17 +1203,22 @@ export class ClisrServer {
         reconnect: oldSession !== undefined
       })
 
+      // A client that predates negotiation offers nothing, and msgpack is all it can read.
+      cs.format = negotiateFormat(hello.formats)
+
       const resp: HelloResponse = {
         reconnect: oldSession !== undefined,
         serverVersion: this.serverVersion,
         sessionId: session.sessionId,
         id: hello.id,
-        result: 'hello'
+        result: 'hello',
+        format: formatId(cs.format)
       }
 
-      // Send hello response framed as FRAME_HELLO_RESP with serialized payload (no extra compression)
-      const sresp = this.rpcHandler.serialize(resp, true)
-      const out = Buffer.concat([Buffer.from([FRAME_HELLO_RESP]), Buffer.from(sresp)])
+      // Answer in the agreed codec, so a client without msgpack never has to read msgpack.
+      // Hello is never compressed, so any codec is readable straight off the frame.
+      const codec = codecFor(cs.format.codec)
+      const out = Buffer.concat([Buffer.from([FRAME_HELLO_RESP]), Buffer.from(codec.encode(this.rpcHandler, resp))])
       await cs.sendRaw(this.ctx, out)
     } catch (err: any) {
       this.ctx.error('hello parse error', { err })
@@ -1192,6 +1263,7 @@ export function createWebsocketClientSocket (
       }
       return true
     },
+    format: { ...legacyWireFormat },
     readRequest: (buffer: Buffer, binary: boolean) => {
       return rpcHandler.readRequest(buffer, binary)
     },
@@ -1269,7 +1341,7 @@ export function createWebsocketClientSocket (
         })
       }
 
-      await sharedSendFrame(ctx, sendFn, msg, compressFn, true)
+      await sharedSendFrame(ctx, sendFn, msg, compressFn, cs.format)
     }
   }
   return cs

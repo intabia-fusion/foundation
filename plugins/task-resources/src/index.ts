@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -72,11 +73,12 @@ import ProjectTypeGeneralSectionEditor from './components/projectTypes/ProjectTy
 import ProjectTypeSelector from './components/projectTypes/ProjectTypeSelector.svelte'
 import ProjectTypeTasksTypeSectionEditor from './components/projectTypes/ProjectTypeTasksTypeSectionEditor.svelte'
 import TaskTypeEditor from './components/taskTypes/TaskTypeEditor.svelte'
+import TaskTypeDiagramPopup from './components/taskTypes/TaskTypeDiagramPopup.svelte'
 
 export { default as AssigneePresenter } from './components/AssigneePresenter.svelte'
 export { default as TypeSelector } from './components/TypeSelector.svelte'
 export * from './utils'
-export { StatePresenter, StateRefPresenter, TaskKindSelector, TypeStatesPopup }
+export { StatePresenter, StateRefPresenter, TaskKindSelector, TypeStatesPopup, TaskTypeDiagramPopup }
 
 async function editStatuses (object: Project, ev: Event): Promise<void> {
   const loc = getCurrentLocation()
@@ -133,7 +135,8 @@ export default async (): Promise<Resources> => ({
     ProjectTypeGeneralSectionEditor,
     ProjectTypeTasksTypeSectionEditor,
     ProjectTypeAutomationsSectionEditor,
-    TaskTypeEditor
+    TaskTypeEditor,
+    TaskTypeDiagramPopup
   },
   actionImpl: {
     EditStatuses: editStatuses,

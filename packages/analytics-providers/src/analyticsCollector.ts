@@ -33,6 +33,13 @@ export class AnalyticsCollectorProvider implements AnalyticProvider {
   // when the network is offline or the server is rejecting batches.
   private readonly maxQueueSize = 5000
   private readonly events: QueuedEvent[] = []
+  // Measurements fold into one event per name+labels: a find-heavy run produced 61k single-value
+  // events, more than the transactor logged operations.
+  private readonly metricBuckets = new Map<
+  string,
+  { metric: string, labels: Record<string, any>, count: number, sum: number, min: number, max: number }
+  >()
+
   private collectTimer: any = null
   private sending: boolean = false
   private url: string = ''
@@ -58,6 +65,11 @@ export class AnalyticsCollectorProvider implements AnalyticProvider {
   }
 
   private registerExceptionHandlers (): void {
+    // A page that closes before the 5s timer would otherwise drop its whole batch.
+    window.addEventListener('pagehide', () => {
+      void this.sendEvents()
+    })
+
     // Capture unhandled errors
     window.addEventListener('error', (event) => {
       this.handleError(event.error ?? new Error(event.message))
@@ -89,6 +101,7 @@ export class AnalyticsCollectorProvider implements AnalyticProvider {
 
   async sendEvents (): Promise<void> {
     if (this.sending) return
+    this.drainMetrics()
     if (this.events.length === 0) return
 
     const token = getMetadata(presentation.metadata.Token) ?? ''
@@ -330,10 +343,27 @@ export class AnalyticsCollectorProvider implements AnalyticProvider {
   }
 
   handleMetric (name: string, value: number, labels?: Record<string, any>): void {
-    this.addEvent(AnalyticEventType.Metric, { metric: name, value, labels: labels ?? {} }, name)
-    if (this.events.length >= this.maxBatchSize) {
-      void this.sendEvents()
+    const key = `${name}\u0000${JSON.stringify(labels ?? {})}`
+    const bucket = this.metricBuckets.get(key)
+    if (bucket === undefined) {
+      this.metricBuckets.set(key, { metric: name, labels: labels ?? {}, count: 1, sum: value, min: value, max: value })
+      return
     }
+    bucket.count++
+    bucket.sum += value
+    if (value < bucket.min) bucket.min = value
+    if (value > bucket.max) bucket.max = value
+  }
+
+  private drainMetrics (): void {
+    for (const b of this.metricBuckets.values()) {
+      this.addEvent(
+        AnalyticEventType.Metric,
+        { metric: b.metric, value: b.sum, count: b.count, min: b.min, max: b.max, labels: b.labels },
+        b.metric
+      )
+    }
+    this.metricBuckets.clear()
   }
 
   handleError (error: Error): void {

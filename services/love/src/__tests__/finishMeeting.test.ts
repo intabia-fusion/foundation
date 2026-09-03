@@ -15,6 +15,7 @@ import core, {
   type Ref
 } from '@hcengineering/core'
 import love, {
+  SCHEDULED_MEETING_WINDOW_MS,
   MeetingStatus,
   type MeetingMinutes,
   type ParticipantInfo,
@@ -119,10 +120,10 @@ describe('WorkspaceClient.finishMeeting → re-arm vs finish', () => {
     expect(removed).toContain(TEST_IDS.participant1)
   })
 
-  it('finishes a past-scheduled meeting as before (with meetingEnd)', async () => {
+  it('finishes a scheduled meeting once it is past its window (with meetingEnd)', async () => {
     const meeting = createMockMeeting({
       status: MeetingStatus.Active,
-      meetingScheduledDate: Date.now() - 60_000
+      meetingScheduledDate: Date.now() - (SCHEDULED_MEETING_WINDOW_MS + 60_000)
     })
     const { client, updated } = createFakeClient({ meeting })
 
@@ -131,6 +132,22 @@ describe('WorkspaceClient.finishMeeting → re-arm vs finish', () => {
 
     const meetingUpdate = updated.find((u) => u.doc._id === meeting._id)
     expect(meetingUpdate?.update).toEqual({ status: MeetingStatus.Finished, meetingEnd: 123456 })
+  })
+
+  it('re-arms a running scheduled meeting instead of finishing it (defect: re-arm only before start)', async () => {
+    // Everyone briefly dropped mid-meeting, so scheduledDate is already past: a re-arm check of
+    // `scheduledDate > now` would give the still-running meeting a terminal Finished.
+    const meeting = createMockMeeting({
+      status: MeetingStatus.Active,
+      meetingScheduledDate: Date.now() - 2 * 60 * 1000
+    })
+    const { client, updated } = createFakeClient({ meeting })
+
+    const wc = makeWorkspaceClient(createMockContext(), client)
+    await wc.finishMeeting(meeting._id, Date.now())
+
+    const meetingUpdate = updated.find((u) => u.doc._id === meeting._id)
+    expect(meetingUpdate?.update).toEqual({ status: MeetingStatus.Scheduled })
   })
 
   it('finishes an ad-hoc meeting without meetingScheduledDate as before', async () => {

@@ -102,7 +102,6 @@
     "LeaveParticipant": "Hat die Besprechung verlassen",
     "MeetingStart": "Meeting-Start",
     "MeetingEnd": "Meeting-Ende",
-    "EndMeeting": "Meeting beenden",
     "Status": "Status",
     "Active": "Aktiv",
     "Finished": "Beendet",
@@ -160,6 +159,9 @@
     "GroupByStatus": "Nach Status",
     "GroupByDate": "Nach Datum",
     "SpeakingWhileMuted": "Dein Mikrofon ist stumm - andere hören dich nicht",
-    "SpeakingWhileMutedAlert": "Warnen, wenn ich bei stummem Mikrofon spreche"
+    "SpeakingWhileMutedAlert": "Warnen, wenn ich bei stummem Mikrofon spreche",
+    "SwitchWorkspaceInMeeting": "Sie befinden sich in einem Meeting",
+    "SwitchWorkspaceLeaveMeeting": "Beim Wechsel des Arbeitsbereichs werden Sie vom laufenden Meeting getrennt.",
+    "SwitchWorkspaceEndsMeeting": "Dies ist Ihr Büro: Beim Wechsel des Arbeitsbereichs werden Sie getrennt und das Meeting für alle beendet."
   }
 }

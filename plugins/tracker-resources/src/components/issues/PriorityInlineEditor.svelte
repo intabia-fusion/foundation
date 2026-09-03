@@ -91,13 +91,14 @@
 {:else}
   <Button
     showTooltip={isEditable ? { label: tracker.string.SetPriority } : undefined}
-    label={shouldShowLabel ? issuePriorities[value]?.label : undefined}
-    icon={issuePriorities[value]?.icon}
+    label={shouldShowLabel ? (issuePriorities[value]?.label ?? tracker.string.Priority) : undefined}
+    icon={issuePriorities[value]?.icon ?? tracker.icon.Priority}
     {justify}
     {focusIndex}
     {width}
     {size}
     {kind}
+    notSelected={issuePriorities[value] == null}
     disabled={!isEditable}
     on:click={handlePriorityEditorOpened}
   />

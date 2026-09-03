@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022, 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -55,6 +56,7 @@
   function openSubIssue (target: Ref<Issue>) {
     const subIssue = subIssues?.find((p) => p._id === target)
     if (subIssue !== undefined) {
+      closeTooltip()
       openIssue(subIssue)
     }
   }
@@ -112,7 +114,7 @@
 
   $: {
     if (subIssues !== undefined) {
-      subIssues.sort((a, b) => {
+      sortedSubIssues = [...subIssues].sort((a, b) => {
         const aStatus = $statusStore.byId.get(a.status)
         const bStatus = $statusStore.byId.get(b.status)
         const res =
@@ -120,7 +122,8 @@
           listIssueStatusOrder.indexOf(bStatus?.category ?? task.statusCategory.UnStarted)
         return res
       })
-      sortedSubIssues = subIssues ?? []
+    } else {
+      sortedSubIssues = []
     }
   }
 

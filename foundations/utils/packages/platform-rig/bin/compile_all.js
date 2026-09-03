@@ -5,7 +5,7 @@ const { existsSync } = require('fs')
 const { performance } = require('perf_hooks')
 
 const { BuildTaskQueue, TaskType } = require('./libs/task-queue')
-const { CpuTracker, getOptimalWorkerCount, getDefaultWorkerCount } = require('./libs/utils')
+const { CpuTracker, getOptimalWorkerCount, getDefaultWorkerCount, getPeakMemoryMB } = require('./libs/utils')
 const { calculatePackageHash } = require('./libs/cache')
 const { success, error, warn, info, dim, bold, colorizeErrorMessage } = require('./libs/colors')
 
@@ -18,6 +18,8 @@ const { runFormatPhase } = require('./phases/format')
 const { runLintPhase } = require('./phases/lint')
 const { runTestPhase } = require('./phases/test')
 const { runSvelteCheckPhase } = require('./phases/svelte-check')
+const { selectPackagesForPhases } = require('./libs/phase-select')
+const { computeTypesHashes, compositeHashFromTypes } = require('./libs/composite-hash')
 
 function parseArgs(args) {
   let parallel = getDefaultWorkerCount()
@@ -232,12 +234,24 @@ function calculatePackageHashWithDeps(packageName, graph, packageHashes, process
   return crypto.createHash('md5').update(parts.join('\n')).digest('hex')
 }
 
-async function runValidationPhase(packages, graph, validationWorkers, force, packageHashes) {
+async function runValidationPhase(packages, graph, validationWorkers, force, packageHashes, heapMB = 2048) {
   if (packages.length === 0) return { successCount: 0, total: 0, cacheHits: 0, errors: [], time: 0 }
 
   const { getWorkerPool } = require('./libs/workers')
-  const { markPhaseCompleted, isPhaseCached, calculateOutputHashForDirs } = require('./libs/cache')
-  const pool = await getWorkerPool(validationWorkers)
+  const { markPhaseCompleted, getPhaseMetadata, calculateOutputHashForDirs } = require('./libs/cache')
+  // Without a ceiling each V8 isolate grows towards the default (multi-GB on a big box)
+  // before collecting: 9.2GB peak. A 2GB cap collects sooner and measured *faster*
+  // (43s vs 44s) at 5.4GB. The figure comes from the memory budget, so a small container
+  // gets a small ceiling instead of being OOM-killed.
+  const validateHeapMB = parseInt(process.env.FAST_BUILD_VALIDATE_HEAP_MB ?? String(heapMB), 10)
+  const pool = await getWorkerPool(validationWorkers, {
+    workerOptions: {
+      resourceLimits: {
+        maxOldGenerationSizeMb: validateHeapMB,
+        maxYoungGenerationSizeMb: 128
+      }
+    }
+  })
 
   const startTime = performance.now()
   const results = {
@@ -251,19 +265,10 @@ async function runValidationPhase(packages, graph, validationWorkers, force, pac
   let completedCount = 0
   const timings = []
 
-  // Map to store typesHash for each validated package (used by dependents)
-  const packageTypesHashes = new Map()
-
-  // Track memory usage
-  let peakMemoryMB = 0
-  function updatePeakMemory() {
-    const usage = process.memoryUsage()
-    const currentMB = Math.round(usage.rss / 1024 / 1024)
-    if (currentMB > peakMemoryMB) {
-      peakMemoryMB = currentMB
-    }
-  }
-  const memoryInterval = setInterval(updatePeakMemory, 1000)
+  // typesHash per package, consumed by dependents. Seeded from what is on disk so that
+  // packages outside this validate set still contribute a real hash; each validated
+  // package overwrites its entry before any dependent reads it (waves run in dep order).
+  const packageTypesHashes = computeTypesHashes(graph)
 
   console.log(`\n=== Phase: Validating ${packages.length} packages ===`)
   console.log(`    Using ${validationWorkers} validation workers`)
@@ -277,20 +282,24 @@ async function runValidationPhase(packages, graph, validationWorkers, force, pac
     const srcDir = node.phaseBuild === 'compile transpile tests' ? 'tests' : 'src'
     const pkgStart = performance.now()
 
-    // Get hash including all dependencies + their emitted types hashes
-    const packageHash = calculatePackageHashWithDeps(packageName, graph, packageHashes, new Set(), packageTypesHashes)
+    // A dependency is only visible here through its emitted .d.ts, so keying on the
+    // dependency's sources re-validated the whole downstream closure for edits that
+    // changed no public API. Own sources + dependency types is the real input.
+    const packageHash = compositeHashFromTypes(packageName, graph, packageHashes, packageTypesHashes, ['tsconfig.json'])
 
     // Validate produces types/ directory
     const outputDirs = ['types']
 
-    // isPhaseCached with outputDirs verifies output existence + content hash
-    if (!force && packageHash && isPhaseCached(node.project.fullPath, packageHash, 'validate', null, outputDirs)) {
-      // Compute typesHash for dependents from the unified cache helper
-      const typesHash = calculateOutputHashForDirs(node.project.fullPath, ['types'])
-      if (typesHash) {
-        packageTypesHashes.set(packageName, typesHash)
-      }
+    // Hash types/ once and reuse it for both the cache check and the dependents' hash —
+    // isPhaseCached would otherwise re-read every .d.ts a second time.
+    const typesHash = calculateOutputHashForDirs(node.project.fullPath, ['types'])
+    if (typesHash) {
+      packageTypesHashes.set(packageName, typesHash)
+    }
+    const cachedPhase = packageHash ? getPhaseMetadata(node.project.fullPath, packageHash, 'validate') : null
+    const outputsMatch = cachedPhase != null && (cachedPhase.outputHash == null || cachedPhase.outputHash === typesHash)
 
+    if (!force && packageHash && outputsMatch) {
       results.successCount++
       results.cacheHits++
       const pkgTime = Math.round(performance.now() - pkgStart)
@@ -378,12 +387,10 @@ async function runValidationPhase(packages, graph, validationWorkers, force, pac
 
   await pool.terminate()
 
-  clearInterval(memoryInterval)
   results.time = performance.now() - startTime
 
   console.log(`\nValidated: ${results.successCount}/${results.total} packages in ${Math.round(results.time)}ms`)
   if (results.cacheHits > 0) console.log(`  (${results.cacheHits} from cache)`)
-  console.log(`  Peak memory: ${peakMemoryMB}MB`)
 
   // Print timing summary
   if (timings.length > 0) {
@@ -597,6 +604,43 @@ async function runBuildPipeline(packagesToBundle, packagesToPackage, packagesToD
   return results
 }
 
+// Per-phase timing plus what the run was allowed to use. Printed on every build so a CI
+// log carries the numbers needed to tell "slow" from "starved" without a rerun.
+function printResourceSummary(phaseStats, validationPlan, buildPlan) {
+  const { peakMB, source } = getPeakMemoryMB()
+
+  console.log(`\n=== Resources ===`)
+  console.log(`  CPUs usable        : ${validationPlan.cpuCount}`)
+  console.log(`  Memory available   : ${validationPlan.availableMemoryMB} MB`)
+  console.log(`  Memory budget (85%): ${validationPlan.budgetMB} MB`)
+  console.log(`  Validate pool      : ${validationPlan.workers} workers x ${validationPlan.heapMB} MB heap ` +
+    `= ${validationPlan.workers * validationPlan.heapMB} MB`)
+  console.log(`  Build pool         : ${buildPlan.workers} workers`)
+  if (peakMB != null) {
+    const pct = validationPlan.budgetMB > 0 ? Math.round((peakMB / validationPlan.budgetMB) * 100) : 0
+    console.log(`  Peak memory        : ${peakMB} MB (${pct}% of budget) — ${source}`)
+  }
+  if (validationPlan.belowSafeHeap) {
+    console.log(`  ${warn('Heap per worker is below what the heaviest packages need — expect OOM failures')}`)
+  }
+
+  const rows = phaseStats.filter(p => p.seconds != null && p.total > 0)
+  if (rows.length === 0) return
+
+  console.log(`\n=== Phases ===`)
+  console.log(`  ${'phase'.padEnd(14)} ${'time'.padStart(8)} ${'pkgs'.padStart(6)} ${'cached'.padStart(7)} ${'errors'.padStart(7)}  workers`)
+  for (const r of rows) {
+    const workers = r.workers != null
+      ? `${r.workers}${r.heapMB ? ` x ${r.heapMB}MB` : ''}` +
+        (r.peakChildRssMB ? ` (worst proc ${r.peakChildRssMB}MB)` : '')
+      : ''
+    console.log(
+      `  ${r.name.padEnd(14)} ${(r.seconds.toFixed(1) + 's').padStart(8)} ${String(r.total).padStart(6)} ` +
+      `${String(r.cacheHits).padStart(7)} ${String(r.errors).padStart(7)}  ${workers}`
+    )
+  }
+}
+
 // Reprint all errors at end of log so they're findable without scrolling.
 function printErrorSummary(allErrors) {
   if (allErrors.length === 0) return
@@ -635,15 +679,25 @@ async function compileAll(rootDir, options = {}) {
 
   const startTime = performance.now()
 
-  // Check available memory and adjust worker count
-  const validationWorkers = forceWorkers ? parallel : getOptimalWorkerCount(parallel, 'typescript').workers
-  const buildWorkers = forceWorkers ? parallel : getOptimalWorkerCount(parallel, 'bundle').workers
+  // Size every pool against the memory this process may actually use (cgroup limit in a
+  // container, MemAvailable otherwise) rather than the host's total RAM.
+  const validationPlan = getOptimalWorkerCount(parallel, 'typescript')
+  const buildPlan = getOptimalWorkerCount(parallel, 'bundle')
+  const validationWorkers = forceWorkers ? parallel : validationPlan.workers
+  const buildWorkers = forceWorkers ? parallel : buildPlan.workers
 
   // Start CPU tracking
   const cpuTracker = new CpuTracker(100)
   cpuTracker.start()
 
   console.log(`Building with ${validationWorkers} validation workers, ${buildWorkers} build workers...`)
+  console.log(`  Memory: ${validationPlan.availableMemoryMB}MB available, ${validationPlan.budgetMB}MB budget, ` +
+    `${validationPlan.cpuCount} usable CPU(s); validate heap ${validationPlan.heapMB}MB/worker`)
+  if (validationPlan.belowSafeHeap) {
+    console.warn(warn(`  Warning: only ${validationPlan.heapMB}MB per validation worker; the heaviest ` +
+      `packages need ~${validationPlan.minHeapMB}MB and may fail. Give the runner more memory ` +
+      `or set FAST_BUILD_MEMORY_MB if this figure is wrong.`))
+  }
 
   // Build dependency graph
   const { buildDependencyGraph } = require('./libs/graph')
@@ -656,16 +710,6 @@ async function compileAll(rootDir, options = {}) {
     packageHashes.set(name, calculatePackageHash(node.project.fullPath))
   }
   console.log(`  Calculated ${packageHashes.size} package hashes`)
-
-  // Collect packages for each phase
-  const packagesToTranspile = []
-  const packagesToValidate = []
-  const packagesToTest = []
-  const packagesToFormat = []
-  const packagesToBundle = []
-  const packagesToPackage = []
-  const packagesToDockerBuild = []
-  const packagesToSvelteCheck = []
 
   // If --to is specified, collect target packages and all their dependencies
   let targetPackages = null
@@ -698,45 +742,26 @@ async function compileAll(rootDir, options = {}) {
     console.log(`\nFiltering to ${targetPackages.size} packages (targets: ${targets.join(', ')})`)
   }
 
-  for (const [name, node] of graph) {
-    // Skip if --to is specified and this package is not in the target set
-    if (targetPackages && !targetPackages.has(name)) {
-      continue
-    }
+  const selection = selectPackagesForPhases(graph, {
+    doValidate, doTest, doBundle, doPackage, doDockerBuild, doSvelteCheck, targetPackages
+  })
 
-    if (node.phaseBuild === 'compile transpile src' ||
-        node.phaseBuild === 'compile transpile tests' ||
-        node.phaseBuild === 'compile ui-esbuild') {
-      packagesToTranspile.push(name)
-    }
+  const packagesToTranspile = selection.transpile
+  const packagesToValidate = selection.validate
+  const packagesToTest = selection.test
+  const packagesToFormat = selection.format
+  const packagesToBundle = selection.bundle
+  const packagesToPackage = selection.package
+  const packagesToDockerBuild = selection.dockerBuild
+  const packagesToSvelteCheck = selection.svelteCheck
 
-    if (doValidate && node.phaseValidate === 'compile validate') {
-      packagesToValidate.push(name)
+  // Packages whose phase script this tool cannot run used to disappear without a word.
+  if (selection.unknown.length > 0) {
+    console.warn(`\n${warn(`Warning: ${selection.unknown.length} unrecognised phase script(s), these packages are NOT built by fast-build:`)}`)
+    for (const u of selection.unknown) {
+      console.warn(`  ${u.package} — _phase:${u.phase}: ${dim(u.script)}`)
     }
-
-    if (doTest && node.phaseTest) {
-      packagesToTest.push(name)
-    }
-
-    if (node.phaseFormat) {
-      packagesToFormat.push(name)
-    }
-
-    if (doBundle && node.phaseBundle && node.phaseBundle !== 'echo done') {
-      packagesToBundle.push(name)
-    }
-
-    if ((doPackage || doDockerBuild) && node.phasePackage) {
-      packagesToPackage.push(name)
-    }
-
-    if (doDockerBuild && node.phaseDockerBuild) {
-      packagesToDockerBuild.push(name)
-    }
-
-    if (doSvelteCheck && node.phaseSvelteCheck) {
-      packagesToSvelteCheck.push(name)
-    }
+    console.warn(`  Run them with ${bold('rushx')} directly, or express them as a supported phase script.`)
   }
 
   if (list) {
@@ -788,6 +813,7 @@ async function compileAll(rootDir, options = {}) {
   console.log(`\n=== Phase 1: Transpiling ${packagesToTranspile.length} packages ===`)
   const transpileResults = await runTranspilePhase(graph, packagesToTranspile, validationWorkers, { force: forcePrerequisites, packageHashes })
   console.log(`Transpiled: ${transpileResults.successCount}/${transpileResults.total} packages in ${Math.round(transpileResults.time)}ms`)
+  const transpileStat = { name: 'transpile', result: transpileResults }
 
   // Refresh hashes of rebuilt packages so validate sees correct hashes.
   if (transpileResults.changedPackages && transpileResults.changedPackages.size > 0) {
@@ -810,11 +836,25 @@ async function compileAll(rootDir, options = {}) {
 
   // Collect all errors across phases for final summary
   const allErrors = []
+  const phaseStats = []
+  const recordPhase = (name, r, workers, heapMB) => {
+    if (!r) return
+    phaseStats.push({
+      name,
+      seconds: r.time != null ? r.time / 1000 : null,
+      total: r.total ?? 0,
+      cacheHits: r.cacheHits ?? 0,
+      errors: r.errors?.length ?? 0,
+      workers: r.workers ?? workers,
+      heapMB: r.heapMB ?? heapMB,
+      peakChildRssMB: r.peakChildRssMB ?? 0
+    })
+  }
 
   // Phase 2: Validate (with worker pool)
   let validateResults = { successCount: 0, total: 0, cacheHits: 0, errors: [] }
   if (doValidate && packagesToValidate.length > 0) {
-    validateResults = await runValidationPhase(packagesToValidate, graph, validationWorkers, forcePrerequisites, packageHashes)
+    validateResults = await runValidationPhase(packagesToValidate, graph, validationWorkers, forcePrerequisites, packageHashes, validationPlan.heapMB)
 
     if (doLint) {
       // Lint phase: run ESLint without fix on packages with phaseFormat.
@@ -823,8 +863,9 @@ async function compileAll(rootDir, options = {}) {
       const packagesToLint = packagesToValidate.filter(name => graph.get(name)?.phaseFormat)
       if (packagesToLint.length > 0) {
         console.log(`\n=== Phase: Linting ${packagesToLint.length} packages ===`)
-        lintResults = await runLintPhase(graph, packagesToLint, validationWorkers, { force, packageHashes })
+        lintResults = await runLintPhase(graph, packagesToLint, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph) })
         console.log(`Linted: ${lintResults.successCount}/${lintResults.total} packages in ${Math.round(lintResults.time)}ms`)
+        recordPhase('lint', lintResults, null, null)
         if (lintResults.cacheHits > 0) console.log(`  (${lintResults.cacheHits} from cache)`)
       }
 
@@ -849,8 +890,9 @@ async function compileAll(rootDir, options = {}) {
   // Phase: Svelte-check (runs after validate)
   if (doSvelteCheck && packagesToSvelteCheck.length > 0) {
     console.log(`\n=== Phase: Svelte-checking ${packagesToSvelteCheck.length} packages ===`)
-    const svelteCheckResults = await runSvelteCheckPhase(graph, packagesToSvelteCheck, validationWorkers, { force, packageHashes })
+    const svelteCheckResults = await runSvelteCheckPhase(graph, packagesToSvelteCheck, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph) })
     console.log(`Svelte-checked: ${svelteCheckResults.successCount}/${svelteCheckResults.total} packages in ${Math.round(svelteCheckResults.time)}ms`)
+    recordPhase('svelte-check', svelteCheckResults, null, null)
     if (svelteCheckResults.cacheHits > 0) console.log(`  (${svelteCheckResults.cacheHits} from cache)`)
 
     if (svelteCheckResults.errors.length > 0) {
@@ -866,6 +908,7 @@ async function compileAll(rootDir, options = {}) {
     console.log(`\n=== Phase: Testing ${packagesToTest.length} packages ===`)
     const testResults = await runTestPhase(graph, packagesToTest, validationWorkers, { force, packageHashes, verbose })
     console.log(`Tested: ${testResults.successCount}/${testResults.total} packages in ${Math.round(testResults.time)}ms`)
+    recordPhase('test', testResults, validationWorkers, null)
     if (testResults.cacheHits > 0) console.log(`  (${testResults.cacheHits} from cache)`)
     if (testResults.skippedCount > 0) console.log(`  (${testResults.skippedCount} skipped — no test files)`)
 
@@ -906,9 +949,13 @@ async function compileAll(rootDir, options = {}) {
 
   const totalTime = performance.now() - startTime
 
+  recordPhase('transpile', transpileStat.result, validationWorkers, null)
+  recordPhase('validate', validateResults, validationWorkers, validationPlan.heapMB)
+
   console.log(`\n=== Summary ===`)
   console.log(`Total time: ${Math.round(totalTime)}ms`)
   console.log(`CPU usage: avg ${cpuStats.avg}%, peak ${cpuStats.peak}%`)
+  printResourceSummary(phaseStats, validationPlan, buildPlan)
 
   if (allErrors.length > 0) {
     printErrorSummary(allErrors)
@@ -970,9 +1017,11 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('Unhandled error:', err)
-  process.exit(1)
-})
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Unhandled error:', err)
+    process.exit(1)
+  })
+}
 
 module.exports = { compileAll, runValidationPhase, calculatePackageHashWithDeps }

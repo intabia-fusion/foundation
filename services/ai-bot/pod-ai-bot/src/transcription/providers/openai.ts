@@ -1,7 +1,13 @@
 // Copyright © 2025 Andrey Sobolev (haiodo@gmail.com)
 
 import { concatLink, MeasureContext } from '@hcengineering/core'
-import { TranscriptionOptions, TranscriptionProvider, TranscriptionResult, AudioFormat } from '../types'
+import {
+  AUDIO_FORMAT_INFO,
+  TranscriptionOptions,
+  TranscriptionProvider,
+  TranscriptionResult,
+  AudioFormat
+} from '../types'
 
 /**
  * OpenAI Whisper API response with verbose JSON format
@@ -65,11 +71,8 @@ export class OpenAIWhisperProvider implements TranscriptionProvider {
    * Get file info for audio format
    */
   private getFormatInfo (format: AudioFormat): { filename: string, contentType: string } {
-    if (format === 'wav') {
-      return { filename: 'audio.wav', contentType: 'audio/wav' }
-    }
-    // OGG Opus is the default format from love-agent
-    return { filename: 'audio.ogg', contentType: 'audio/ogg' }
+    const info = AUDIO_FORMAT_INFO[format] ?? AUDIO_FORMAT_INFO.ogg
+    return { filename: `audio.${info.extension}`, contentType: info.contentType }
   }
 
   async transcribe (audioData: Buffer, options: TranscriptionOptions): Promise<TranscriptionResult> {

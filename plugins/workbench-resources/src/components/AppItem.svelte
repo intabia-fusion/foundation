@@ -15,7 +15,7 @@
 <script lang="ts">
   import type { Asset, IntlString } from '@hcengineering/platform'
   import type { AnySvelteComponent } from '@hcengineering/ui'
-  import { Icon, Loading, tooltip } from '@hcengineering/ui'
+  import { Icon, Loading, tooltip, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
 
   export let label: IntlString
   export let icon: Asset | AnySvelteComponent
@@ -32,6 +32,7 @@
   class:loading
   class:selected
   class:navigator
+  class:mini={$deviceInfo.appsMini}
   id={'app-' + label}
   disabled={loading}
   use:tooltip={{ label }}
@@ -104,6 +105,10 @@
     }
     &.navigator {
       border-color: var(--theme-button-border);
+    }
+    // On Mobile we make border for pressed state more visible.
+    &.mini.navigator {
+      border-color: var(--theme-navpanel-icons-color);
     }
     &.positive,
     &.positive.selected {

@@ -20,7 +20,23 @@
 
 <label class="checkbox-container" class:disabled>
   <input type="checkbox" class="checkbox" {id} bind:checked {disabled} {indeterminate} {required} on:change />
-  <div class="checkbox-element" class:disabled class:error />
+  <div class="checkbox-element" class:disabled class:error>
+    <svg
+      class="checkbox-icon check"
+      viewBox="-0.2 -0.2 10.4 8.6"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        fill-rule="evenodd"
+        clip-rule="evenodd"
+        d="M9.7,0.5c0.4,0.4,0.4,1,0,1.4L4.1,7.8L0.3,4.2c-0.4-0.4-0.4-1,0-1.4c0.4-0.4,1-0.4,1.4,0L4,5l4.3-4.5C8.6,0.1,9.3,0.1,9.7,0.5z"
+      />
+    </svg>
+    <svg class="checkbox-icon indeterminate" viewBox="0 0 10 8" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,4c0-0.6,0.4-1,1-1h8c0.6,0,1,0.4,1,1c0,0.6-0.4,1-1,1H1C0.4,5,0,4.6,0,4z" />
+    </svg>
+  </div>
   {#if label !== undefined || labelIntl !== undefined || $$slots.default !== undefined}
     <div class="checkbox-label">
       {#if labelIntl}<Label label={labelIntl} params={labelParams} />{:else}{label}{/if}
@@ -33,12 +49,26 @@
 <style lang="scss">
   .checkbox-element {
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
     width: var(--spacing-2);
     height: var(--spacing-2);
     background-color: var(--selector-BackgroundColor);
     border: 1px solid var(--selector-BorderColor);
     border-radius: var(--extra-small-BorderRadius);
+  }
+  .checkbox-icon {
+    display: none;
+    width: 0.625rem;
+    height: 0.5rem;
+    color: var(--selector-IconColor);
+    pointer-events: none;
+
+    &.check {
+      margin-top: 0.5px;
+    }
   }
   .checkbox-label {
     color: var(--global-primary-TextColor);
@@ -54,29 +84,21 @@
     border: 0;
     clip: rect(0 0 0 0);
 
-    &:checked + .checkbox-element,
+    &:checked:not(:indeterminate) + .checkbox-element {
+      background-color: var(--selector-active-BackgroundColor);
+      border-color: var(--selector-active-BackgroundColor);
+
+      .checkbox-icon.check {
+        display: block;
+      }
+    }
     &:indeterminate + .checkbox-element {
       background-color: var(--selector-active-BackgroundColor);
       border-color: var(--selector-active-BackgroundColor);
 
-      &::after {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 0.625rem;
-        height: 0.5rem;
-        background-color: var(--selector-IconColor);
-        transform: translate(-50%, -50%);
+      .checkbox-icon.indeterminate {
+        display: block;
       }
-    }
-    &:checked + .checkbox-element::after {
-      clip-path: path(
-        'M9.7,0.5c0.4,0.4,0.4,1,0,1.4L4.1,7.8L0.3,4.2c-0.4-0.4-0.4-1,0-1.4c0.4-0.4,1-0.4,1.4,0L4,5l4.3-4.5C8.6,0.1,9.3,0.1,9.7,0.5z'
-      );
-    }
-    &:indeterminate + .checkbox-element::after {
-      clip-path: path('M0,4c0-0.6,0.4-1,1-1h8c0.6,0,1,0.4,1,1c0,0.6-0.4,1-1,1H1C0.4,5,0,4.6,0,4z');
     }
     &:disabled + .checkbox-element {
       box-shadow: none;

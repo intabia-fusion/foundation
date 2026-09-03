@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,16 +14,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import { onDestroy } from 'svelte'
   import { SortingOrder } from '@hcengineering/core'
-  import { ButtonIcon, IconAdd, Label, getCurrentResolvedLocation, navigate } from '@hcengineering/ui'
+  import { ButtonIcon, IconAdd, Label, getCurrentResolvedLocation, navigate, showPopup } from '@hcengineering/ui'
   import { createQuery } from '@hcengineering/presentation'
   import { ProjectType, ProjectTypeDescriptor, TaskType } from '@hcengineering/task'
   import { clearSettingsStore, settingsStore } from '@hcengineering/setting-resources'
 
   import IconLayers from '../icons/Layers.svelte'
   import TaskTypeIcon from '../taskTypes/TaskTypeIcon.svelte'
-  import TaskTypeKindEditor from '../taskTypes/TaskTypeKindEditor.svelte'
   import CreateTaskType from '../taskTypes/CreateTaskType.svelte'
+  import TaskTypeDiagramPopup from '../taskTypes/TaskTypeDiagramPopup.svelte'
   import task from '../../plugin'
 
   export let type: ProjectType | undefined
@@ -37,8 +39,10 @@
     (res) => {
       taskTypes = res
     },
-    { sort: { _id: SortingOrder.Ascending } }
+    { sort: { name: SortingOrder.Ascending } }
   )
+
+  $: sortedTaskTypes = [...taskTypes].sort((a, b) => a.name.localeCompare(b.name))
 
   function handleTaskTypeSelected (id: string | undefined): void {
     const loc = getCurrentResolvedLocation()
@@ -53,29 +57,46 @@
     clearSettingsStore()
     navigate(loc)
   }
+
+  onDestroy(() => {
+    clearSettingsStore()
+  })
 </script>
 
 {#if descriptor !== undefined}
   <div class="hulyTableAttr-header font-medium-12">
     <IconLayers size={'small'} />
     <span><Label label={task.string.TaskTypes} /></span>
-    <ButtonIcon
-      kind="primary"
-      icon={IconAdd}
-      size="small"
-      dataId={'btnAdd'}
-      {disabled}
-      on:click={(ev) => {
-        if (disabled) {
-          return
-        }
-        $settingsStore = { id: 'createTaskType', component: CreateTaskType, props: { type, descriptor } }
-      }}
-    />
+    <div class="flex-row-center flex-gap-2">
+      <ButtonIcon
+        icon={task.icon.TypeHierarchy}
+        tooltip={{ label: task.string.TaskTypesDiagram, direction: 'bottom' }}
+        size="small"
+        kind="tertiary"
+        disabled={taskTypes.length === 0}
+        on:click={() => {
+          if (taskTypes.length === 0) return
+          showPopup(TaskTypeDiagramPopup, { taskTypes }, 'centered')
+        }}
+      />
+      <ButtonIcon
+        kind="primary"
+        icon={IconAdd}
+        size="small"
+        dataId={'btnAdd'}
+        {disabled}
+        on:click={() => {
+          if (disabled) {
+            return
+          }
+          $settingsStore = { id: 'createTaskType', component: CreateTaskType, props: { type, descriptor, taskTypes } }
+        }}
+      />
+    </div>
   </div>
-  {#if taskTypes.length}
+  {#if sortedTaskTypes.length}
     <div class="hulyTableAttr-content task">
-      {#each taskTypes as taskType}
+      {#each sortedTaskTypes as taskType}
         <button
           class="hulyTableAttr-content__row"
           on:click|stopPropagation={() => {
@@ -86,13 +107,10 @@
             <TaskTypeIcon value={taskType} size={'small'} />
           </div>
           {#if taskType.name}
-            <div class="hulyTableAttr-content__row-label font-medium-14">
+            <div class="hulyTableAttr-content__row-label grow font-medium-14">
               {taskType.name}
             </div>
           {/if}
-          <div class="hulyTableAttr-content__row-label grow dark font-regular-14">
-            <TaskTypeKindEditor readonly kind={taskType.kind} />
-          </div>
         </button>
       {/each}
     </div>

@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -17,6 +18,7 @@
 import core, {
   TxFactory,
   TxProcessor,
+  clone,
   groupByArray,
   matchQuery,
   type Class,
@@ -29,7 +31,8 @@ import core, {
   type Ref,
   type Tx,
   type TxCreateDoc,
-  type WithLookup
+  type WithLookup,
+  type TxResult
 } from '@hcengineering/core'
 
 import { Analytics } from '@hcengineering/analytics'
@@ -62,9 +65,15 @@ export class Triggers {
 
     const trigger = t.trigger
     const func = getResource(trigger)
+    // Old backups carry triggers whose resource is gone; nothing awaits `op` until one fires, so a
+    // dead one would only ever show up as an unhandled rejection. `op` stays rejected either way.
+    void func.catch((err) => {
+      console.error(`trigger ${trigger} is not resolvable`, err)
+    })
     const isAsync = t.isAsync === true
     this.triggers.push({
-      query: match,
+      // addDerived expands the query in place, and the document belongs to a model shared across workspaces.
+      query: match !== undefined ? clone(match) : undefined,
       trigger: { op: func, resource: trigger, isAsync }
     })
   }
@@ -83,6 +92,16 @@ export class Triggers {
     return this.tresolve
   }
 
+  private markSilent (derivedTxes: Tx[], silent?: boolean): void {
+    if (silent === true) {
+      for (const t of derivedTxes) {
+        if (t.meta?.silent === undefined) {
+          t.meta = { ...(t.meta ?? {}), silent: true }
+        }
+      }
+    }
+  }
+
   async applyTrigger (
     ctx: MeasureContext,
     ctrl: Omit<TriggerControl, 'txFactory'>,
@@ -93,30 +112,48 @@ export class Triggers {
     const apply: Tx[] = []
     const group = groupByArray(matches, (it) => it.modifiedBy)
 
-    const tctrl: TriggerControl = {
-      ...ctrl,
-      ctx,
-      txFactory: null as any, // Will be set later
-      apply: (ctx, tx, needResult) => {
-        if (needResult !== true) {
-          apply.push(...tx)
-        }
-        ctrl.txes.push(...tx) // We need to put them so other triggers could check if similar operation is already performed.
-        return ctrl.apply(ctx, tx, needResult)
+    const baseApply = (ctx: MeasureContext, tx: Tx[], needResult?: boolean): Promise<TxResult> => {
+      if (needResult !== true) {
+        apply.push(...tx)
       }
+      ctrl.txes.push(...tx) // We need to put them so other triggers could check if similar operation is already performed.
+      return ctrl.apply(ctx, tx, needResult)
     }
+
     if (trigger.op instanceof Promise) {
       trigger.op = await trigger.op
     }
     for (const [k, v] of group.entries()) {
-      tctrl.txFactory = new TxFactory(k, true)
-      try {
-        const tresult = await trigger.op(v, tctrl)
-        result.push(...tresult)
-        ctrl.txes.push(...tresult)
-      } catch (err: any) {
-        ctx.error('failed to process trigger', { trigger: trigger.resource, err })
-        Analytics.handleError(err)
+      const silentMatches = v.filter((it) => it.meta?.silent === true)
+      const normalMatches = v.filter((it) => it.meta?.silent !== true)
+
+      const batches = [
+        { subMatches: silentMatches, isSilent: true },
+        { subMatches: normalMatches, isSilent: false }
+      ]
+
+      for (const { subMatches, isSilent } of batches) {
+        if (subMatches.length === 0) {
+          continue
+        }
+        const tctrl: TriggerControl = {
+          ...ctrl,
+          ctx,
+          txFactory: new TxFactory(k, true),
+          apply: (ctx, tx, needResult) => {
+            this.markSilent(tx, isSilent)
+            return baseApply(ctx, tx, needResult)
+          }
+        }
+        try {
+          const tresult = await trigger.op(subMatches, tctrl)
+          this.markSilent(tresult, isSilent)
+          result.push(...tresult)
+          ctrl.txes.push(...tresult)
+        } catch (err: any) {
+          ctx.error('failed to process trigger', { trigger: trigger.resource, err })
+          Analytics.handleError(err)
+        }
       }
     }
     return result.concat(apply)

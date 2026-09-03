@@ -1,9 +1,9 @@
-import { Ref, WorkspaceUuid } from '@hcengineering/core'
+import { MeasureContext, Ref, WorkspaceUuid } from '@hcengineering/core'
 import { MeetingMinutes, ParticipantMetadata, RoomMetadata } from '@hcengineering/love'
 import { decodeToken, Token } from '@hcengineering/server-token'
 import { Request, Response } from 'express'
 import { IncomingHttpHeaders } from 'http'
-import { AccessToken } from 'livekit-server-sdk'
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
 import config from './config'
 
 export function extractToken (header: IncomingHttpHeaders): string | undefined {
@@ -33,25 +33,19 @@ export function getWorkspaceId (req: Request): WorkspaceUuid | undefined {
   return decodedToken.workspace
 }
 
-export function parseMetadata (metadata?: string | null): RoomMetadata {
-  if (metadata === '' || metadata == null) return {}
-
+function parseJson<T> (raw: string | null | undefined, fallback: T): T {
+  if (raw === '' || raw == null) return fallback
   try {
-    return JSON.parse(metadata) as RoomMetadata
+    return JSON.parse(raw) as T
   } catch (e) {
-    return {}
+    return fallback
   }
 }
 
-export function parseParticipantMetadata (metadata?: string | null): ParticipantMetadata {
-  if (metadata === '' || metadata == null) return {}
+export const parseMetadata = (metadata?: string | null): RoomMetadata => parseJson<RoomMetadata>(metadata, {})
 
-  try {
-    return JSON.parse(metadata) as ParticipantMetadata
-  } catch (e) {
-    return {}
-  }
-}
+export const parseParticipantMetadata = (metadata?: string | null): ParticipantMetadata =>
+  parseJson<ParticipantMetadata>(metadata, {})
 
 export function getRoomName (workspaceId: WorkspaceUuid, meetingId: Ref<MeetingMinutes>): string {
   return `${workspaceId}_${meetingId}`
@@ -94,4 +88,22 @@ export async function createToken (
   })
 
   return await at.toJwt()
+}
+
+// `updateRoomMetadata` replaces the whole blob: read it back every time, a local cache
+// would let one replica merge over a snapshot another has moved past and drop a flag.
+export async function updateMetadata (
+  ctx: MeasureContext,
+  roomClient: RoomServiceClient,
+  roomName: string,
+  metadata: Partial<RoomMetadata>
+): Promise<void> {
+  const room = (await roomClient.listRooms([roomName]))[0]
+  if (room === undefined) {
+    ctx.warn(`Cannot update metadata: room "${roomName}" does not exist`)
+    return
+  }
+  const currentMetadata = parseMetadata(room.metadata)
+
+  await roomClient.updateRoomMetadata(roomName, JSON.stringify({ ...currentMetadata, ...metadata }))
 }

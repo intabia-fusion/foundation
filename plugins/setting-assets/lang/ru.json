@@ -220,7 +220,15 @@
     "ImportDocumentDescription": "Предоставляет пользователям возможность импортировать документы в рабочее пространство",
     "SelectUsers": "Выбрать пользователей",
     "ShowInTitle": "Показывать в заголовке",
-    "SpaceMembersOnly": "Только участники пространства"
+    "SpaceMembersOnly": "Только участники пространства",
+    "OverrideAttribute": "Переопределить атрибут",
+    "Required": "Обязательное",
+    "ConfirmOperation": "Подтверждение операции",
+    "Confirm": "Подтвердить",
+    "OtpCode": "Код",
+    "OtpSent": "Код отправлен на вашу почту",
+    "OtpSendFailed": "Не удалось отправить код",
+    "SendCode": "Отправить код"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Интеграция с {doc} была отключена",

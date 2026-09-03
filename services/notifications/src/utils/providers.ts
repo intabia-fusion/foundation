@@ -21,7 +21,7 @@ import core, {
   Doc,
   getTxOperations,
   type Hierarchy,
-  matchQuery,
+  matchQuery, MeasureContext,
   PersonId,
   Ref,
   type RefTo,
@@ -103,11 +103,11 @@ export function isMatchedTxType (client: Client, tx: TxCUD<Doc>, type: TxNotific
 
   if (type.attachedToClass != null) {
     if (tx.attachedToClass == null) return false
-    if (!isDerivedBase(hierarchy, tx.attachedToClass, type.attachedToClass)) return false
+    if (!isDerivedBase(client.ctx, hierarchy, tx.attachedToClass, type.attachedToClass)) return false
   }
 
   if (type.objectClass !== core.class.Doc) {
-    if (!isDerivedBase(hierarchy, tx.objectClass, type.objectClass)) return false
+    if (!isDerivedBase(client.ctx, hierarchy, tx.objectClass, type.objectClass)) return false
   }
 
   if (type.field !== undefined) {
@@ -267,16 +267,38 @@ function getMatchedMessageTypes (client: Client, message: ActivityMessage, doc: 
     .sort((a, b) => (a.priority ?? MAX_NOTIFICATION_TYPE_PRIORITY) - (b.priority ?? MAX_NOTIFICATION_TYPE_PRIORITY))
 }
 
+function safeGetBaseClass<T extends Doc> (
+  hierarchy: Hierarchy,
+  _class: Ref<Class<T>> | undefined
+): Ref<Class<T>> | undefined {
+  if (_class === undefined) {
+    return undefined
+  }
+  if (!hierarchy.hasClass(_class)) {
+    return undefined
+  }
+  try {
+    return hierarchy.getBaseClass(_class)
+  } catch (err: any) {
+    return undefined
+  }
+}
+
 function isMessageTypeMatched (
   client: Client,
   message: ActivityMessage,
   doc: Doc,
   type: MessageNotificationType
 ): boolean {
-  const { hierarchy } = client
+  const { hierarchy, ctx } = client
+  const baseClass = safeGetBaseClass(hierarchy, type.objectClass)
+  if (baseClass === undefined) {
+    ctx.error('base class not found in hierarchy', { class: type.objectClass, type })
+    return false
+  }
 
   if (!hierarchy.isDerived(message._class, type.messageClass)) return false
-  if (!isDerivedBase(hierarchy, message.attachedToClass, type.attachedToClass)) return false
+  if (!isDerivedBase(ctx, hierarchy, message.attachedToClass, type.attachedToClass)) return false
 
   if (type.match !== undefined) {
     if (matchQuery([message], type.match, message._class, hierarchy, true).length === 0) return false
@@ -289,9 +311,14 @@ function isMessageTypeMatched (
 
   // DocUpdateMessage: additional object class and field checks
   const docUpdateMessage = message as DocUpdateMessage
-  const baseClass = hierarchy.getBaseClass(type.objectClass)
+  const docUpdateObjectBase = safeGetBaseClass(hierarchy, docUpdateMessage.objectClass)
 
-  if (!hierarchy.isDerived(hierarchy.getBaseClass(docUpdateMessage.objectClass), baseClass)) return false
+  if (docUpdateObjectBase === undefined) {
+    ctx.error('base class not found in hierarchy', { class: docUpdateMessage.objectClass, docUpdateMessage })
+    return false
+  }
+
+  if (!hierarchy.isDerived(docUpdateObjectBase, baseClass)) return false
   if (type.field !== undefined && !isFieldUpdated(type.field, docUpdateMessage, doc)) return false
 
   return true
@@ -317,8 +344,18 @@ function isFieldUpdated (field: string, message: DocUpdateMessage, doc: Doc): bo
 /**
  * Checks isDerived between base classes of two class refs.
  */
-function isDerivedBase (hierarchy: Hierarchy, actual: Ref<Class<Doc>>, expected: Ref<Class<Doc>>): boolean {
-  return hierarchy.isDerived(hierarchy.getBaseClass(actual), hierarchy.getBaseClass(expected))
+function isDerivedBase (ctx: MeasureContext, hierarchy: Hierarchy, actual: Ref<Class<Doc>>, expected: Ref<Class<Doc>>): boolean {
+  const actualBaseClass = safeGetBaseClass(hierarchy, actual)
+  if (actualBaseClass === undefined) {
+    ctx.error('base class not found in hierarchy', { _class: actual })
+    return false
+  }
+  const expectedBaseClass = safeGetBaseClass(hierarchy, expected)
+  if (expectedBaseClass === undefined) {
+    ctx.error('base class not found in hierarchy', { _class: expected })
+    return false
+  }
+  return hierarchy.isDerived(actualBaseClass, expectedBaseClass)
 }
 
 /**

@@ -24,7 +24,7 @@ import {
   type WorkspaceUuid
 } from '@hcengineering/core'
 import { SessionDataImpl } from '@hcengineering/server-core'
-import { bench, describeBench } from './bench'
+import { bench, describeBench } from '@hcengineering/measurements'
 
 describeBench('SessionDataImpl allocation bench', () => {
   const hierarchy: Hierarchy = new HierarchyCls()

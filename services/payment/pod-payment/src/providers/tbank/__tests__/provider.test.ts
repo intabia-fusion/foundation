@@ -216,6 +216,31 @@ describe('TbankProvider', () => {
       expect(error?.status).toBe(402)
       expect(error?.body).toBe('{"error":"declined"}')
     })
+
+    // force must reach pod-tbank: without it a claim conflict answers 409 other_checkout_active again.
+    test('forwards force to pod-tbank so a forced switch can cancel the pending checkout', async () => {
+      const provider = new TbankProvider(tbankUrl, accountClient)
+      fetchMock.mockResolvedValue(mockResponse({ ok: true, json: { checkoutUrl: 'https://tbank.test/pay' } }))
+
+      await provider.updateSubscriptionPlan(
+        ctx,
+        'sub_1',
+        'pkg_500gb',
+        SubscriptionType.Package,
+        'ws1',
+        'acc-1',
+        undefined,
+        'monthly',
+        true,
+        true
+      )
+
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)
+      expect(body.force).toBe(true)
+      // Guard the neighbours: force is appended last, nothing may shift onto recurrent.
+      expect(body.recurrent).toBe(true)
+      expect(body.period).toBe('monthly')
+    })
   })
 
   describe('retryPayment', () => {

@@ -252,11 +252,11 @@ export class TOpinion extends TAttachedDoc implements Opinion {
 }
 
 @Mixin(recruit.mixin.DefaultVacancyTypeData, recruit.class.Vacancy)
-@UX(getEmbeddedLabel('Default vacancy'), recruit.icon.Vacancy)
+@UX(recruit.string.DefaultVacancy, recruit.icon.Vacancy)
 export class TDefaultVacancyTypeData extends TVacancy implements RolesAssignment {
   [key: Ref<Role>]: AccountUuid[]
 }
 
-@Mixin(recruit.mixin.ApplicantTypeData, recruit.class.Applicant)
-@UX(getEmbeddedLabel('Applicant'), recruit.icon.Application)
-export class TApplicantTypeData extends TApplicant {}
+@Model(recruit.class.ApplicantTaskType, recruit.class.Applicant)
+@UX(recruit.string.Application, recruit.icon.Application, 'APP', 'number', undefined, recruit.string.Applications)
+export class TApplicantTaskType extends TApplicant {}

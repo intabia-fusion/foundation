@@ -81,7 +81,11 @@
     "SectionUnlocked": "Sección {section} desbloqueada",
     "LayoutAuto": "Auto",
     "SingleColumn": "Una columna",
+    "BaseType": "Tipo base",
+    "BaseTypeDescription": "Usa este tipo solo como padre. Las tarjetas solo se pueden crear a partir de sus subtipos.",
     "TwoColumns": "Dos columnas",
-    "Grid": "Cuadrícula"
+    "Grid": "Cuadrícula",
+    "RichtextProperties": "Campos de texto",
+    "ShowAllVersions": "Mostrar todas las versiones"
   }
 }

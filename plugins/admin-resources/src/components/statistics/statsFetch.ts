@@ -15,6 +15,8 @@
 
 import { uncompress } from 'snappyjs'
 
+import { adminFetch } from '../../utils'
+
 // Browsers forbid the standard Accept-Encoding header on fetch(),
 // so we use a custom one that pods/stats recognises.
 const ACCEPT_HEADER: HeadersInit = { 'X-Accept-Encoding': 'snappy' }
@@ -23,7 +25,7 @@ const ACCEPT_HEADER: HeadersInit = { 'X-Accept-Encoding': 'snappy' }
 // X-Encoding: snappy, transparently decompress before parsing.
 // Pass `signal` to cancel an in-flight fetch when starting a new one.
 export async function fetchStatsJson<T> (url: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(url, { headers: ACCEPT_HEADER, signal })
+  const res = await adminFetch(url, { headers: ACCEPT_HEADER, signal })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`stats ${res.status} ${res.statusText}${body !== '' ? `: ${body.slice(0, 200)}` : ''}`)

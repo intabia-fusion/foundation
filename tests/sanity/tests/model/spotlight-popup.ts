@@ -21,6 +21,10 @@ export class SpotlightPopup extends CommonPage {
     if (visible) {
       await this.close()
     }
+    // The click has no timeout of its own, so a workbench that is still booting - a workspace
+    // created moments ago takes a while - turns into a bare "waiting for locator" at the test
+    // timeout. Wait for the button explicitly so the failure says which part was slow.
+    await expect(this.statusbar.buttonSearch()).toBeVisible({ timeout: 30000 })
     await this.statusbar.clickButtonSearch()
     await expect(this.popup()).toBeVisible()
     await expect(this.input()).toBeVisible()
@@ -37,8 +41,23 @@ export class SpotlightPopup extends CommonPage {
     await this.page.waitForTimeout(500)
   }
 
-  async checkSearchResult (search: string, count: number, timeoutMs: number = 30000): Promise<void> {
-    // Full-text indexing is async, so we need to retry with increased timeout
-    await expect(this.searchResult(search)).toHaveCount(count, { timeout: timeoutMs })
+  // Indexing is async and the popup queries only when the input changes, so waiting on the
+  // rendered result set never refreshes it - retype the query until the index catches up.
+  async checkSearchResult (search: string, count: number, timeoutMs: number = 60000): Promise<void> {
+    if (count === 0) {
+      await expect(this.searchResult(search)).toHaveCount(0, { timeout: 15000 })
+      return
+    }
+    const query = await this.input().inputValue()
+    await expect(async () => {
+      await expect(this.searchResult(search))
+        .toHaveCount(count, { timeout: 5000 })
+        .catch(async (err) => {
+          await this.input().fill('')
+          await this.input().fill(query)
+          await this.page.waitForTimeout(500)
+          throw err
+        })
+    }).toPass({ intervals: [1000, 2000, 3000], timeout: timeoutMs })
   }
 }

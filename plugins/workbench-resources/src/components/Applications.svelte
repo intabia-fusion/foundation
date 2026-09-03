@@ -24,6 +24,7 @@
   import { NotificationClientImpl, appearancePreferences } from '@hcengineering/notification-resources'
   import { NotificationAppearancePreference } from '@hcengineering/notification'
 
+  import { getDefaultHiddenApps } from '../utils'
   import AppItem from './AppItem.svelte'
 
   export let active: Ref<Application> | undefined
@@ -58,17 +59,18 @@
     }
   )
 
-  function updateExcludedApps (): void {
+  function updateExcludedApps (appsMini: boolean): void {
     const me = getCurrentAccount()
 
     if (me.role === AccountRole.ReadOnlyGuest || me.role === AccountRole.Guest) {
       excludedApps = getMetadata(workbench.metadata.ExcludedApplicationsForAnonymous) ?? []
     } else {
-      excludedApps = []
+      excludedApps = getDefaultHiddenApps(appsMini)
     }
   }
 
-  updateExcludedApps()
+  // Reactive: the defaults lift once the panel expands, so rotating has to re-evaluate them.
+  $: updateExcludedApps($deviceInfo.appsMini)
 
   $: topApps = apps
     .filter((it) => it.position === 'top' && !hiddenAppsIds.includes(it._id) && !excludedApps.includes(it.alias))

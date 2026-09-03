@@ -40,6 +40,7 @@
     "@hcengineering/card": "workspace:^0.7.0",
     "@hcengineering/server-card": "workspace:^0.7.0",
     "@hcengineering/server-activity": "workspace:^0.7.0",
-    "@hcengineering/server-core": "workspace:^0.7.18"
+    "@hcengineering/server-core": "workspace:^0.7.18",
+    "@hcengineering/view": "workspace:^0.7.0"
   }
 }

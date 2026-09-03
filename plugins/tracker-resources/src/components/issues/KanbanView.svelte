@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -23,6 +24,7 @@
     FindOptions,
     generateId,
     getObjectValue,
+    groupByArray,
     Lookup,
     mergeQueries,
     Ref,
@@ -36,8 +38,13 @@
   import notification from '@hcengineering/notification'
   import { ActionContext, createQuery, getClient, reduceCalls } from '@hcengineering/presentation'
   import tags from '@hcengineering/tags'
-  import { DocWithRank, getStates } from '@hcengineering/task'
-  import { getTaskKanbanResultQuery, typeStore, updateTaskKanbanCategories } from '@hcengineering/task-resources'
+  import task, { DocWithRank, getStates, TaskType, Project as TaskProject } from '@hcengineering/task'
+  import {
+    getTaskKanbanResultQuery,
+    taskTypeStore,
+    typeStore,
+    updateTaskKanbanCategories
+  } from '@hcengineering/task-resources'
   import {
     Component as TrackerComponent,
     Issue,
@@ -81,6 +88,7 @@
     statusStore
   } from '@hcengineering/view-resources'
   import { ChatMessagesPresenter } from '@hcengineering/chunter-resources'
+  import workflow, { ProjectWorkflow, Workflow, WorkflowTransition } from '@hcengineering/workflow'
   import { onMount } from 'svelte'
 
   import tracker from '../../plugin'
@@ -119,7 +127,15 @@
       customAttrModels = []
       return
     }
-    customAttrModels = await buildModel({ client, _class, keys: customKeys, ignoreMissing: true })
+    const groups = groupByArray(customKeys, (k) => k.displayProps?._class ?? _class)
+    const models = (
+      await Promise.all(
+        Array.from(groups.entries()).map(([targetClass, keys]) =>
+          buildModel({ client, _class: targetClass as Ref<Class<Doc>>, keys, ignoreMissing: true, lookup })
+        )
+      )
+    ).flat()
+    customAttrModels = models
   })
   $: void buildCustomAttrModels(config)
 
@@ -129,7 +145,7 @@
     accentColors = accentColors
   }
 
-  $: dontUpdateRank = orderBy[0] !== IssuesOrdering.Manual
+  $: dontUpdateRank = orderBy ? orderBy[0] !== IssuesOrdering.Manual : false
 
   $: currentSpace = space ?? tracker.project.DefaultProject
   let currentProject: Project | undefined
@@ -217,6 +233,13 @@
   function registerPendingMove (id: string, fields: Record<string, unknown>): void {
     pendingMoves.set(id, { ...(pendingMoves.get(id) ?? {}), ...fields })
     pendingMoves = pendingMoves
+  }
+
+  function clearPendingMove (id: string): void {
+    if (pendingMoves.has(id)) {
+      pendingMoves.delete(id)
+      pendingMoves = pendingMoves
+    }
   }
 
   $: effectiveTasks = pendingMoves.size > 0 ? applyPendingMoves(tasks) : tasks
@@ -555,6 +578,32 @@
     return false
   }
 
+  async function getWorkflowTransitions (
+    spaceId: Ref<Project>,
+    kind: Ref<TaskType>
+  ): Promise<WorkflowTransition[] | null> {
+    const space = await client.findOne(tracker.class.Project, { _id: spaceId })
+    if (space == null) return null
+
+    const hierarchy = client.getHierarchy()
+    if (!hierarchy.hasMixin(space, workflow.mixin.ProjectWorkflow)) return null
+
+    const projectWf = hierarchy.as<TaskProject, ProjectWorkflow>(space, workflow.mixin.ProjectWorkflow)
+    const wfId = projectWf?.workflows?.[kind]
+    if (wfId == null) return null
+
+    const wfDoc = await client.findOne<Workflow>(
+      workflow.class.Workflow,
+      { _id: wfId },
+      {
+        lookup: {
+          _id: { transitions: workflow.class.WorkflowTransition }
+        }
+      }
+    )
+    return (wfDoc?.$lookup?.transitions ?? []) as WorkflowTransition[]
+  }
+
   const getAvailableCategories = async (doc: Doc): Promise<CategoryType[]> => {
     const issue = toIssue(doc)
 
@@ -581,8 +630,35 @@
     }
 
     if (groupByKey === IssuesGrouping.Status) {
-      const space = await client.findOne(tracker.class.Project, { _id: issue.space })
-      return getStates(space, $typeStore, $statusStore.byId).map(({ _id }) => _id)
+      if (issue.kind != null) {
+        const taskType =
+          $taskTypeStore.get(issue.kind) ?? (await client.findOne(task.class.TaskType, { _id: issue.kind }))
+        if (taskType?.statuses != null && taskType.statuses.length > 0) {
+          if (issue.space != null) {
+            const transitions = await getWorkflowTransitions(issue.space, issue.kind)
+            if (transitions != null) {
+              const allowed = new Set<string>()
+              if (issue.status != null) {
+                allowed.add(issue.status)
+              }
+              for (const t of transitions) {
+                if (t.from == null || t.from.length === 0 || (issue.status != null && t.from.includes(issue.status))) {
+                  allowed.add(t.to)
+                }
+              }
+              return taskType.statuses.filter((s) => allowed.has(s))
+            }
+          }
+          return taskType.statuses
+        }
+      }
+
+      if (issue.space != null) {
+        const space = await client.findOne(tracker.class.Project, { _id: issue.space })
+        if (space != null) {
+          return getStates(space, $typeStore, $statusStore.byId).map(({ _id }) => _id)
+        }
+      }
     }
 
     return categories
@@ -606,6 +682,9 @@
     {orderBy}
     onMoveCommit={(id, fields) => {
       registerPendingMove(id, fields)
+    }}
+    onMoveRollback={(id) => {
+      clearPendingMove(id)
     }}
     {_class}
     query={resultQuery}

@@ -106,6 +106,13 @@
     "ExpiredLink": "Bu davet bağlantısının süresi doldu",
     "ExpiredLinkDescription": "Lütfen yeni bir davet bağlantısı isteyin",
     "UsageConditions": "Kullanım Koşulları",
-    "IntabiaFusion": "Intabia Fusion"
+    "IntabiaFusion": "Intabia Fusion",
+    "Continue": "Devam et",
+    "AlreadyRegistered": "Platforma zaten kayıtlısınız",
+    "RegistrationComplete": "Kayıt tamamlandı",
+    "RegistrationCompleteHint": "Kendi çalışma alanınızı oluşturun veya mevcut bir alanın sahibinden erişim bağlantısı isteyin.",
+    "CheckingLink": "Bağlantı kontrol ediliyor...",
+    "InvalidLink": "Bu bağlantı artık geçerli değil",
+    "ConfirmationFailed": "Kayıt tamamlanamadı"
   }
 }

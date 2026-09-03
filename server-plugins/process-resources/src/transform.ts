@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,12 +14,13 @@
 // limitations under the License.
 //
 
+import cardPlugin from '@hcengineering/card'
 import contact, { Employee, Person } from '@hcengineering/contact'
 import core, { Doc, matchQuery, Ref, Timestamp } from '@hcengineering/core'
 import { Execution, parseContext } from '@hcengineering/process'
 import { ProcessControl } from '@hcengineering/server-process'
+import { markupToText } from '@hcengineering/text-core'
 import { getContextValue } from './utils'
-import cardPlugin from '@hcengineering/card'
 
 // #region ArrayReduce
 
@@ -59,6 +61,26 @@ export async function FirstMatchValue (
     return matchQuery(docs, otherProps, core.class.Doc, control.client.getHierarchy(), true)[0]?._id
   } else if (typeof value[0] === 'object') {
     return matchQuery(value, otherProps, core.class.Doc, control.client.getHierarchy(), true)[0]
+  }
+}
+
+export async function AllMatchValue (
+  value: any[],
+  props: Record<string, any>,
+  control: ProcessControl
+): Promise<any[] | undefined> {
+  if (value == null) {
+    return
+  }
+  if (!Array.isArray(value)) return value
+  const { _class, ...otherProps } = props
+  if (_class == null) return
+  if (value.length === 0) return
+  if (typeof value[0] === 'string') {
+    const docs = await control.client.findAll(_class, { _id: { $in: value } })
+    return matchQuery(docs, otherProps, core.class.Doc, control.client.getHierarchy(), true).map((p) => p._id)
+  } else if (typeof value[0] === 'object') {
+    return matchQuery(value, otherProps, core.class.Doc, control.client.getHierarchy(), true)
   }
 }
 
@@ -195,12 +217,16 @@ export async function Append (
 
 export function Replace (value: string, props: Record<string, string>): string {
   if (typeof value !== 'string') return value
-  return value.replace(props.search, props.replacement)
+  const search = props.search ?? props.from ?? props.target
+  if (search == null) return value
+  return value.replace(search, props.replacement ?? props.to ?? '')
 }
 
 export function ReplaceAll (value: string, props: Record<string, string>): string {
   if (typeof value !== 'string') return value
-  return value.replaceAll(props.search, props.replacement)
+  const search = props.search ?? props.from ?? props.target
+  if (search == null) return value
+  return value.replaceAll(search, props.replacement ?? props.to ?? '')
 }
 
 export function Split (value: string, props: Record<string, string>): string {
@@ -571,6 +597,27 @@ export function MonthFromDate (value: Date): number {
 
 export function DayFromDate (value: Date): number {
   return new Date(value).getDate()
+}
+
+export function StringFromMarkup (value: string): string {
+  return markupToText(value)
+}
+
+export function MarkupFromString (value: string): string {
+  return value
+}
+
+export function StringFromIdentifier (value: string): string {
+  return value
+}
+
+export function StringFromEnum (value: string): string {
+  if (value == null) return ''
+  return String(value)
+}
+
+export function EnumFromString (value: string): string {
+  return value
 }
 
 // #endregion

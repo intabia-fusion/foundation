@@ -91,7 +91,7 @@
       on:dragend={dragEnd}
     >
       <ToggleWithLabel
-        on={item.enabled}
+        bind:on={item.enabled}
         label={item.label}
         on:change={(e) => {
           change(item, e.detail)

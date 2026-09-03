@@ -5,41 +5,24 @@
 // you may not use this file except in compliance with the License. You may
 // obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
 //
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 
 import { expect, test, type Page } from '@playwright/test'
-import { PlatformURI } from '../utils'
-import { OfficePage } from '../model/love/office-page'
-import { closeMeetingContexts } from './meeting-helpers'
 
-const meetingsWs = 'meetings-ws'
-const ROOM_CANDIDATES = ['Meeting Room 1', 'Meeting Room 2', 'All hands', 'Voice only room']
-
-async function openLove (page: Page): Promise<void> {
-  const office = new OfficePage(page)
-  await (await page.goto(`${PlatformURI}/workbench/${meetingsWs}`))?.finished()
-  await office.navigateToOffice()
-  await expect(office.floorGrid()).toBeVisible({ timeout: 15000 })
-}
-
-async function clickFirstAvailableRoom (page: Page): Promise<string | null> {
-  for (const name of ROOM_CANDIDATES) {
-    const room = page.locator(`[data-id="room-${name}"]`).first()
-    if ((await room.count()) === 0) continue
-    await room.click()
-    return name
-  }
-  return null
-}
-
-async function startOrJoin (page: Page): Promise<void> {
-  const connect = page.locator('[data-id="meeting-connect"]').getByRole('button').first()
-  await expect(connect).toBeVisible({ timeout: 10000 })
-  await connect.click()
-}
-
-async function waitConnected (page: Page): Promise<void> {
-  await expect(page.locator('[data-id="meeting-widget"]')).toBeVisible({ timeout: 30000 })
-}
+import {
+  ROOM_CANDIDATES,
+  clickFirstAvailableRoom,
+  closeMeetingContexts,
+  loveWindow,
+  startOrJoin,
+  waitConnected
+} from './meeting-helpers'
 
 async function inviteByLastName (page: Page, lastName: string): Promise<void> {
   await page.locator('[data-id="invite-button"]').first().click()
@@ -47,10 +30,8 @@ async function inviteByLastName (page: Page, lastName: string): Promise<void> {
   const search = popup.getByPlaceholder(/Search/i)
   await expect(search).toBeVisible({ timeout: 5000 })
   await search.fill(lastName)
-  // UsersList re-queries on every keystroke and the row can detach
-  // mid-click when an incoming invite-response simultaneously re-renders
-  // the popup stack. Retry up to 5x — each retry re-resolves the locator,
-  // so the new DOM node is picked up before clicking.
+  // UsersList re-queries on every keystroke, so the row can detach mid-click; each retry
+  // re-resolves the locator.
   let clicked = false
   for (let attempt = 0; attempt < 5 && !clicked; attempt++) {
     const row = popup.locator('button.row').filter({ hasText: lastName }).first()
@@ -82,14 +63,9 @@ export function registerInviteTests (): void {
     test('user3 rejects invite — neither side ends up in a meeting', async ({ browser }) => {
       test.setTimeout(60000)
 
-      const ctx2 = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const ctx3 = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const page2 = await ctx2.newPage()
-      const page3 = await ctx3.newPage()
+      const { ctx: ctx2, page: page2 } = await loveWindow(browser, 'second')
+      const { ctx: ctx3, page: page3 } = await loveWindow(browser, 'third')
       try {
-        await openLove(page2)
-        await openLove(page3)
-
         const room = await clickFirstAvailableRoom(page2)
         test.skip(room === null, 'No regular room available')
         await startOrJoin(page2)
@@ -119,14 +95,9 @@ export function registerInviteTests (): void {
     }) => {
       test.setTimeout(60000)
 
-      const ctx2 = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const ctx3 = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const page2 = await ctx2.newPage()
-      const page3 = await ctx3.newPage()
+      const { ctx: ctx2, page: page2 } = await loveWindow(browser, 'second')
+      const { ctx: ctx3, page: page3 } = await loveWindow(browser, 'third')
       try {
-        await openLove(page2)
-        await openLove(page3)
-
         // user2 starts a meeting and invites user3
         const room2 = await clickFirstAvailableRoom(page2)
         test.skip(room2 === null, 'No regular room available')
@@ -166,10 +137,8 @@ export function registerInviteTests (): void {
     test('self-invite: my own user is not present in the invite picker (skipCurrentAccount)', async ({ browser }) => {
       test.setTimeout(60000)
 
-      const ctx = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const page = await ctx.newPage()
+      const { ctx, page } = await loveWindow(browser, 'second')
       try {
-        await openLove(page)
         const room = await clickFirstAvailableRoom(page)
         test.skip(room === null, 'No regular room available')
         await startOrJoin(page)
@@ -191,14 +160,9 @@ export function registerInviteTests (): void {
     test('invite UI: sender sees "You are inviting", recipient sees "is asking you to join"', async ({ browser }) => {
       test.setTimeout(60000)
 
-      const ctx2 = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const ctx3 = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const page2 = await ctx2.newPage()
-      const page3 = await ctx3.newPage()
+      const { ctx: ctx2, page: page2 } = await loveWindow(browser, 'second')
+      const { ctx: ctx3, page: page3 } = await loveWindow(browser, 'third')
       try {
-        await openLove(page2)
-        await openLove(page3)
-
         const room = await clickFirstAvailableRoom(page2)
         test.skip(room === null, 'No regular room available')
         await startOrJoin(page2)

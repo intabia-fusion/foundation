@@ -219,6 +219,9 @@ const TBANK_DEAD_LINK_STATES = ['DEADLINE_EXPIRED', 'CANCELED', 'REJECTED']
 // terminal state. The message is localized and names no status, so matching TBANK_DEAD_LINK_STATES
 // against the text alone never catches it on the real API — the code is the stable signal.
 const TBANK_STATUS_CHANGE_FORBIDDEN = '4'
+// Cancel answers with these when it hit a payment whose money had already settled: the call did not
+// kill a link, it moved money back. Only reachable by losing the GetState->Cancel race.
+const TBANK_REFUNDED_STATES = ['REFUNDED', 'PARTIAL_REFUNDED', 'REVERSED']
 
 async function cancelPendingCheckout (
   ctx: MeasureContext,
@@ -233,6 +236,19 @@ async function cancelPendingCheckout (
     await storage.abandonCheckout(intentId)
     return true
   }
+  // Cancel on CONFIRMED = full refund, not a no-op: settled checkout -> release stale claim, skip cancel.
+  // AUTHORIZED is a hold: Cancel only releases it, so it goes through the normal path below.
+  try {
+    const state = await tbank.getPaymentState({ PaymentId: paymentId })
+    if (state.Success && state.Status === 'CONFIRMED') {
+      ctx.info('Pending checkout already settled, releasing claim without cancel', { paymentId })
+      await storage.releaseCheckout(paymentId)
+      return true
+    }
+  } catch (err) {
+    // GetState down: proceed to Cancel; a settled payment answers ErrorCode 4 below.
+    ctx.warn('GetState before checkout cancel failed, proceeding to cancel', { paymentId, err })
+  }
   let dead = false
   try {
     // Deterministic idempotency key: a retried Cancel for this payment returns the existing operation's
@@ -241,10 +257,44 @@ async function cancelPendingCheckout (
       PaymentId: paymentId,
       ExternalRequestId: `cancel:${paymentId}`
     })
-    dead = cancelResult.Status === 'CANCELED' || TBANK_DEAD_LINK_STATES.includes(cancelResult.Status)
+    // Settled between GetState and Cancel -> tbank refunded it.
+    // Log loudly: bank's REFUNDED webhook won't say we triggered it.
+    if (TBANK_REFUNDED_STATES.includes(cancelResult.Status)) {
+      ctx.error('Cancel refunded an already-settled checkout (race with payment)', {
+        paymentId,
+        status: cancelResult.Status,
+        amount: cancelResult.OriginalAmount
+      })
+      await storage.logOperation({
+        operation: 'refund',
+        status: cancelResult.Status,
+        paymentId,
+        actor: 'system',
+        amount: cancelResult.OriginalAmount,
+        raw: { reason: 'cancel_race_after_settle', newAmount: cancelResult.NewAmount }
+      })
+    }
+    // Refunded = link spent, claim must be freed.
+    dead =
+      cancelResult.Status === 'CANCELED' ||
+      TBANK_DEAD_LINK_STATES.includes(cancelResult.Status) ||
+      TBANK_REFUNDED_STATES.includes(cancelResult.Status)
     if (!dead) {
-      ctx.info('Pending checkout not cancelable', { paymentId, status: cancelResult.Status })
-      return false
+      // Success:false is returned, not thrown - the catch below never sees ErrorCode 4.
+      if (String(cancelResult.ErrorCode ?? '') === TBANK_STATUS_CHANGE_FORBIDDEN) {
+        if (cancelResult.Status === 'CONFIRMED') {
+          // Settled: keep the draft for the webhook, only free the claim.
+          ctx.info('Cancel forbidden (settled), releasing claim', { paymentId, status: cancelResult.Status })
+          await storage.releaseCheckout(paymentId)
+          return true
+        }
+        // Dead terminal state: fall through to abandon the draft and release.
+        ctx.info('Cancel forbidden (terminal state), releasing', { paymentId, status: cancelResult.Status })
+        dead = true
+      } else {
+        ctx.info('Pending checkout not cancelable', { paymentId, status: cancelResult.Status })
+        return false
+      }
     }
   } catch (err: any) {
     // tbank refuses to cancel an already-dead payment (e.g. DEADLINE_EXPIRED) — treat as freed.
@@ -593,7 +643,14 @@ export async function handleUpdatePlan (
   req: Request,
   res: Response
 ): Promise<void> {
-  const { plan: newPlan, quantity, period, recurrent } = req.body as UpdatePlanRequest
+  const {
+    plan: newPlan,
+    quantity,
+    period,
+    recurrent,
+    force,
+    workspaceUrl: reqWorkspaceUrl
+  } = req.body as UpdatePlanRequest
   const sub = await loadSubscriptionOr404(async () => await findSubscription(storage, req.params.id), res)
   if (sub === null) return
 
@@ -644,8 +701,7 @@ export async function handleUpdatePlan (
   const perSeatAmount = resolvePerSeatAmount(pricing, period === 'yearly')
   const newAmount = perSeatAmount * seats
   const fingerprint = orderFingerprint(newPlan, seats, period)
-  const workspaceUrl = (req.body as { workspaceUrl?: string }).workspaceUrl ?? ''
-  const force = (req.body as { force?: boolean }).force
+  const workspaceUrl = reqWorkspaceUrl ?? ''
 
   // Pro-rata plan/seat change on a live paid subscription (tier seat change OR package swap).
   //  - charge <= 0 (downgrade / credit covers it): switch in place, no checkout, extend the period.
@@ -995,19 +1051,32 @@ export async function processWebhook (
 ): Promise<void> {
   const typedNotification = notification as unknown as TbankWebhookNotification
 
-  // Money-moved webhooks (CONFIRMED/AUTHORIZED) trigger activation — re-verify against the bank via
-  // GetState so a lost or forged notification can't activate a subscription that wasn't actually paid.
-  // Skipped in dev/mock (verification disabled), where GetState isn't backed by a real bank.
+  // AUTHORIZED/CONFIRMED webhooks trigger activation — re-verify against the bank via GetState.
   if (verified && (typedNotification.Status === 'AUTHORIZED' || typedNotification.Status === 'CONFIRMED')) {
     try {
       const state = await tbank.getPaymentState({ PaymentId: typedNotification.PaymentId })
-      if (state.Success && state.Status !== typedNotification.Status) {
-        ctx.error('TBank webhook status mismatch with GetState, ignoring', {
+      const settled = state.Status === 'AUTHORIZED' || state.Status === 'CONFIRMED'
+      if (!state.Success) {
+        ctx.warn('TBank GetState returned Success:false, proceeding on verified webhook', {
+          paymentId: typedNotification.PaymentId,
+          webhookStatus: typedNotification.Status,
+          errorCode: state.ErrorCode,
+          message: state.Message
+        })
+      } else if (!settled) {
+        ctx.error('TBank webhook status mismatch with GetState, ignoring it', {
           paymentId: typedNotification.PaymentId,
           webhookStatus: typedNotification.Status,
           actualStatus: state.Status
         })
         return
+      } else if (typedNotification.Status === 'CONFIRMED' && state.Status === 'AUTHORIZED') {
+        // Activate anyway — the webhook is signed and says the money settled; alarm for manual review.
+        ctx.error('TBank CONFIRMED webhook but GetState still reports a hold, activating anyway', {
+          paymentId: typedNotification.PaymentId,
+          webhookStatus: typedNotification.Status,
+          actualStatus: state.Status
+        })
       }
     } catch (err) {
       // GetState unreachable — do not block activation on a transient bank outage; the signed
@@ -1049,7 +1118,19 @@ export async function processWebhook (
     }
   })
 
-  if (typedNotification.Status === 'AUTHORIZED' || typedNotification.Status === 'CONFIRMED') {
+  if (typedNotification.Status === 'AUTHORIZED') {
+    ctx.info('TBank AUTHORIZED webhook recorded, waiting for CONFIRMED to activate', {
+      paymentId: typedNotification.PaymentId,
+      subId: sub?.id
+    })
+    return
+  }
+
+  if (typedNotification.Status === 'CONFIRMED') {
+    // BEFORE the sub check and duplicate guard: both return early and would leak the claim.
+    // Idempotent DELETE, safe on consumer retry.
+    await storage.releaseCheckout(String(typedNotification.PaymentId))
+
     if (sub === null) {
       ctx.error('TBank webhook received but no pending subscription found', {
         paymentId: typedNotification.PaymentId,
@@ -1086,12 +1167,21 @@ export async function processWebhook (
     // First check for a tbank sub with pendingReplacement flag (normal tbank updateSubscriptionPlan flow).
     // Otherwise, cancel any active subscription of the same type in the workspace
     // (handles provider-mismatch path where a new sub was created via createSubscription).
-    const allSubs = await storage.getAll(subscriptionData.workspaceUuid)
-    const oldSub = allSubs.find(
-      (s) =>
-        (s.provider === 'tbank' && s.providerData?.pendingReplacement === true) ||
-        (s.type === subscriptionData.type && s.status === SubscriptionStatus.Active && s.id !== subscriptionData.id)
+    // One-time purchases do not replace each other: several may be active at once, and cancelling
+    // one detaches the card the tier still renews with.
+    const allSubs = (await storage.getAll(subscriptionData.workspaceUuid)).filter(
+      (s) => s.type !== SubscriptionType.Purchase
     )
+    const oldSub =
+      subscriptionData.type === SubscriptionType.Purchase
+        ? undefined
+        : allSubs.find(
+          (s) =>
+            (s.provider === 'tbank' && s.providerData?.pendingReplacement === true) ||
+              (s.type === subscriptionData.type &&
+                s.status === SubscriptionStatus.Active &&
+                s.id !== subscriptionData.id)
+        )
     if (oldSub !== undefined && oldSub !== null) {
       // Report under the NEW purchase's action: dropping the old plan is part of that same intent.
       await cancelSubscription(
@@ -1110,14 +1200,11 @@ export async function processWebhook (
       })
     }
 
-    // Release the claim on CONFIRMED (money settled), freeing the key for a future purchase.
-    // AUTHORIZED is intermediate (and absent for PayType 'O'). Idempotent for duplicate webhooks.
-    if (typedNotification.Status === 'CONFIRMED') {
-      await storage.releaseCheckout(typedNotification.PaymentId)
+    // Release the claim (money settled). Idempotent for duplicate webhooks.
+    await storage.releaseCheckout(typedNotification.PaymentId)
 
-      // Receipt email on settled first payment (new sub / plan change).
-      await notifyPaymentSucceeded(ctx, storage, config, subscriptionData, 'purchase', typedNotification.Amount)
-    }
+    // Receipt email on settled first payment (new sub / plan change).
+    await notifyPaymentSucceeded(ctx, storage, config, subscriptionData, 'purchase', typedNotification.Amount)
   } else if (
     typedNotification.Status === 'REJECTED' ||
     typedNotification.Status === 'REVERSED' ||
@@ -1294,10 +1381,8 @@ export function isImmediateCancel (sub: Pick<SubscriptionData, 'status'>): boole
   return sub.status === SubscriptionStatus.PastDue || sub.status === SubscriptionStatus.ReadOnly
 }
 
-// A paid subscription stays Active until periodEnd (the user keeps access and can uncancel for free),
-// only renewal is suppressed (see storage.needsRenewal + scheduler enforceScheduledCancel, which flips
-// it to Canceled and removes the card at willCancelAt). Plan change and unpaid subs cancel right away.
-// status arg is used only for the plan-change path.
+// Paid sub: cancel-at-period-end, scheduler flips it to Canceled at willCancelAt (uncancel stays free).
+// Plan change and unpaid subs cancel right away. status arg is only for the plan-change path.
 function buildCanceledSubscriptionData (sub: SubscriptionData, status?: string): SubscriptionData {
   const now = Date.now()
 
@@ -1430,9 +1515,8 @@ async function initTbankPayment (
   }
 }
 
-// A cancel is scheduled (cancel-at-period-end): the card is kept for a possible
-// uncancel and removed later at willCancelAt (scheduler).
-// An immediate cancel (PLAN_CHANGE, or an unpaid past_due/readonly sub) removes the card.
+// Scheduled cancel keeps the card for a possible uncancel (scheduler removes it at willCancelAt).
+// Immediate cancel (PLAN_CHANGE or unpaid past_due/readonly) removes the card now.
 async function cancelSubscription (
   ctx: MeasureContext,
   tbank: TbankPayments,

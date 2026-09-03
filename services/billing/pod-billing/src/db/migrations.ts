@@ -58,13 +58,15 @@ export function getMigrations (flavor: DBFlavor): [string, string][] {
     throw new Error(`Unsupported database flavor: ${flavor}`)
   }
 
+  // V7 is branch-only, squashed from the V7-V9 iteration so stale stands rerun it.
   return [
     migrationV1(flavor),
     migrationV2(flavor),
     migrationV3(flavor),
     migrationV4(flavor),
     migrationV5(flavor),
-    migrationV6(flavor)
+    migrationV6(flavor),
+    migrationV7(flavor)
   ]
 }
 
@@ -194,4 +196,104 @@ function migrationV6 (flavor: SupportedFlavor): [string, string] {
     CREATE INDEX IF NOT EXISTS idx_usage_delta_dedup_created_at ON billing.usage_delta_dedup (created_at);
   `
   return ['add_usage_dedup_created_at_index_06', sql]
+}
+
+// Branch-only: AI-token dimensions, provider pools, model registry, two-pool token balance,
+// top-up ledger, per-model ASR breakdown. Squashed under a fresh name so stale stands rerun it.
+function migrationV7 (flavor: SupportedFlavor): [string, string] {
+  const types = dbTypes[flavor]
+
+  const sql = `
+    DROP TABLE IF EXISTS billing.ai_tokens_usage;
+
+    CREATE TABLE billing.ai_tokens_usage (
+      workspace UUID NOT NULL,
+      hour TIMESTAMP NOT NULL,
+      reason ${types.string255} NOT NULL,
+      provider_id ${types.string255} NOT NULL DEFAULT '',
+      model ${types.string255} NOT NULL DEFAULT '',
+      level ${types.string255} NOT NULL DEFAULT '',
+      client_id ${types.string255} NOT NULL DEFAULT '',
+      total_tokens ${types.int8} NOT NULL,
+      raw_tokens ${types.int8} NOT NULL DEFAULT 0,
+      PRIMARY KEY (workspace, hour, reason, provider_id, model, level, client_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_hour ON billing.ai_tokens_usage (hour);
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_provider ON billing.ai_tokens_usage (provider_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_model ON billing.ai_tokens_usage (model);
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_level ON billing.ai_tokens_usage (level);
+    CREATE INDEX IF NOT EXISTS idx_ai_tokens_usage_client ON billing.ai_tokens_usage (client_id);
+
+    CREATE TABLE IF NOT EXISTS billing.provider_pool (
+      provider_id ${types.string255} NOT NULL,
+      model ${types.string255} NOT NULL DEFAULT '',
+      kind ${types.string255} NOT NULL DEFAULT 'purchased',
+      purchased_tokens ${types.int8} NOT NULL DEFAULT 0,
+      period ${types.string255} NOT NULL DEFAULT 'monthly',
+      period_start TIMESTAMP NOT NULL DEFAULT now(),
+      used_tokens ${types.int8} NOT NULL DEFAULT 0,
+      exhausted BOOLEAN NOT NULL DEFAULT false,
+      notified80 BOOLEAN NOT NULL DEFAULT false,
+      notified100 BOOLEAN NOT NULL DEFAULT false,
+      PRIMARY KEY (provider_id, model)
+    );
+
+    -- (provider, model, level) catalog aibot pushes on startup for the admin UI.
+    CREATE TABLE IF NOT EXISTS billing.ai_model_registry (
+      provider_id ${types.string255} NOT NULL,
+      model ${types.string255} NOT NULL,
+      level ${types.string255} NOT NULL DEFAULT '',
+      label ${types.string255} NOT NULL DEFAULT '',
+      updated_at TIMESTAMP NOT NULL DEFAULT now(),
+      PRIMARY KEY (provider_id, model)
+    );
+
+    -- Purchased-token pool (never expires), spent before the tier window each hour.
+    DROP TABLE IF EXISTS billing.token_balance;
+    CREATE TABLE billing.token_balance (
+      workspace UUID NOT NULL,
+      remaining_tokens ${types.int8} NOT NULL DEFAULT 0,
+      absorbed_until TIMESTAMP,
+      absorbed_period ${types.int8} NOT NULL DEFAULT 0,
+      period_start TIMESTAMP NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace)
+    );
+
+    -- Ledger of one-time token purchases: PK purchase_id makes the aibot-driven grant
+    -- idempotent across event redeliveries; the granted amount lives in token_balance.
+    CREATE TABLE IF NOT EXISTS billing.ai_token_topup (
+      purchase_id ${types.string255} NOT NULL,
+      workspace UUID NOT NULL,
+      amount ${types.int8} NOT NULL,
+      granted_at TIMESTAMP NOT NULL DEFAULT now(),
+      PRIMARY KEY (purchase_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_token_topup_workspace ON billing.ai_token_topup (workspace, granted_at);
+
+    -- Per-model ASR transcription breakdown (mirrors ai_tokens_usage).
+    CREATE TABLE IF NOT EXISTS billing.ai_transcript_usage_detail (
+      workspace UUID NOT NULL,
+      day DATE NOT NULL,
+      provider_id ${types.string255} NOT NULL DEFAULT '',
+      model ${types.string255} NOT NULL DEFAULT '',
+      level ${types.string255} NOT NULL DEFAULT '',
+      client_id ${types.string255} NOT NULL DEFAULT '',
+      total_duration_seconds ${types.float} NOT NULL DEFAULT 0,
+      PRIMARY KEY (workspace, day, provider_id, model, level, client_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_day ON billing.ai_transcript_usage_detail (day);
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_provider
+      ON billing.ai_transcript_usage_detail (provider_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_model ON billing.ai_transcript_usage_detail (model);
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_level ON billing.ai_transcript_usage_detail (level);
+    CREATE INDEX IF NOT EXISTS idx_ai_transcript_usage_detail_client
+      ON billing.ai_transcript_usage_detail (client_id);
+
+    -- Leftover from the pre-squash V7/V8 chain on stale stands.
+    DROP TABLE IF EXISTS billing.ai_window_reset;
+  `
+  return ['ai_token_infra_v2_07', sql]
 }

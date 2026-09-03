@@ -35,36 +35,43 @@ export class LeftSideMenuPage extends CommonPage {
     await this.getInviteLinkButton().click()
   }
 
+  // Clicking the icon of the app that is already open toggles the navigator shut, and every
+  // later lookup in it then waits out its timeout on a panel that is not there.
+  private async openApp (button: Locator, alias: string): Promise<void> {
+    if (new URL(this.page.url()).pathname.split('/')[3] === alias) return
+    await button.click()
+  }
+
   async clickChunter (): Promise<void> {
-    await this.buttonChunter().click()
+    await this.openApp(this.buttonChunter(), 'chunter')
   }
 
   async clickContacts (): Promise<void> {
-    await this.buttonContacts().click()
+    await this.openApp(this.buttonContacts(), 'contact')
   }
 
   async clickTracker (): Promise<void> {
-    await this.buttonTracker().click()
+    await this.openApp(this.buttonTracker(), 'tracker')
   }
 
   async clickNotification (): Promise<void> {
-    await this.buttonNotification().click()
+    await this.openApp(this.buttonNotification(), 'notification')
   }
 
   async clickDocuments (): Promise<void> {
-    await this.buttonDocuments().click()
+    await this.openApp(this.buttonDocuments(), 'document')
   }
 
   async clickPlanner (): Promise<void> {
-    await this.buttonPlanner().click()
+    await this.openApp(this.buttonPlanner(), 'time')
   }
 
   async clickTeam (): Promise<void> {
-    await this.buttonTeam().click()
+    await this.openApp(this.buttonTeam(), 'time')
   }
 
   async clickRecruiting (): Promise<void> {
-    await this.buttonRecruiting().click()
+    await this.openApp(this.buttonRecruiting(), 'recruit')
   }
 
   async clickOnCloseInvite (): Promise<void> {

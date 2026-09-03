@@ -22,6 +22,7 @@ import { serverRequestId } from '@hcengineering/server-request'
 import { serverSettingId } from '@hcengineering/server-setting'
 import { serverTagsId } from '@hcengineering/server-tags'
 import { serverTaskId } from '@hcengineering/server-task'
+import { serverWorkflowId } from '@hcengineering/server-workflow'
 import { serverTelegramId } from '@hcengineering/server-telegram'
 import { serverTimeId } from '@hcengineering/server-time'
 import { serverTrackerId } from '@hcengineering/server-tracker'
@@ -42,6 +43,7 @@ export function registerServerPlugins (): void {
   addLocation(serverLeadId, () => import('@hcengineering/server-lead-resources'))
   addLocation(serverRecruitId, () => import('@hcengineering/server-recruit-resources'))
   addLocation(serverTaskId, () => import('@hcengineering/server-task-resources'))
+  addLocation(serverWorkflowId, () => import('@hcengineering/server-workflow-resources'))
   addLocation(serverTrackerId, () => import('@hcengineering/server-tracker-resources'))
   addLocation(serverTagsId, () => import('@hcengineering/server-tags-resources'))
   addLocation(serverCardId, () => import('@hcengineering/server-card-resources'))

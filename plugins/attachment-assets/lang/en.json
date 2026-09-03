@@ -54,6 +54,8 @@
     "RemovedAttachment": "Removed attachment",
     "ContentType": "Content type",
     "OpenInWindow": "Open in window",
-    "Embeddings": "Embeddings"
+    "Embeddings": "Embeddings",
+    "Transcribing": "Transcribing...",
+    "TranscriptionFailed": "Transcription failed"
   }
 }

@@ -79,7 +79,7 @@ export async function performGmailAccountMigrations (
   txes: Tx[]
 ): Promise<void> {
   console.log('Start Gmail migrations')
-  const token = generateToken(systemAccountUuid, undefined, { service: 'tool', admin: 'true' })
+  const token = generateToken(systemAccountUuid, undefined, { service: 'tool' })
   const accountClient = getAccountClient(token)
 
   const allWorkpaces = await accountClient.listWorkspaces(region)

@@ -32,9 +32,11 @@ export interface CreateSubscriptionRequest {
 
 export interface UpdatePlanRequest {
   plan: string
+  workspaceUrl?: string
   quantity?: number // Number of seats for per-seat plans (total charge = price-per-seat * quantity)
   period?: BillingPeriod // Billing period; 'yearly' applies the plan's yearly discount. Defaults to 'monthly'.
   recurrent?: boolean
+  force?: boolean // Switch tariff: cancel a different pending checkout for this type, then open the new one.
 }
 
 /**

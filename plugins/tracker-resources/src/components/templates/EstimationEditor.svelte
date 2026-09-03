@@ -17,11 +17,12 @@
   import { getClient } from '@hcengineering/presentation'
   import { IssueDraft, IssueTemplate, IssueTemplateChild, TrackerEvents } from '@hcengineering/tracker'
   import { Button, ButtonKind, ButtonSize, eventToHTMLElement, showPopup } from '@hcengineering/ui'
-  import { EditBoxPopup, getObjectId } from '@hcengineering/view-resources'
+  import { getObjectId } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../plugin'
   import TimePresenter from '../issues/timereport/TimePresenter.svelte'
   import { Analytics } from '@hcengineering/analytics'
+  import EditEstimationPopup from '../issues/timereport/EditEstimationPopup.svelte'
 
   export let value: IssueTemplateChild | IssueTemplate | Data<IssueTemplate> | IssueDraft
   export let isEditable: boolean = true
@@ -41,8 +42,8 @@
       return
     }
 
-    showPopup(EditBoxPopup, { value: value.estimation, format: 'number' }, eventToHTMLElement(event), (res) => {
-      if (res !== undefined) {
+    showPopup(EditEstimationPopup, { value: value.estimation }, eventToHTMLElement(event), (res) => {
+      if (typeof res === 'number') {
         changeEstimation(res)
       }
     })

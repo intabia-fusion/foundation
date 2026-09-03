@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -16,8 +17,9 @@
 import { type Class, type Data, type Doc, type Ref } from '@hcengineering/core'
 import { type Builder } from '@hcengineering/model'
 import core from '@hcengineering/model-core'
+import { type Resource } from '@hcengineering/platform'
 import { type AnyComponent } from '@hcengineering/ui/src/types'
-import { type Action, type AttributeCategory } from '@hcengineering/view'
+import { type Action, type AttributeApplierFn, type AttributeCategory } from '@hcengineering/view'
 import view from '.'
 
 export function createAction<T extends Doc = Doc, P = Record<string, any>> (
@@ -66,5 +68,18 @@ export function createAttributePresenter<T extends Doc> (
     attribute: attr._id,
     objectClass: _class,
     category
+  })
+}
+
+export function createAttributeApplier<T extends Doc> (
+  builder: Builder,
+  _class: Ref<Class<T>>,
+  key: keyof T | string,
+  applier: Resource<AttributeApplierFn<T>>
+): void {
+  builder.createDoc(view.class.AttrApplier, core.space.Model, {
+    objectClass: _class as Ref<Class<Doc>>,
+    key: key as string,
+    applier
   })
 }

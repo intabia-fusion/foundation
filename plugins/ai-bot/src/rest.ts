@@ -18,6 +18,12 @@ import { MeetingMinutes, RoomLanguage } from '@hcengineering/love'
 import { Contact, Person } from '@hcengineering/contact'
 import { ChatMessage } from '@hcengineering/chunter'
 
+/** Assistant quality level id: data-driven string, not a fixed enum; new levels need no code change. */
+export type AILevel = string
+
+/** What an AI conversation was started for (mirrors AIContextMessage.purpose). */
+export type AIConversationPurpose = 'issue-draft'
+
 export interface AIEventRequest {
   message: string
   messageClass: Ref<Class<ChatMessage>>
@@ -29,6 +35,35 @@ export interface AIEventRequest {
   user: PersonId
   collection: string
   createdOn: Timestamp
+  // Effective AI level, already clamped to the space ceiling by the server trigger.
+  // The pod routes by this directly (no level resolution on the pod side).
+  level?: AILevel
+  // Which feature this request serves. The pod narrows the registry to levels allowing it,
+  // so a level denied for the feature falls back to a capable one. Unset -> no narrowing.
+  feature?: AIFeature
+  // Space language for the bot's non-personal replies (set by the server trigger
+  // from AISpaceSettings); the pod falls back to AI_DEFAULT_LANGUAGE when unset.
+  language?: string
+  // What the conversation is for, taken from its root. Narrows the toolset: drafting an issue
+  // that does not exist yet has no use for sub-task or document tools.
+  purpose?: AIConversationPurpose
+}
+
+/** Queue task for a chat voice-note transcription (kind='chat-voice'), handled by the stt-worker. */
+export interface ChatVoiceTranscriptionTask {
+  kind: 'chat-voice'
+  // AudioTranscribe doc to write the result back onto.
+  transcribeId: Ref<Doc>
+  space: Ref<Space>
+  attachedTo: Ref<Doc>
+  attachedToClass: Ref<Class<Doc>>
+  // Workspace storage blob id (attachment.file) of the audio.
+  blobId: string
+  audioFormat: 'ogg' | 'webm' | 'wav' | 'mp4'
+  durationSec: number
+  // Effective ASR/LLM level (space ceiling), forwarded by the trigger.
+  level?: AILevel
+  language?: string
 }
 
 export interface TranslateRequest {
@@ -80,4 +115,36 @@ export interface PostTranscriptRequest {
 export interface IdentityResponse {
   identity: Ref<Person>
   name: string
+}
+
+/** Which AI features a level may serve; unset flag = allowed (default true). */
+export interface AIFeatureFlags {
+  talk?: boolean // "Discuss with the assistant" (live conversation)
+  chat?: boolean // chat replies
+  summary?: boolean // conversation summary
+  tasks?: boolean // create tasks from chat
+}
+
+export type AIFeature = keyof AIFeatureFlags
+
+/** A level the ai-bot offers, served by its API (GET levels); same catalog for everyone, not per-workspace. */
+export interface AILevelInfo {
+  level: AILevel
+  order: number // sort key (lower = weaker/cheaper)
+  label: string
+  tokenMultiplier: number
+  displayMultiplier?: number // UI-facing "xN" relative to the base level
+  features?: AIFeatureFlags
+}
+
+/** ASR (transcription) quality level id. Data-driven string, mirrors AILevel. */
+export type AsrLevel = string
+
+/** A transcription level the ai-bot offers (GET /asr-levels). Mirrors AILevelInfo. */
+export interface AsrLevelInfo {
+  level: AsrLevel
+  order: number
+  label: string
+  tokenMultiplier: number // billed per SECOND of audio
+  displayMultiplier?: number
 }

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from './fixtures'
 import { generateId, PlatformSetting, PlatformURI } from './utils'
 import { TalentsPage } from './model/recruiting/talents-page'
 import { faker } from '@faker-js/faker'

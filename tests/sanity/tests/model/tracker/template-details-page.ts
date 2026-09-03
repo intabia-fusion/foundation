@@ -11,7 +11,11 @@ export class TemplateDetailsPage extends CommonTrackerPage {
   textLabels = (dataLabels: string): Locator => this.page.locator('div.menu-group span', { hasText: dataLabels })
   buttonAddLabel = (): Locator => this.page.locator('//span[text()="Labels"]/following-sibling::button[1]//span')
   buttonComponent = (): Locator => this.page.locator('//span[text()="Component"]/following-sibling::div[1]/div/button')
-  buttonEstimation = (): Locator => this.page.locator('//span[text()="Estimation"]/following-sibling::div[1]/button')
+  buttonEstimation = (): Locator =>
+    this.page.locator(
+      '//span[contains(@class, "labelOnPanel") and normalize-space(text())="Estimation"]/following-sibling::div[1]//div[contains(@class, "link-container")]'
+    )
+
   buttonDueDate = (): Locator => this.page.locator('//span[text()="Due date"]/following-sibling::div[1]/button')
   buttonSaveDueDate = (): Locator => this.page.locator('div.footer > button')
   activityContent = (): Locator => this.page.locator('div.grid div.content')
@@ -63,7 +67,7 @@ export class TemplateDetailsPage extends CommonTrackerPage {
     }
     if (data.estimation != null) {
       await this.buttonEstimation().click()
-      await this.fillToSelectPopup(this.page, data.estimation)
+      await this.fillEstimationPopup(this.page, data.estimation)
     }
     if (data.duedate != null) {
       if (data.duedate === 'today') {

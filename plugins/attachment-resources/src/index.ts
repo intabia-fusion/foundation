@@ -27,6 +27,7 @@ import AttachmentGalleryPresenter from './components/AttachmentGalleryPresenter.
 import AttachmentList from './components/AttachmentList.svelte'
 import AttachmentGroup from './components/AttachmentGroup.svelte'
 import AttachmentPresenter from './components/AttachmentPresenter.svelte'
+import VoiceAttachmentPresenter from './components/VoiceAttachmentPresenter.svelte'
 import AttachmentPreview from './components/AttachmentPreview.svelte'
 import AttachmentRefInput from './components/AttachmentRefInput.svelte'
 import AttachmentStyleBoxCollabEditor from './components/AttachmentStyleBoxCollabEditor.svelte'
@@ -47,14 +48,18 @@ import DrawingPresenter from './components/DrawingPresenter.svelte'
 import LinkPreview from './components/LinkPreview.svelte'
 import LinkPreviewCard from './components/LinkPreviewCard.svelte'
 import AttachmentSimplePreview from './components/AttachmentSimplePreview.svelte'
+import DraftAttachmentsEditor from './components/DraftAttachmentsEditor.svelte'
+import { attachmentsApplier } from './utils'
 
 export * from './types'
 export * from './stores'
+export * from './utils'
 
 export {
   AccordionEditor,
   AddAttachment,
   AttachmentDocList,
+  DraftAttachmentsEditor,
   AttachmentDroppable,
   AttachmentGalleryPresenter,
   AttachmentList,
@@ -265,8 +270,10 @@ export default async (): Promise<Resources> => ({
   component: {
     AttachmentsPresenter,
     AttachmentPresenter,
+    VoiceAttachmentPresenter,
     AttachmentGalleryPresenter,
     Attachments,
+    DraftAttachmentsEditor,
     DrawingPresenter,
     FileBrowser,
     Photos,
@@ -282,6 +289,9 @@ export default async (): Promise<Resources> => ({
     AddAttachmentToSaved,
     DeleteAttachmentFromSaved,
     DeleteAttachment
+  },
+  function: {
+    AttachmentsApplier: attachmentsApplier
   }
 })
 

@@ -172,6 +172,9 @@ function syncDirectory(srcDir, destDir) {
   }
 
   for (const [relPath, destFile] of destRelPaths) {
+    // generateSvelteTypes writes types/*.svelte.d.ts and tsc emits no declaration for a
+    // .d.ts input, so pruning against emit/ would delete them on every validate.
+    if (relPath.endsWith('.svelte.d.ts') || relPath.endsWith('.svelte.d.ts.map')) continue
     if (!srcRelPaths.has(relPath)) {
       try {
         unlinkSync(destFile)

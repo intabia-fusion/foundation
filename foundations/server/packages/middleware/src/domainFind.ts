@@ -63,7 +63,8 @@ export class DomainFindMiddleware extends BaseMiddleware implements Middleware {
     const p = options?.prefix ?? 'client'
     const domain = this.context.hierarchy.getDomain(_class)
     if (domain === DOMAIN_MODEL) {
-      return Promise.resolve(this.context.modelDb.findAllSync(_class, query, options))
+      // findAll, not findAllSync: the caller owns the result, and model instances are shared and frozen.
+      return this.context.modelDb.findAll(_class, query, options)
     }
     return ctx.with(
       p + '-find-all',

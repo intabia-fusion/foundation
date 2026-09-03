@@ -1,5 +1,6 @@
 //
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -15,7 +16,7 @@
 
 import { type Builder } from '@hcengineering/model'
 import core from '@hcengineering/model-core'
-import view, { classPresenter } from '@hcengineering/model-view'
+import view, { classPresenter, createAttributeApplier, createAttributePresenter } from '@hcengineering/model-view'
 import notification from '@hcengineering/notification'
 import tracker from './plugin'
 
@@ -38,9 +39,26 @@ export function definePresenters (builder: Builder): void {
     presenter: tracker.component.IssuePreview
   })
 
-  builder.mixin(tracker.class.Issue, core.class.Class, view.mixin.AttributePresenter, {
-    presenter: tracker.component.ParentIssuePresenter
+  classPresenter(
+    builder,
+    tracker.class.Issue,
+    tracker.component.ParentIssuePresenter,
+    tracker.component.ParentIssueSelector
+  )
+
+  builder.mixin(tracker.class.Issue, core.class.Class, view.mixin.AttributeEditor, {
+    inlineEditor: tracker.component.ParentIssueSelector
   })
+
+  createAttributePresenter(
+    builder,
+    tracker.component.ParentIssuePresenter,
+    tracker.class.Issue,
+    'attachedTo',
+    'attribute'
+  )
+
+  createAttributeApplier(builder, tracker.class.Issue, 'reportedTime', tracker.function.ReportedTimeApplier)
 
   //
   // Issue Template
@@ -145,6 +163,21 @@ export function definePresenters (builder: Builder): void {
 
   builder.mixin(tracker.class.Milestone, core.class.Class, view.mixin.ObjectEditor, {
     editor: tracker.component.EditMilestone
+  })
+
+  classPresenter(
+    builder,
+    tracker.class.Milestone,
+    tracker.component.MilestoneSelector,
+    tracker.component.MilestoneSelector
+  )
+
+  builder.mixin(tracker.class.Milestone, core.class.Class, view.mixin.AttributeEditor, {
+    inlineEditor: tracker.component.MilestoneSelector
+  })
+
+  builder.mixin(tracker.class.Milestone, core.class.Class, view.mixin.ArrayEditor, {
+    inlineEditor: view.component.ArrayEditor
   })
 
   classPresenter(

@@ -26,7 +26,7 @@
   import DPCalendarOver from './icons/DPCalendarOver.svelte'
   import { daysInMonth, getMonthName } from './internal/DateUtils'
 
-  export let value: number | null | undefined = null
+  export let value: number | string | Date | null | undefined = null
   export let mode: DateRangeMode = DateRangeMode.DATE
   export let editable: boolean = false
   export let iconModifier: 'overdue' | 'critical' | 'warning' | 'normal' = 'normal'
@@ -291,11 +291,30 @@
   }
 
   export const adaptValue = () => {
-    setCurrentDate(new Date(value ?? Date.now()))
+    let parsedDate: Date | null = null
+    if (typeof value === 'number' && !isNaN(value)) {
+      parsedDate = new Date(value)
+    } else if (typeof value === 'string' && value.trim() !== '') {
+      const ts = Date.parse(value)
+      if (!isNaN(ts)) {
+        parsedDate = new Date(ts)
+      } else {
+        const num = Number(value)
+        if (!isNaN(num)) {
+          parsedDate = new Date(num)
+        }
+      }
+    } else if (value instanceof Date) {
+      parsedDate = value
+    }
+
+    const baseDate = parsedDate != null && !isNaN(parsedDate.getTime()) ? parsedDate : new Date()
+    setCurrentDate(baseDate)
     currentDate?.setSeconds(0, 0)
-    if (value !== null && value !== undefined) {
+
+    if (value !== null && value !== undefined && value !== '' && parsedDate != null && !isNaN(parsedDate.getTime())) {
       dateToEdits()
-    } else if (value === null) {
+    } else {
       setEmptyEdits()
     }
   }

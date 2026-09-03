@@ -104,8 +104,8 @@ class Workspace {
     }
 
     if (domain === 'model') {
+      // addTxes keeps the hierarchy in step, applying it here too would double $push/$inc.
       this.model.addTxes(this.ctx, [tx], true)
-      this.hierarchy.tx(tx)
     }
 
     this.cache.tx(tx)
@@ -131,6 +131,8 @@ class Workspace {
       await handleReadState(this.client, this.cache, result, tx as TxCUD<ReadState>)
     }
 
+    if (tx.meta?.silent === true) return
+
     await handleTxNotification(this.client, this.cache, txCache, result, tx, this.txTypes)
 
     if (this.hierarchy.isDerived(tx.objectClass, activity.class.ActivityMessage)) {
@@ -138,12 +140,28 @@ class Workspace {
     }
 
     if (!isEmptyResult(result)) {
+      // if (tx.meta?.inboxOnly === true) this.keepInboxProviderOnly(res)
       this.lastUpdate = tx.createdOn ?? tx.modifiedOn
       await this.applyResult(result)
     }
 
     this.inProgress = false
   }
+
+
+
+  //TODO: refactor
+  // // Push/sound/email/telegram senders filter by allowedProviders, so trimming them leaves the inbox entry alone.
+  // private keepInboxProviderOnly (txes: TxCUD<Doc>[]): void {
+  //   for (const tx of txes) {
+  //     if (tx._class !== core.class.TxCreateDoc) continue
+  //     if (!this.hierarchy.isDerived(tx.objectClass, notification.class.InboxNotification)) continue
+  //     const attrs = (tx as TxCreateDoc<InboxNotification>).attributes
+  //     const types = attrs.allowedProviders?.[notification.providers.InboxNotificationProvider]
+  //     attrs.allowedProviders = types !== undefined ? { [notification.providers.InboxNotificationProvider]: types } : {}
+  //   }
+  // }
+
 
   private async applyResult (result: Result): Promise<void> {
     const txes = getResultTxes(result)

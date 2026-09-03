@@ -193,7 +193,7 @@ export class TTestCase extends TAttachedDoc implements TestCase {
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
     attachments?: CollectionSize<Attachment>
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments?: number
 }
 
@@ -274,7 +274,7 @@ export class TTestResult extends TAttachedDoc implements TestResult {
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
     attachments?: CollectionSize<Attachment>
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments?: number
 }
 

@@ -57,6 +57,7 @@
     display: flex;
     flex-direction: column;
     padding: 0;
+    min-width: 0;
     /* Prefer login-scoped input background (Intabia = pale lilac; Huly = translucent) */
     background-color: var(--login-input-bg, var(--theme-button-default));
     border: 1px solid var(--theme-button-border);
@@ -101,6 +102,9 @@
         width: 60px;
         height: 78px;
         font-size: 2rem;
+        /* Width comes from the flex row on narrow screens; see OtpForm. */
+        max-width: 100%;
+        min-width: 0;
       }
     }
   }

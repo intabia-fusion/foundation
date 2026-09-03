@@ -18,7 +18,7 @@ import { type Builder } from '@hcengineering/model'
 import core from '@hcengineering/model-core'
 import { type Ref, type Status } from '@hcengineering/core'
 
-import { TDefaultFunnelTypeData, TLeadTypeData } from './types'
+import { TDefaultFunnelTypeData, TLeadTaskType } from './types'
 import plugin from './plugin'
 
 export const defaultLeadStatuses = [
@@ -136,7 +136,12 @@ export function defineSpaceType (builder: Builder): void {
   }
 
   // Create default task type
-  builder.createModel(TLeadTypeData)
+  builder.createModel(TLeadTaskType)
+
+  builder.mixin(plugin.class.LeadTaskType, core.class.Class, task.mixin.TaskTypeClass, {
+    taskType: plugin.taskType.Lead,
+    projectType: plugin.template.DefaultFunnel
+  })
 
   builder.createDoc(
     task.class.TaskType,
@@ -145,7 +150,7 @@ export function defineSpaceType (builder: Builder): void {
       name: 'Lead',
       descriptor: plugin.descriptors.Lead,
       ofClass: plugin.class.Lead,
-      targetClass: plugin.mixin.LeadTypeData,
+      targetClass: plugin.class.LeadTaskType,
       statusClass: core.class.Status,
       statusCategories: [
         task.statusCategory.UnStarted,
@@ -153,7 +158,8 @@ export function defineSpaceType (builder: Builder): void {
         task.statusCategory.Won,
         task.statusCategory.Lost
       ],
-      kind: 'task',
+      isRootTaskType: true,
+      allowAnyParent: true,
       parent: plugin.template.DefaultFunnel,
       statuses: defaultStatuses,
       icon: plugin.icon.Lead

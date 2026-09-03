@@ -1,4 +1,11 @@
-import { AccountRole, AccountUuid, MeasureContext, PersonUuid, WorkspaceUuid } from '@hcengineering/core'
+import {
+  AccountRole,
+  AccountUuid,
+  MeasureContext,
+  PersonUuid,
+  systemAccountUuid,
+  WorkspaceUuid
+} from '@hcengineering/core'
 import { getMetadata } from '@hcengineering/platform'
 import { decode, encode } from 'jwt-simple'
 import { validate } from 'uuid'
@@ -111,12 +118,52 @@ export function generateToken (
   )
 }
 
+// Verified tokens, keyed by secret+token. A session reuses one token for thousands of REST
+// calls, and the HMAC was 8% of transactor CPU under load. Only successes are cached.
+const verifiedTokens = new Map<string, Token>()
+const TOKEN_CACHE_MAX = 4096
+const TOKEN_CACHE_EVICT = 512
+
+// jwt-simple enforces nbf/exp inside decode, so a cached token has to be re-checked here -
+// otherwise it would outlive its own expiry.
+function isCurrent (t: Token): boolean {
+  const now = Date.now()
+  if (t.nbf !== undefined && now < t.nbf * 1000) return false
+  if (t.exp !== undefined && now > t.exp * 1000) return false
+  return true
+}
+
 /**
  * @public
  */
 export function decodeToken (token: string, verify: boolean = true, secret?: string): Token {
+  const key = verify ? `${secret ?? getSecret()}:${token}` : undefined
+  if (key !== undefined) {
+    const cached = verifiedTokens.get(key)
+    if (cached !== undefined) {
+      verifiedTokens.delete(key)
+      if (isCurrent(cached)) {
+        // Re-insert at the back: eviction walks insertion order, so a token in active use
+        // must not age out just because its session started early.
+        verifiedTokens.set(key, cached)
+        return cached
+      }
+    }
+  }
   try {
-    return decode(token, secret ?? getSecret(), !verify)
+    const res: Token = decode(token, secret ?? getSecret(), !verify)
+    if (key !== undefined) {
+      if (verifiedTokens.size >= TOKEN_CACHE_MAX) {
+        // Map keeps insertion order, so this drops the oldest instead of the whole live pool.
+        let n = TOKEN_CACHE_EVICT
+        for (const k of verifiedTokens.keys()) {
+          verifiedTokens.delete(k)
+          if (--n === 0) break
+        }
+      }
+      verifiedTokens.set(key, res)
+    }
+    return res
   } catch (err: any) {
     throw new TokenError(err.message)
   }
@@ -155,4 +202,26 @@ export function extractCookieToken (cookieHeader: string | undefined, cookieName
   if (tokenCookie === undefined) return undefined
   const value = tokenCookie.split('=').slice(1).join('=').trim()
   return value.length > 0 ? value : undefined
+}
+
+/**
+ * A human admin: the account signed in with an admin email. Service and system tokens are excluded
+ * even when they carry `admin: 'true'`, so a machine token can never pass an admin gate.
+ */
+export function isHumanAdmin (token: Pick<Token, 'account' | 'extra'>): boolean {
+  return token.extra?.admin === 'true' && token.account !== systemAccountUuid && token.extra?.service === undefined
+}
+
+/** Default lifetime of an `/admin` session opened with a second factor. */
+export const ADMIN_SESSION_TTL_SEC = parseInt(process.env.ADMIN_SESSION_TTL_SEC ?? '43200')
+
+/**
+ * True while the token carries a second factor (`extra.mfaAt`, seconds since epoch) stamped less
+ * than `ttlSec` ago. Stateless: pods gate management endpoints on it without an account DB.
+ */
+export function hasAdminSession (token: Pick<Token, 'extra'>, ttlSec: number = ADMIN_SESSION_TTL_SEC): boolean {
+  const mfaAt = token.extra?.mfaAt
+  if (mfaAt == null) return false
+  const at = typeof mfaAt === 'number' ? mfaAt : parseInt(String(mfaAt))
+  return Number.isFinite(at) && Math.floor(Date.now() / 1000) - at <= ttlSec
 }

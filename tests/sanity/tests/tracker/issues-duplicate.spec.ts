@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { NewIssue } from '../model/tracker/types'

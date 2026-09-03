@@ -5,45 +5,26 @@
 // you may not use this file except in compliance with the License. You may
 // obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
 //
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 
-import { expect, test, type Page } from '@playwright/test'
-import { PlatformURI } from '../utils'
-import { closeMeetingContexts, waitForActiveMeetingsToFinish } from './meeting-helpers'
+import { expect, test } from '@playwright/test'
 
-const meetingsWs = 'meetings-ws'
-
-async function openLove (page: Page): Promise<void> {
-  await (await page.goto(`${PlatformURI}/workbench/${meetingsWs}/love`))?.finished()
-  await expect(page.locator('div.floorGrid')).toBeVisible({ timeout: 15000 })
-}
-
-async function waitConnected (page: Page): Promise<void> {
-  await expect(page.locator('[data-id="meeting-widget"]')).toBeVisible({ timeout: 60000 })
-}
+import { closeMeetingContexts, loveWindow, waitConnected, waitForActiveMeetingsToFinish } from './meeting-helpers'
 
 /**
- * Reverse-call (client-side create) scenario: caller is NOT in a meeting yet.
- * Both users are online and have personal offices on the floor.
- * Caller clicks the recipient's avatar (rendered inside the recipient's
- * personal office cell), opens the PersonActionPopup and presses the
- * "Invite" action — this sends an invite without a meeting reference.
- *
- * Per docs/knock.md, the **caller's client** creates the MeetingMinutes
- * once it observes invite-request.status='accepted' (server trigger does
- * NOT create the meeting). The server-trigger only syncs status between
- * invite-request and invite-response.
- *   - Caller-client creates MeetingMinutes in its own office, pushes
- *     recipient as member, connects.
- *   - Recipient-client live-queries MeetingMinutes (members ⊇ [me, from],
- *     roomId === from's office) and auto-joins.
+ * Reverse call: the caller is in no meeting yet and invites from the recipient's office cell.
+ * Per docs/knock.md the caller's client creates the MeetingMinutes on `accepted`, not the trigger.
  */
 export function registerClientCreateTests (): void {
   test.describe('meeting minutes - client-side create on accept', () => {
     test.beforeEach(async () => {
-      // Drain stale Active/Pending MeetingMinutes from previous specs so the
-      // caller-side create sees a clean state (otherwise the caller's office
-      // may already have an unfinished MeetingMinutes that breaks the
-      // auto-join sync).
+      // A leftover meeting in the caller's office breaks the auto-join sync.
       await waitForActiveMeetingsToFinish()
     })
 
@@ -54,26 +35,18 @@ export function registerClientCreateTests (): void {
 
       // Caller = storageSecond (Dirak Kainin), Recipient = storageThird
       // (Muram Muffin). Both have a personal Office in the seeded floor.
-      const callerCtx = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const recipientCtx = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const caller = await callerCtx.newPage()
-      const recipient = await recipientCtx.newPage()
+      const { ctx: callerCtx, page: caller } = await loveWindow(browser, 'second')
+      const { ctx: recipientCtx, page: recipient } = await loveWindow(browser, 'third')
 
       try {
         // Recipient logs in first so they appear "online" — their avatar in
         // the office cell is what the caller will click.
-        await openLove(recipient)
-        await openLove(caller)
 
-        // Caller clicks the Muram avatar inside Muram's office. The avatar
-        // is rendered at the office's (0,0) seat. PersonActionPopup opens
-        // with the Invite action.
+        // The avatar sits at the office's (0,0) seat and opens PersonActionPopup with Invite.
         const muramOffice = caller.locator('div.floorGrid-room').filter({ hasText: /Muram/i }).first()
         await expect(muramOffice).toBeVisible({ timeout: 15000 })
 
-        // The avatar is the first cell inside the office grid. Hovering
-        // makes it visible (online users are always shown — see
-        // RoomPreview.svelte). Click the avatar cell.
+        // Hovering reveals the cell; online users are always shown.
         const avatarCell = muramOffice.locator('.floorGrid-room__field').first()
         await avatarCell.hover()
         await avatarCell.click()
@@ -91,10 +64,8 @@ export function registerClientCreateTests (): void {
         await expect(popup).toBeVisible({ timeout: 5000 })
         await recipient.locator('[data-id="invite-join"]').click()
 
-        // Both sides must auto-join the same LiveKit room: caller via the
-        // invite-request sync (checkAndJoinIfRecipientJoined), recipient via
-        // the invite-response patched with `meeting`
-        // (checkAndJoinIfRecipientAccepted).
+        // Caller joins via the invite-request sync, recipient via the invite-response patched
+        // with `meeting`.
         await waitConnected(caller)
         await waitConnected(recipient)
 

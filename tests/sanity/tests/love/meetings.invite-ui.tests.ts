@@ -5,21 +5,23 @@
 // you may not use this file except in compliance with the License. You may
 // obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
 //
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 
 import { expect, test, type Page } from '@playwright/test'
-import { PlatformURI } from '../utils'
-import { closeMeetingContexts, waitForActiveMeetingsToFinish } from './meeting-helpers'
 
-const meetingsWs = 'meetings-ws'
-
-async function openLove (page: Page): Promise<void> {
-  await (await page.goto(`${PlatformURI}/workbench/${meetingsWs}/love`))?.finished()
-  await expect(page.locator('div.floorGrid')).toBeVisible({ timeout: 15000 })
-}
-
-async function waitConnected (page: Page): Promise<void> {
-  await expect(page.locator('[data-id="meeting-widget"]')).toBeVisible({ timeout: 60000 })
-}
+import {
+  closeMeetingContexts,
+  loveWindow,
+  startOrJoin,
+  waitConnected,
+  waitForActiveMeetingsToFinish
+} from './meeting-helpers'
 
 async function clickFirstMeetingRoom (page: Page): Promise<void> {
   const room = page
@@ -28,12 +30,6 @@ async function clickFirstMeetingRoom (page: Page): Promise<void> {
     .first()
   await expect(room).toBeVisible({ timeout: 15000 })
   await room.click()
-}
-
-async function startOrJoin (page: Page): Promise<void> {
-  const connect = page.locator('[data-id="meeting-connect"]').first()
-  await expect(connect).toBeVisible({ timeout: 10000 })
-  await connect.click()
 }
 
 async function inviteByLastName (page: Page, lastName: string): Promise<void> {
@@ -69,13 +65,9 @@ export function registerInviteUiTests (): void {
 
     test('A1 invite labels: sender → "You are inviting", recipient → "Knocking"', async ({ browser }) => {
       test.setTimeout(60000)
-      const ctx2 = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const ctx3 = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const page2 = await ctx2.newPage()
-      const page3 = await ctx3.newPage()
+      const { ctx: ctx2, page: page2 } = await loveWindow(browser, 'second')
+      const { ctx: ctx3, page: page3 } = await loveWindow(browser, 'third')
       try {
-        await openLove(page2)
-        await openLove(page3)
         await clickFirstMeetingRoom(page2)
         await startOrJoin(page2)
         await waitConnected(page2)
@@ -101,13 +93,9 @@ export function registerInviteUiTests (): void {
 
     test('A1 popup: recipient sees "asking you to join" + Join/Reject buttons', async ({ browser }) => {
       test.setTimeout(60000)
-      const ctx2 = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const ctx3 = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const page2 = await ctx2.newPage()
-      const page3 = await ctx3.newPage()
+      const { ctx: ctx2, page: page2 } = await loveWindow(browser, 'second')
+      const { ctx: ctx3, page: page3 } = await loveWindow(browser, 'third')
       try {
-        await openLove(page2)
-        await openLove(page3)
         await clickFirstMeetingRoom(page2)
         await startOrJoin(page2)
         await waitConnected(page2)
@@ -133,13 +121,9 @@ export function registerInviteUiTests (): void {
 
     test('A1 sender popup: clicking trigger opens outgoing-invite-popup with Cancel', async ({ browser }) => {
       test.setTimeout(60000)
-      const ctx2 = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const ctx3 = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const page2 = await ctx2.newPage()
-      const page3 = await ctx3.newPage()
+      const { ctx: ctx2, page: page2 } = await loveWindow(browser, 'second')
+      const { ctx: ctx3, page: page3 } = await loveWindow(browser, 'third')
       try {
-        await openLove(page2)
-        await openLove(page3)
         await clickFirstMeetingRoom(page2)
         await startOrJoin(page2)
         await waitConnected(page2)
@@ -162,14 +146,9 @@ export function registerInviteUiTests (): void {
 
     test('A2 awaiting panel: recipient sees "Waiting for ..." after accept w/o meeting', async ({ browser }) => {
       test.setTimeout(60000)
-      const callerCtx = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const recipientCtx = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const caller = await callerCtx.newPage()
-      const recipient = await recipientCtx.newPage()
+      const { ctx: callerCtx, page: caller } = await loveWindow(browser, 'second')
+      const { ctx: recipientCtx, page: recipient } = await loveWindow(browser, 'third')
       try {
-        await openLove(recipient)
-        await openLove(caller)
-
         await callPerson(caller, /Muram/i)
 
         const incoming = recipient.locator('[data-id="incoming-invite-trigger"]')
@@ -179,13 +158,10 @@ export function registerInviteUiTests (): void {
         await expect(popup).toBeVisible({ timeout: 5000 })
         await recipient.locator('[data-id="invite-join"]').click()
 
-        // Right after accept the meeting is created by the caller's client.
-        // Recipient should briefly see the awaiting-meeting trigger before
-        // auto-joining via the live-query on MeetingMinutes.
+        // The caller's client creates the meeting, so the recipient may flash the awaiting
+        // trigger before auto-joining.
         const awaiting = recipient.locator('[data-id="awaiting-meeting-trigger"]')
-        // Either the awaiting trigger flashed in OR the recipient is already
-        // in the meeting — both are valid endpoints; we mainly test that no
-        // stale incoming-invite-trigger lingers.
+        // Both endpoints are valid; what matters is that no stale incoming trigger lingers.
         const settled = Promise.race([
           awaiting.waitFor({ state: 'visible', timeout: 5000 }).then(() => 'awaiting'),
           recipient
@@ -206,13 +182,9 @@ export function registerInviteUiTests (): void {
 
     test('A decline → call-declined toast on sender; both triggers go away', async ({ browser }) => {
       test.setTimeout(60000)
-      const ctx2 = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const ctx3 = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const page2 = await ctx2.newPage()
-      const page3 = await ctx3.newPage()
+      const { ctx: ctx2, page: page2 } = await loveWindow(browser, 'second')
+      const { ctx: ctx3, page: page3 } = await loveWindow(browser, 'third')
       try {
-        await openLove(page2)
-        await openLove(page3)
         await clickFirstMeetingRoom(page2)
         await startOrJoin(page2)
         await waitConnected(page2)
@@ -237,13 +209,9 @@ export function registerInviteUiTests (): void {
 
     test('A cancel by sender → recipient incoming disappears', async ({ browser }) => {
       test.setTimeout(60000)
-      const ctx2 = await browser.newContext({ storageState: '.auth/storageSecond.json' })
-      const ctx3 = await browser.newContext({ storageState: '.auth/storageThird.json' })
-      const page2 = await ctx2.newPage()
-      const page3 = await ctx3.newPage()
+      const { ctx: ctx2, page: page2 } = await loveWindow(browser, 'second')
+      const { ctx: ctx3, page: page3 } = await loveWindow(browser, 'third')
       try {
-        await openLove(page2)
-        await openLove(page3)
         await clickFirstMeetingRoom(page2)
         await startOrJoin(page2)
         await waitConnected(page2)

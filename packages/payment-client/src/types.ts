@@ -19,7 +19,8 @@ import type { AccountUuid, WorkspaceUuid } from '@hcengineering/core'
 export enum SubscriptionType {
   Tier = 'tier', // Main workspace tier (free, starter, pro, enterprise)
   Support = 'support', // Voluntary support/donation subscription
-  Package = 'package' // Additional package (storage, etc.)
+  Package = 'package', // Additional package (storage, etc.)
+  Purchase = 'purchase' // One-time catalog purchase (AI usage reset, skins, unlocks) — not a limit-granting subscription
 }
 
 export enum SubscriptionStatus {

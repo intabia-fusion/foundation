@@ -21,6 +21,7 @@
   import { AnyAttribute, TypeNumber } from '@hcengineering/core'
 
   export let label: IntlString
+  export let placeholder: IntlString = label
   export let value: number | undefined
   export let autoFocus: boolean = false
   export let attribute: AnyAttribute | undefined = undefined
@@ -72,7 +73,8 @@
       {#if value != null}
         <span class="caption-color overflow-label pointer-events-none">{value}</span>
       {:else}
-        <span class="content-dark-color pointer-events-none"><Label {label} /></span>
+        <span class="content-dark-color overflow-label pointer-events-none"><Label label={placeholder ?? label} /></span
+        >
       {/if}
     </svelte:fragment>
   </Button>
@@ -80,11 +82,11 @@
   {#if value != null}
     <span class="caption-color overflow-label">{value}</span>
   {:else}
-    <span class="content-dark-color"><Label {label} /></span>
+    <span class="content-dark-color"><Label label={placeholder ?? label} /></span>
   {/if}
 {:else}
   <EditBox
-    placeholder={label}
+    placeholder={placeholder ?? label}
     bind:value
     format={'number'}
     {autoFocus}

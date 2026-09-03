@@ -67,12 +67,11 @@ export async function shutdown (): Promise<void> {
 }
 
 /**
- * Host-side defaults for the local stand (tests/docker-compose.yaml).
- * Workspace data and the account DB live on different servers there:
- * transactor uses cockroach, account uses pure postgres.
+ * Host-side defaults for the ws-tests stand. Regions and services share one postgres, each in its own
+ * database (ws-tests/postgres-init): workspace data is in region_main, account in postgres.
  */
 const DEFAULTS = {
-  DB_URL: 'postgresql://root@localhost:26258/defaultdb?sslmode=disable',
+  DB_URL: 'postgresql://postgres:postgres@localhost:5433/region_main',
   ACCOUNT_DB_URL: 'postgresql://postgres:postgres@localhost:5433/postgres',
   ACCOUNTS_URL: 'http://localhost:8083/_account',
   STORAGE_CONFIG: 'datalake|http://localhost:8083/_datalake',

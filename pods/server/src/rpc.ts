@@ -21,6 +21,7 @@ import core, {
   type SearchQuery,
   type TxCUD,
   type TxDomainEvent,
+  type TxMeta,
   type DocumentUpdate,
   type Mixin,
   type MixinData,
@@ -345,6 +346,7 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
         id?: Ref<any>
         modifiedOn?: Timestamp
         modifiedBy?: PersonId
+        meta?: TxMeta
       } = (await retrieveJson(req)) ?? {}
 
       const pid = session.getRawAccount().primarySocialId
@@ -360,7 +362,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
           request.attributes,
           request.id ?? generateId(),
           request.modifiedOn,
-          request.modifiedBy ?? pid
+          request.modifiedBy ?? pid,
+          request.meta
         ),
         rateLimitToHeaders(rateLimit)
       )
@@ -379,6 +382,7 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
         id?: Ref<any>
         modifiedOn?: Timestamp
         modifiedBy?: PersonId
+        meta?: TxMeta
       } = (await retrieveJson(req)) ?? {}
 
       const pid = session.getRawAccount().primarySocialId
@@ -397,7 +401,8 @@ export function registerRPC (app: Express, sessions: SessionManager, ctx: Measur
           request.attributes,
           request.id ?? generateId(),
           request.modifiedOn,
-          request.modifiedBy ?? pid
+          request.modifiedBy ?? pid,
+          request.meta
         ),
         rateLimitToHeaders(rateLimit)
       )
@@ -749,7 +754,7 @@ function createClosingSocket (
     close: () => {
       rpcSessions.delete(rawToken)
     },
-    send: async (ctx, msg, binary, compression) => {},
+    send: async (ctx, msg, binary, compression, memo) => {},
     isBackpressure: () => false,
     backpressure: async (ctx) => {},
     sendPong: () => {},

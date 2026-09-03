@@ -24,7 +24,7 @@
     "HaveAccount": "すでにアカウントをお持ちですか？",
     "LoadingAccount": "読み込み中...",
     "SelectWorkspace": "ワークスペースを選択",
-"CommunityEdition": "体験版",
+    "CommunityEdition": "体験版",
     "Copy": "コピー",
     "Copied": "コピーしました",
     "Close": "閉じる",
@@ -106,6 +106,13 @@
     "ExpiredLink": "この招待リンクは有効期限が切れています",
     "ExpiredLinkDescription": "新しい招待リンクをリクエストしてください",
     "UsageConditions": "利用規約",
-    "IntabiaFusion": "Intabia Fusion"
+    "IntabiaFusion": "Intabia Fusion",
+    "Continue": "続ける",
+    "AlreadyRegistered": "すでにプラットフォームに登録されています",
+    "RegistrationComplete": "登録が完了しました",
+    "RegistrationCompleteHint": "自分のワークスペースを作成するか、既存のワークスペースの所有者にアクセスリンクを依頼してください。",
+    "CheckingLink": "リンクを確認しています...",
+    "InvalidLink": "このリンクは無効です",
+    "ConfirmationFailed": "登録を完了できませんでした"
   }
 }

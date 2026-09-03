@@ -14,7 +14,7 @@
 //
 
 import { type MeasureContext } from '@hcengineering/measurements'
-import { type Response, type Request } from '@hcengineering/rpc'
+import { type RPCHandler, type Response, type Request } from '@hcengineering/rpc'
 
 /**
  * @public
@@ -51,6 +51,8 @@ export enum ClientSocketReadyState {
 
 export interface ClientFactoryOptions {
   socketFactory?: ClientSocketFactory
+  // Wire formats to offer at hello, best first; the server picks one and confirms it.
+  formats?: string[]
   connectionTimeout?: number
   onHello?: (serverVersion?: string) => boolean
   onError?: (err: any) => void
@@ -99,6 +101,113 @@ export const FRAME_OP_STATUS = 8 // Server -> Client: operation status check (pa
 
 export const callbackMethod = '##'
 export const FRAME_OP_STATUS_RESP = 9 // Client -> Server: operation status response (payload: { id: string, executing: boolean })
+// Data frame in the format agreed at hello: [FRAME_DATA][compressed 0|1][body].
+// Legacy peers know nothing about it and keep exchanging FRAME_MSGPACK / FRAME_MSGPACK_SNAPPY.
+export const FRAME_DATA = 10
+
+/**
+ * Wire format of a connection: how messages are encoded and whether they are compressed.
+ * Written as a `codec/compression` token on the wire - `json/snappy`, `msgpack`, `cbor/gzip`.
+ */
+export interface WireFormat {
+  codec: string
+  compression: string
+}
+
+/**
+ * How one codec turns messages into frame bodies. Adding a codec means adding an entry here
+ * and listing it in `defaultFormats`; nothing else in the protocol changes.
+ */
+export interface WireCodec {
+  encode: (handler: RPCHandler, msg: Request<any> | Response<any>) => Uint8Array
+  decodeResponse: (handler: RPCHandler, body: Uint8Array) => Response<any>
+  decodeRequest: (handler: RPCHandler, body: Uint8Array) => Request<any>
+}
+
+// JSON arrives as text: readRequest/readResponse call toString() on what they get, and a raw
+// Uint8Array would stringify to comma-separated byte values.
+const asText = (body: Uint8Array): string => new TextDecoder().decode(body)
+
+const codecs: Record<string, WireCodec> = {
+  msgpack: {
+    encode: (handler, msg) => new Uint8Array(handler.serialize(msg, true)),
+    decodeResponse: (handler, body) => handler.readResponse<any>(body, true),
+    decodeRequest: (handler, body) => handler.readRequest<any[]>(body, true)
+  },
+  json: {
+    encode: (handler, msg) => new TextEncoder().encode(handler.serialize(msg, false)),
+    decodeResponse: (handler, body) => handler.readResponse<any>(asText(body), false),
+    decodeRequest: (handler, body) => handler.readRequest<any[]>(asText(body), false)
+  }
+}
+
+// Null prototype: a format id arrives from the peer, and `wireCodecs.constructor` must not
+// resolve to a function that has no `encode`.
+export const wireCodecs: Record<string, WireCodec> = Object.assign(Object.create(null), codecs)
+
+export const supportedCompressions = ['snappy', 'none']
+
+// A peer that predates negotiation sends no format list and speaks only this.
+export const legacyWireFormat: WireFormat = { codec: 'msgpack', compression: 'snappy' }
+
+// Offered in preference order when the caller names nothing.
+export const defaultFormats = ['json/snappy', 'json', 'msgpack/snappy', 'msgpack']
+
+export function formatId (format: WireFormat): string {
+  return format.compression === 'none' ? format.codec : `${format.codec}/${format.compression}`
+}
+
+export function parseFormatId (id: string): WireFormat | undefined {
+  const parts = id.split('/')
+  const [codec, compression = 'none'] = parts
+  if (parts.length > 2 || wireCodecs[codec] === undefined || !supportedCompressions.includes(compression)) {
+    return undefined
+  }
+  return { codec, compression }
+}
+
+/** First offer this build can speak; the legacy format when the peer offers nothing usable. */
+export function negotiateFormat (offered: string[] | undefined): WireFormat {
+  for (const id of offered ?? []) {
+    const format = parseFormatId(id)
+    if (format !== undefined) {
+      return format
+    }
+  }
+  return legacyWireFormat
+}
+
+/**
+ * msgpack keeps its own frame codes so a legacy peer keeps reading what it always read; every
+ * other codec rides the format-agnostic FRAME_DATA.
+ */
+export function dataFrameType (format: WireFormat, compressed: boolean): number {
+  if (format.codec === 'msgpack') {
+    return compressed ? FRAME_MSGPACK_SNAPPY : FRAME_MSGPACK
+  }
+  return FRAME_DATA
+}
+
+/** Splits an incoming data frame, or `undefined` when the type is not a data frame. */
+export function readDataFrame (
+  frame: Uint8Array,
+  format: WireFormat
+): { codec: string, compressed: boolean, body: Uint8Array } | undefined {
+  const ft = frame[0]
+  if (ft === FRAME_MSGPACK || ft === FRAME_MSGPACK_SNAPPY) {
+    return { codec: 'msgpack', compressed: ft === FRAME_MSGPACK_SNAPPY, body: frame.subarray(1) }
+  }
+  if (ft === FRAME_DATA) {
+    return { codec: format.codec, compressed: frame[1] === 1, body: frame.subarray(2) }
+  }
+  return undefined
+}
+
+// `{` - a msgpack body never starts with 0x7b (that byte is the number 123, not a map), so the
+// hello encoding can be sniffed instead of agreed. Needed for peers with no msgpack at all.
+export function isJsonBody (body: Uint8Array): boolean {
+  return body[0] === 0x7b
+}
 
 /**
  * Binary frame format:
@@ -259,6 +368,8 @@ export interface HelloRequest extends Request<any[]> {
   token: string
   sessionId?: string
   clientHost?: string
+  // Wire formats the client can speak, best first. Absent = the peer predates negotiation.
+  formats?: string[]
 }
 /**
  * @public
@@ -267,6 +378,8 @@ export interface HelloResponse extends Response<any> {
   reconnect?: boolean
   serverVersion: string
   sessionId: string // A sessionid to reconnect
+  // The format the server picked. Absent from a server that predates negotiation.
+  format?: string
 }
 
 /**
@@ -283,6 +396,9 @@ export interface ConnectionSocket {
 
   sendPong: () => void
   data: () => Record<string, any>
+
+  // Agreed during hello; `send` frames outgoing messages with it.
+  format: WireFormat
 
   readRequest: (buffer: Buffer, binary: boolean) => Request<any>
 

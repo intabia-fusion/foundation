@@ -66,3 +66,12 @@ export interface TranscriptionTask {
   /** Placeholder message ID for pending transcription (created when speech starts) */
   placeholderMessageId?: string
 }
+
+/** Deferred summary work - both the automatic one after a meeting and the manual button. */
+export interface SummaryTask {
+  target: string
+  targetClass: string
+  /** Manual run: no wait for the transcript tail, no settings/idempotency gate, explicit language. */
+  manual?: boolean
+  lang?: string
+}

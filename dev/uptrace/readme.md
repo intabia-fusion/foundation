@@ -22,6 +22,6 @@ Contains charts for:
 - db.query.duration histograms: p50/p95/p99 by op, by domain, slow ops table
 - request / loadModel / startWorkspace / addSession in-flight
 - msg-receive-delta / msg-send-delta / receive-data
-- clientSendMemory
+- clientSendBytes
 
 Metrics `domainRequest` / `fulltext` removed from dashboard - they are created lazily on first call and may not exist at import time. Add them back manually once they have been emitted at least once.

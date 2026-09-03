@@ -14,7 +14,12 @@
 //
 
 import { createHash } from 'crypto'
-import TbankPayments, { TbankTransportError, TBANK_SUCCESS_STATES, TBANK_FAILED_STATES } from '../tbank'
+import TbankPayments, {
+  TbankTransportError,
+  TBANK_SUCCESS_STATES,
+  TBANK_FAILED_STATES,
+  describeFetchError
+} from '../tbank'
 
 // Every test drives the client through a stubbed global.fetch — no real network, no real terminal.
 // This is the only layer that exercises the actual request serialization / signature / response
@@ -259,6 +264,26 @@ describe('error contract', () => {
       TbankTransportError
     )
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('describeFetchError', () => {
+  test('unwraps the undici cause chain that hides the real reason behind "fetch failed"', () => {
+    const cause: any = new Error('getaddrinfo ENOTFOUND securepay.tinkoff.ru')
+    cause.code = 'ENOTFOUND'
+    const err: any = new TypeError('fetch failed')
+    err.cause = cause
+    expect(describeFetchError(err)).toBe('fetch failed <- ENOTFOUND getaddrinfo ENOTFOUND securepay.tinkoff.ru')
+  })
+
+  test('terminates on a self-referencing cause chain', () => {
+    const err: any = new Error('boom')
+    err.cause = err
+    expect(describeFetchError(err).split(' <- ')).toHaveLength(6)
+  })
+
+  test('falls back to String() for non-Error throws', () => {
+    expect(describeFetchError('plain string')).toBe('plain string')
   })
 })
 

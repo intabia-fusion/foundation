@@ -271,16 +271,16 @@ grid_rows:
     - avg($as{}) as addSession
     properties: []
     overrides: []
-  - title: clientSendMemory (MB)
-    description: Bytes buffered per client response (rough MB units)
+  - title: clientSendBytes
+    description: Real bytes on the wire per client response, after packing and compression
     width: 24
     height: 28
     y_axis: 28
     type: chart
     metrics:
-    - clientSendMemory as $csm
+    - clientSendBytes as $csb
     query:
-    - avg($csm{}) as avg_mb
+    - avg($csb{}) as avg_bytes
     properties: []
     overrides: []
 

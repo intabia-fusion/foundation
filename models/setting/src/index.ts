@@ -484,6 +484,10 @@ export function createModel (builder: Builder): void {
     editor: setting.component.EmployeeRefEditor
   })
 
+  builder.mixin(core.class.TypeMarkup, core.class.Class, view.mixin.ObjectEditor, {
+    editor: setting.component.MarkupTypeEditor
+  })
+
   builder.mixin(core.class.TypeNumber, core.class.Class, view.mixin.ObjectEditor, {
     editor: setting.component.NumberTypeEditor
   })

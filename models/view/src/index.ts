@@ -48,12 +48,14 @@ import {
   type Aggregation,
   type AllValuesFunc,
   type ArrayEditor,
+  type AttrApplier,
   type AttrPresenter,
   type AttributeCategory,
   type AttributeEditor,
   type AttributeFilter,
   type AttributeFilterPresenter,
   type AttributePresenter,
+  type AttributeApplierFn,
   type BaseQuery,
   type BuildModelKey,
   type ClassFilters,
@@ -94,6 +96,8 @@ import {
   type ObjectValidator,
   type PreviewPresenter,
   type ReferenceObjectProvider,
+  type ReferenceVersion,
+  type ReferenceVersionsProvider,
   type SortFunc,
   type SpaceHeader,
   type SpaceName,
@@ -107,7 +111,8 @@ import {
   type Viewlet,
   type ViewletDescriptor,
   type ViewletPreference,
-  type ViewletViewAction
+  type ViewletViewAction,
+  type DescendantAttribute
 } from '@hcengineering/view'
 
 import view from './plugin'
@@ -282,6 +287,11 @@ export class TReferenceObjectProvider extends TClass implements ReferenceObjectP
   provider!: Resource<<T extends Doc>(client: Client, ref: Ref<T>, doc?: T) => Promise<Doc | undefined>>
 }
 
+@Mixin(view.mixin.ReferenceVersionsProvider, core.class.Class)
+export class TReferenceVersionsProvider extends TClass implements ReferenceVersionsProvider {
+  provider!: Resource<<T extends Doc>(client: Client, ref: Ref<T>, doc?: T) => Promise<ReferenceVersion[]>>
+}
+
 @Mixin(view.mixin.ObjectTooltip, core.class.Class)
 export class TObjectTooltip extends TClass implements ObjectTooltip {
   provider!: Resource<(client: Client, doc?: Doc | null) => Promise<LabelAndProps | undefined>>
@@ -324,6 +334,7 @@ export class TViewletPreference extends TPreference implements ViewletPreference
   declare attachedTo: Ref<Viewlet>
   config!: (BuildModelKey | string)[]
   customAttributes?: string[]
+  descendantAttributes?: DescendantAttribute[]
 }
 
 @Model(view.class.ViewletDescriptor, core.class.Doc, DOMAIN_MODEL)
@@ -439,6 +450,13 @@ export class TAttrPresenter extends TDoc implements AttrPresenter {
   component!: AnyComponent
 }
 
+@Model(view.class.AttrApplier, core.class.Doc, DOMAIN_MODEL)
+export class TAttrApplier extends TDoc implements AttrApplier {
+  objectClass!: Ref<Class<Doc>>
+  key!: string
+  applier!: Resource<AttributeApplierFn>
+}
+
 @Mixin(view.mixin.CustomObjectLinkProvider, core.class.Class)
 export class TCustomObjectLinkProvider extends TClass implements CustomObjectLinkProvider {
   match!: Resource<(doc: Doc) => boolean>
@@ -491,13 +509,6 @@ export const showColorsViewOption: ViewOptionModel = {
   actionTarget: 'display',
   label: view.string.ShowColors
 }
-export const showDaysViewOption: ViewOptionModel = {
-  key: 'shouldShowDays',
-  type: 'toggle',
-  defaultValue: false,
-  actionTarget: 'display',
-  label: view.string.ShowDays
-}
 
 export function createModel (builder: Builder): void {
   builder.createModel(
@@ -545,9 +556,11 @@ export function createModel (builder: Builder): void {
     TGroupping,
     TObjectIdentifier,
     TReferenceObjectProvider,
+    TReferenceVersionsProvider,
     TObjectTooltip,
     TObjectIcon,
     TAttrPresenter,
+    TAttrApplier,
     TLinkIdProvider,
     TCustomObjectLinkProvider,
     TBaseQuery,

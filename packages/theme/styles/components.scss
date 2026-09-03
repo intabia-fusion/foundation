@@ -564,8 +564,13 @@
         min-height: var(--global-max-Size);
         border-bottom: 1px solid var(--global-subtle-ui-BorderColor);
 
-        &:first-child {
+
+        &:first-child:not(.no-top-border) {
           border-top: 1px solid var(--global-subtle-ui-BorderColor);
+        }
+
+        &.no-top-border {
+          border-top: 0;
         }
         .label {
           text-transform: uppercase;

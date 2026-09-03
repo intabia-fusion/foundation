@@ -14,6 +14,7 @@
 //
 
 import {
+  type Attribute,
   type Class,
   type ClassCollaborators,
   type Collaborator,
@@ -333,15 +334,20 @@ export function defineCollaborators<T extends Doc> (
     ...data
   })
 
-  builder.createDoc(core.class.Attribute, core.space.Model, {
-    name: 'collaborators',
-    attributeOf: _class,
-    type: Collection(core.class.Collaborator),
-    label: core.string.Collaborators,
-    activity: {
-      set: core.string.AddedCollaborator,
-      unset: core.string.RemovedCollaborator
+  builder.createDoc(
+    core.class.Attribute,
+    core.space.Model,
+    {
+      name: 'collaborators',
+      attributeOf: _class,
+      type: Collection(core.class.Collaborator),
+      label: core.string.Collaborators,
+      activity: {
+        set: core.string.AddedCollaborator,
+        unset: core.string.RemovedCollaborator
+      },
+      rank: ''
     },
-    rank: ''
-  })
+    `${_class}_collaborators` as Ref<Attribute<T>>
+  )
 }

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { NavigationMenuPage } from '../model/recruiting/navigation-menu-page'
 import { CompaniesPage } from '../model/recruiting/companies-page'

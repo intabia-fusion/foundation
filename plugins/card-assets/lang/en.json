@@ -81,7 +81,11 @@
     "SectionUnlocked": "Section {section} unlocked",
     "LayoutAuto": "Auto",
     "SingleColumn": "Single column",
+    "BaseType": "Base type",
+    "BaseTypeDescription": "Use this type as a parent only. Cards can be created only from its subtypes.",
     "TwoColumns": "Two columns",
-    "Grid": "Grid"
+    "Grid": "Grid",
+    "RichtextProperties": "Richtext Properties",
+    "ShowAllVersions": "Show all versions"
   }
 }

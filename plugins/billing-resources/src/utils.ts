@@ -133,17 +133,20 @@ export async function isLimitExceeded (): Promise<boolean> {
 
     const subscriptions = await accountClient.getSubscriptions(currentWorkspace(), false)
     const subscription = subscriptions.find((p) => p.type === SubscriptionType.Tier && grantsPlan(p))
-    const packageSubscription = subscriptions.find((p) => p.type === SubscriptionType.Package && grantsPlan(p))
+    const activePackages = subscriptions.filter((p) => p.type === SubscriptionType.Package && grantsPlan(p))
     if (subscription == null) {
       return true
     }
 
     const config = await getPlanConfig()
     const plan = config.plans[subscription.plan] ?? null
-    const pkg = packageSubscription != null ? (config.packages[packageSubscription.plan] ?? null) : null
     if (plan == null) {
       return true
     }
+    const packageSubscription = activePackages.find(
+      (p) => (config.packages[p.plan]?.category ?? 'storage') === 'storage'
+    )
+    const pkg = packageSubscription != null ? (config.packages[packageSubscription.plan] ?? null) : null
 
     return checkUsageAgainstLimits(usageInfo, plan, pkg ?? undefined, subscription, packageSubscription)
   } catch (error) {
@@ -165,14 +168,19 @@ export async function checkWorkspaceLimits (): Promise<void> {
 
     const subscriptions = await accountClient.getSubscriptions(currentWorkspace(), false)
     const subscription = subscriptions.find((p) => p.type === SubscriptionType.Tier && grantsPlan(p))
-    const packageSubscription = subscriptions.find((p) => p.type === SubscriptionType.Package && grantsPlan(p))
+    const activePackages = subscriptions.filter((p) => p.type === SubscriptionType.Package && grantsPlan(p))
     // Latest tier regardless of status — drives the payment/free banner even when canceled (non-granting).
     const statusTier = subscriptions
       .filter((p) => p.type === SubscriptionType.Tier)
       .sort((a, b) => (b.createdOn ?? 0) - (a.createdOn ?? 0))[0]
     const config = await getPlanConfig()
     const plan = subscription != null ? (config.plans[subscription.plan] ?? null) : null
+    const packageSubscription = activePackages.find(
+      (p) => (config.packages[p.plan]?.category ?? 'storage') === 'storage'
+    )
+    const aiPackageSubscription = activePackages.find((p) => config.packages[p.plan]?.category === 'ai')
     const pkg = packageSubscription != null ? (config.packages[packageSubscription.plan] ?? null) : null
+    const aiPkg = aiPackageSubscription != null ? (config.packages[aiPackageSubscription.plan] ?? null) : null
 
     // Update subscription store
     setSubscriptionState(
@@ -181,7 +189,9 @@ export async function checkWorkspaceLimits (): Promise<void> {
       workspaceInfo,
       packageSubscription,
       pkg ?? undefined,
-      statusTier
+      statusTier,
+      aiPackageSubscription,
+      aiPkg ?? undefined
     )
 
     // Check limits
@@ -285,7 +295,13 @@ export function resolveLocale (config: PlanConfig, lang: string): PlanConfig {
           description: resolve(p.description)
         }
       ])
-    )
+    ),
+    purchasables:
+      config.purchasables != null
+        ? Object.fromEntries(
+          Object.entries(config.purchasables).map(([k, p]) => [k, { ...p, description: resolve(p.description) }])
+        )
+        : undefined
   }
 }
 

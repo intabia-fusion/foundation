@@ -1,5 +1,6 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -22,9 +23,16 @@ import {
   tryMigrate
 } from '@hcengineering/model'
 import { DOMAIN_PREFERENCE } from '@hcengineering/preference'
-import view, { type Filter, type FilteredView, type ViewletPreference, viewId } from '@hcengineering/view'
+import view, { type Filter, type FilteredView, type Viewlet, type ViewletPreference, viewId } from '@hcengineering/view'
 import { getSocialIdFromOldAccount, getSocialKeyByOldAccount, getUniqueAccounts } from '@hcengineering/model-core'
-import core, { type AccountUuid, type PersonId } from '@hcengineering/core'
+import core, {
+  type AccountUuid,
+  type Class,
+  type Doc,
+  type PersonId,
+  type Ref,
+  DOMAIN_MODEL
+} from '@hcengineering/core'
 
 import { DOMAIN_VIEW } from '.'
 
@@ -243,6 +251,61 @@ async function migrateAccsInSavedFilters (client: MigrationClient): Promise<void
   client.logger.log('finished processing view filtered view accounts in filters ', {})
 }
 
+async function cleanupCustomAttributesPref (client: MigrationClient): Promise<void> {
+  const hierarchy = client.hierarchy
+  client.logger.log('processing cleanup of non-existent customAttributes in viewlet preferences', {})
+
+  const prefs = await client.find<ViewletPreference>(DOMAIN_PREFERENCE, {
+    _class: view.class.ViewletPreference
+  })
+
+  const modelViewlets = client.model.findAllSync<Viewlet>(view.class.Viewlet, {})
+  const dbViewlets = await client.find<Viewlet>(DOMAIN_MODEL, {
+    _class: view.class.Viewlet
+  })
+
+  const viewletAttachMap = new Map<Ref<Viewlet>, Ref<Class<Doc>>>()
+  for (const v of modelViewlets) {
+    if (v._id != null && v.attachTo != null) {
+      viewletAttachMap.set(v._id, v.attachTo)
+    }
+  }
+  for (const v of dbViewlets) {
+    if (v._id != null && v.attachTo != null) {
+      viewletAttachMap.set(v._id, v.attachTo)
+    }
+  }
+
+  for (const pref of prefs) {
+    if (pref.customAttributes == null || pref.customAttributes.length === 0) continue
+
+    let attachTo = viewletAttachMap.get(pref.attachedTo)
+    if (attachTo === undefined && hierarchy.hasClass(pref.attachedTo as unknown as Ref<Class<Doc>>)) {
+      attachTo = pref.attachedTo as unknown as Ref<Class<Doc>>
+    }
+
+    if (attachTo === undefined) continue
+
+    const validCustomAttributes = pref.customAttributes.filter((key) => {
+      const pos = key.lastIndexOf('.')
+      if (pos !== -1) {
+        const mixinClass = key.substring(0, pos) as Ref<Class<Doc>>
+        const attrName = key.substring(pos + 1)
+        return hierarchy.findAttribute(mixinClass, attrName) !== undefined
+      }
+      return hierarchy.findAttribute(attachTo, key) !== undefined
+    })
+
+    if (validCustomAttributes.length !== pref.customAttributes.length) {
+      await client.update(
+        DOMAIN_PREFERENCE,
+        { _id: pref._id },
+        { customAttributes: validCustomAttributes.length > 0 ? validCustomAttributes : undefined }
+      )
+    }
+  }
+}
+
 export const viewOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode): Promise<void> {
     await tryMigrate(mode, client, viewId, [
@@ -270,6 +333,11 @@ export const viewOperation: MigrateOperation = {
         state: 'accs-in-saved-filters',
         mode: 'upgrade',
         func: migrateAccsInSavedFilters
+      },
+      {
+        state: 'cleanup-non-existent-custom-attributes-v1',
+        mode: 'upgrade',
+        func: cleanupCustomAttributesPref
       }
     ])
   },

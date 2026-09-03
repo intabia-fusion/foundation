@@ -2,6 +2,7 @@ import { expect, Locator, Page } from '@playwright/test'
 import path from 'path'
 import { CalendarPage } from '../calendar-page'
 import { SocialLink } from './types'
+import { retry } from '../../retry'
 
 export class CommonRecruitingPage extends CalendarPage {
   readonly page: Page
@@ -120,13 +121,21 @@ export class CommonRecruitingPage extends CalendarPage {
     await this.chenRosamundPopupButton().click()
   }
 
+  // A fill into a still-mounting editor is dropped and Send then posts nothing, so confirm the
+  // comment landed. The count check keeps a retry from posting it twice.
   async addComment (comment: string): Promise<void> {
-    await this.inputComment().fill(comment)
-    await this.buttonSendComment().click()
+    const posted = this.textComment().filter({ hasText: comment })
+    await retry(async () => {
+      if ((await posted.count()) > 0) return
+      await this.inputComment().fill(comment)
+      await expect(this.inputComment()).toContainText(comment, { timeout: 3000 })
+      await this.buttonSendComment().click()
+      await expect(posted.first()).toBeVisible({ timeout: 5000 })
+    })
   }
 
   async checkCommentExist (comment: string): Promise<void> {
-    await expect(this.textComment().filter({ hasText: comment })).toBeVisible()
+    await expect(this.textComment().filter({ hasText: comment }).first()).toBeVisible()
   }
 
   async addAttachments (filePath: string): Promise<void> {

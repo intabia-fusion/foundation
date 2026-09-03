@@ -94,6 +94,8 @@ test.describe('Workspace Archive tests', () => {
       await page2.locator(`[id="${workspaceInfo.workspace}"]`).getByRole('button', { name: 'Unarchive' }).click()
 
       await page2.getByRole('button', { name: 'Ok' }).click()
+      // Unarchive is OTP-gated too since every workspace operation goes through adminOp.
+      await adminPage.confirmOtp()
       // Unarchive is async; poll Refresh until the mode flips back to active.
       await adminPage.waitWorkspaceMode(workspaceInfo.workspace, 'active')
     })

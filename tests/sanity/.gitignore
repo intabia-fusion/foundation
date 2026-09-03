@@ -3,3 +3,8 @@ test-results/*
 allure-report
 allure-results
 .auth
+browser-profiles
+.stats-started-at
+playwright-report.json
+runs
+step-report.ndjson

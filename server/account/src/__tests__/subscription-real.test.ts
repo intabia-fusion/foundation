@@ -14,6 +14,7 @@
 //
 
 import {
+  AccountRole,
   generateId,
   generateUuid,
   MeasureMetricsContext,
@@ -25,7 +26,7 @@ import {
 import { shutdownPostgres, type PostgresClientReference } from '@hcengineering/postgres'
 import { generateToken } from '@hcengineering/server-token'
 import { type PostgresAccountDB } from '../collections/postgres/postgres'
-import { getSubscriptionsByProvider, upsertSubscription } from '../serviceOperations'
+import { getSubscriptionsByProvider, upsertSubscription, upsertSubscriptionsBulk } from '../serviceOperations'
 import { SubscriptionStatus, SubscriptionType, type SubscriptionData } from '../types'
 import { createAccount } from '../utils'
 import { clearTables, openRealDb, realDbFlavors } from './realDbFlavors'
@@ -83,6 +84,8 @@ describe.each(realDbFlavors)('subscription-real [$flavor]', ({ flavor: dbFlavor,
       { url: 'sub-test-ws', name: 'Sub Test WS', allowGuestSignUp: true, allowReadOnlyGuest: true },
       { isDisabled: false, mode: 'active', versionMajor: 0, versionMinor: 7, versionPatch: 0 }
     )
+    // Owner of record: upsert falls back to it when a payload carries no accountUuid.
+    await crAccount.assignWorkspace(accountUuid, wsUuid, AccountRole.Owner)
   })
 
   afterAll(async () => {
@@ -193,6 +196,80 @@ describe.each(realDbFlavors)('subscription-real [$flavor]', ({ flavor: dbFlavor,
       expect(result).toHaveLength(2)
       const ids = result.map((r) => r.providerSubscriptionId).sort()
       expect(ids).toEqual(['p-tbank-active2', 'p-tbank-canceled2'].sort())
+    })
+
+    it('trialEndBefore: returns only trials that already ended, never those without a trialEnd', async () => {
+      const now = Date.now()
+      const DAY = 24 * 60 * 60 * 1000
+
+      for (const [id, trialEnd] of [
+        ['p-trial-expired', now - DAY],
+        ['p-trial-live', now + DAY],
+        ['p-trial-none', undefined]
+      ] as Array<[string, number | undefined]>) {
+        await upsertSubscription(
+          ctx,
+          crAccount,
+          branding,
+          paymentToken,
+          makeSub({
+            providerSubscriptionId: id,
+            provider: 'trial',
+            type: SubscriptionType.Tier,
+            status: SubscriptionStatus.Trialing,
+            trialEnd
+          })
+        )
+      }
+
+      const result = await getSubscriptionsByProvider(ctx, crAccount, branding, paymentToken, {
+        provider: 'trial',
+        statuses: [SubscriptionStatus.Trialing],
+        trialEndBefore: now
+      })
+
+      expect(result.map((r) => r.providerSubscriptionId)).toEqual(['p-trial-expired'])
+    })
+  })
+
+  describe('upsertSubscriptionsBulk', () => {
+    it('applies every entry and reports per-entry success', async () => {
+      const subs = [makeSub({ providerSubscriptionId: 'p-bulk-1' }), makeSub({ providerSubscriptionId: 'p-bulk-2' })]
+
+      const results = await upsertSubscriptionsBulk(ctx, crAccount, branding, paymentToken, { subscriptions: subs })
+
+      expect(results).toEqual(subs.map((s) => ({ id: s.id, ok: true })))
+      const stored = await getSubscriptionsByProvider(ctx, crAccount, branding, paymentToken, { provider: 'tbank' })
+      expect(stored.map((s) => s.providerSubscriptionId).sort()).toEqual(['p-bulk-1', 'p-bulk-2'])
+    })
+
+    it('fills accountUuid with the workspace owner when the caller omits it', async () => {
+      const sub = makeSub({ providerSubscriptionId: 'p-bulk-no-payer', provider: 'free' })
+      const { accountUuid: _omitted, ...noPayer } = sub
+
+      const results = await upsertSubscriptionsBulk(ctx, crAccount, branding, paymentToken, {
+        subscriptions: [noPayer]
+      })
+
+      expect(results).toEqual([{ id: sub.id, ok: true }])
+      const stored = await getSubscriptionsByProvider(ctx, crAccount, branding, paymentToken, { provider: 'free' })
+      expect(stored[0].accountUuid).toBe(accountUuid)
+    })
+
+    it('is best-effort: a failing entry does not stop the rest', async () => {
+      const good = makeSub({ providerSubscriptionId: 'p-bulk-ok' })
+      // Unknown workspace fails the existence check inside the upsert.
+      const bad = makeSub({ providerSubscriptionId: 'p-bulk-bad', workspaceUuid: generateUuid() as WorkspaceUuid })
+
+      const results = await upsertSubscriptionsBulk(ctx, crAccount, branding, paymentToken, {
+        subscriptions: [bad, good]
+      })
+
+      expect(results[0]).toEqual(expect.objectContaining({ id: bad.id, ok: false }))
+      expect(results[1]).toEqual({ id: good.id, ok: true })
+
+      const stored = await getSubscriptionsByProvider(ctx, crAccount, branding, paymentToken, { provider: 'tbank' })
+      expect(stored.map((s) => s.providerSubscriptionId)).toEqual(['p-bulk-ok'])
     })
   })
 

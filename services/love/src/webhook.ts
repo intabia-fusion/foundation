@@ -21,7 +21,7 @@ import { getRecordingPreset } from './preset'
 import { saveFile } from './storage'
 import { WorkspaceClient } from './workspaceClient'
 import platform, { PlatformError } from '@hcengineering/platform'
-import { getRoomName, parseParticipantMetadata } from './utils'
+import { getRoomName, parseParticipantMetadata, updateMetadata } from './utils'
 
 export class WebhookProcessor {
   constructor (
@@ -197,7 +197,7 @@ export class WebhookProcessor {
     if (!(personRef === undefined)) {
       await wsClient.removeParticipantFromLiveKit(roomName.meetingId, personRef, participant.sid)
       await this.eventProducer.send(this.ctx, roomName.workspace, [
-        queueEvents.personJoined(roomName.meetingId, personRef, participant.identity ?? '')
+        queueEvents.personLeft(roomName.meetingId, personRef, participant.identity ?? '')
       ])
 
       // Track participant session duration for billing
@@ -215,25 +215,15 @@ export class WebhookProcessor {
         )
       }
 
-      // Office owner left -> close the LiveKit room; remaining participants get their own participant_left webhook.
+      // The owner's F5 also reaches LiveKit as a plain leave, so the room is not closed here.
+      // Polling compares this stamp against live participants and closes the room if they stay gone.
       const meetingDoc = await wsClient.findMeetingById(roomName.meetingId)
       if (meetingDoc?.roomId !== undefined) {
         const officeOwner = await wsClient.findOfficeOwner(meetingDoc.roomId)
         if (officeOwner !== undefined && officeOwner === personRef) {
-          const lkRoomName = getRoomName(roomName.workspace, roomName.meetingId)
-          try {
-            await this.roomClient.deleteRoom(lkRoomName)
-            this.ctx.info('[Webhook] Owner office left, closed LiveKit room', {
-              meeting: roomName.meetingId,
-              owner: personRef,
-              lkRoomName
-            })
-          } catch (err: any) {
-            this.ctx.warn('[Webhook] Failed to close LiveKit room on owner-leave', {
-              error: err?.message ?? String(err),
-              lkRoomName
-            })
-          }
+          await updateMetadata(this.ctx, this.roomClient, getRoomName(roomName.workspace, roomName.meetingId), {
+            ownerLeftAt: Date.now()
+          })
         }
       }
     }
@@ -355,7 +345,11 @@ export class WebhookProcessor {
       // Find and remove PendingRecording first (do this regardless of file save result)
       const pendingRecording = await wsClient.findPendingRecordingByEgressId(egressId)
       if (pendingRecording !== undefined) {
-        await wsClient.updateMeetingRecordingState(meeting, RecordingState.Finished)
+        // `recordingState` tracks the video recording only: the audio (transcription) egress ends
+        // on its own schedule and used to clear the flag while the video egress kept writing.
+        if (pendingRecording.format === 'video') {
+          await wsClient.updateMeetingRecordingState(meeting, RecordingState.Finished)
+        }
         await wsClient.removePendingRecording(pendingRecording)
         this.ctx.info('[Webhook] Removed PendingRecording after egress ended', {
           egressId,

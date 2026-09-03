@@ -15,8 +15,9 @@
 
 import { Readable } from 'stream'
 import { isWorkspaceLoginInfo } from '@hcengineering/account-client'
-import {
+import aiBot, {
   AIEventRequest,
+  type AISpaceSettings,
   ConnectMeetingRequest,
   DisconnectMeetingRequest,
   IdentityResponse,
@@ -27,11 +28,13 @@ import {
   TranslateRequest,
   TranslateResponse
 } from '@hcengineering/ai-bot'
-import {
+import core, {
   AccountUuid,
   MeasureContext,
   PersonId,
+  type Doc,
   Ref,
+  type Space,
   SocialId,
   SortingOrder,
   toIdMap,
@@ -44,17 +47,19 @@ import chunter, { ChatMessage } from '@hcengineering/chunter'
 import { getAccountClient, getTransactorEndpointEx } from '@hcengineering/server-client'
 import { generateToken } from '@hcengineering/server-token'
 import { htmlToMarkup, jsonToHTML, jsonToMarkup, markupToJSON } from '@hcengineering/text'
-import { createLLMFromConfig, type LLMProvider } from './llms'
+import { createDefaultProvider, createProvidersFromRegistry, type LLMProvider } from './llms'
 import { ClisrServer } from '@intabiafusion/clisr'
 
 import { ConsumerControl, PlatformQueueProducer, StorageAdapter } from '@hcengineering/server-core'
 import { buildStorageFromConfig, storageConfigFrom } from '@hcengineering/server-storage'
-import config from './config'
-import { TranscriptionTask } from './types'
+import config, { type AILevel, type AILevelFeatures } from './config'
+import { type SummaryTask, TranscriptionTask } from './types'
 import { v4 as uuid } from 'uuid'
 import { markdownToMarkup, markupToMarkdown } from '@hcengineering/text-markdown'
 import { tryAssignToWorkspace } from './utils/account'
 import { LimitsState } from './limits'
+import { PoolLimits } from './billing'
+import { resolveModel, registryForFeature } from './llms/modelRegistry'
 import { ApiError } from './server/error'
 /* LLM helpers moved to ./llm; use provider methods on `this.llm` instead */
 import { WorkspaceClient } from './workspace/workspaceClient'
@@ -90,6 +95,21 @@ export interface SessionRecordingMetadata {
   size: number
 }
 
+// Poll the transcript counter after a meeting ends: the last STT chunks land seconds later.
+const TRANSCRIPT_SETTLE_ATTEMPTS = 6
+const TRANSCRIPT_SETTLE_DELAY = 5000
+
+/** Auto-summary runs by default; only an explicit `false` in the settings turns it off. */
+export function shouldAutoSummarize (
+  meeting: Pick<MeetingMinutes, 'summary' | 'transcription'>,
+  forSpace?: Pick<AISpaceSettings, 'meetingSummary'>,
+  wsDefault?: Pick<AISpaceSettings, 'meetingSummary'>
+): boolean {
+  if (meeting.summary != null) return false
+  if ((meeting.transcription ?? 0) === 0) return false
+  return forSpace?.meetingSummary ?? wsDefault?.meetingSummary ?? true
+}
+
 export class AIControl {
   private readonly workspaces: Map<WorkspaceUuid, WorkspaceClient> = new Map<WorkspaceUuid, WorkspaceClient>()
   private readonly connectingWorkspaces = new Map<WorkspaceUuid, Promise<void>>()
@@ -100,9 +120,12 @@ export class AIControl {
   // Chunk storage adapter
   readonly chunkStorageAdapter: StorageAdapter
   private transcriptionProducer: PlatformQueueProducer<TranscriptionTask> | undefined
+  private summaryProducer: PlatformQueueProducer<SummaryTask> | undefined
 
-  private llm?: LLMProvider
+  private llm?: LLMProvider // default provider, used by service ops (translate/summarize)
+  private providers = new Map<string, LLMProvider>() // per-provider, keyed by provider id (= topic suffix)
   private limitsState?: LimitsState
+  private poolLimits?: PoolLimits
 
   constructor (
     readonly personUuid: AccountUuid,
@@ -117,15 +140,42 @@ export class AIControl {
    * Initialize LLM provider. Can be called after construction to pass ClisrServer for server provider.
    */
   initLLM (clisrServer?: ClisrServer): void {
-    this.llm = createLLMFromConfig(this.ctx, clisrServer)
+    this.providers = createProvidersFromRegistry(this.ctx, clisrServer)
+    this.llm = createDefaultProvider(this.ctx, clisrServer, this.providers)
+  }
+
+  /** All provider ids in the registry (= per-provider topic suffixes). */
+  getProviderIds (): string[] {
+    return [...this.providers.keys()]
   }
 
   setTranscriptionProducer (producer: PlatformQueueProducer<TranscriptionTask>): void {
     this.transcriptionProducer = producer
   }
 
+  /** The conversation transcript file of a thread, or undefined when nothing was written yet. */
+  async exportConversation (workspace: WorkspaceUuid, conversation: Ref<Doc>): Promise<string | undefined> {
+    const wsClient = await this.getWorkspaceClient(workspace)
+    return await wsClient?.readSnapshotFile(conversation)
+  }
+
+  setSummaryProducer (producer: PlatformQueueProducer<SummaryTask>): void {
+    this.summaryProducer = producer
+  }
+
+  /** Hand a summary to the queue instead of running it inline - see startMeetingSummary. */
+  async queueSummary (workspace: WorkspaceUuid, task: SummaryTask): Promise<boolean> {
+    if (this.summaryProducer === undefined) return false
+    await this.summaryProducer.send(this.ctx, workspace, [task])
+    return true
+  }
+
   setLimitsState (state: LimitsState): void {
     this.limitsState = state
+  }
+
+  setPoolLimits (pools: PoolLimits): void {
+    this.poolLimits = pools
   }
 
   /**
@@ -360,8 +410,67 @@ export class AIControl {
   checkTokensLimit (workspace: WorkspaceUuid): void {
     if (this.limitsState?.isTokensBlocked(workspace) === true) {
       this.ctx.warn('AI token limit exhausted, rejecting request', { workspace })
-      throw new ApiError(402, 'AI token limit has been reached for this workspace. Please upgrade your plan.')
+      throw new ApiError(402, 'This workspace is out of AI tokens. Buy more tokens or wait for the next period.')
     }
+  }
+
+  // AISpaceSettings that apply to a space: the space's own settings, else the workspace-wide ones.
+  private async spaceSettings (
+    workspace: WorkspaceUuid,
+    space?: Ref<Space>
+  ): Promise<{ forSpace?: AISpaceSettings, wsDefault?: AISpaceSettings }> {
+    const wsClient = await this.getWorkspaceClient(workspace)
+    const client = wsClient?.client
+    if (client === undefined) return {}
+    const settings = await client.findAll(aiBot.class.AISpaceSettings, {})
+    return {
+      forSpace: space !== undefined ? settings.find((s) => s.attachedTo === space) : undefined,
+      wsDefault: settings.find((s) => s.attachedTo == null)
+    }
+  }
+
+  // Language for non-personal output: AISpaceSettings for the space -> workspace default ->
+  // pod's DefaultLanguage. req.lang is intentionally ignored (the space owns it).
+  async resolveLanguage (workspace: WorkspaceUuid, space?: Ref<Space>): Promise<string> {
+    try {
+      const { forSpace, wsDefault } = await this.spaceSettings(workspace, space)
+      return forSpace?.language ?? wsDefault?.language ?? config.DefaultLanguage
+    } catch {
+      return config.DefaultLanguage
+    }
+  }
+
+  /**
+   * Provider + level for a non-chat feature, honouring the space's configured level instead of
+   * always running service ops on the strongest model of the default provider.
+   */
+  private async resolveFeatureProvider (
+    workspace: WorkspaceUuid,
+    space: Ref<Space> | undefined,
+    feature: keyof AILevelFeatures
+  ): Promise<{ llm?: LLMProvider, level?: AILevel }> {
+    try {
+      const { forSpace, wsDefault } = await this.spaceSettings(workspace, space)
+      const requested = forSpace?.level ?? wsDefault?.level ?? config.DefaultLevel
+      const resolved = resolveModel(requested, registryForFeature(config.AIProviders, feature))
+      return { llm: this.providers.get(resolved.provider.id) ?? this.llm, level: resolved.level }
+    } catch {
+      return { llm: this.llm }
+    }
+  }
+
+  // Upsert the workspace-wide AISpaceSettings level (the one without attachedTo).
+  async setWorkspaceLevel (workspace: WorkspaceUuid, level: AILevel): Promise<void> {
+    const wsClient = await this.getWorkspaceClient(workspace)
+    const client = wsClient?.client
+    if (client === undefined) throw new Error('workspace client is not connected')
+
+    const existing = (await client.findAll(aiBot.class.AISpaceSettings, {})).find((s) => s.attachedTo == null)
+    if (existing !== undefined) {
+      await client.updateDoc(aiBot.class.AISpaceSettings, existing.space, existing._id, { level })
+      return
+    }
+    await client.createDoc(aiBot.class.AISpaceSettings, core.space.Workspace, { level })
   }
 
   async translate (workspace: WorkspaceUuid, req: TranslateRequest): Promise<TranslateResponse | undefined> {
@@ -369,13 +478,49 @@ export class AIControl {
       return undefined
     }
     this.checkTokensLimit(workspace)
+    const lang = await this.resolveLanguage(workspace)
     const html = jsonToHTML(markupToJSON(req.text))
-    const result = await this.llm.translateHtml(this.ctx, workspace, html, req.lang)
+    const result = await this.llm.translateHtml(this.ctx, workspace, html, lang)
     const text = result !== undefined ? htmlToMarkup(result) : req.text
     return {
       text,
-      lang: req.lang
+      lang
     }
+  }
+
+  /**
+   * A finished meeting summarizes itself, unless the space turned it off. Transcript chunks are
+   * still being consumed when the room closes, so wait until the counter stops growing.
+   * Errors propagate: the caller is the queue consumer, which retries or dead-letters.
+   */
+  async autoSummarizeMeeting (workspace: WorkspaceUuid, meetingId: Ref<MeetingMinutes>): Promise<void> {
+    const wsClient = await this.getWorkspaceClient(workspace)
+    if (wsClient === undefined) return
+
+    const meeting = await this.waitTranscriptSettled(wsClient, meetingId)
+    if (meeting === undefined) return
+
+    const { forSpace, wsDefault } = await this.spaceSettings(workspace, meeting.space)
+    if (!shouldAutoSummarize(meeting, forSpace, wsDefault)) return
+
+    const lang = await this.resolveLanguage(workspace, meeting.space)
+    await this.summarizeMessages(workspace, { lang, target: meetingId, targetClass: love.class.MeetingMinutes })
+  }
+
+  private async waitTranscriptSettled (
+    wsClient: WorkspaceClient,
+    meetingId: Ref<MeetingMinutes>
+  ): Promise<MeetingMinutes | undefined> {
+    let previous = -1
+    for (let attempt = 0; attempt < TRANSCRIPT_SETTLE_ATTEMPTS; attempt++) {
+      const meeting = await wsClient.client.findOne(love.class.MeetingMinutes, { _id: meetingId })
+      if (meeting === undefined) return undefined
+      const count = meeting.transcription ?? 0
+      if (count === previous) return meeting
+      previous = count
+      await new Promise((resolve) => setTimeout(resolve, TRANSCRIPT_SETTLE_DELAY))
+    }
+    return await wsClient.client.findOne(love.class.MeetingMinutes, { _id: meetingId })
   }
 
   async summarizeMessages (
@@ -475,7 +620,17 @@ export class AIControl {
         }
       }
     }
-    const summary = await this.llm.summarizeMessages(this.ctx, workspace, messagesToSummarize, req.lang, description)
+    const lang = await this.resolveLanguage(workspace, target.space)
+    const feature = await this.resolveFeatureProvider(workspace, target.space, 'summary')
+    const llm = feature.llm ?? this.llm
+    const summary = await llm.summarizeMessages(
+      this.ctx,
+      workspace,
+      messagesToSummarize,
+      lang,
+      description,
+      feature.level
+    )
     if (summary === undefined) return
 
     const summaryMarkup = jsonToMarkup(markdownToMarkup(summary))
@@ -508,16 +663,51 @@ export class AIControl {
 
     return {
       text: summaryMarkup,
-      lang: req.lang
+      lang
     }
   }
 
-  async processEvent (workspace: WorkspaceUuid, events: AIEventRequest[], control?: ConsumerControl): Promise<void> {
-    if (this.llm === undefined) {
+  /** Fix ASR errors in a voice-note transcript (level = space ceiling). Returns corrected text. */
+  async correctTranscript (
+    workspace: WorkspaceUuid,
+    text: string,
+    lang?: string,
+    level?: AILevel
+  ): Promise<string | undefined> {
+    if (this.llm?.correctTranscript === undefined) return text
+    this.checkTokensLimit(workspace)
+    return await this.llm.correctTranscript(this.ctx, workspace, text, lang, level)
+  }
+
+  async processEvent (
+    workspace: WorkspaceUuid,
+    events: AIEventRequest[],
+    control?: ConsumerControl,
+    providerId?: string,
+    level?: AILevel
+  ): Promise<void> {
+    // Resolve the per-provider instance (pipeline path) or fall back to the default.
+    const provider = providerId !== undefined ? this.providers.get(providerId) : undefined
+    if (provider === undefined && this.llm === undefined) {
       throw new Error('LLM provider not configured')
     }
 
     this.checkTokensLimit(workspace)
+
+    // Global per-model pool guard. An exhausted pool blocks: silently dropping to a weaker model
+    // produced garbage (a level that cannot call tools answered a tool request with "}").
+    const effProvider = provider
+    const effProviderId = providerId
+    const effLevel = level
+    if (providerId !== undefined && level !== undefined && this.poolLimits !== undefined) {
+      if (this.poolLimits.isBlockedByLevel(config.AIProviders, providerId, level)) {
+        this.ctx.warn('AI provider pool exhausted', { workspace, providerId, level })
+        throw new ApiError(
+          402,
+          'The global token budget for this model has been reached. Please contact your administrator.'
+        )
+      }
+    }
 
     const i1 = setInterval(() => {
       void control?.heartbeat()
@@ -527,8 +717,8 @@ export class AIControl {
         await control?.heartbeat()
         const wsClient = await this.getWorkspaceClient(workspace)
         if (wsClient === undefined) continue
-        this.ctx.info('processing event', event)
-        await wsClient.processMessageEvent(event, control)
+        this.ctx.info('processing event', { ...event, providerId: effProviderId, level: effLevel })
+        await wsClient.processMessageEvent(event, control, effProvider, effLevel, this.providers)
       }
     } finally {
       clearInterval(i1)

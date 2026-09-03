@@ -37,9 +37,16 @@ import {
   type WorkspaceUuid
 } from '@hcengineering/core'
 import platform, { getMetadata, PlatformError, Severity, Status, translate } from '@hcengineering/platform'
-import { decodeToken, decodeTokenVerbose, generateToken, type PermissionsGrant } from '@hcengineering/server-token'
+import {
+  decodeToken,
+  decodeTokenVerbose,
+  generateToken,
+  type PermissionsGrant,
+  type Token
+} from '@hcengineering/server-token'
 
 import { isAdminEmail, isBillingAdminEmail } from './admin'
+import { requireAdminOp } from './adminOp'
 import { accountPlugin, type CrmNotification } from './plugin'
 import { getFreePlanLimits } from './freeLimits'
 import { type AccountServiceMethods, getServiceMethods } from './serviceOperations'
@@ -95,7 +102,6 @@ import {
   getFrontUrl,
   getInviteEmail,
   getPersonName,
-  getPhoneSocialId,
   getRegions,
   getRolePower,
   getWorkspaceByDataId,
@@ -113,6 +119,8 @@ import {
   isAllowReadOnlyGuests,
   isEmail,
   isOtpValid,
+  getOtpRetryDelayMs,
+  normalizePhone,
   normalizeValue,
   publishMembersChanged,
   recordFailedLoginAttempt,
@@ -128,6 +136,8 @@ import {
   updateAllowReadOnlyGuests,
   updatePasswordAgingRule,
   updateWorkspaceRole,
+  logAdminAction,
+  requestAdminOtp,
   verifyAdminOtp,
   verifyAllowedRole,
   verifyAllowedServices,
@@ -252,7 +262,8 @@ export async function login (
 }
 
 /**
- * Given an email sends an OTP code to the existing user and returns the OTP information.
+ * Given an email sends an OTP code and returns the OTP information.
+ * Never reveals whether the email is known. A person without an account is an unfinished sign up.
  */
 export async function loginOtp (
   ctx: MeasureContext,
@@ -272,13 +283,9 @@ export async function loginOtp (
   const emailSocialId = await getEmailSocialId(db, normalizedEmail)
 
   if (emailSocialId == null) {
-    throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, {}))
-  }
-
-  const account = await getAccount(db, emailSocialId.personUuid as AccountUuid)
-
-  if (account == null) {
-    throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, {}))
+    // Nothing is created: the login form must not become a sign up form. retryOn matches a fresh
+    // code so the timer cannot be used to probe existence.
+    return { sent: true, retryOn: Date.now() + getOtpRetryDelayMs() }
   }
 
   return await sendOtp(ctx, db, branding, emailSocialId)
@@ -347,39 +354,29 @@ export async function signUpOtp (
 
   // Note: can support OTP based on any other social logins later
   const normalizedEmail = cleanEmail(email)
+  const normalizedPhone = phone !== undefined && phone !== '' ? normalizePhone(phone) : ''
+  // A phone is never verified, so claiming exclusive ownership of it would block re-signup forever.
+  const personData = normalizedPhone !== '' ? { phoneHint: normalizedPhone } : {}
   let emailSocialId = await getEmailSocialId(db, normalizedEmail)
-  let personUuid: PersonUuid
 
   if (emailSocialId !== null) {
     const existingAccount = await db.account.findOne({ uuid: emailSocialId.personUuid as AccountUuid })
 
-    if (existingAccount !== null) {
-      ctx.warn('An account with the provided email already exists', { email })
-      throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountAlreadyExists, {}))
+    // Account exists -> this is a login. Touching the person would let anyone knowing an email
+    // rename its owner through the sign up form.
+    if (existingAccount === null) {
+      await db.person.update({ uuid: emailSocialId.personUuid }, { firstName, lastName: lastName ?? '', ...personData })
     }
-
-    await db.person.update({ uuid: emailSocialId.personUuid }, { firstName, lastName: lastName ?? '' })
-
-    personUuid = emailSocialId.personUuid
   } else {
     // There's no person linked to this email, so we need to create a new one
-    personUuid = await db.person.insertOne({ firstName, lastName: lastName ?? '' })
+    const personUuid: PersonUuid = await db.person.insertOne({
+      firstName,
+      lastName: lastName ?? '',
+      ...personData
+    })
     const newSocialId = { type: SocialIdType.EMAIL, value: normalizedEmail, personUuid }
     const emailSocialIdId = await db.socialId.insertOne(newSocialId)
     emailSocialId = { ...newSocialId, _id: emailSocialIdId, key: buildSocialIdString(newSocialId) }
-  }
-
-  if (phone !== undefined && phone.length > 0) {
-    const normalizedPhone = phone.trim()
-    const existingPhoneSocialId = await getPhoneSocialId(db, normalizedPhone)
-
-    if (existingPhoneSocialId !== null) {
-      ctx.warn('Provided phone already exists', { phone: normalizedPhone })
-      throw new PlatformError(new Status(Severity.ERROR, platform.status.PhoneAlreadyExists, {}))
-    }
-
-    const newPhoneSocialId = { type: SocialIdType.PHONE, value: normalizedPhone, personUuid }
-    await db.socialId.insertOne(newPhoneSocialId)
   }
 
   return await sendOtp(ctx, db, branding, emailSocialId)
@@ -394,7 +391,6 @@ async function sendCrmNotificationIfNotInvited (
   db: AccountDB,
   email: string,
   personUuid: PersonUuid,
-  phone: string | null,
   meta?: Meta
 ): Promise<void> {
   const crmQueue = getMetadata(accountPlugin.metadata.CrmQueue)
@@ -409,7 +405,7 @@ async function sendCrmNotificationIfNotInvited (
     firstName: person.firstName,
     lastName: person.lastName,
     email,
-    phone,
+    phone: person.phoneHint ?? null,
     cookies: meta?.cookies
   }
 
@@ -444,7 +440,9 @@ export async function validateOtp (
     let emailSocialId = await getEmailSocialId(db, normalizedEmail)
 
     if (emailSocialId == null) {
-      throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, { account: email }))
+      // Indistinguishable from a wrong code on purpose: a separate error here would undo the
+      // anti-enumeration in loginOtp - two requests would tell whether an address is registered.
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.InvalidOtp, {}))
     }
 
     const isValid = await isOtpValid(db, emailSocialId._id, code)
@@ -638,19 +636,7 @@ export async function createWorkspace (
   })
 
   if (emailSocialId != null) {
-    const phoneSocialId = await db.socialId.findOne({
-      type: SocialIdType.PHONE,
-      personUuid: socialId.personUuid
-    })
-
-    await sendCrmNotificationIfNotInvited(
-      ctx,
-      db,
-      emailSocialId.value,
-      socialId.personUuid,
-      phoneSocialId?.value ?? null,
-      meta
-    )
+    await sendCrmNotificationIfNotInvited(ctx, db, emailSocialId.value, socialId.personUuid, meta)
   }
 
   return {
@@ -1106,6 +1092,11 @@ export async function checkJoin (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid }))
   }
 
+  const role = await db.getWorkspaceRole(accountUuid, workspace.uuid)
+  if (role == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+  }
+
   const wsLoginInfo = await selectWorkspace(ctx, db, branding, token, { workspaceUrl: workspace.url, kind: 'external' })
 
   if (getRolePower(wsLoginInfo.role) < getRolePower(invite.role)) {
@@ -1366,6 +1357,16 @@ export async function confirm (
 
   const socialId = await confirmEmail(ctx, db, account, email)
 
+  // Right after confirmEmail: the email is verified now, so the link is dead even if a later step
+  // throws. Links from earlier resends stay inert until cleanExpiredOtp sweeps them.
+  await db.shortLink.deleteMany({ payload: token })
+
+  // The link also completes a sign up whose OTP code was never entered.
+  if ((await db.account.findOne({ uuid: account })) == null) {
+    await createAccount(db, account, true)
+    ctx.info('Account created via activation link', { account, email })
+  }
+
   await confirmHulyIds(ctx, db, account)
 
   const person = await db.person.findOne({ uuid: account })
@@ -1532,7 +1533,7 @@ export async function leaveWorkspace (
   db: AccountDB,
   branding: Branding | null,
   token: string,
-  params: { account: AccountUuid }
+  params: { account: AccountUuid, otpCode?: string }
 ): Promise<LoginInfo | null> {
   const { account: targetAccount } = params
 
@@ -1550,6 +1551,12 @@ export async function leaveWorkspace (
 
   const initiatorRole = await db.getWorkspaceRole(account, workspace)
   const targetRole = await db.getWorkspaceRole(targetAccount, workspace)
+
+  if (account === targetAccount) {
+    // Leaving on your own is not undoable by yourself: confirm with a code sent to your email.
+    // Removing someone else stays role-gated - it is the workspace admin's routine action.
+    await verifyAdminOtp(ctx, db, token, params.otpCode ?? '')
+  }
 
   if (account !== targetAccount) {
     if (initiatorRole == null || getRolePower(initiatorRole) < getRolePower(AccountRole.Maintainer)) {
@@ -1658,11 +1665,26 @@ export async function updateWorkspaceName (
   )
 }
 
+/**
+ * Sends a confirmation code to the caller's verified email. Used before self-service destructive
+ * actions (leaving a workspace, deleting one); the admin panel has its own entry point.
+ */
+export async function requestOperationOtp (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  _params: Record<string, unknown>
+): Promise<OtpInfo> {
+  return await requestAdminOtp(ctx, db, branding, token)
+}
+
 export async function deleteWorkspace (
   ctx: MeasureContext,
   db: AccountDB,
   branding: Branding | null,
-  token: string
+  token: string,
+  params: { otpCode: string }
 ): Promise<void> {
   const { account, workspace } = decodeTokenVerbose(ctx, token)
   const role = await db.getWorkspaceRole(account, workspace)
@@ -1672,11 +1694,16 @@ export async function deleteWorkspace (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
   }
 
+  // Irreversible for everyone in the workspace: confirm with a code sent to the owner's email.
+  await verifyAdminOtp(ctx, db, token, params?.otpCode ?? '')
+
   await db.workspaceStatus.update(
     { workspaceUuid: workspace },
     {
       isDisabled: true,
-      mode: 'pending-deletion'
+      mode: 'pending-deletion',
+      // A workspace that had already exhausted its retries would never be picked up again.
+      processingAttempts: 0
     }
   )
 }
@@ -1796,10 +1823,7 @@ export async function getWorkspaceInfo (
   const skipAssignmentCheck = isGuest || account === systemAccountUuid
 
   if (!skipAssignmentCheck) {
-    let role = await db.getWorkspaceRole(account, workspaceUuid)
-    if (role === null && isAdmin) {
-      role = AccountRole.Admin
-    }
+    const role = await db.getWorkspaceRole(account, workspaceUuid)
 
     if (role == null) {
       ctx.warn('Not a member of the workspace', { workspaceUuid, account })
@@ -2010,10 +2034,7 @@ export async function getLoginInfoByToken (
       } satisfies WorkspaceLoginInfo
     }
 
-    let role = await getWorkspaceRole(db, accountUuid, workspace.uuid)
-    if (role === null && isAdmin) {
-      role = AccountRole.Admin
-    }
+    const role = await getWorkspaceRole(db, accountUuid, workspace.uuid)
 
     if (role == null) {
       // User might have been removed from the workspace
@@ -2161,24 +2182,6 @@ export async function getSocialIds (
   return includeDeleted ? socialIds : socialIds.filter((si) => si.isDeleted !== true)
 }
 
-export async function getUnverifiedPhoneSocialIds (
-  ctx: MeasureContext,
-  db: AccountDB,
-  branding: Branding | null,
-  token: string
-): Promise<SocialId[]> {
-  const { account: accountUuid, sub } = decodeTokenVerbose(ctx, token)
-  const account = sub ?? accountUuid
-
-  const result = await db.socialId.find({
-    personUuid: account,
-    type: SocialIdType.PHONE,
-    verifiedOn: undefined
-  })
-
-  return result
-}
-
 export async function isReadOnlyGuest (
   ctx: MeasureContext,
   db: AccountDB,
@@ -2302,7 +2305,17 @@ export async function getAccountInfo (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
   }
 
-  decodeTokenVerbose(ctx, token)
+  const { account: caller, extra } = decodeTokenVerbose(ctx, token)
+
+  if (accountId !== caller) {
+    const isAdmin = extra?.admin === 'true'
+    const isAllowedService = verifyAllowedServices(['workspace', 'tool'], extra, false)
+
+    if (!isAdmin && !isAllowedService) {
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    }
+  }
+
   const account = await getAccount(db, accountId)
   if (account === undefined || account === null) {
     throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, {}))
@@ -2648,13 +2661,7 @@ export async function deleteAccount (
   token: string,
   params: { uuid?: AccountUuid, otpCode?: string }
 ): Promise<void> {
-  const { account, extra } = decodeTokenVerbose(ctx, token)
-
-  const isAdmin = extra?.admin === 'true'
-
-  if (!isAdmin) {
-    throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
-  }
+  const { account } = decodeTokenVerbose(ctx, token)
 
   const { uuid } = params
 
@@ -2662,11 +2669,12 @@ export async function deleteAccount (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
   }
 
-  // Irreversible identity purge — require an emailed OTP confirmation.
-  await verifyAdminOtp(ctx, db, token, params.otpCode ?? '')
+  // Irreversible identity purge — human admin, fresh session, emailed OTP confirmation.
+  await requireAdminOp(ctx, db, token, 'delete_account', params.otpCode ?? '', uuid)
 
   if (uuid === account) {
     // Admin must not delete their own account (would also break the OTP-email lookup).
+    ctx.warn('Refusing to delete an account: the admin is deleting themselves', { uuid })
     throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
   }
 
@@ -2676,16 +2684,99 @@ export async function deleteAccount (
     const members = await db.getWorkspaceMembers(ws.uuid)
     const owners = members.filter((m) => m.role === AccountRole.Owner)
     if (owners.length === 1 && owners[0].person === uuid) {
+      ctx.warn('Refusing to delete an account: sole owner of a workspace', { uuid, workspace: ws.uuid, url: ws.url })
       throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
     }
   }
 
+  const person = await db.person.findOne({ uuid })
   await db.deleteAccount(uuid)
   await db.accountEvent.insertOne({
     accountUuid: uuid,
     eventType: AccountEventType.ACCOUNT_DELETED,
     time: Date.now()
   })
+  await logAdminAction(
+    ctx,
+    db,
+    token,
+    'delete_account',
+    uuid,
+    `${person?.firstName ?? ''} ${person?.lastName ?? ''}`.trim()
+  )
+}
+
+// Social ids that resolve to an account on their own, and therefore hand over the ability to
+// authenticate as its owner once they are re-pointed. Password recovery and OTP login look an
+// account up by social id value alone (see requestPasswordReset, loginOtp).
+const loginCapableSocialTypes = [SocialIdType.EMAIL, SocialIdType.HULY]
+
+/**
+ * Merging re-points the secondary person's social ids onto the primary person, so an unrestricted
+ * caller could both absorb the identifiers of a person they do not own and inject their own
+ * identifiers into somebody else's person. Restrict it to callers with authority over both persons.
+ */
+async function verifyMergePersonsAuthority (
+  db: AccountDB,
+  { account, workspace, extra }: Token,
+  primaryPerson: PersonUuid,
+  secondaryPerson: PersonUuid,
+  shouldThrow = true
+): Promise<boolean> {
+  // The tool/workspace services act on behalf of the whole installation. A global admin does not:
+  // merging identities from the admin panel would be an unaudited cross-workspace write.
+  // Note this must precede the workspace check below: such tokens carry no workspace.
+  if (verifyAllowedServices(['tool', 'workspace'], extra, false)) {
+    return true
+  }
+
+  const forbidden = (): boolean => {
+    if (shouldThrow) {
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    }
+
+    return false
+  }
+
+  // Everybody else acts within a single workspace they maintain.
+  if (workspace == null) {
+    return forbidden()
+  }
+
+  if (!verifyAllowedRole(await db.getWorkspaceRole(account, workspace), AccountRole.Maintainer, extra, false)) {
+    return forbidden()
+  }
+
+  // The platform wide accounts are not anybody's to merge.
+  for (const person of [primaryPerson, secondaryPerson]) {
+    if (person === systemAccountUuid || person === readOnlyGuestAccountUuid) {
+      return forbidden()
+    }
+
+    if ((await db.getWorkspaceRole(person as AccountUuid, workspace)) != null) {
+      // A member of the caller's workspace.
+      continue
+    }
+
+    if ((await db.account.findOne({ uuid: person as AccountUuid })) != null) {
+      // An account outside of the caller's workspace: no workspace maintainer may take it over.
+      return forbidden()
+    }
+  }
+
+  // Both persons are in reach of the caller by now, but the primary keeps receiving the secondary's
+  // social ids. When the primary is somebody else's account, a login capable social id would grant
+  // whoever controls it access to that account, so leave those merges to the verification flows.
+  // Note doMergePersons only refuses *verified* secondary social ids, which does not cover this.
+  if (primaryPerson !== account && (await db.account.findOne({ uuid: primaryPerson as AccountUuid })) != null) {
+    const secondarySocialIds = await db.socialId.find({ personUuid: secondaryPerson })
+
+    if (secondarySocialIds.some((si) => loginCapableSocialTypes.includes(si.type))) {
+      return forbidden()
+    }
+  }
+
+  return true
 }
 
 export async function canMergeSpecifiedPersons (
@@ -2698,7 +2789,7 @@ export async function canMergeSpecifiedPersons (
     secondaryPerson: PersonUuid
   }
 ): Promise<boolean> {
-  decodeTokenVerbose(ctx, token)
+  const decodedToken = decodeTokenVerbose(ctx, token)
 
   const { primaryPerson, secondaryPerson } = params
   if (primaryPerson == null || primaryPerson === '' || secondaryPerson == null || secondaryPerson === '') {
@@ -2707,6 +2798,12 @@ export async function canMergeSpecifiedPersons (
 
   if (primaryPerson === secondaryPerson) {
     // Nothing to do
+    return false
+  }
+
+  // This is a predicate the merge dialog polls, so an unauthorized caller is answered
+  // rather than thrown at. mergeSpecifiedPersons below enforces the same rules.
+  if (!(await verifyMergePersonsAuthority(db, decodedToken, primaryPerson, secondaryPerson, false))) {
     return false
   }
 
@@ -2739,12 +2836,14 @@ export async function mergeSpecifiedPersons (
     secondaryPerson: PersonUuid
   }
 ): Promise<void> {
-  decodeTokenVerbose(ctx, token)
+  const decodedToken = decodeTokenVerbose(ctx, token)
 
   const { primaryPerson, secondaryPerson } = params
   if (primaryPerson == null || primaryPerson === '' || secondaryPerson == null || secondaryPerson === '') {
     throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
   }
+
+  await verifyMergePersonsAuthority(db, decodedToken, primaryPerson, secondaryPerson)
 
   await doMergePersons(db, primaryPerson, secondaryPerson)
 }
@@ -3136,6 +3235,7 @@ export type AccountMethods =
   | 'changeUsername'
   | 'updateWorkspaceName'
   | 'deleteWorkspace'
+  | 'requestOperationOtp'
   | 'getRegionInfo'
   | 'getLicenseInfo'
   | 'getUserWorkspaces'
@@ -3145,7 +3245,6 @@ export type AccountMethods =
   | 'getLoginInfoByToken'
   | 'getLoginWithWorkspaceInfo'
   | 'getSocialIds'
-  | 'getUnverifiedPhoneSocialIds'
   | 'getPerson'
   | 'getWorkspaceMembers'
   | 'updateWorkspaceRole'
@@ -3215,6 +3314,7 @@ export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMe
     changeUsername: wrap(changeUsername),
     updateWorkspaceName: wrap(updateWorkspaceName),
     deleteWorkspace: wrap(deleteWorkspace),
+    requestOperationOtp: wrap(requestOperationOtp),
     updateWorkspaceRole: wrap(updateWorkspaceRole),
     isAllowReadOnlyGuests: wrap(isAllowReadOnlyGuests),
     updateAllowReadOnlyGuests: wrap(updateAllowReadOnlyGuests),
@@ -3253,7 +3353,6 @@ export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMe
     getLoginInfoByToken: wrap(getLoginInfoByToken),
     getLoginWithWorkspaceInfo: wrap(getLoginWithWorkspaceInfo),
     getSocialIds: wrap(getSocialIds),
-    getUnverifiedPhoneSocialIds: wrap(getUnverifiedPhoneSocialIds),
     getPerson: wrap(getPerson),
     findPersonBySocialId: wrap(findPersonBySocialId),
     findSocialIdBySocialKey: wrap(findSocialIdBySocialKey),

@@ -81,7 +81,12 @@ import core, { defineCollaborators, TAttachedDoc, TDoc, TSpace } from '@hcengine
 import { createPublicLinkAction } from '@hcengineering/model-guest'
 import { generateClassNotificationTypes } from '@hcengineering/model-notification'
 import presentation from '@hcengineering/model-presentation'
-import view, { createAction, createAttributePresenter, type Viewlet } from '@hcengineering/model-view'
+import view, {
+  createAction,
+  createAttributeApplier,
+  createAttributePresenter,
+  type Viewlet
+} from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
 import notification, { type NotificationGroup } from '@hcengineering/notification'
 import { getEmbeddedLabel, type Asset, type IntlString, type Resource } from '@hcengineering/platform'
@@ -271,6 +276,10 @@ export class TEmployee extends TPerson implements Employee {
     position?: string | null
 
   declare personUuid?: AccountUuid
+
+  @Prop(TypeString(), contact.string.Timezone)
+  @Hidden()
+    timezone?: string
 }
 
 @Model(contact.class.ContactsTab, core.class.Doc, DOMAIN_MODEL)
@@ -1429,4 +1438,6 @@ export function createModel (builder: Builder): void {
   builder.mixin(core.class.Collaborator, core.class.Class, view.mixin.ObjectPresenter, {
     presenter: contact.component.CollaboratorPresenter
   })
+
+  createAttributeApplier(builder, core.class.Doc, 'collaborators', contact.function.CollaboratorsApplier)
 }

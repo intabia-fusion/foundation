@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -20,6 +21,7 @@
     DocumentQuery,
     FindOptions,
     generateId,
+    groupByArray,
     Lookup,
     RateLimiter,
     Ref,
@@ -172,31 +174,42 @@
     config: Array<string | BuildModelKey>,
     configurations?: Record<Ref<Class<Doc>>, Viewlet['config']> | undefined
   ): Promise<void> {
-    const newItemModels = new Map<Ref<Class<Doc>>, AttributeModel[]>()
-    const entries = Object.entries(configurations ?? [])
-    for (const [k, v] of entries) {
-      const _cl = k as Ref<Class<Doc>>
-      const res = await buildModel({ client, _class: _cl, keys: v, lookup })
-      newItemModels.set(_cl, res)
+    const descendantKeys = config.filter(
+      (it): it is BuildModelKey => typeof it !== 'string' && it.displayProps?._class !== undefined
+    )
+    const descendantGroups = groupByArray(descendantKeys, (it) => it.displayProps?._class ?? '')
+
+    const descendantModels = (
+      await Promise.all(
+        Array.from(descendantGroups.entries())
+          .filter(([classRef]) => classRef !== '')
+          .map(([classRef, keys]) => buildModel({ client, _class: classRef as Ref<Class<Doc>>, keys, lookup }))
+      )
+    ).flat()
+
+    const configEntries = Object.entries(configurations ?? {}) as Array<[Ref<Class<Doc>>, Viewlet['config']]>
+    if (!configEntries.some(([k]) => k === _class)) {
+      configEntries.push([_class, config])
     }
 
-    if (!newItemModels.has(_class)) {
-      const res = await buildModel({ client, _class, keys: config, lookup })
-      newItemModels.set(_class, res)
+    const categoryModelPairs = await Promise.all(
+      configEntries.map(async ([classRef, classConfig]): Promise<[Ref<Class<Doc>>, AttributeModel[]]> => {
+        const models = await buildModel({ client, _class: classRef, keys: classConfig, lookup })
+        return [classRef, [...models, ...descendantModels]]
+      })
+    )
+
+    const newItemModels = new Map<Ref<Class<Doc>>, AttributeModel[]>(categoryModelPairs)
+
+    for (const models of newItemModels.values()) {
+      for (const m of models) {
+        if (m.displayProps?.key !== undefined && m.displayProps.fixed) {
+          $fixedWidthStore[`list_item_${m.displayProps.key}`] = 0
+        }
+      }
     }
 
     itemModels = newItemModels
-    for (const [, v] of Object.entries(newItemModels)) {
-      // itemModels = itemModels
-      ;(v as AttributeModel[]).forEach((m: AttributeModel) => {
-        if (m.displayProps?.key !== undefined) {
-          const key = `list_item_${m.displayProps.key}`
-          if (m.displayProps.fixed) {
-            $fixedWidthStore[key] = 0
-          }
-        }
-      })
-    }
     configurationsVersion = configurationsVersion + 1
   })
 

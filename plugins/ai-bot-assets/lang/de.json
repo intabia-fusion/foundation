@@ -1,0 +1,25 @@
+{
+  "string": {
+    "AISettings": "KI-Einstellungen",
+    "TokenLimitReachedMonth": "Ihre KI-Token sind aufgebraucht. Kaufen Sie weitere in den Workspace-Einstellungen (Einstellungen -> Abonnement) oder warten Sie auf die nächste Periode.",
+    "AIServiceUnavailable": "Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
+    "AIEmptyResponse": "Ich konnte diesmal keine Antwort erzeugen. Bitte formulieren Sie die Frage um oder versuchen Sie es erneut.",
+    "AILevel": "KI-Niveau",
+    "AILevelHint": "Qualitätsniveau-Obergrenze für diesen Workspace",
+    "AILevelCapabilities": "Fähigkeiten der Stufen",
+    "AILevelCapabilitiesHint": "Was jede Stufe kann.",
+    "AILevelChat": "Gespräche",
+    "AILevelTalk": "Besprechen",
+    "AILevelSummary": "Zusammenfassen",
+    "AILevelTasks": "Aufgabenverwaltung",
+    "Language": "Sprache",
+    "LanguageHint": "Standardsprache für Bot-Antworten (z.B. de, en). Leer = Pod-Standard.",
+    "AssistIssue": "{name}",
+    "AssistIssueApply": "Übernehmen",
+    "AssistIssueThreadStart": "Aufgabenentwurf{project, select, undefined {} other { in {project}}}",
+    "AssistIssueNewContext": "Neuer Kontext",
+    "AssistIssueApplyAgain": "Erneut übernehmen",
+    "AssistIssueAppliedMark": "Übernommen",
+    "ProposedEstimation": "Schätzung: {hours} Std."
+  }
+}

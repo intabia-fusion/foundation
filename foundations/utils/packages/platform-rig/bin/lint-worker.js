@@ -42,7 +42,17 @@ async function lintPackage(cwd, options = {}) {
     return { success: true, errorCount: 0, warningCount: 0, total: 0, output: '', memoryMB, durationMs: Date.now() - startedAt }
   }
 
-  let eslint = new ESLint({ fix: false, cwd, cache: false })
+  // ESLint's own file cache skips unchanged files before parsing, so with everything
+  // cached no TS Program gets built at all. Content strategy, because mtime changes on
+  // every git checkout. The phase-level hash still covers dependency type changes,
+  // which this cache cannot see.
+  let eslint = new ESLint({
+    fix: false,
+    cwd,
+    cache: true,
+    cacheLocation: join(cwd, '.eslintcache'),
+    cacheStrategy: 'content'
+  })
   const formatter = await eslint.loadFormatter('stylish')
 
   let errorCount = 0

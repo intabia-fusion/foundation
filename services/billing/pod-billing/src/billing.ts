@@ -23,13 +23,35 @@ import {
   LiveKitParticipantSessionData,
   AiUsageData,
   AiTranscriptData,
-  AiTokensData
+  AiTokensData,
+  AiTokensGroupBy,
+  AiWorkspaceBreakdown,
+  ProviderPoolConfig,
+  AiTranscriptGroupBy,
+  AiTranscriptUsageData
 } from './types'
 import { generateToken } from '@hcengineering/server-token'
+import {
+  getClient as getAccountClient,
+  grantsPlan,
+  isFreePlan,
+  type Subscription,
+  SubscriptionStatus,
+  SubscriptionType
+} from '@hcengineering/account-client'
 import { StorageConfig } from '@hcengineering/server-core'
 import { createDatalakeClient, DatalakeConfig, WorkspaceStats, WorkspaceStatsByType } from '@hcengineering/datalake'
 import { validate as uuidValidate } from 'uuid'
 import { getClient } from './client'
+import billingConfig from './config'
+import { getPeriodStartDate, grantPeriodAnchor, resolveTierLimits } from './limits'
+
+function parseIntParam (req: Request, name: string): number | undefined {
+  const v = req.query[name]
+  if (typeof v !== 'string') return undefined
+  const n = parseInt(v, 10)
+  return Number.isFinite(n) ? n : undefined
+}
 
 export async function handleListLiveKitSessions (
   ctx: MeasureContext,
@@ -162,6 +184,10 @@ export async function handlePushAiTranscriptData (
   res: Response
 ): Promise<void> {
   const data = (await req.body) as AiTranscriptData[]
+  if (!Array.isArray(data) || data.length === 0) {
+    res.status(400).json({ message: 'non-empty array required' })
+    return
+  }
   await db.pushAiTranscriptData(ctx, data)
   res.status(204).send()
 }
@@ -174,6 +200,10 @@ export async function handlePushParticipantSessions (
   res: Response
 ): Promise<void> {
   const data = (await req.body) as LiveKitParticipantSessionData[]
+  if (!Array.isArray(data) || data.length === 0) {
+    res.status(400).json({ message: 'non-empty array required' })
+    return
+  }
   await db.pushParticipantSessions(ctx, data)
   res.status(204).send()
 }
@@ -186,8 +216,40 @@ export async function handlePushAiTokensData (
   res: Response
 ): Promise<void> {
   const data = (await req.body) as AiTokensData[]
+  if (!Array.isArray(data) || data.length === 0) {
+    res.status(400).json({ message: 'non-empty array required' })
+    return
+  }
   await db.pushAiTokensData(ctx, data)
   res.status(204).send()
+}
+
+export async function handlePushTranscriptUsage (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const data = (await req.body) as AiTranscriptUsageData[]
+  if (!Array.isArray(data) || data.length === 0) {
+    res.status(400).json({ message: 'non-empty array required' })
+    return
+  }
+  await db.pushTranscriptUsage(ctx, data)
+  res.status(204).send()
+}
+
+export async function handleGetTranscriptUsage (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const groupBy = (req.query.groupBy as AiTranscriptGroupBy) ?? 'model'
+  const { fromDate, toDate } = parseDateParameters(req)
+  res.json(await db.getAiTranscriptBreakdown(ctx, groupBy, fromDate, toDate))
 }
 
 export interface LargestSpaceResult {
@@ -203,7 +265,7 @@ export async function handleGetLargestSpaces (
   res: Response
 ): Promise<void> {
   const workspace = getWorkspaceUuid(req)
-  const token = generateToken(systemAccountUuid, workspace, { service: 'billing', admin: 'true' })
+  const token = generateToken(systemAccountUuid, workspace, { service: 'billing' })
 
   const client = await getClient(token, workspace)
 
@@ -274,6 +336,315 @@ export async function collectDatalakeStats (
   }))
 
   return result
+}
+
+// Pricing + current window limits for the admin cost calculator.
+export async function handleGetPricing (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  res.json({
+    pricePer1000: billingConfig.ProviderPrices,
+    windowMonthLimitPerUser: billingConfig.WindowMonthLimit
+  })
+}
+
+export async function handleListProviderPools (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  res.json(await db.listProviderPools(ctx))
+}
+
+export async function handleUpsertProviderPool (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const config = (await req.body) as ProviderPoolConfig
+  if (config?.providerId == null || config.providerId === '') {
+    res.status(400).json({ message: 'providerId required' })
+    return
+  }
+  await db.upsertProviderPool(ctx, { ...config, model: config.model ?? '' })
+  res.status(204).send()
+}
+
+export async function handleAddProviderPoolTokens (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const body = (await req.body) as { providerId?: string, model?: string, delta?: number }
+  if (body?.providerId == null || body.providerId === '' || typeof body.delta !== 'number') {
+    res.status(400).json({ message: 'providerId and numeric delta required' })
+    return
+  }
+  await db.addPurchasedTokens(ctx, body.providerId, body.model ?? '', body.delta)
+  res.status(204).send()
+}
+
+export async function handleResetPoolUsed (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const body = (await req.body) as { providerId?: string, model?: string, all?: boolean }
+  if (body?.all === true) {
+    await db.resetAllProviderPoolsUsed(ctx)
+    res.status(204).send()
+    return
+  }
+  if (body?.providerId == null || body.providerId === '') {
+    res.status(400).json({ message: 'providerId required (or all=true)' })
+    return
+  }
+  await db.resetProviderPoolUsed(ctx, body.providerId, body.model ?? '')
+  res.status(204).send()
+}
+
+export async function handleResetWorkspaceUsed (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const workspace = req.params.workspace as WorkspaceUuid
+  if (workspace == null || workspace === '') {
+    res.status(400).json({ message: 'workspace required' })
+    return
+  }
+  const { periodStart } = await resolveWorkspacePlan(ctx, db, workspace)
+  await db.resetWorkspaceUsed(ctx, workspace, periodStart)
+  res.status(204).send()
+}
+
+// Admin/test: set the workspace token usage to an exact value (body: { value: number }).
+export async function handleSetWorkspaceUsed (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const workspace = req.params.workspace as WorkspaceUuid
+  if (workspace == null || workspace === '') {
+    res.status(400).json({ message: 'workspace required' })
+    return
+  }
+  const body = req.body as { value?: unknown, level?: unknown }
+  const value = Number(body?.value)
+  if (!Number.isFinite(value) || value < 0) {
+    res.status(400).json({ message: 'value must be a non-negative number' })
+    return
+  }
+  const level = typeof body?.level === 'string' && body.level !== '' ? body.level : 'low'
+  const { periodStart } = await resolveWorkspacePlan(ctx, db, workspace)
+  await db.setWorkspaceUsed(ctx, workspace, Math.floor(value), level, periodStart)
+  res.status(204).send()
+}
+
+export async function handleListAiModelRegistry (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  res.json(await db.listAiModelRegistry(ctx))
+}
+
+export async function handleGetTokenUsage (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const groupBy = (req.query.groupBy as AiTokensGroupBy) ?? 'model'
+  const providerId = typeof req.query.providerId === 'string' ? req.query.providerId : undefined
+  const { fromDate, toDate } = parseDateParameters(req)
+  res.json(await db.getAiTokensBreakdown(ctx, groupBy, providerId, fromDate, toDate))
+}
+
+export async function handleGetWorkspaceBreakdown (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const { fromDate, toDate } = parseDateParameters(req)
+  // Each row costs a plan lookup, so an unpaged call would fan out over every workspace that ever
+  // spent a token. Page by default; the caller can ask for more explicitly.
+  const limit = parseIntParam(req, 'limit') ?? 100
+  const offset = parseIntParam(req, 'offset')
+  const rows = await db.getWorkspaceBreakdown(ctx, fromDate, toDate, limit, offset)
+  const augmented = await Promise.all(
+    rows.map(
+      async (r): Promise<AiWorkspaceBreakdown & { plan: string, limitMonth: number }> => ({
+        ...r,
+        ...(await resolveWorkspacePlan(ctx, db, r.workspace))
+      })
+    )
+  )
+  res.json(augmented)
+}
+
+// Period end of the token window: +1 calendar month, matching the subscription period (nextPeriodEnd).
+function addMonth (start: Date): Date {
+  const anchorDay = start.getUTCDate()
+  const d = new Date(start)
+  d.setUTCDate(1)
+  d.setUTCMonth(d.getUTCMonth() + 1)
+  const daysInTargetMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+  d.setUTCDate(Math.min(anchorDay, daysInTargetMonth))
+  return d
+}
+
+// Tier window (burns at period end) + purchased balance (never expires, spent first).
+export async function handleGetWorkspaceTokenWindows (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const workspace = getWorkspaceUuid(req)
+  const { plan, hasPackages, limitMonth, balance, isFree, periodStart } = await resolveWorkspacePlan(ctx, db, workspace)
+  const periodEnd = new Date()
+  const [stats, levels, registry] = await Promise.all([
+    db.getAiTokensStats(ctx, workspace, periodStart, periodEnd),
+    db.getWorkspaceLevelUsage(ctx, workspace, periodStart, periodEnd),
+    db.listAiModelRegistry(ctx)
+  ])
+  const periodUsage = stats.map((s) => s.totalTokens).reduce((a, b) => a + b, 0)
+  const basicLevelLabel = registry.find((r) => r.level === 'low')?.label ?? ''
+  res.json({
+    workspace,
+    plan,
+    isFree,
+    basicLevelLabel,
+    hasPackages,
+    // The pack is charged once, when the period ends, so during the period it stands still.
+    balance,
+    // null = unlimited grant. Otherwise the block threshold: <= 0 means no tokens left.
+    available: limitMonth === 0 ? null : Math.max(0, limitMonth + balance - periodUsage),
+    month: {
+      // Everything spent this period, whichever pool ends up paying for it.
+      used: periodUsage,
+      limit: limitMonth,
+      resetAt: addMonth(periodStart).toISOString(),
+      levels
+    }
+  })
+}
+
+// aibot applies a token grant here: a one-time purchase or an AI-package period grant. Idempotent
+// by grantId (purchase id, or `renew:<subId>:<periodEnd>`) so a redelivered event grants once.
+export async function handleAddAiTokens (
+  ctx: MeasureContext,
+  db: BillingDB,
+  storageConfigs: StorageConfig[],
+  req: Request,
+  res: Response
+): Promise<void> {
+  const workspace = getWorkspaceUuid(req)
+  const body = (req.body ?? {}) as { amount?: number, purchaseId?: string }
+  const amount = typeof body.amount === 'number' ? Math.floor(body.amount) : 0
+  const purchaseId = body.purchaseId ?? ''
+  if (amount <= 0 || purchaseId === '') {
+    res.status(400).json({ error: 'amount and purchaseId are required' })
+    return
+  }
+  const applied = await db.grantAiTokens(ctx, workspace, purchaseId, amount)
+  res.json({ applied, amount })
+}
+
+// Subscriptions change on payment events, not per request, so the admin breakdown (one call per
+// listed workspace) reads them from here instead of hitting account N times per page.
+const SUBS_CACHE_TTL_MS = 60 * 1000
+const subsCache = new Map<WorkspaceUuid, { at: number, subs: Subscription[] }>()
+
+/** Drop every cached subscription set (tests; also handy after a manual plan change). */
+export function clearWorkspacePlanCache (): void {
+  subsCache.clear()
+}
+
+async function getSubscriptionsCached (workspace: WorkspaceUuid): Promise<Subscription[]> {
+  const now = Date.now()
+  const cached = subsCache.get(workspace)
+  if (cached !== undefined && now - cached.at < SUBS_CACHE_TTL_MS) return cached.subs
+
+  const token = generateToken(systemAccountUuid, workspace, { service: 'billing' })
+  const subs = await getAccountClient(billingConfig.AccountsUrl, token).getSubscriptions(workspace, false)
+
+  for (const [key, value] of subsCache) {
+    if (now - value.at >= SUBS_CACHE_TTL_MS) subsCache.delete(key)
+  }
+  subsCache.set(workspace, { at: now, subs })
+  return subs
+}
+
+// Tier window + purchased balance for a workspace. Falls back to env defaults on outage (fail-open).
+export async function resolveWorkspacePlan (
+  ctx: MeasureContext,
+  db: BillingDB,
+  workspace: WorkspaceUuid
+): Promise<{
+    plan: string
+    limitMonth: number
+    balance: number
+    hasPackages: boolean
+    isFree: boolean
+    periodStart: Date
+  }> {
+  try {
+    // Balance stays uncached: a token grant must show up on the very next read.
+    const subs = await getSubscriptionsCached(workspace)
+    const limits = resolveTierLimits(subs)
+    // Tier window burns at period end; packages and one-time purchases feed the balance instead.
+    const limitMonth = limits?.windowMonthLimit ?? billingConfig.WindowMonthLimit
+    const pkgs = subs.filter((s) => s.type === SubscriptionType.Package && s.status === SubscriptionStatus.Active)
+    const grantingTier = subs
+      .filter((s) => s.type === SubscriptionType.Tier && grantsPlan(s))
+      .sort((a, b) => (b.createdOn ?? 0) - (a.createdOn ?? 0))[0]
+    const plan = grantingTier?.plan ?? 'free'
+    const isFree = isFreePlan(grantingTier)
+    const periodStart = getPeriodStartDate(grantPeriodAnchor(grantingTier?.periodStart, pkgs))
+    const balance = (await db.getTokenBalance(ctx, workspace))?.remainingTokens ?? 0
+    return {
+      plan,
+      limitMonth,
+      balance,
+      hasPackages: pkgs.length > 0,
+      isFree,
+      periodStart
+    }
+  } catch (err: any) {
+    ctx.warn('failed to resolve workspace plan, using env defaults', { workspace, error: err?.message })
+    return {
+      plan: 'unknown',
+      limitMonth: billingConfig.WindowMonthLimit,
+      balance: 0,
+      hasPackages: false,
+      isFree: false,
+      periodStart: getPeriodStartDate(undefined)
+    }
+  }
 }
 
 function getWorkspaceUuid (req: Request): WorkspaceUuid {

@@ -1,0 +1,22 @@
+name: issue-draft-stays-draft
+mode: thread
+purpose: issue-draft
+lang: ru
+requirements:
+  # Судья видит только трассу, поэтому требование сформулировано наблюдаемо: какой инструмент
+  # вызван и что в воркспейсе. Про черновик формы он знать не может.
+  - id: R1
+    text: вызван edit_issue_draft, а не propose_task, и в воркспейсе не появилось новых задач
+  - id: R2
+    text: подготовленный черновик содержит внятный заголовок по сути запроса
+turns:
+  - ask: 'Оформи задачу: не приходят письма о смене пароля, проверить SMTP и шаблон.'
+    apply: never
+expect:
+  worldUnchanged: true
+  staged:
+    kind: task
+    titleMatches: '.{5,}'
+  toolsCalled: [edit_issue_draft]
+  forbidTools: [propose_task, propose_subtasks]
+  maxRoundsTotal: 4

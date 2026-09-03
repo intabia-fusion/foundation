@@ -83,11 +83,11 @@
 
     try {
       const inviteId = location.query?.inviteId ?? ''
-      const joinResult = await joinByInvite(inviteId)
+      const [joinStatus, joinResult] = await joinByInvite(inviteId)
       if (joinResult != null) {
         await handleLoginSuccess(joinResult)
       } else {
-        status = new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+        status = joinStatus !== OK ? joinStatus : new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
       }
     } catch (err: any) {
       Analytics.handleError(err)
@@ -103,11 +103,11 @@
 
     try {
       const inviteId = location.query?.inviteId ?? ''
-      const joinResult = await joinByInvite(inviteId)
+      const [joinStatus, joinResult] = await joinByInvite(inviteId)
       if (joinResult != null) {
         await handleLoginSuccess(joinResult)
       } else {
-        status = new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+        status = joinStatus !== OK ? joinStatus : new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
         joiningWithCurrentAccount = false
       }
     } catch (err: any) {

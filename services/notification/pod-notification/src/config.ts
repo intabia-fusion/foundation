@@ -24,6 +24,17 @@ interface Config {
 
   ServiceId: string
 
+  // APNs: a .p8 key from a paid Apple team; free provisioning issues no push
+  // entitlement. ApnsTopic is the app bundle id.
+  ApnsKeyId?: string
+  ApnsTeamId?: string
+  ApnsKey?: string
+  ApnsTopic?: string
+  ApnsProduction: boolean
+
+  // FCM: the service-account JSON, verbatim.
+  FcmServiceAccount?: string
+
   TTL: number
 
   AccountsUrl: string
@@ -40,7 +51,13 @@ const envMap: { [key in keyof Required<Config>]: string } = {
   QueueRegion: 'QUEUE_REGION',
   ServiceId: 'SERVICE_ID',
   AccountsUrl: 'ACCOUNTS_URL',
-  Secret: 'SECRET'
+  Secret: 'SECRET',
+  ApnsKeyId: 'APNS_KEY_ID',
+  ApnsTeamId: 'APNS_TEAM_ID',
+  ApnsKey: 'APNS_KEY',
+  ApnsTopic: 'APNS_TOPIC',
+  ApnsProduction: 'APNS_PRODUCTION',
+  FcmServiceAccount: 'FCM_SERVICE_ACCOUNT'
 }
 
 const parseNumber = (str: string | undefined): number | undefined => {
@@ -60,7 +77,15 @@ const config: Config = (() => {
     QueueRegion: process.env[envMap.QueueRegion],
     ServiceId: process.env[envMap.ServiceId] ?? 'web-push-service',
     AccountsUrl: process.env[envMap.AccountsUrl],
-    Secret: process.env[envMap.Secret]
+    Secret: process.env[envMap.Secret],
+    ApnsKeyId: process.env[envMap.ApnsKeyId],
+    ApnsTeamId: process.env[envMap.ApnsTeamId],
+    // The .p8 body travels through env, where a real newline cannot: \n is the
+    // usual way to carry a PEM, and createPrivateKey needs it restored.
+    ApnsKey: process.env[envMap.ApnsKey]?.replace(/\\n/g, '\n'),
+    ApnsTopic: process.env[envMap.ApnsTopic],
+    ApnsProduction: process.env[envMap.ApnsProduction] !== 'false',
+    FcmServiceAccount: process.env[envMap.FcmServiceAccount]
   }
 
   const required: Array<keyof Config> = ['Source', 'AccountsUrl', 'Secret']

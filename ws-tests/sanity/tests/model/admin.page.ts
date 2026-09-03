@@ -11,6 +11,21 @@ export class AdminPage {
   // ACTIONS
   async gotoAdmin (): Promise<void> {
     await (await this.page.goto(`${PlatformURI}/login/admin`))?.finished()
+    await this.openAdminSession()
+  }
+
+  // Entering /admin asks for a second factor: every admin RPC refuses a token without a fresh mfaAt.
+  // The panel renders the code form in place of the tabs until the session is open.
+  async openAdminSession (code = '000000'): Promise<void> {
+    const codeInput = this.page.locator('input[placeholder="Code"]')
+    try {
+      await codeInput.waitFor({ state: 'visible', timeout: 10000 })
+    } catch {
+      return // already inside an open session
+    }
+    await codeInput.fill(code)
+    await this.page.getByRole('button', { name: 'Confirm', exact: true }).click()
+    await this.page.locator('[data-id="tab-workspaces"]').waitFor({ state: 'visible' })
   }
 
   async openWorkspacesTab (): Promise<void> {

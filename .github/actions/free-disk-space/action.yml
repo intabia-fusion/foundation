@@ -8,13 +8,15 @@ runs:
       run: |
         echo "Disk space before cleanup:"
         df -h
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /usr/share/az_*
-        sudo rm -rf /opt/az
-        sudo rm -rf /usr/lib/google-cloud-sdk
-        sudo rm -rf /opt/ghc
-        sudo rm -rf "/usr/local/share/boost"
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        # Deleting these trees serially costs minutes, they are hundreds of thousands of small files.
+        sudo rm -rf /usr/share/dotnet &
+        sudo rm -rf /usr/local/lib/android &
+        sudo rm -rf /usr/share/az_* &
+        sudo rm -rf /opt/az &
+        sudo rm -rf /usr/lib/google-cloud-sdk &
+        sudo rm -rf /opt/ghc &
+        sudo rm -rf "/usr/local/share/boost" &
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY" &
+        wait
         echo "Disk space after cleanup:"
         df -h

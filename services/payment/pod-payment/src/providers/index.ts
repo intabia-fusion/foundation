@@ -145,7 +145,8 @@ export interface PaymentProvider {
     accountUuid: string,
     quantity?: number,
     period?: BillingPeriod,
-    recurrent?: boolean
+    recurrent?: boolean,
+    force?: boolean // Forced switch: cancel a pending checkout for a different order and open a new one.
   ) => Promise<SubscriptionData | CheckoutResponse | null>
 
   /**

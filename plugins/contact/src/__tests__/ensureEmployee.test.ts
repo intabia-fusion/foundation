@@ -555,3 +555,73 @@ describe('ensureEmployeeForPerson concurrency', () => {
     expect(emp.role).toBe('GUEST')
   })
 })
+
+describe('ensureEmployeeForPerson phone hint', () => {
+  const testCtx = new MeasureMetricsContext('test', {})
+  const sid = 'sid-phone-1' as PersonId
+
+  function makeAccount (): Account & { fullSocialIds: SocialId[] } {
+    return {
+      uuid: 'uuid-phone' as AccountUuid,
+      primarySocialId: sid,
+      role: AccountRole.User,
+      socialIds: [sid],
+      fullSocialIds: [
+        {
+          _id: sid,
+          type: SocialIdType.EMAIL,
+          value: 'a@b.com',
+          key: 'email:a@b.com',
+          verifiedOn: Date.now()
+        }
+      ]
+    }
+  }
+
+  function createdChannels (client: { tx: jest.Mock }): Array<{ provider: unknown, value: unknown }> {
+    return client.tx.mock.calls
+      .map(([tx]) => tx as TxCreateDoc<Doc>)
+      .filter((tx) => tx._class === core.class.TxCreateDoc && tx.objectClass === contact.class.Channel)
+      .map((tx) => tx.attributes as unknown as { provider: unknown, value: unknown })
+      .map(({ provider, value }) => ({ provider, value }))
+  }
+
+  it('creates a Phone channel from the global person phone hint', async () => {
+    const client = createConcurrentMockClient({
+      persons: new Map(),
+      socialIds: new Map(),
+      employees: new Map(),
+      txLog: []
+    })
+    const { ensureEmployeeForPerson } = await import('../utils')
+    const account = makeAccount()
+
+    await ensureEmployeeForPerson(testCtx, account, account, client, account.fullSocialIds, {
+      uuid: 'uuid-phone' as PersonUuid,
+      firstName: 'A',
+      lastName: 'B',
+      phoneHint: '+79000000011'
+    })
+
+    expect(createdChannels(client as any)).toEqual([{ provider: contact.channelProvider.Phone, value: '+79000000011' }])
+  })
+
+  it('creates no channel when the person has no phone hint', async () => {
+    const client = createConcurrentMockClient({
+      persons: new Map(),
+      socialIds: new Map(),
+      employees: new Map(),
+      txLog: []
+    })
+    const { ensureEmployeeForPerson } = await import('../utils')
+    const account = makeAccount()
+
+    await ensureEmployeeForPerson(testCtx, account, account, client, account.fullSocialIds, {
+      uuid: 'uuid-phone' as PersonUuid,
+      firstName: 'A',
+      lastName: 'B'
+    })
+
+    expect(createdChannels(client as any)).toEqual([])
+  })
+})

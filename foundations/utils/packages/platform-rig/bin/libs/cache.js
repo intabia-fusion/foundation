@@ -66,41 +66,6 @@ const phaseOutputDirs = {
 }
 
 /**
- * Calculate hash of output directory contents for a phase
- * @param {string} packagePath - Path to package directory
- * @param {string} phase - Phase name
- * @returns {string|null} MD5 hash of output files, or null if no outputs
- */
-function calculateOutputHash(packagePath, phase) {
-  const dirs = phaseOutputDirs[phase]
-  if (!dirs || dirs.length === 0) return null
-  return calculateOutputHashForDirs(packagePath, dirs)
-}
-
-/**
- * Calculate hash of specific output directories
- * @param {string} packagePath - Path to package directory
- * @param {string[]} dirs - Directory names relative to package
- * @returns {string|null} MD5 hash, or null if any dir doesn't exist
- */
-function calculateOutputHashForDirs(packagePath, dirs) {
-  const parts = []
-  for (const dir of dirs) {
-    const dirPath = join(packagePath, dir)
-    if (!fs.existsSync(dirPath)) return null
-
-    const sigs = collectFileSignatures(dirPath)
-    const sortedKeys = Object.keys(sigs).sort()
-    for (const key of sortedKeys) {
-      parts.push(`${dir}:${key}=${sigs[key]}`)
-    }
-  }
-
-  if (parts.length === 0) return null
-  return crypto.createHash('md5').update(parts.join('\n')).digest('hex')
-}
-
-/**
  * Collect file signatures (mtime:size) recursively
  * @param {string} dir - Directory to scan
  * @param {Set<string>} [extensions] - Optional set of file extensions to include (e.g., ['.ts', '.js'])
@@ -465,6 +430,21 @@ function getCompletedPhases(packagePath, packageHash) {
 }
 
 /**
+ * Drop a single phase from the cache, leaving the other phases untouched.
+ * Transpile used to call invalidateCache() on any upstream change, which wiped
+ * validate/lint/svelte-check/bundle/package/docker-build for the whole downstream closure.
+ * @param {string} packagePath - Path to package directory
+ * @param {string} phase - Phase name
+ */
+function invalidatePhase(packagePath, phase) {
+  const cache = loadPackageCache(packagePath)
+  if (!cache || !cache.phases || !cache.phases[phase]) return
+
+  delete cache.phases[phase]
+  savePackageCache(packagePath, cache)
+}
+
+/**
  * Invalidate all caches for a package (when force rebuilding)
  * @param {string} packagePath - Path to package directory
  */
@@ -488,5 +468,6 @@ module.exports = {
   markPhaseCompleted,
   getPhaseMetadata,
   getCompletedPhases,
+  invalidatePhase,
   invalidateCache
 }

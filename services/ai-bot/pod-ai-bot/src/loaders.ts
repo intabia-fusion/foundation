@@ -19,7 +19,13 @@ import platformEng from '@hcengineering/platform/lang/en.json'
 
 import { addStringsLoader, platformId } from '@hcengineering/platform'
 
+import { aiBotId } from '@hcengineering/ai-bot'
+import aiBotEn from '@hcengineering/ai-bot-assets/lang/en.json'
+import aiBotRu from '@hcengineering/ai-bot-assets/lang/ru.json'
+
 export function registerLoaders (): void {
   addStringsLoader(coreId, async (lang: string) => coreEng)
   addStringsLoader(platformId, async (lang: string) => platformEng)
+  // ai-bot string bundles so the pod can translate IntlString server-side (e.g. non-personal replies).
+  addStringsLoader(aiBotId, async (lang: string) => (lang === 'ru' ? aiBotRu : aiBotEn))
 }

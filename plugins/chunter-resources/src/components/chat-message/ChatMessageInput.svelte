@@ -32,6 +32,8 @@
   } from '@hcengineering/core'
   import { createQuery, DraftController, draftsStore, getClient } from '@hcengineering/presentation'
   import { EmptyMarkup, isEmptyMarkup } from '@hcengineering/text'
+  import { RefAction } from '@hcengineering/text-editor'
+  import { Attachment } from '@hcengineering/attachment'
   import { createEventDispatcher, onDestroy } from 'svelte'
   import { getObjectId } from '@hcengineering/view-resources'
   import { ThrottledCaller } from '@hcengineering/ui'
@@ -42,6 +44,9 @@
   import { getChannelSpace, getForwardData } from '../../utils'
   import { replyingToMessageStore } from '../../stores'
   import ChannelTypingInfo from '../ChannelTypingInfo.svelte'
+  import AIRequestProgress from '../AIRequestProgress.svelte'
+  import VoiceRecordingHud from './VoiceRecordingHud.svelte'
+  import IconMic from '../icons/IconMic.svelte'
 
   export let object: Doc
   export let chatMessage: ChatMessage | undefined = undefined
@@ -80,6 +85,23 @@
   let currentMessage: MessageDraft = chatMessage ?? currentDraft ?? getDefault()
   let _id = currentMessage._id
   let inputContent = currentMessage.message
+
+  let recording = false
+  const voiceActions: RefAction[] = [
+    {
+      label: chunter.string.RecordVoice,
+      icon: IconMic,
+      order: 2000,
+      action: () => {
+        recording = true
+      }
+    }
+  ]
+
+  // Register the HUD-created AudioTranscribe as a draft attachment (not injected into the input).
+  function onAudioAttachment (e: CustomEvent<Attachment>): void {
+    inputRef?.addAttachmentDoc(e.detail)
+  }
 
   let forwardedMessage: WithLookup<ChatMessage> | undefined = undefined
 
@@ -345,6 +367,17 @@
   <ReplyToMessagePresenter replyTo={forwardedMessage} on:delete={handleReplyMessageDelete} />
 {/if}
 
+{#if recording}
+  <VoiceRecordingHud
+    objectId={_id}
+    objectClass={_class}
+    space={getChannelSpace(object._class, object._id, object.space)}
+    on:audio={onAudioAttachment}
+    on:send={() => inputRef?.submit()}
+    on:close={() => (recording = false)}
+  />
+{/if}
+
 <AttachmentRefInput
   {focusIndex}
   bind:this={inputRef}
@@ -358,6 +391,7 @@
   {shouldSaveDraft}
   {boundary}
   {autofocus}
+  extraActions={voiceActions}
   isContentChanged={chatMessage?.forwardedMessage !== forwardedMessage?._id &&
     (!isEmptyMarkup(inputContent) || (currentMessage.attachments ?? 0) > 0 || forwardedMessage != null)}
   on:message={onMessage}
@@ -369,5 +403,16 @@
 />
 
 {#if withTypingInfo}
-  <ChannelTypingInfo {object} />
+  <div class="typing-row">
+    <ChannelTypingInfo {object} />
+    <AIRequestProgress {object} />
+  </div>
 {/if}
+
+<style lang="scss">
+  .typing-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+</style>

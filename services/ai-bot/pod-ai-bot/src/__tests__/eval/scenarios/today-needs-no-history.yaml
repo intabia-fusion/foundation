@@ -1,0 +1,21 @@
+name: today-needs-no-history
+mode: direct
+lang: ru
+world:
+  history:
+    - role: user
+      content: Сегодня утром выкатили релиз 2.14, отвалилась авторизация по SSO.
+    - role: assistant
+      content: Откатили на 2.13, разбираемся с сертификатом.
+requirements:
+  - id: R1
+    text: отвечает по сегодняшнему контексту, который уже в промпте
+  - id: R2
+    text: не лезет в историю за тем, что уже видит
+turns:
+  - ask: О чём мы сегодня говорили?
+expect:
+  answer:
+    containsAny: [SSO, авториз, 2.14]
+  forbidTools: [load_thread_history]
+  maxRoundsTotal: 1

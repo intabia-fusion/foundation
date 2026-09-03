@@ -1,0 +1,27 @@
+name: oversized-document
+mode: thread
+lang: ru
+# Pinned: with a 128k window this body fits and the oversized branch never fires.
+contextBudgetTokens: 16000
+world:
+  document:
+    title: Регламент выпуска
+    # repeat раздувает тело так, что оно не влезает в окно: в контекст пойдёт оглавление.
+    repeat: 400
+    body: |
+      ## Раздел регламента
+
+      Выпуск проходит по расписанию, релиз-менеджер отвечает за проверку и откат.
+      Перед выкатом снимается резервная копия, после выката проверяются метрики.
+requirements:
+  - id: R1
+    text: документ не изменён
+  - id: R2
+    text: сказано, что документ слишком большой для правки целиком
+turns:
+  - ask: Перепиши регламент, добавь раздел про откат.
+expect:
+  document:
+    unchanged: true
+  forbidTools: [propose_new_document, edit_issue_draft]
+  maxRoundsTotal: 4

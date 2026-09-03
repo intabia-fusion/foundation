@@ -296,6 +296,10 @@ class WorkspaceCache {
    */
   public async getDoc<T extends Doc = Doc>(_id: Ref<T>, _class: Ref<Class<T>>): Promise<T | undefined> {
     if (this.documentsCache.has(_id)) return this.documentsCache.get(_id) as T
+    // A tx can name a task type's target mixin that the workspace model no longer has; findOne then
+    // throws "domain not found" and the tx consumer retries that one message forever.
+    if (!this.client.hierarchy.hasClass(_class)) return undefined
+
     const query = { _id } as unknown as DocumentQuery<T>
     const doc = await this.client.findOne(_class, query)
     if (doc !== undefined) {
@@ -974,10 +978,10 @@ class WorkspaceCache {
     const toLoad = collaborators.filter((it) => !this.employeesByAccountCache.has(it))
     if (toLoad.length === 0) return existing
 
-    const employees: Pick<Employee, '_id' | 'personUuid' | 'role'>[] = await this.client.findAll(
+    const employees: Pick<Employee, '_id' | 'personUuid' | 'role' | 'active'>[] = await this.client.findAll(
       contact.mixin.Employee,
       { personUuid: { $in: toLoad }, active: true },
-      { projection: { _id: 1, personUuid: 1, role: 1 } }
+      { projection: { _id: 1, personUuid: 1, role: 1, active: 1 } }
     )
 
     for (const employee of employees) {

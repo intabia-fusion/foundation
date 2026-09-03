@@ -178,7 +178,8 @@ describe('integration: resend end-to-end', () => {
         () => 'token-ok',
         {
           socketFactory: createSocketFactory(),
-          // Use identity compression to ensure FRAME_MSGPACK is used (simplifies inspection)
+          // Pin msgpack + identity compression so the drop filter below can match on FRAME_MSGPACK.
+          formats: ['msgpack/snappy'],
           compress: async (x: any) => x,
           uncompress: async (x: any) => x,
           onConnect: async () => {

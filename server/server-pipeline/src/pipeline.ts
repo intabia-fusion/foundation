@@ -35,6 +35,7 @@ import {
   LowLevelMiddleware,
   MarkDerivedEntryMiddleware,
   ModelMiddleware,
+  sharedSystemModel,
   ModifiedMiddleware,
   IdentifierMiddleware,
   NormalizeTxMiddleware,
@@ -72,11 +73,14 @@ import {
   type WorkspaceDestroyAdapter
 } from '@hcengineering/server-core'
 import { generateToken } from '@hcengineering/server-token'
-import { createStorageDataAdapter } from './blobStorage'
 
 import { RatingMiddleware } from '@hcengineering/server-rating'
 import { ChunterMiddleware } from '@hcengineering/server-chunter'
 import { NotificationMiddleware } from '@hcengineering/server-notification'
+import { TaskMiddleware } from '@hcengineering/server-task'
+import { WorkflowMiddleware } from '@hcengineering/server-workflow'
+
+import { createStorageDataAdapter } from './blobStorage'
 
 /**
  * @public
@@ -114,6 +118,17 @@ function addMessagesToFullText (fulltext: MiddlewareCreator): MiddlewareCreator 
   }
 }
 
+/** System model is identical for every workspace: built once, each workspace overlays its own txes. */
+function buildSharedModel (ctx: MeasureContext, txes: Tx[]): { hierarchy?: Hierarchy, model?: ModelDb } {
+  if (!sharedSystemModel) return {}
+  const hierarchy = new Hierarchy()
+  const model = new ModelDb(hierarchy)
+  model.addTxes(ctx, txes, true)
+  // Frozen: every workspace reads these documents, a direct write would corrupt the neighbours.
+  model.freeze()
+  return { hierarchy, model }
+}
+
 /**
  * @public
  */
@@ -135,12 +150,16 @@ export function createServerPipeline (
   },
   extensions?: Partial<DbConfiguration>
 ): PipelineFactory {
+  const shared = buildSharedModel(metrics, model)
+
   return (ctx, workspace, broadcast, branding) => {
     const metricsCtx = opt.usePassedCtx === true ? ctx : metrics
     const wsMetrics = metricsCtx.newChild('🧲 session', {}, { span: false })
     const conf = getConfig(metrics, dbUrl, wsMetrics, opt, extensions)
 
-    ctx.info('Pipeline created with branding:', { branding })
+    if (branding != null) {
+      ctx.info('Pipeline created with branding:', { branding })
+    }
 
     const middlewares: MiddlewareCreator[] = [
       LookupMiddleware.create,
@@ -164,8 +183,10 @@ export function createServerPipeline (
       UserStatusMiddleware.create,
       ApplyTxMiddleware.create, // Extract apply
       VersioningMiddleware.create,
+      TaskMiddleware.create,
       IdentifierMiddleware.create, // After ApplyTx to ensure that it pass
       RatingMiddleware.create, // Rating editing restrictions
+      WorkflowMiddleware.create, // Workflow editing restrictions
       TransientMiddleware.create,
       ChunterMiddleware.create,
       NotificationMiddleware.create,
@@ -189,13 +210,14 @@ export function createServerPipeline (
       DomainTxMiddleware.create,
       ...(opt.queue !== undefined ? [QueueMiddleware.create(opt.queue)] : []),
       DBAdapterInitMiddleware.create,
-      ModelMiddleware.create(model),
+      ModelMiddleware.create(model, undefined, shared.model !== undefined),
       DBAdapterMiddleware.create(conf), // Configure DB adapters
       BroadcastMiddleware.create(broadcast)
     ]
 
-    const hierarchy = new Hierarchy()
-    const modelDb = new ModelDb(hierarchy)
+    const hierarchy = new Hierarchy(shared.hierarchy)
+    const modelDb = new ModelDb(hierarchy, shared.model)
+    const contextVars = opt.pipelineContextVars ?? {}
     const context: PipelineContext = {
       workspace,
       branding,
@@ -205,7 +227,10 @@ export function createServerPipeline (
       storageAdapter: opt.externalStorage,
       // Per-pipeline copy: middlewares publish workspace-scoped state here (planLimits,
       // spaceCounts). Shared entries (LimitsProvider, payment-exhausted Map) stay references.
-      contextVars: { ...(opt.pipelineContextVars ?? {}) }
+      contextVars: { ...contextVars },
+      // Seed from the boot last-tx cache so a restart with no data change reconnects clients
+      // as Reconnected instead of Refresh (see pods/server loadLastTxCache).
+      lastTx: (contextVars.lastTxCache as Map<string, Ref<Tx>> | undefined)?.get(workspace.uuid)
     }
     return createPipeline(ctx, middlewares, context)
   }
@@ -225,6 +250,9 @@ export function createBackupPipeline (
     externalStorage: StorageAdapter
   }
 ): PipelineFactory {
+  // Backup walks workspace by workspace - the system model is built once for all of them.
+  const shared = buildSharedModel(metrics, systemTx)
+
   return (ctx, workspace, broadcast, branding) => {
     const metricsCtx = opt.usePassedCtx === true ? ctx : metrics
     const wsMetrics = metricsCtx.newChild('🧲 backup', {}, { span: false })
@@ -239,12 +267,12 @@ export function createBackupPipeline (
       // ConnectionMgrMiddleware.create,
       DomainFindMiddleware.create,
       DBAdapterInitMiddleware.create,
-      ModelMiddleware.create(systemTx),
+      ModelMiddleware.create(systemTx, undefined, shared.model !== undefined),
       DBAdapterMiddleware.create(conf)
     ]
 
-    const hierarchy = new Hierarchy()
-    const modelDb = new ModelDb(hierarchy)
+    const hierarchy = new Hierarchy(shared.hierarchy)
+    const modelDb = new ModelDb(hierarchy, shared.model)
     const context: PipelineContext = {
       workspace,
       branding,
@@ -329,6 +357,25 @@ function matchAdapterFactory (dbUrl: string): DbAdapterFactory {
     }
   }
   return adapterFactories['']
+}
+
+// Optional boot-time last-tx loader per backend (SQL specifics stay in the backend package).
+// Unregistered backends -> matchLastTxLoader returns undefined; the caller skips the cache and
+// clients fall back to Refresh, which is safe.
+export type LastTxLoader = (ctx: MeasureContext, dbUrl: string, cache: Map<string, Ref<Tx>>) => Promise<void>
+const lastTxLoaders: Record<string, LastTxLoader> = {}
+
+export function registerLastTxLoader (name: string, loader: LastTxLoader): void {
+  lastTxLoaders[name] = loader
+}
+
+export function matchLastTxLoader (dbUrl: string): LastTxLoader | undefined {
+  for (const [k, v] of Object.entries(lastTxLoaders)) {
+    if (k !== '' && dbUrl.startsWith(k)) {
+      return v
+    }
+  }
+  return undefined
 }
 
 export function getWorkspaceDestroyAdapter (dbUrl: string): WorkspaceDestroyAdapter {

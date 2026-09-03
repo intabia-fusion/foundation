@@ -43,6 +43,7 @@ export async function createCallbackClient (
     ) => Promise<Uint8Array | any>
     clientHost?: string
     onConnect?: (event: ClientConnectEvent, data: any) => Promise<void>
+    formats?: string[]
   }
 ): Promise<ClisrClient> {
   const client = new ClisrClient(
@@ -50,7 +51,7 @@ export async function createCallbackClient (
     url,
     (data) => {},
     () => token,
-    { clientHost: executor.clientHost, onConnect: executor.onConnect }
+    { clientHost: executor.clientHost, onConnect: executor.onConnect, formats: executor.formats }
   )
   client.callbackHandler = executor.callback
   client.binaryHandler = executor.binaryExecutor

@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { retryIntervals } from '../../retry'
 
 export class RecruitingPage {
   page: Page
@@ -81,12 +82,21 @@ export class RecruitingPage {
     await this.actionsInput().fill(text)
   }
 
+  // A re-render of the actions popup between mousedown and mouseup swallows the click and the
+  // action never runs. Retrying is safe: the actions here only navigate.
+  private async clickPopupOption (option: Locator): Promise<void> {
+    await expect(async () => {
+      await option.click({ timeout: 5000 })
+      await expect(option).toHaveCount(0, { timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+  }
+
   async clickGoToVacanciesPopupOption (): Promise<void> {
-    await this.goToVacanciesPopupOption().click({ delay: 100 })
+    await this.clickPopupOption(this.goToVacanciesPopupOption())
   }
 
   async clickOnGoToApplicationsPopupOption (): Promise<void> {
-    await this.goToApplicationsPopupOption().click({ delay: 100 })
+    await this.clickPopupOption(this.goToApplicationsPopupOption())
   }
 
   // ASSERTIONS

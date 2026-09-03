@@ -1,0 +1,118 @@
+# Dev ai-bot CLIENT registry (mounted at /var/cfg/config.yaml on the clisr worker pods).
+# Reference: services/ai-bot/pod-ai-bot/config.example.yaml
+#
+# The clisr client receives requests carrying a level and resolves level -> model/endpoint
+# from THIS registry, then calls the local OpenAI-compatible endpoint (LM Studio /
+# llama.cpp on the host). Both LLM and ASR are configured here (no legacy STT_* env).
+#   low -> small local model (chat only), low-plus -> bigger local model (tools/tasks)
+#   mock -> deterministic offline provider, needs no model server (see docs/aibot-mock-testing.md)
+#   default -> local whisper (ASR)
+#
+# Switching models for a test run: either point ${CLISR_MODEL} at another model, or park
+# an alternative binding/provider with `enabled: false` and flip the flag.
+
+llm:
+  defaultLevel: low
+
+  # Level classes for levels this client serves locally.
+  # `features` marks which product features a level may serve (unset = allowed); the
+  # router publishes them in GET /levels and the UI hides levels that lack a feature.
+  models:
+    low:
+      order: 0
+      label: Базовый
+      tokenMultiplier: 1
+      displayMultiplier: 0
+      # Small local model: chat only. Tool calling is unreliable, so keep it away from
+      # live talk / summary / task creation instead of failing at runtime.
+      features:
+        talk: false
+        summary: false
+        tasks: false
+    mock:
+      order: 1
+      label: Мок
+      description: Детерминированный мок, модель не нужна
+      # Test level: costs nothing, so a UI run does not eat the workspace token window.
+      tokenMultiplier: 0
+      displayMultiplier: 0
+    low-plus:
+      order: 5
+      label: Базовый+
+      description: Локальная модель с инструментами
+      tokenMultiplier: 1
+      displayMultiplier: 0
+      # Must also be enabled on the SERVER registry (dev/config-aibot.yaml) to appear in the UI.
+
+  providers:
+    - id: openai
+      provider: openai
+      concurrency: 4
+      batch: 1
+      endpoint: ${CLISR_HOST:-http://host.docker.internal:8000/v1/}
+      endpointConfig:
+        apiKey: 1234
+      serves:
+        low:
+          model: ${CLISR_MODEL:-GigaChat3.1-10B-A1.8B-MLX-oQ4}
+          capabilities:
+            tools: true
+            maxContextTokens: 4096
+        low-plus:
+          model: ${CLISR_TOOLS_MODEL:-Ternary-Bonsai-27B-mlx-2bit}
+          capabilities:
+            tools: true
+            maxContextTokens: 16576
+
+    # Deterministic offline provider on its own level (one provider per level). See docs/aibot-mock-testing.md.
+    - id: mock
+      provider: mock
+      concurrency: 4
+      batch: 1
+      endpointConfig:
+        echo: true
+        promptTokens: 50
+        completionTokens: 10
+      serves:
+        mock:
+          model: mock-model
+          capabilities:
+            maxContextTokens: 32768
+
+    # Parked alternative endpoint (e.g. llama.cpp on another port). Flip `enabled` here
+    # and on the provider above to switch the whole client to it.
+    - id: openai-alt
+      provider: openai
+      enabled: false
+      concurrency: 4
+      batch: 1
+      endpoint: ${CLISR_ALT_HOST:-http://host.docker.internal:8001/v1/}
+      endpointConfig:
+        apiKey: 1234
+      serves:
+        low:
+          model: ${CLISR_ALT_MODEL:-Qwen3-4B-MLX-4bit}
+          capabilities:
+            tools: false
+            maxContextTokens: 8192
+
+# ASR registry (mirrors llm). The clisr STT worker resolves level -> model/endpoint here
+# and calls the local OpenAI-compatible transcription endpoint.
+asr:
+  defaultLevel: default
+
+  models:
+    default:
+      order: 0
+      label: Базовый
+      tokenMultiplier: 1
+      displayMultiplier: 0
+
+  providers:
+    - id: openai
+      provider: openai
+      serves:
+        default:
+          model: whisper-1
+          url: http://host.docker.internal:9007
+          apiKey: key

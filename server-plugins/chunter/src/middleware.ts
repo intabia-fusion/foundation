@@ -21,7 +21,8 @@ import core, {
   type DocumentQuery,
   type FindOptions,
   type FindResult,
-  combineAttributes
+  combineAttributes,
+  systemAccountUuid
 } from '@hcengineering/core'
 import chunter, { Chat, type DirectMessage } from '@hcengineering/chunter'
 import { PersonSpace } from '@hcengineering/contact'
@@ -190,7 +191,11 @@ export class ChunterMiddleware extends BaseMiddleware {
     tx.attributes.archived = false
     tx.attributes.autoJoin = false
     tx.attributes.private = true
-    tx.attributes.members = Array.from(new Set([...tx.attributes.members, account.uuid]))
+    // A service creates directs on someone else's behalf (ai-bot welcome): adding the system account
+    // makes it a three-member group, which skips the referenceId dedup below.
+    if (account.uuid !== systemAccountUuid) {
+      tx.attributes.members = Array.from(new Set([...tx.attributes.members, account.uuid]))
+    }
     tx.attributes.type = tx.attributes.members.length > 2 ? 'group' : 'person'
 
     delete tx.attributes.referenceId

@@ -2,7 +2,7 @@ import { Employee, Person } from '@hcengineering/contact'
 import { Data, generateId, Ref, WorkspaceUuid } from '@hcengineering/core'
 
 import love from './plugin'
-import { MeetingMinutes, Office, ParticipantInfo, Room, RoomType } from './types'
+import { MeetingMinutes, MeetingStatus, Office, ParticipantInfo, Room, RoomType } from './types'
 
 /**
  * Parsed LiveKit room name components
@@ -13,13 +13,8 @@ export interface ParsedRoomName {
 }
 
 /**
- * Parse LiveKit room name to extract workspace and meeting ID.
- *
- * Room name format: `${workspaceUuid}_${meetingMinutesId}` produced by `getRoomName`.
- * Both components are generated identifiers that never contain `_`:
- *   - workspace: UUID v4 (hex + `-`)
- *   - meetingId: `Ref<MeetingMinutes>` (24 hex chars from `generateId`)
- * So the single `_` is always the separator and there are exactly 2 parts.
+ * Splits `${workspaceUuid}_${meetingMinutesId}` from `getRoomName`. Neither id ever contains
+ * `_`, so the first one is always the separator.
  */
 export function parseRoomName (roomName: string): ParsedRoomName | undefined {
   const sepIdx = roomName.indexOf('_')
@@ -255,34 +250,56 @@ export interface ScreenSource {
   appIconURL: string
 }
 
+// A scheduled meeting keeps its identity for a plausible session length: an empty room in the
+// middle of it is a dropout, not the end. Joining opens 15 minutes before the start.
+export const SCHEDULED_MEETING_WINDOW_MS = 4 * 60 * 60 * 1000
+export const SCHEDULED_JOIN_LEAD_MS = 15 * 60 * 1000
+
+// A Scheduled meeting owns its room only inside that window; next week's one must not swallow
+// an ad-hoc Connect. Without a date there is no window, so it owns nothing.
+export function isScheduledJoinable (
+  mm: Pick<MeetingMinutes, 'status' | 'meetingScheduledDate'>,
+  now: number = Date.now()
+): boolean {
+  if (mm.status !== MeetingStatus.Scheduled) return false
+  const date = mm.meetingScheduledDate
+  if (date == null) return false
+  return now >= date - SCHEDULED_JOIN_LEAD_MS && now < date + SCHEDULED_MEETING_WINDOW_MS
+}
+
 export function getFreeRoomPlace (
   room: Room,
   info: ParticipantInfo[],
   person: Ref<Person>,
   pref?: { x: number, y: number }
 ): { x: number, y: number } {
-  let y = 0
+  const taken = (x: number, y: number): boolean => info.some((p) => p.x === x && p.y === y)
+
   if (pref !== undefined) {
     if (isOffice(room) && room.person === person) {
       return { x: 0, y: 0 }
     }
-    if (!info.some((it) => it.x === pref.x && it.y === pref.y)) {
-      // Place is free, use it.
+    // Only honour a preference that the floor grid can actually render.
+    const inGrid = pref.x >= 0 && pref.y >= 0 && pref.x < room.width && pref.y < room.height
+    // (0,0) of an office belongs to its owner, who already returned above.
+    const ownerSeat = isOffice(room) && pref.x === 0 && pref.y === 0
+    if (inGrid && !ownerSeat && !taken(pref.x, pref.y)) {
       return pref
     }
   }
-  while (true) {
+  for (let y = 0; y < room.height; y++) {
     for (let x = 0; x < room.width; x++) {
-      if (info.find((p) => p.x === x && p.y === y) === undefined) {
-        if (x === 0 && y === 0 && isOffice(room)) {
-          if (room.person === person) {
-            return { x: 0, y: 0 }
-          }
-        } else {
-          return { x, y }
-        }
+      if (taken(x, y)) continue
+      // (0,0) of an office belongs to its owner.
+      if (x === 0 && y === 0 && isOffice(room)) {
+        if (room.person === person) return { x: 0, y: 0 }
+        continue
       }
+      return { x, y }
     }
-    y++
+  }
+  // Room full: overflow along x - RoomPreview adds extra columns, never rows.
+  for (let x = room.width; ; x++) {
+    if (!taken(x, 0)) return { x, y: 0 }
   }
 }

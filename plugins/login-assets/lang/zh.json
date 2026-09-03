@@ -106,6 +106,13 @@
     "ExpiredLink": "此邀请链接已过期",
     "ExpiredLinkDescription": "请申请新的邀请链接",
     "UsageConditions": "使用条款",
-    "IntabiaFusion": "Intabia Fusion"
+    "IntabiaFusion": "Intabia Fusion",
+    "Continue": "继续",
+    "AlreadyRegistered": "您已在平台上注册",
+    "RegistrationComplete": "注册已完成",
+    "RegistrationCompleteHint": "创建您自己的工作区，或向现有工作区的所有者索取访问链接。",
+    "CheckingLink": "正在检查链接...",
+    "InvalidLink": "此链接已失效",
+    "ConfirmationFailed": "无法完成注册"
   }
 }

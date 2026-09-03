@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -17,16 +18,25 @@
   import { FindOptions } from '@hcengineering/core'
   import presentation, { Card } from '@hcengineering/presentation'
   import { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
-  import { Button, eventToHTMLElement, IconAdd, Scroller, showPopup, tableSP } from '@hcengineering/ui'
+  import { Button, eventToHTMLElement, IconAdd, IconDelete, Scroller, showPopup, tableSP } from '@hcengineering/ui'
   import { TableBrowser } from '@hcengineering/view-resources'
+
   import tracker from '../../../plugin'
   import IssuePresenter from '../IssuePresenter.svelte'
   import ParentNamesPresenter from '../ParentNamesPresenter.svelte'
   import TimeSpendReportPopup from './TimeSpendReportPopup.svelte'
+  import DraftReportsTable from './DraftReportsTable.svelte'
+  import { type ITimeReportService, DraftTimeReportService } from './service'
+
   export let issue: Issue
   export let currentProject: Project | undefined
+  export let service: ITimeReportService | undefined = undefined
 
   $: defaultTimeReportDay = currentProject?.defaultTimeReportDay
+  $: isDraftMode = Boolean(service && service.isDraft && service instanceof DraftTimeReportService)
+
+  let draftTable: DraftReportsTable | undefined
+  let selectedReports: TimeSpendReport[] = []
 
   export function canClose (): boolean {
     return true
@@ -46,7 +56,8 @@
         issueClass: issue._class,
         space: issue.space,
         assignee: issue.assignee,
-        defaultTimeReportDay
+        defaultTimeReportDay,
+        service
       },
       eventToHTMLElement(event)
     )
@@ -65,28 +76,42 @@
     <IssuePresenter value={issue} disabled />
   </svelte:fragment>
   <div class="h-full">
-    <Scroller fade={tableSP}>
-      <TableBrowser
-        _class={tracker.class.TimeSpendReport}
-        query={{ attachedTo: { $in: [issue._id, ...(issue.childInfo?.map((it) => it.childId) ?? [])] } }}
-        config={[
-          '$lookup.attachedTo',
-          '',
-          'employee',
-          {
-            key: '$lookup.attachedTo',
-            presenter: ParentNamesPresenter,
-            props: { maxWidth: '20rem' },
-            label: tracker.string.Title
-          },
-          'date',
-          'description'
-        ]}
-        {options}
-      />
-    </Scroller>
+    {#if !isDraftMode}
+      <Scroller fade={tableSP}>
+        <TableBrowser
+          _class={tracker.class.TimeSpendReport}
+          query={{ attachedTo: { $in: [issue._id, ...(issue.childInfo?.map((it) => it.childId) ?? [])] } }}
+          config={[
+            '$lookup.attachedTo',
+            '',
+            'employee',
+            {
+              key: '$lookup.attachedTo',
+              presenter: ParentNamesPresenter,
+              props: { maxWidth: '20rem' },
+              label: tracker.string.Title
+            },
+            'date',
+            'description'
+          ]}
+          {options}
+        />
+      </Scroller>
+    {:else if service instanceof DraftTimeReportService}
+      <DraftReportsTable bind:this={draftTable} {issue} {service} bind:selectedReports />
+    {/if}
   </div>
+
   <svelte:fragment slot="buttons">
+    {#if isDraftMode && selectedReports.length > 0}
+      <Button
+        id="ReportsPopupDeleteSelectedButton"
+        icon={IconDelete}
+        size="large"
+        showTooltip={{ label: presentation.string.Delete }}
+        on:click={() => draftTable?.deleteSelected()}
+      />
+    {/if}
     <Button id="ReportsPopupAddButton" icon={IconAdd} size={'large'} on:click={addReport} />
   </svelte:fragment>
 </Card>

@@ -38,8 +38,8 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-      cockroach:
-        condition: service_started
+      postgres:
+        condition: service_healthy
       stats:
         condition: service_started
       account:
@@ -52,6 +52,15 @@ services:
     environment:
       - DB_URL=${DB_PURE_PG_URL}
   activity:
+    environment:
+      - DB_URL=${DB_PURE_PG_URL}
+  time-machine:
+    environment:
+      - DB_URL=${DB_PURE_PG_URL}
+  billing:
+    environment:
+      - DB_URL=${DB_PURE_PG_URL}
+  love:
     environment:
       - DB_URL=${DB_PURE_PG_URL}
   db-migrator:

@@ -43,7 +43,7 @@ export interface LoginInfoWorkspace {
   role: AccountRole | null
   progress?: number
   branding?: string
-  passwordAgingRule?: number // in days
+  passwordAgingRule?: number | null // in days
 }
 
 export interface LoginInfoWithWorkspaces extends LoginInfo {
@@ -160,9 +160,49 @@ export interface AccountAggregatedInfo extends AccountInfo, Person {
   workspaces: Omit<WorkspaceInfo, 'allowReadOnlyGuest' | 'allowGuestSignUp'>[]
   // Max last_visit across the account's workspaces (approximation of user's last activity)
   lastVisit?: number
+  // Earliest social id creation time - when the person first appeared
+  registeredOn?: number
+  // False for an unfinished signup: person + social ids exist, but no account row yet
+  hasAccount?: boolean
+  // Earliest email social id - what the admin list shows and sorts by
+  primaryEmail?: string
 }
 
-export type AccountsSortKey = 'name' | 'lastVisit'
+export type AccountsSortKey = 'name' | 'lastVisit' | 'registeredOn' | 'workspaces' | 'email'
+
+/** Admin audit trail entry. Duplicated in server/account/src/types.ts - change both */
+export interface AdminAction {
+  id?: string
+  actor: string
+  actorEmail?: string
+  action: string
+  target?: string
+  targetLabel?: string
+  data?: Record<string, any>
+  createdOn: number
+}
+
+export interface AdminActionsQuery {
+  search?: string
+  action?: string
+  skip?: number
+  limit?: number
+}
+
+export interface AdminActionsResult {
+  actions: AdminAction[]
+  total: number
+}
+
+/** Server-side filters for listAccounts */
+export interface AccountsFilter {
+  /** Accounts not belonging to any workspace */
+  noWorkspaces?: boolean
+  /** Accounts with no visit for at least this many days (never visited counts as inactive) */
+  inactiveDays?: number
+  /** Unfinished signups only: person + social ids without an account row */
+  pendingOnly?: boolean
+}
 
 /** Transactor endpoint entry for admin manage calls */
 export interface TransactorEndpointInfo {
@@ -208,7 +248,8 @@ export enum SubscriptionStatus {
 export enum SubscriptionType {
   Tier = 'tier', // Main workspace tier (free, starter, pro, enterprise)
   Support = 'support', // Voluntary support/donation subscription
-  Package = 'package' // Additional package (storage, etc.)
+  Package = 'package', // Additional package (storage, etc.)
+  Purchase = 'purchase' // One-time catalog purchase (AI usage reset, skins, unlocks) — not a limit-granting subscription
 }
 
 /**
@@ -240,6 +281,9 @@ export interface Subscription {
     meetingMinutesLimit: number
     tokenLimit: number
     usersLimit: number
+    // AI rolling-window limit (billed tokens/month) + package multiplier. Bigger plan = bigger window.
+    windowMonthLimit?: number
+    tokenPackageMultiplier?: number
   }
 
   // Free fallback limits (from the plan flagged free in config). Applied when the paid tier is unpaid:
@@ -250,6 +294,8 @@ export interface Subscription {
     meetingMinutesLimit: number
     tokenLimit: number
     usersLimit: number
+    windowMonthLimit?: number
+    tokenPackageMultiplier?: number
   }
 
   // Amount paid (in cents, e.g. 9999 = $99.99)
@@ -280,6 +326,12 @@ export interface Subscription {
  * Used by billing service to upsert subscription data
  */
 export type SubscriptionData = Omit<Subscription, 'createdOn' | 'updatedOn'>
+
+/**
+ * Upsert payload.
+ * `accountUuid` is optional here only: a free/trial tier has no payer.
+ */
+export type SubscriptionUpsert = Omit<SubscriptionData, 'accountUuid'> & { accountUuid?: AccountUuid }
 
 export interface AccountWorkspaceBadgeStatus {
   accountUuid: AccountUuid
@@ -313,7 +365,7 @@ export interface PaymentIntent {
 }
 
 /** Append-only payment audit row (immutable). */
-export type PaymentOperationKind = 'init_charge' | 'webhook' | 'charge_recurrent' | 'cancel' | 'refund'
+export type PaymentOperationKind = 'init_charge' | 'webhook' | 'charge_recurrent' | 'cancel' | 'refund' | 'update'
 /** Who drove this row: the workspace user, our scheduler, the bank callback, or an admin. */
 export type PaymentActor = 'user' | 'system' | 'provider' | 'admin'
 export interface PaymentOperation {
@@ -331,6 +383,24 @@ export interface PaymentOperation {
   amount?: number
   raw?: Record<string, any>
   createdOn?: number
+}
+
+/** One-time catalog purchase owned by a workspace (AI usage reset now; skins/themes later). */
+export type WorkspacePurchaseStatus = 'pending' | 'active' | 'consumed' | 'failed'
+
+export interface WorkspacePurchase {
+  id?: string
+  workspaceUuid: WorkspaceUuid
+  accountUuid: AccountUuid // who bought
+  sku: string
+  category?: string
+  status: WorkspacePurchaseStatus
+  amount?: number // minor units (kopecks)
+  paymentId?: string
+  provider?: string
+  raw?: Record<string, any>
+  createdOn?: number
+  activatedOn?: number
 }
 
 export interface PaymentOperationStats {
@@ -380,6 +450,7 @@ export interface WorkspacesPagedQuery {
   attemptsGte?: number
   billingPlan?: string
   billingStatus?: string
+  billingStatusNot?: string
   billingExpired?: boolean
   sort?: WorkspacesSortKey
   order?: 'asc' | 'desc'

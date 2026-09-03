@@ -19,7 +19,7 @@ import contact from '@hcengineering/contact'
 import { type Builder } from '@hcengineering/model'
 import core from '@hcengineering/model-core'
 import presentation from '@hcengineering/model-presentation'
-import view from '@hcengineering/model-view'
+import view, { createAttributeApplier } from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
 import { WidgetType } from '@hcengineering/workbench'
 import { AccountRole, type Class, type IndexingConfiguration } from '@hcengineering/core'
@@ -54,6 +54,8 @@ export function createModel (builder: Builder): void {
     TChatSyncInfo,
     TChat
   )
+
+  createAttributeApplier(builder, core.class.Doc, 'comments', chunter.function.CommentsApplier)
 
   builder.createDoc(
     workbench.class.Application,
@@ -90,6 +92,12 @@ export function createModel (builder: Builder): void {
   builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
     extension: workbench.extensions.WorkbenchTabExtensions,
     component: chunter.component.WorkbenchTabExtension
+  })
+
+  // Last button of the sidebar bar: opens the Direct with the AI assistant.
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: workbench.extensions.WidgetsBarExtensions,
+    component: chunter.component.AIChatButton
   })
 
   builder.mixin(chunter.class.DirectMessage, core.class.Class, core.mixin.TxAccessLevel, {

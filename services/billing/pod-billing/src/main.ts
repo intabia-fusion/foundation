@@ -26,7 +26,6 @@ import {
   QueueWorkspaceEvent,
   type QueueWorkspaceLimitsMessage,
   type QueueWorkspaceMessage,
-  type QueueWorkspaceUsageMessage,
   StorageConfig
 } from '@hcengineering/server-core'
 import serverToken from '@hcengineering/server-token'
@@ -35,8 +34,9 @@ import { join } from 'path'
 import config from './config'
 import { createDb } from './db/postgres'
 import { LimitsEngine } from './limits'
+import { createPoolNotifier } from './notify'
 import { createServer, listen } from './server'
-import { type BillingMessage, type BillingUsageMessage } from './types'
+import { type BillingMessage, type BillingUsageMessage, BillingMessageKind } from './types'
 import { UsageWorker } from './usage'
 import { storageConfigFromEnv } from '@hcengineering/server-storage'
 
@@ -69,39 +69,61 @@ export const main = async (): Promise<void> => {
   const db = await createDb(metricsContext, config.DbUrl)
   const storageConfigs: StorageConfig[] = storageConfigFromEnv().storages.filter((p) => p.kind === 'datalake')
 
-  const queue = getPlatformQueue('billing')
-  const workspaceProducer = queue.getProducer<QueueWorkspaceLimitsMessage | QueueWorkspaceUsageMessage>(
-    metricsContext,
-    QueueTopic.Workspace
-  )
+  const queue = getPlatformQueue('billing', config.QueueRegion)
+  const workspaceProducer = queue.getProducer<QueueWorkspaceLimitsMessage>(metricsContext, QueueTopic.Workspace)
   const engine = new LimitsEngine(db, config.AccountsUrl, storageConfigs, workspaceProducer)
-  const worker = new UsageWorker(db, storageConfigs, config, async (ctx, workspace) => {
-    await engine.recomputeWorkspace(ctx, workspace)
-  })
 
-  // Single billing topic: usage deltas + LiveKit records (session/egress/participant), routed by `kind`.
+  // Mail producer for provider-pool threshold alerts (80%/100%).
+  const mailProducer = queue.getProducer<{ type: 'email', data: any }>(metricsContext, QueueTopic.NotificationQueue)
+  const notifier = createPoolNotifier(mailProducer, config.AdminEmails)
+
+  const worker = new UsageWorker(
+    db,
+    storageConfigs,
+    config,
+    async (ctx, workspace) => {
+      await engine.recomputeWorkspace(ctx, workspace)
+    },
+    notifier
+  )
+
+  // Single billing topic: usage deltas + LiveKit records (session/egress/participant) + AI registry, routed by `kind`.
   const usageConsumer = queue.createBatchConsumer<BillingMessage>(
     metricsContext,
     QueueTopic.BillingUsage,
     'billing-limits',
     async (ctx, msgs, queue) => {
-      // LiveKit records go straight to their tables; usage deltas are collected and applied as one batch.
+      // LiveKit records/registry go straight to their tables; usage deltas are collected and applied as one batch.
       const usage: BillingUsageMessage[] = []
       for (const msg of msgs) {
+        const value = msg.value
         try {
-          const value = msg.value
-          if (value.kind === 'usage') {
-            usage.push(value)
-          } else if (value.kind === 'session') {
+          // Missing kind = Usage (in-flight messages from before the upgrade).
+          if (value.kind === 'session') {
             await db.setLiveKitSessions(ctx, value.data)
           } else if (value.kind === 'egress') {
             await db.setLiveKitEgress(ctx, value.data)
-          } else {
+          } else if (value.kind === 'participant') {
             await db.pushParticipantSessions(ctx, value.data)
+          } else if (value.kind === BillingMessageKind.AiRegistry) {
+            // Guard against poison messages: invalid entries would retry forever if thrown.
+            if (!Array.isArray(value.entries)) {
+              ctx.error('invalid AiRegistry message: entries is not an array', { workspace: msg.workspace })
+              continue
+            }
+            await db.replaceAiModelRegistry(ctx, value.entries)
+          } else if (value.kind === BillingMessageKind.AiTokensDetail) {
+            if (!Array.isArray(value.data)) {
+              ctx.error('invalid AiTokensDetail message: data is not an array', { workspace: msg.workspace })
+              continue
+            }
+            await db.pushAiTokensData(ctx, value.data)
+          } else {
+            usage.push(value)
           }
         } catch (err: any) {
           // rethrow to trigger consumer retry: billing events drive limit enforcement, must not be silently dropped
-          ctx.error('failed to process billing message', { workspace: msg.workspace, err })
+          ctx.error('failed to process billing message', { workspace: msg.workspace, kind: value.kind, err })
           throw err
         }
       }

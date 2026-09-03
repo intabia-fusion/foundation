@@ -56,6 +56,8 @@ export class WorkspaceIndexer {
   static async create (
     ctx: MeasureContext,
     model: Tx[],
+    sharedHierarchy: Hierarchy | undefined,
+    sharedModel: ModelDb | undefined,
     workspace: WorkspaceIds,
     dbURL: string,
     externalStorage: StorageAdapter,
@@ -76,12 +78,13 @@ export class WorkspaceIndexer {
       ContextNameMiddleware.create,
       DomainFindMiddleware.create,
       DBAdapterInitMiddleware.create,
-      ModelMiddleware.create(model, fulltextModelFilter), // TODO: Add filtration of only class structure and FullTextSearchContext
+      // System part already sits in the shared model, only this workspace's txes are applied here.
+      ModelMiddleware.create(model, fulltextModelFilter, sharedModel !== undefined),
       DBAdapterMiddleware.create(dbConf)
     ]
 
-    const hierarchy = new Hierarchy()
-    const modelDb = new ModelDb(hierarchy)
+    const hierarchy = new Hierarchy(sharedHierarchy)
+    const modelDb = new ModelDb(hierarchy, sharedModel)
 
     const context: PipelineContext = {
       workspace,

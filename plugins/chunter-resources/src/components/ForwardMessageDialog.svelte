@@ -157,7 +157,7 @@
         disableSubmit={!canSave}
         clearOnSubmit={false}
         on:update={(e) => {
-          markup = e.detail
+          markup = e.detail.message
         }}
         on:message={handleForward}
       />

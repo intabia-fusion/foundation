@@ -7,36 +7,11 @@
 
 const { performance } = require('perf_hooks')
 const { join } = require('path')
-const crypto = require('crypto')
-
 const { isPhaseCached, markPhaseCompleted } = require('../libs/cache')
 const { getNamedWorkerPool } = require('../libs/workers')
+const { getOptimalWorkerCount } = require('../libs/utils')
+const { computeTypesHashes, compositeHashFromTypes } = require('../libs/composite-hash')
 const { success, error, dim } = require('../libs/colors')
-
-/**
- * Calculate composite hash for a package including all transitive dependencies.
- * Copied from compile_all.js to avoid circular import.
- */
-function calculatePackageHashWithDeps(packageName, graph, packageHashes, processed = new Set()) {
-  if (processed.has(packageName)) return ''
-  processed.add(packageName)
-
-  const node = graph.get(packageName)
-  if (!node) return ''
-
-  const baseHash = packageHashes.get(packageName) || ''
-  const parts = [baseHash]
-
-  for (const depName of node.dependencies) {
-    const depHash = calculatePackageHashWithDeps(depName, graph, packageHashes, processed)
-    if (depHash) {
-      parts.push(`${depName}:${depHash}`)
-    }
-  }
-
-  parts.sort()
-  return crypto.createHash('md5').update(parts.join('\n')).digest('hex')
-}
 
 /**
  * Run lint phase for all packages.
@@ -44,10 +19,14 @@ function calculatePackageHashWithDeps(packageName, graph, packageHashes, process
  * Concurrency is capped at 2 to limit ESLint memory usage (~3GB per worker).
  */
 async function runLintPhase(graph, packageNames, concurrency, options = {}) {
-  const { force = false, packageHashes } = options
+  const { force = false, packageHashes, typesHashes } = options
+
+  // Lint sees dependencies through their emitted .d.ts, so key on those, not on their sources.
+  const depTypes = typesHashes ?? computeTypesHashes(graph)
 
   // Lint workers consume significant memory — cap to 2 regardless of requested concurrency
-  const lintConcurrency = Math.max(1, Math.min(concurrency, 2))
+  const plan = getOptimalWorkerCount(concurrency, 'lint')
+  const lintConcurrency = plan.workers
 
   const results = {
     successCount: 0,
@@ -55,19 +34,21 @@ async function runLintPhase(graph, packageNames, concurrency, options = {}) {
     total: packageNames.length,
     errors: [],
     time: 0,
-    peakMemoryMB: 0
+    peakMemoryMB: 0,
+    workers: lintConcurrency,
+    heapMB: plan.heapMB
   }
 
   const startTime = performance.now()
   const pool = await getNamedWorkerPool('lint', lintConcurrency, join(__dirname, '..', 'lint-worker.js'), {
     workerOptions: {
       resourceLimits: {
-        maxOldGenerationSizeMb: 4096,
+        maxOldGenerationSizeMb: plan.heapMB,
         maxYoungGenerationSizeMb: 512
       }
     },
     recycleAfter: 15,
-    recycleMemoryMB: 2500
+    recycleMemoryMB: Math.floor(plan.heapMB * 0.8)
   })
 
   let completedCount = 0
@@ -84,7 +65,9 @@ async function runLintPhase(graph, packageNames, concurrency, options = {}) {
     }
 
     const cwd = node.project.fullPath
-    const hash = packageHashes ? calculatePackageHashWithDeps(name, graph, packageHashes) : undefined
+    const hash = packageHashes
+      ? compositeHashFromTypes(name, graph, packageHashes, depTypes, ['.eslintrc.js', '.eslintrc.json', 'eslint.config.js'])
+      : undefined
 
     if (!force && hash && isPhaseCached(cwd, hash, 'lint', null, [])) {
       completedCount++

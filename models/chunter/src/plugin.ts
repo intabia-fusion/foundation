@@ -21,7 +21,14 @@ import { type NotificationGroup } from '@hcengineering/notification'
 import type { IntlString, Resource } from '@hcengineering/platform'
 import { mergeIds } from '@hcengineering/platform'
 import type { AnyComponent, Location } from '@hcengineering/ui/src/types'
-import type { Action, ActionCategory, ViewAction, Viewlet, ViewletDescriptor } from '@hcengineering/view'
+import type {
+  Action,
+  ActionCategory,
+  AttributeApplierFn,
+  ViewAction,
+  Viewlet,
+  ViewletDescriptor
+} from '@hcengineering/view'
 import { type WidgetTab, type LocationData } from '@hcengineering/workbench'
 
 export default mergeIds(chunterId, chunter, {
@@ -37,6 +44,7 @@ export default mergeIds(chunterId, chunter, {
     JoinChannelNotificationPresenter: '' as AnyComponent,
     WorkbenchTabExtension: '' as AnyComponent,
     DirectMessageButton: '' as AnyComponent,
+    AIChatButton: '' as AnyComponent,
     EmployeePresenter: '' as AnyComponent
   },
   action: {
@@ -69,7 +77,6 @@ export default mergeIds(chunterId, chunter, {
     ApplicationLabelChunter: '' as IntlString,
     MentionedIn: '' as IntlString,
     Content: '' as IntlString,
-    Comment: '' as IntlString,
     Reference: '' as IntlString,
     CreateBy: '' as IntlString,
     Create: '' as IntlString,
@@ -113,7 +120,8 @@ export default mergeIds(chunterId, chunter, {
     CanReplyToThread: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     GetMessageLink: '' as Resource<(doc: Doc, props: Record<string, any>) => Promise<Location>>,
     CloseChatWidgetTab: '' as Resource<(tab: WidgetTab) => Promise<void>>,
-    LocationDataResolver: '' as Resource<(loc: Location) => Promise<LocationData>>
+    LocationDataResolver: '' as Resource<(loc: Location) => Promise<LocationData>>,
+    CommentsApplier: '' as Resource<AttributeApplierFn>
   },
   filter: {
     ChatMessagesFilter: '' as Resource<(message: ActivityMessage, _class?: Ref<Doc>) => boolean>

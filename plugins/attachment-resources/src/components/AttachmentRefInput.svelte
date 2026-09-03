@@ -157,13 +157,14 @@
     if (draftAttachments && shouldSaveDraft) {
       attachments = new Map()
       newAttachments.clear()
+      originalAttachments.clear()
       Object.entries(draftAttachments).map((file) => {
         return attachments.set(file[0] as Ref<Attachment>, file[1])
       })
+      // Draft attachments already persisted (write-through) -> restore as originals, not news.
       Object.entries(draftAttachments).map((file) => {
-        return newAttachments.add(file[0] as Ref<Attachment>)
+        return originalAttachments.add(file[0] as Ref<Attachment>)
       })
-      originalAttachments.clear()
       removedAttachments.clear()
       urlSet.clear()
       query.unsubscribe()
@@ -232,11 +233,29 @@
       newAttachments.add(_id)
       attachments = attachments
       saved = false
+      // Write-through: persist now (attachedTo=objectId=future message id), not on send.
+      // Avoids orphan blobs and lets async consumers (voice-note transcription) find the doc.
+      const created = attachments.get(_id)
+      if (created !== undefined) {
+        await saveAttachment(created)
+        originalAttachments.add(_id)
+      }
       saveDraft()
       dispatch('update', { message: content, attachments: attachments.size })
     } catch (err: any) {
       void setPlatformStatus(unknownError(err))
     }
+  }
+
+  // Register an already-persisted attachment (attachedTo=objectId) into the draft set for preview
+  // and send. Used by async-produced attachments (voice-notes) whose doc must exist up front.
+  export function addAttachmentDoc (doc: Attachment): void {
+    attachments.set(doc._id, doc)
+    originalAttachments.add(doc._id)
+    attachments = attachments
+    saved = false
+    saveDraft()
+    dispatch('update', { message: content, attachments: attachments.size })
   }
 
   async function saveAttachment (doc: Attachment): Promise<void> {
@@ -297,9 +316,12 @@
   }
 
   async function removeAttachment (attachment: Attachment): Promise<void> {
-    removedAttachments.add(attachment)
     attachments.delete(attachment._id)
     attachments = attachments
+    // Must run before dropping ids from the sets, else it only loses the blob and re-attaches on send.
+    await deleteAttachment(attachment)
+    newAttachments.delete(attachment._id)
+    originalAttachments.delete(attachment._id)
     saveDraft()
     dispatch('update', { message: content, attachments: attachments.size })
   }
@@ -371,11 +393,23 @@
     saveDraft()
   }
 
+  // Drop the draft attachment set after the message is dispatched (id known to the message), so the
+  // next message starts empty without racing the objectId-change reactive. Docs stay in the DB.
+  function clearAttachmentsAfterSend (): void {
+    attachments = new Map()
+    newAttachments.clear()
+    originalAttachments.clear()
+    removedAttachments.clear()
+    urlSet.clear()
+    saveDraft()
+  }
+
   async function onMessage (event: CustomEvent): Promise<void> {
     loading = true
     await createAttachments()
     loading = false
     dispatch('message', { message: event.detail, attachments: attachments.size })
+    clearAttachmentsAfterSend()
   }
 
   function updateLinkPreview (): void {

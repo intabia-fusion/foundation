@@ -1,5 +1,6 @@
 <!--
  // Copyright © 2022 Hardcore Engineering Inc.
+ // Copyright © 2026 Intabia Fusion.
  //
  // Licensed under the Eclipse Public License, Version 2.0 (the "License");
  // you may not use this file except in compliance with the License. You may
@@ -63,6 +64,9 @@
     saved = true
     const statuses = subIssues.length > 0 ? getTaskTypeStates(subIssues[0].kind, $taskTypeStore, $statusStore.byId) : []
     for (const subIssue of subIssues) {
+      const subIssueTaskType = $taskTypeStore.get(subIssue.kind)
+      const subIssueClass = subIssueTaskType?.targetClass ?? tracker.class.Issue
+
       const incResult = await client.updateDoc(
         tracker.class.Project,
         core.space.Space,
@@ -99,22 +103,14 @@
       }
 
       if (!isEmptyMarkup(subIssue.description)) {
-        const collabId = makeCollabId(tracker.class.Issue, childId, 'description')
+        const collabId = makeCollabId(subIssueClass, childId, 'description')
         cvalue.description = await createMarkup(collabId, subIssue.description)
       }
 
-      await client.addCollection(
-        tracker.class.Issue,
-        project._id,
-        _id,
-        tracker.class.Issue,
-        'subIssues',
-        cvalue,
-        childId
-      )
+      await client.addCollection(subIssueClass, project._id, _id, tracker.class.Issue, 'subIssues', cvalue, childId)
       if ((subIssue.labels?.length ?? 0) > 0) {
         for (const label of subIssue.labels) {
-          await client.addCollection(tags.class.TagReference, project._id, childId, tracker.class.Issue, 'labels', {
+          await client.addCollection(tags.class.TagReference, project._id, childId, subIssueClass, 'labels', {
             title: label.title,
             color: label.color,
             tag: label.tag

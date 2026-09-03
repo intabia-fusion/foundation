@@ -37,7 +37,8 @@
     Label,
     createFocusManager,
     getCurrentResolvedLocation,
-    navigate
+    navigate,
+    deviceOptionsStore as deviceInfo
   } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import {
@@ -203,6 +204,9 @@
   function saveShowAllMixins (showAllMixins: boolean): void {
     localStorage.setItem('issue.showAllMixins', showAllMixins.toString())
   }
+
+  // Mobile header has room for two buttons only: context menu and the properties aside.
+  $: mobileAdaptive = $deviceInfo.isMobile && $deviceInfo.minWidth
 </script>
 
 {#if !embedded && !isSidebar}
@@ -225,7 +229,7 @@
     withoutActivity={false}
     printAside={true}
     adaptive={'default'}
-    useMaxWidth
+    useMaxWidth={mobileAdaptive ? undefined : true}
     bind:content
     bind:innerWidth
     on:open
@@ -271,7 +275,7 @@
     </svelte:fragment>
 
     <svelte:fragment slot="utils">
-      {#if !embedded && issue}
+      {#if !embedded && issue && !mobileAdaptive}
         <Button
           icon={view.icon.DetailsFilled}
           iconProps={{ size: 'medium' }}
@@ -293,42 +297,46 @@
           dataId={'btnMoreActions'}
           on:click={showContextMenu}
         />
-        <CopyToClipboard issueUrl={generateIssueShortLink(issue.identifier)} />
+        {#if !mobileAdaptive}
+          <CopyToClipboard issueUrl={generateIssueShortLink(issue.identifier)} />
+          <Button
+            icon={setting.icon.Setting}
+            kind={'icon'}
+            iconProps={{ size: 'medium' }}
+            showTooltip={{ label: setting.string.ClassSetting }}
+            dataId={'btnClassSetting'}
+            on:click={(ev) => {
+              ev.stopPropagation()
+              const loc = getCurrentResolvedLocation()
+              loc.path[2] = settingId
+              if (projectType?._id != null && issue?.kind != null) {
+                loc.path[3] = 'spaceTypes'
+                loc.path[4] = projectType?._id
+                loc.path[5] = 'taskTypes'
+                loc.path[6] = issue?.kind
+                loc.path.length = 7
+              } else {
+                loc.path.length = 3
+              }
+              loc.fragment = undefined
+              navigate(loc)
+            }}
+          />
+        {/if}
+      {/if}
+      {#if !mobileAdaptive}
         <Button
-          icon={setting.icon.Setting}
-          kind={'icon'}
+          icon={IconMixin}
           iconProps={{ size: 'medium' }}
-          showTooltip={{ label: setting.string.ClassSetting }}
-          dataId={'btnClassSetting'}
-          on:click={(ev) => {
-            ev.stopPropagation()
-            const loc = getCurrentResolvedLocation()
-            loc.path[2] = settingId
-            if (projectType?._id != null && issue?.kind != null) {
-              loc.path[3] = 'spaceTypes'
-              loc.path[4] = projectType?._id
-              loc.path[5] = 'taskTypes'
-              loc.path[6] = issue?.kind
-              loc.path.length = 7
-            } else {
-              loc.path.length = 3
-            }
-            loc.fragment = undefined
-            navigate(loc)
+          kind={'icon'}
+          selected={showAllMixins}
+          showTooltip={{ label: tracker.string.AdditionalProperties }}
+          dataId={'btnMixin'}
+          on:click={() => {
+            showAllMixins = !showAllMixins
           }}
         />
       {/if}
-      <Button
-        icon={IconMixin}
-        iconProps={{ size: 'medium' }}
-        kind={'icon'}
-        selected={showAllMixins}
-        showTooltip={{ label: tracker.string.AdditionalProperties }}
-        dataId={'btnMixin'}
-        on:click={() => {
-          showAllMixins = !showAllMixins
-        }}
-      />
     </svelte:fragment>
 
     {#if hasParentIssue}

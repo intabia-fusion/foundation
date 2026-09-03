@@ -18,8 +18,13 @@ import type { DBClient } from '@hcengineering/postgres-base'
 
 export const EXPECTED_SCHEMA_VERSION = 11
 export const CHECK_VERSION_INTERVAL = 5000
+// Waiting on a migration another pod is applying is normal; waiting forever on a database that is
+// simply not there is not - it hangs the caller with no error to act on.
+export const CHECK_VERSION_TIMEOUT = 300000
 
 export async function waitForSchemaVersion (ctx: MeasureContext, client: DBClient): Promise<void> {
+  const deadline = Date.now() + CHECK_VERSION_TIMEOUT
+  let lastError = ''
   while (true) {
     try {
       // Check if schema_version table exists first to prevent relation-not-found errors in database logs
@@ -59,10 +64,18 @@ export async function waitForSchemaVersion (ctx: MeasureContext, client: DBClien
         })
       }
     } catch (err: any) {
+      // postgres.js reports a failed connection as an AggregateError with an empty message.
+      lastError = err.message !== undefined && err.message !== '' ? err.message : String(err)
       ctx.info('Error checking schema version, retrying', {
         expectedVersion: EXPECTED_SCHEMA_VERSION,
-        error: err.message
+        error: lastError
       })
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `Database schema version ${EXPECTED_SCHEMA_VERSION} not reached after ${CHECK_VERSION_TIMEOUT}ms` +
+          (lastError !== '' ? `: ${lastError}` : '')
+      )
     }
     await new Promise((resolve) => setTimeout(resolve, CHECK_VERSION_INTERVAL))
   }

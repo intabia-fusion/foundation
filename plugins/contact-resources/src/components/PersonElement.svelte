@@ -13,7 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Employee, Person } from '@hcengineering/contact'
+  import contact, { Employee, Person } from '@hcengineering/contact'
+  import chunter from '@hcengineering/chunter'
+  import { getResource } from '@hcengineering/platform'
+  import { getClient, hasResource } from '@hcengineering/presentation'
   import { IconSize, LabelAndProps, tooltip } from '@hcengineering/ui'
   import { DocNavLink, ObjectMention } from '@hcengineering/view-resources'
   import { ObjectPresenterType } from '@hcengineering/view'
@@ -40,11 +43,28 @@
   export let inlineBlock = false
   export let shrink: boolean = false
   export let clickable: boolean = true
+
+  const hierarchy = getClient().getHierarchy()
+
+  // A mention is a conversation starter: opening the person card here made people
+  // comment on the card instead of writing to the person.
+  function canOpenDirect (person: Person | Employee | undefined | null): boolean {
+    if (person == null || !hierarchy.hasMixin(person, contact.mixin.Employee)) return false
+    return (person as Employee).active && hasResource(chunter.function.OpenDirectForPerson) !== false
+  }
+
+  function openDirect (): void {
+    void getResource(chunter.function.OpenDirectForPerson).then(async (open) => {
+      await open(value as Person)
+    })
+  }
+
+  $: mentionClick = onEdit ?? (canOpenDirect(value) ? openDirect : undefined)
 </script>
 
 {#if value}
   {#if inline}
-    <ObjectMention object={value} {disabled} onClick={onEdit} />
+    <ObjectMention object={value} {disabled} onClick={mentionClick} />
   {:else if type === 'link'}
     <DocNavLink
       object={value}

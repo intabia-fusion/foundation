@@ -14,10 +14,10 @@
 -->
 <script lang="ts">
   import { getCurrentEmployee, Person } from '@hcengineering/contact'
-  import { AccountRole, Doc, getCurrentAccount, PersonId, Ref, uniqueNotEmpty } from '@hcengineering/core'
-  import { Card, isAdminUser } from '@hcengineering/presentation'
+  import { AccountRole, Doc, getCurrentAccount, Ref, uniqueNotEmpty } from '@hcengineering/core'
+  import { Card } from '@hcengineering/presentation'
   import ui, { Button, Label } from '@hcengineering/ui'
-  import { ObjectPresenter } from '@hcengineering/view-resources'
+  import { ObjectMention } from '@hcengineering/view-resources'
   import view from '@hcengineering/view-resources/src/plugin'
   import { createEventDispatcher } from 'svelte'
   import { IntlString } from '@hcengineering/platform'
@@ -30,6 +30,9 @@
   export let canDeleteExtra: boolean = true
   export let confirmation: IntlString | undefined = undefined
   export let confirmationParams: Record<string, any> | undefined = undefined
+  export let extraConfirmation: IntlString | undefined = undefined
+  export let extraConfirmationParams: Record<string, any> | undefined = undefined
+  export let extraObjects: Doc[] | undefined = undefined
   export let title: IntlString | undefined = undefined
   export let titleParams: Record<string, any> | undefined = undefined
 
@@ -44,8 +47,7 @@
   $: canDelete =
     (skipCheck ||
       (creators !== undefined && creators.length === 1 && creators[0] === me) ||
-      getCurrentAccount().role === AccountRole.Owner ||
-      isAdminUser()) &&
+      getCurrentAccount().role === AccountRole.Owner) &&
     canDeleteExtra
   $: label = canDelete ? (title ?? view.string.DeleteObject) : view.string.DeletePopupNoPermissionTitle
 </script>
@@ -72,9 +74,23 @@
         />
         <div class="mt-2">
           {#if objectArray.length === 1}
-            <ObjectPresenter _class={objectArray[0]._class} objectId={objectArray[0]._id} value={objectArray[0]} />
+            <ObjectMention object={objectArray[0]} />
           {/if}
         </div>
+        {#if extraConfirmation !== undefined}
+          <div class="mt-2">
+            <Label label={extraConfirmation} params={extraConfirmationParams} />
+          </div>
+          {#if extraObjects !== undefined && extraObjects.length > 0}
+            <div class="flex-col">
+              {#each extraObjects as obj (obj._id)}
+                <div class="mt-1">
+                  <ObjectMention object={obj} />
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {/if}
       </div>
     {:else}
       <div class="mb-2">

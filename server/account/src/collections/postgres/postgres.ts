@@ -50,7 +50,11 @@ import type {
   Integration,
   IntegrationSecret,
   AccountAggregatedInfo,
+  AccountsFilter,
   AccountsSortKey,
+  AdminAction,
+  AdminActionsQuery,
+  AdminActionsResult,
   UserProfile,
   Subscription,
   PaymentIntent,
@@ -58,6 +62,8 @@ import type {
   PaymentOperationStats,
   PaymentOperationFilter,
   PaymentMonthlyStats,
+  WorkspacePurchase,
+  WorkspacePurchaseStatus,
   DBFlavor,
   WorkspacePermission,
   AccountWorkspaceBadgeStatus,
@@ -268,7 +274,8 @@ implements DbCollection<T> {
     return `ORDER BY ${sortChunks.join(', ')}`
   }
 
-  protected convertToObj (row: unknown): T {
+  // Public so raw unsafe() queries can reuse the same timestamp/field mapping the collection does.
+  convertToObj (row: unknown): T {
     const res = convertKeysToCamelCase(row)
     for (const field of this.timestampFields) {
       res[field] = convertTimestamp(res[field])
@@ -559,8 +566,10 @@ export class PostgresAccountDB implements AccountDB {
   subscription: PostgresDbCollection<Subscription, 'id'>
   paymentIntent: PostgresDbCollection<PaymentIntent, 'id'>
   paymentOperation: PostgresDbCollection<PaymentOperation, 'id'>
+  workspacePurchase: PostgresDbCollection<WorkspacePurchase, 'id'>
   workspacePermission: PostgresDbCollection<WorkspacePermission>
   accountWorkspaceBadgeStatus: PostgresDbCollection<AccountWorkspaceBadgeStatus>
+  adminAction: PostgresDbCollection<AdminAction, 'id'>
 
   constructor (
     readonly client: Sql,
@@ -643,6 +652,12 @@ export class PostgresAccountDB implements AccountDB {
       timestampFields: ['createdOn'],
       withRetryClient
     })
+    this.workspacePurchase = new PostgresDbCollection<WorkspacePurchase, 'id'>('workspace_purchase', client, {
+      ns,
+      idKey: 'id',
+      timestampFields: ['createdOn'],
+      withRetryClient
+    })
     this.workspacePermission = new PostgresDbCollection<WorkspacePermission>('workspace_permissions', client, {
       ns,
       timestampFields: ['createdOn'],
@@ -657,6 +672,12 @@ export class PostgresAccountDB implements AccountDB {
         withRetryClient
       }
     )
+    this.adminAction = new PostgresDbCollection<AdminAction, 'id'>('admin_action', client, {
+      ns,
+      idKey: 'id',
+      timestampFields: ['createdOn'],
+      withRetryClient
+    })
   }
 
   getWsMembersTableName (): string {
@@ -682,6 +703,23 @@ export class PostgresAccountDB implements AccountDB {
     let migrationComplete = false
     let updateInterval: NodeJS.Timeout | null = null
     let executed = false
+
+    // Every process reopening the account DB replays this list. Reading an applied migration without
+    // FOR UPDATE keeps concurrent openers off each other's lock and its retryIntervalMs sleep.
+    const applied = await this.client`
+      SELECT applied_at, ddl
+      FROM ${this.client(this.ns)}._account_applied_migrations
+      WHERE identifier = ${name} AND applied_at IS NOT NULL
+    `
+    if (applied.length > 0) {
+      if (applied[0].ddl !== ddl) {
+        console.error(
+          `Migration ${name} was applied with different DDL than the current build defines. ` +
+            'Existing migrations must never be modified — add a new one instead.'
+        )
+      }
+      return
+    }
 
     const executeMigration = async (client: Sql): Promise<void> => {
       updateInterval = setInterval(() => {
@@ -878,7 +916,7 @@ export class PostgresAccountDB implements AccountDB {
       .client`UPDATE ${this.client(this.workspace.getTableName())} SET allow_guest_sign_up = ${guestSignUpAllowed} WHERE uuid = ${workspaceId}`
   }
 
-  async updatePasswordAgingRule (workspaceId: WorkspaceUuid, days: number): Promise<void> {
+  async updatePasswordAgingRule (workspaceId: WorkspaceUuid, days: number | null): Promise<void> {
     await this
       .client`UPDATE ${this.client(this.workspace.getTableName())} SET password_aging_rule = ${days} WHERE uuid = ${workspaceId}`
   }
@@ -1146,26 +1184,54 @@ export class PostgresAccountDB implements AccountDB {
     })
   }
 
+  /**
+   * Purge an unfinished signup: a person row with social ids but no account.
+   * Children first - account_events, user_profile and social_id all have FKs to person.
+   */
+  async deletePerson (personUuid: PersonUuid): Promise<void> {
+    await this.withRetry(async (rTx) => {
+      const socialIds = await this.socialId.find({ personUuid }, undefined, undefined, rTx)
+      for (const socialIdObj of socialIds) {
+        await this.integrationSecret.deleteMany({ socialId: socialIdObj._id }, rTx)
+        await this.integration.deleteMany({ socialId: socialIdObj._id }, rTx)
+      }
+
+      await rTx`DELETE FROM ${this.client(this.getWsMembersTableName())} WHERE account_uuid = ${personUuid}`
+      await this.accountEvent.deleteMany({ accountUuid: personUuid as AccountUuid }, rTx)
+      await this.userProfile.deleteMany({ personUuid }, rTx)
+      await this.socialId.deleteMany({ personUuid }, rTx)
+      await this.person.deleteMany({ uuid: personUuid }, rTx)
+    })
+  }
+
   async listAccounts (
     search?: string,
     skip?: number,
     limit?: number,
-    sort?: AccountsSortKey
+    sort?: AccountsSortKey,
+    filter?: AccountsFilter,
+    order?: 'asc' | 'desc'
   ): Promise<AccountAggregatedInfo[]> {
     const sqlChunks: string[] = [
       `
       WITH account_data AS (
         SELECT
-          a.uuid,
+          p.uuid,
           a.timezone,
           a.locale,
           a.automatic,
           a.max_workspaces,
+          (a.uuid IS NOT NULL) as has_account,
           p.first_name,
           p.last_name,
           up.country,
           up.city,
           p.migrated_to,
+          (
+            SELECT MIN(s.created_on)
+            FROM ${this.socialId.getTableName()} s
+            WHERE s.person_uuid = p.uuid
+          ) as registered_on,
           (
             SELECT jsonb_agg(jsonb_build_object(
               'socialId', i.social_id,
@@ -1173,7 +1239,7 @@ export class PostgresAccountDB implements AccountDB {
               'workspaceUuid', i.workspace_uuid
             ))
             FROM ${this.integration.getTableName()} i
-            WHERE i.social_id IN (SELECT _id FROM ${this.socialId.getTableName()} s WHERE s.person_uuid = a.uuid)
+            WHERE i.social_id IN (SELECT _id FROM ${this.socialId.getTableName()} s WHERE s.person_uuid = p.uuid)
           ) as integrations,
           (
             SELECT jsonb_agg(jsonb_build_object(
@@ -1185,9 +1251,19 @@ export class PostgresAccountDB implements AccountDB {
               'verifiedOn', s.verified_on,
               'displayValue', s.display_value
             ))
-            FROM ${this.socialId.getTableName()} s
-            WHERE s.person_uuid = a.uuid AND s.is_deleted = FALSE
+            FROM (
+              SELECT * FROM ${this.socialId.getTableName()} s2
+              WHERE s2.person_uuid = p.uuid AND s2.is_deleted = FALSE
+              ORDER BY s2.created_on ASC NULLS LAST, s2._id
+            ) s
           ) as social_ids,
+          (
+            SELECT s.value
+            FROM ${this.socialId.getTableName()} s
+            WHERE s.person_uuid = p.uuid AND s.type = 'email' AND s.is_deleted = FALSE
+            ORDER BY s.created_on ASC NULLS LAST, s._id
+            LIMIT 1
+          ) as primary_email,
           (
             SELECT jsonb_agg(jsonb_build_object(
               'uuid', w.uuid,
@@ -1202,16 +1278,21 @@ export class PostgresAccountDB implements AccountDB {
             ))
             FROM ${this.workspace.getTableName()} w
             INNER JOIN ${this.getWsMembersTableName()} m ON m.workspace_uuid = w.uuid
-            WHERE m.account_uuid = a.uuid
+            WHERE m.account_uuid = p.uuid
           ) as workspaces,
+          (
+            SELECT COUNT(*)
+            FROM ${this.getWsMembersTableName()} m3
+            WHERE m3.account_uuid = p.uuid
+          ) as workspaces_count,
           (
             SELECT MAX(ws.last_visit)
             FROM ${this.workspaceStatus.getTableName()} ws
             INNER JOIN ${this.getWsMembersTableName()} m2 ON m2.workspace_uuid = ws.workspace_uuid
-            WHERE m2.account_uuid = a.uuid
+            WHERE m2.account_uuid = p.uuid
           ) as last_visit
-        FROM ${this.account.getTableName()} a
-        INNER JOIN ${this.ns}.person p ON p.uuid = a.uuid
+        FROM ${this.ns}.person p
+        LEFT JOIN ${this.account.getTableName()} a ON a.uuid = p.uuid
         LEFT JOIN ${this.userProfile.getTableName()} up ON up.person_uuid = p.uuid
     `
     ]
@@ -1226,7 +1307,7 @@ export class PostgresAccountDB implements AccountDB {
           p.last_name ILIKE $${paramIndex} OR
           EXISTS (
             SELECT 1 FROM ${this.socialId.getTableName()} s
-            WHERE s.person_uuid = a.uuid AND s.value ILIKE $${paramIndex}
+            WHERE s.person_uuid = p.uuid AND s.value ILIKE $${paramIndex}
           )
       `)
       values.push(`%${search}%`)
@@ -1235,7 +1316,33 @@ export class PostgresAccountDB implements AccountDB {
 
     // ORDER BY/LIMIT must live on the outer SELECT: row order of a CTE is not guaranteed outside it
     sqlChunks.push(') SELECT * FROM account_data')
-    sqlChunks.push(sort === 'lastVisit' ? 'ORDER BY last_visit DESC NULLS LAST' : 'ORDER BY first_name')
+
+    // Filters use the CTE's aggregated columns, so they belong to the outer WHERE.
+    // The CTE is person-based, so accounts must be selected explicitly (default behaviour).
+    const outerWhere: string[] = [filter?.pendingOnly === true ? 'has_account = FALSE' : 'has_account = TRUE']
+    if (filter?.noWorkspaces === true) {
+      outerWhere.push('(workspaces IS NULL OR jsonb_array_length(workspaces) = 0)')
+    }
+    if (filter?.inactiveDays !== undefined) {
+      outerWhere.push(`(last_visit IS NULL OR last_visit < $${paramIndex})`)
+      values.push(Date.now() - filter.inactiveDays * 24 * 3600 * 1000)
+      paramIndex++
+    }
+    sqlChunks.push(`WHERE ${outerWhere.join(' AND ')}`)
+
+    const orderBy: Record<AccountsSortKey, string> = {
+      name: 'first_name',
+      lastVisit: 'last_visit',
+      registeredOn: 'registered_on',
+      // Counting members is an index-only scan; jsonb_array_length would build every workspace
+      // object for every row just to measure it (~2x on 50k accounts).
+      workspaces: 'workspaces_count',
+      email: 'primary_email'
+    }
+    // Names and emails read A-Z by default, the rest newest/biggest first.
+    const dir = order ?? (sort === undefined || sort === 'name' || sort === 'email' ? 'asc' : 'desc')
+    const dirSql = dir === 'asc' ? 'ASC' : 'DESC'
+    sqlChunks.push(`ORDER BY ${orderBy[sort ?? 'name'] ?? orderBy.name} ${dirSql} NULLS LAST`)
 
     if (limit !== undefined) {
       sqlChunks.push(`LIMIT $${paramIndex}`)
@@ -1274,10 +1381,47 @@ export class PostgresAccountDB implements AccountDB {
         }
 
         converted.lastVisit = convertTimestamp(converted.lastVisit)
+        converted.registeredOn = convertTimestamp(converted.registeredOn)
 
         return converted as AccountAggregatedInfo
       })
     })
+  }
+
+  async listAdminActions (query: AdminActionsQuery): Promise<AdminActionsResult> {
+    const table = this.adminAction.getTableName()
+    const where: string[] = []
+    const args: any[] = []
+
+    if (query.search !== undefined && query.search !== '') {
+      args.push(`%${query.search}%`)
+      where.push(
+        `(actor_email ILIKE $${args.length} OR target ILIKE $${args.length} OR target_label ILIKE $${args.length})`
+      )
+    }
+    if (query.action !== undefined && query.action !== '') {
+      args.push(query.action)
+      where.push(`action = $${args.length}`)
+    }
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''
+
+    args.push(Math.min(Math.max(query.limit ?? 50, 1), 1000))
+    const limitSql = `LIMIT $${args.length}`
+    args.push(Math.max(query.skip ?? 0, 0))
+    const offsetSql = `OFFSET $${args.length}`
+
+    const rows = await this.adminAction.unsafe(
+      `SELECT *, COUNT(*) OVER() AS total FROM ${table} ${whereSql} ORDER BY created_on DESC ${limitSql} ${offsetSql}`,
+      args
+    )
+    const list = rows as Array<Record<string, any>>
+    return {
+      actions: list.map((r) => {
+        const { total, ...rest } = r
+        return this.adminAction.convertToObj(rest)
+      }),
+      total: list.length > 0 ? Number(list[0].total) : 0
+    }
   }
 
   private workspaceStatusJson (alias: string): string {
@@ -1330,6 +1474,11 @@ export class PostgresAccountDB implements AccountDB {
     if (query.billingStatus !== undefined && query.billingStatus !== '') {
       where.push(`bs.status = $${idx}`)
       values.push(query.billingStatus)
+      idx++
+    }
+    if (query.billingStatusNot !== undefined && query.billingStatusNot !== '') {
+      where.push(`(bs.status IS NULL OR bs.status <> $${idx})`)
+      values.push(query.billingStatusNot)
       idx++
     }
     if (query.billingExpired === true) {
@@ -1793,11 +1942,11 @@ export class PostgresAccountDB implements AccountDB {
       ]
     )
     if (inserted.length > 0) {
-      return { claimed: true, intent: convertKeysToCamelCase(inserted[0]) as PaymentIntent }
+      return { claimed: true, intent: this.paymentIntent.convertToObj(inserted[0]) }
     }
     // Conflict: another caller already claimed this key — return the existing intent.
     const existing = await this.paymentIntent.unsafe(`SELECT * FROM ${table} WHERE claim_key = $1`, [claimKey])
-    return { claimed: false, intent: convertKeysToCamelCase(existing[0]) as PaymentIntent }
+    return { claimed: false, intent: this.paymentIntent.convertToObj(existing[0]) }
   }
 
   // Link a checkout intent to its charge (payment_id) + save URL for reuse; webhook releases by payment_id.
@@ -1891,7 +2040,7 @@ export class PostgresAccountDB implements AccountDB {
       `SELECT * FROM ${table} ${whereSql} ORDER BY created_on DESC ${limitSql} ${offsetSql}`,
       args
     )
-    return (rows as Array<Record<string, any>>).map((r) => convertKeysToCamelCase(r) as PaymentOperation)
+    return (rows as Array<Record<string, any>>).map((r) => this.paymentOperation.convertToObj(r))
   }
 
   // Aggregate operations in [from, to) for the daily billing summary: per-workspace charge counts,
@@ -1983,6 +2132,62 @@ export class PostgresAccountDB implements AccountDB {
       byMonth.set(month, entry)
     }
     return Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month))
+  }
+
+  // Insert a purchase row, returns the generated id. Idempotent by (payment_id, provider):
+  // a concurrent duplicate hits the unique index and returns the existing row's id.
+  async createPurchase (p: WorkspacePurchase): Promise<string> {
+    const table = this.workspacePurchase.getTableName()
+    const rows = await this.workspacePurchase.unsafe(
+      `INSERT INTO ${table}
+        (workspace_uuid, account_uuid, sku, category, status, amount, payment_id, provider, raw, activated_on)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+       ON CONFLICT (payment_id, provider) WHERE payment_id IS NOT NULL DO NOTHING
+       RETURNING id`,
+      [
+        p.workspaceUuid,
+        p.accountUuid,
+        p.sku,
+        p.category ?? null,
+        p.status,
+        p.amount ?? null,
+        p.paymentId ?? null,
+        p.provider ?? null,
+        p.raw ?? null,
+        p.activatedOn ?? null
+      ]
+    )
+    const inserted = (rows as Array<Record<string, any>>)[0]?.id as string | undefined
+    if (inserted !== undefined) return inserted
+
+    const existing = await this.workspacePurchase.unsafe(
+      `SELECT id FROM ${table} WHERE payment_id = $1 AND provider = $2`,
+      [p.paymentId ?? null, p.provider ?? null]
+    )
+    const id = (existing as Array<Record<string, any>>)[0]?.id as string | undefined
+    if (id === undefined) {
+      throw new Error(`failed to create purchase for payment ${p.paymentId ?? ''}`)
+    }
+    return id
+  }
+
+  async updatePurchaseStatus (id: string, status: WorkspacePurchaseStatus, activatedOn?: number): Promise<void> {
+    const table = this.workspacePurchase.getTableName()
+    await this.workspacePurchase.unsafe(
+      `UPDATE ${table} SET status = $2, activated_on = COALESCE($3, activated_on) WHERE id = $1`,
+      [id, status, activatedOn ?? null]
+    )
+  }
+
+  async getPurchases (workspace: WorkspaceUuid): Promise<WorkspacePurchase[]> {
+    const table = this.workspacePurchase.getTableName()
+    const rows = await this.workspacePurchase.unsafe(
+      `SELECT * FROM ${table} WHERE workspace_uuid = $1 ORDER BY created_on DESC`,
+      [workspace]
+    )
+    // The table's own converter, not the generic camel-case one: it restores column types
+    // (created_on/activated_on), which the UI otherwise renders as "Invalid date".
+    return (rows as Array<Record<string, any>>).map((r) => this.workspacePurchase.convertToObj(r))
   }
 
   // Lease heartbeat: refresh while the charge is in flight so other pods see the claimer is alive.

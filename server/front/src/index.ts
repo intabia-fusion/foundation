@@ -28,8 +28,10 @@ import morgan from 'morgan'
 import { join, normalize, resolve } from 'path'
 import { cwd } from 'process'
 import { getClient as getAccountClient } from '@hcengineering/account-client'
+import { staticCacheLimits, staticMemoryCache } from './staticCache'
 import { preConditions } from './utils'
 
+import { createHash } from 'crypto'
 import fs, { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 
@@ -321,7 +323,15 @@ export function start (
 
   const myStream = new MyStream()
 
-  app.use(morgan('short', { stream: myStream }))
+  // One line per asset request drowns everything else - a sanity run leaves 45k of them and no
+  // errors. Log the requests that failed; ACCESS_LOG=all brings the rest back when needed.
+  const accessLogAll = process.env.ACCESS_LOG === 'all'
+  app.use(
+    morgan('short', {
+      stream: myStream,
+      skip: (_req, res) => !accessLogAll && res.statusCode < 400
+    })
+  )
 
   const data = {
     ACCOUNTS_URL: config.accountsUrl,
@@ -346,13 +356,21 @@ export function start (
     DATALAKE_URL: config.datalakeUrl,
     ...(extraConfig ?? {})
   }
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  app.get('/config.json', async (req, res) => {
+  // `data` is built once at startup, so serialize it once too - res.json() would stringify the
+  // same object on every request. The pre-set ETag also stops express re-hashing the body.
+  const configJson = Buffer.from(JSON.stringify(data), 'utf8')
+  const configEtag = `W/"${configJson.length.toString(16)}-${createHash('sha1')
+    .update(configJson)
+    .digest('base64')
+    .substring(0, 27)}"`
+  app.get('/config.json', (req, res) => {
     res.status(200)
+    res.set('Content-Type', 'application/json; charset=utf-8')
+    res.set('ETag', configEtag)
     res.set('Cache-Control', cacheControlNoCache)
     res.set('Connection', 'keep-alive')
     res.set('Keep-Alive', `timeout=${KEEP_ALIVE_TIMEOUT}, max=${KEEP_ALIVE_MAX}`)
-    res.json(data)
+    res.send(configJson)
   })
 
   app.get('/api/v1/statistics', (req, res) => {
@@ -395,6 +413,12 @@ export function start (
     } catch (e) {
       console.error('Invalid branding URL. Must be absolute URL.', e)
     }
+  }
+
+  const { limitBytes, maxEntryBytes } = staticCacheLimits()
+  if (limitBytes > 0) {
+    console.log('static memory cache', { limitMb: limitBytes / 1048576, maxFileMb: maxEntryBytes / 1048576 })
+    app.use(staticMemoryCache(dist, limitBytes, maxEntryBytes))
   }
 
   app.use(

@@ -495,20 +495,18 @@ export async function connect (title: string): Promise<Client | undefined> {
   const accountsUrl = getMetadata(login.metadata.AccountsUrl)
   const accountClient = getAccountClient(accountsUrl, token)
   const socialIds: SocialId[] = await accountClient.getSocialIds(true)
-  const unverifiedPhoneSocialIds: SocialId[] = await accountClient.getUnverifiedPhoneSocialIds()
-  const allSocialIds = [...socialIds, ...unverifiedPhoneSocialIds]
 
   const me: Account = {
     uuid: account,
     role: workspaceLoginInfo.role,
     primarySocialId: pickPrimarySocialId(socialIds)._id,
-    socialIds: allSocialIds.map((si) => si._id),
-    fullSocialIds: allSocialIds
+    socialIds: socialIds.map((si) => si._id),
+    fullSocialIds: socialIds
   }
 
   // Ensure employee and social identifiers
   if (workspaceLoginInfo.role !== AccountRole.Admin) {
-    const employee = await ensureEmployee(ctx, me, newClient, allSocialIds, getGlobalPerson)
+    const employee = await ensureEmployee(ctx, me, newClient, socialIds, getGlobalPerson)
 
     if (employee == null) {
       console.log('Failed to ensure employee')

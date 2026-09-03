@@ -13,6 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
+  import { requestOperationOtpCode } from '../utils'
   import contact, { combineName, getFirstName, getLastName } from '@hcengineering/contact'
   import { ChannelsEditor, EditableAvatar, myEmployeeStore } from '@hcengineering/contact-resources'
   import { AccountRole, getCurrentAccount, SocialIdType } from '@hcengineering/core'
@@ -82,8 +83,11 @@
       message: setting.string.LeaveDescr,
       action: async () => {
         const leaveWorkspace = await getResource(login.function.LeaveWorkspace)
+        // Self-leave is not undoable by the user: confirm with a code sent to their email.
+        const code = await requestOperationOtpCode()
+        if (code === undefined) return
         try {
-          const loginInfo = await leaveWorkspace(account.uuid)
+          const loginInfo = await leaveWorkspace(account.uuid, code)
 
           if (loginInfo?.token != null) {
             await logIn(loginInfo)

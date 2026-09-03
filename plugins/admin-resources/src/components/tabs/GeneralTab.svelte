@@ -22,7 +22,7 @@
   import adminRes from '../../plugin'
   import RegistrationsChart from '../RegistrationsChart.svelte'
   import { downloadReport, type ReportFormat, type ReportId } from '../../reports'
-  import { getWorkspacesSummary, loadPlanOptions, type PlanOptions } from '../../utils'
+  import { getWorkspacesSummary, loadPlanOptions, type PlanOptions, adminFetch } from '../../utils'
 
   let generating = false
   let reportFormat: ReportFormat = 'csv'
@@ -51,13 +51,12 @@
   })
 
   // Live service stats (in-memory on the stats pod)
-  const token: string = getMetadata(presentation.metadata.Token) ?? ''
   const statsEndpoint = getMetadata(presentation.metadata.StatsUrl)
   let overview: OverviewStatistics | undefined
 
   async function loadOverview (): Promise<void> {
     try {
-      const res = await fetch(statsEndpoint + `/api/v1/overview?token=${token}`, {})
+      const res = await adminFetch(statsEndpoint + '/api/v1/overview')
       overview = await res.json()
     } catch (err) {
       console.error(err)

@@ -28,6 +28,9 @@ import { makeRank } from '@hcengineering/rank'
 import { type StorageAdapter } from '@hcengineering/storage'
 import { type ModelLogger } from './utils'
 
+// Most migrations are a no-op on an already-current workspace; only the slow ones earn a line.
+const SLOW_MIGRATION_MS = 250
+
 /**
  * @public
  */
@@ -185,8 +188,12 @@ export async function tryMigrate (
       continue
     }
     try {
-      client.logger.log('running migration', { plugin, state: migration.state })
+      const started = Date.now()
       await migration.func(client, mode)
+      const elapsed = Date.now() - started
+      if (elapsed > SLOW_MIGRATION_MS) {
+        client.logger.log('migration done', { plugin, state: migration.state, time: elapsed })
+      }
     } catch (err: any) {
       client.logger.error('Failed to run migration', { plugin, state: migration.state, err })
       Analytics.handleError(err)

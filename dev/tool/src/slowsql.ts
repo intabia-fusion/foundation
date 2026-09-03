@@ -211,7 +211,7 @@ function statsFromService (svc: ServiceStats): MetricsNode | undefined {
 }
 
 async function fetchLive (statsUrl: string, token: string, filter: string): Promise<SqlSample[]> {
-  const overviewResp = await fetch(`${statsUrl}/api/v1/overview?token=${token}`)
+  const overviewResp = await fetch(`${statsUrl}/api/v1/overview`, { headers: { Authorization: `Bearer ${token}` } })
   if (!overviewResp.ok) {
     throw new Error(`failed to fetch overview: ${overviewResp.status} ${overviewResp.statusText}`)
   }
@@ -220,7 +220,9 @@ async function fetchLive (statsUrl: string, token: string, filter: string): Prom
   const services = filter === '' ? all : all.filter((s) => s.includes(filter))
   const samples: SqlSample[] = []
   for (const service of services) {
-    const resp = await fetch(`${statsUrl}/api/v1/statistics?name=${encodeURIComponent(service)}&token=${token}`)
+    const resp = await fetch(`${statsUrl}/api/v1/statistics?name=${encodeURIComponent(service)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
     if (!resp.ok) {
       console.error(`  ${service}: ${resp.status} ${resp.statusText}`)
       continue

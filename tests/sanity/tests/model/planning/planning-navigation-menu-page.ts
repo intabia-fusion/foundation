@@ -36,11 +36,22 @@ export class PlanningNavigationMenuPage {
   }
 
   async compareCountersUnplannedToDos (): Promise<void> {
-    const navCount = parseInt(
-      await this.buttonToDoUnplanned().locator('xpath=..').locator('span.hulyNavItem-count').innerText(),
-      10
-    )
-    const accCount = await this.accordionContainerToDoUnplanned().locator('button.hulyToDoLine-container').count()
-    expect(accCount).toBe(navCount)
+    // Both numbers have to come from one DOM snapshot. Read as two separate calls they disagree
+    // whenever another worker creates a ToDo in the shared workspace in between, and since those
+    // keep arriving the surrounding retry never sees them agree.
+    const counts = await this.page.evaluate(() => {
+      const label = Array.from(
+        document.querySelectorAll('button[class*="hulyNavItem-container"] span[class*="hulyNavItem-label"]')
+      ).find((s) => (s.textContent ?? '').includes('Unplanned'))
+      const nav = label?.parentElement?.querySelector('span.hulyNavItem-count')?.textContent ?? ''
+      const accordion = Array.from(
+        document.querySelectorAll('div.toDos-container div.hulyAccordionItem-container')
+      ).find((a) => (a.textContent ?? '').includes('Unplanned'))
+      return {
+        nav: parseInt(nav, 10),
+        rows: accordion === undefined ? -1 : accordion.querySelectorAll('button.hulyToDoLine-container').length
+      }
+    })
+    expect(counts.rows).toBe(counts.nav)
   }
 }

@@ -27,7 +27,7 @@
   import { type CardDraft, getCardDraftKey, getEmptyCardDraft } from '../draft'
   import { TypeSelector } from '../index'
   import card from '../plugin'
-  import { createCard } from '../utils'
+  import { createCard, isBaseTypeWithSubtypes } from '../utils'
 
   import { permissionsStore } from '@hcengineering/contact-resources'
   import { canCreateObject } from '@hcengineering/view-resources'
@@ -77,7 +77,8 @@
     space == null ||
     type == null ||
     creating ||
-    !canCreateObject(type, space, $permissionsStore)
+    !canCreateObject(type, space, $permissionsStore) ||
+    isBaseTypeWithSubtypes(hierarchy, type)
 
   const account = getCurrentAccount()
 
@@ -210,7 +211,7 @@
                 kind={'regular'}
                 size={'small'}
               />
-              <TypeSelector size={'small'} bind:value={type} disabled={creating} />
+              <TypeSelector size={'small'} bind:value={type} disabled={creating} excludeBaseTypes />
               <div class="spacer" />
               <div class="right-divider" />
               <EditorActions actions={[attachAction]} />

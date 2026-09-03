@@ -95,13 +95,18 @@ export function getTaskTypeStates (
  * @public
  */
 export function getStatusIndex (type: ProjectType, taskTypes: IdMap<TaskType>, status: Ref<Status>): number {
-  return (
-    type.tasks
-      .map((it) => taskTypes.get(it))
-      .flatMap((it) => it?.statuses.indexOf(status))
-      .filter((it) => (it ?? 0) >= 0)
-      .reduce((p, c) => (p ?? 0) + (c ?? 0), 0) ?? -1
-  )
+  if (type.statuses !== undefined && type.statuses.length > 0) {
+    const idx = type.statuses.findIndex((s) => s._id === status)
+    if (idx >= 0) return idx
+  }
+  for (const taskId of type.tasks ?? []) {
+    const taskType = taskTypes.get(taskId)
+    const idx = taskType?.statuses?.indexOf(status)
+    if (idx !== undefined && idx >= 0) {
+      return idx
+    }
+  }
+  return -1
 }
 
 /**
@@ -320,6 +325,9 @@ async function createTaskTypes (
       _statues.add(st)
     }
     const tdata = {
+      isRootTaskType: true,
+      allowAnyParent: true,
+      allowedAsChildOf: [],
       ...data,
       parent: _id,
       statuses
@@ -337,18 +345,23 @@ async function createTaskTypes (
       tdata.targetClass = targetClassId
 
       await client.createDoc(
-        core.class.Mixin,
+        core.class.Class,
         core.space.Model,
         {
           extends: data.ofClass,
-          kind: ClassifierKind.MIXIN,
+          kind: ClassifierKind.CLASS,
           label: ofClassClass.label,
-          icon: ofClassClass.icon
+          icon: ofClassClass.icon,
+          color: ofClassClass.color,
+          shortLabel: ofClassClass.shortLabel,
+          sortingKey: ofClassClass.sortingKey,
+          filteringKey: ofClassClass.filteringKey,
+          titleKey: ofClassClass.titleKey
         },
         targetClassId
       )
 
-      await client.createMixin(targetClassId, core.class.Mixin, core.space.Model, task.mixin.TaskTypeClass, {
+      await client.createMixin(targetClassId, core.class.Class, core.space.Model, task.mixin.TaskTypeClass, {
         taskType: taskId,
         projectType: _id
       })
@@ -358,4 +371,55 @@ async function createTaskTypes (
     _tasks.push(taskId)
   }
   return hasUpdates
+}
+
+/**
+ * Returns allowed subtask types for a given parent task type in a project type.
+ *
+ * @public
+ */
+export function getAllowedChildTaskTypes (
+  projectType: Ref<ProjectType>,
+  taskType: Ref<TaskType>,
+  taskTypes: TaskType[]
+): TaskType[] {
+  const scopedTypes = taskTypes.filter((t) => t.parent === projectType)
+
+  return scopedTypes.filter((tt) => {
+    return tt.allowAnyParent === true || (tt.allowedAsChildOf ?? []).includes(taskType)
+  })
+}
+
+/**
+ * Returns allowed parent task types for a given child task type in a project type.
+ *
+ * @public
+ */
+export function getAllowedParentTaskTypes (
+  projectType: Ref<ProjectType>,
+  taskType: Ref<TaskType>,
+  taskTypes: TaskType[]
+): TaskType[] {
+  const scopedTypes = taskTypes.filter((t) => t.parent === projectType)
+  const childTaskType = scopedTypes.find((t) => t._id === taskType)
+
+  if (childTaskType == null) {
+    return []
+  }
+
+  if (childTaskType.allowAnyParent === true) {
+    return scopedTypes
+  }
+
+  const allowedParents = childTaskType.allowedAsChildOf ?? []
+  return scopedTypes.filter((parentTT) => allowedParents.includes(parentTT._id))
+}
+
+/**
+ * Returns task types allowed to be created as root tasks in a project type.
+ *
+ * @public
+ */
+export function getRootTaskTypes (projectType: Ref<ProjectType>, taskTypes: TaskType[]): TaskType[] {
+  return taskTypes.filter((t) => t.parent === projectType && t.isRootTaskType !== false)
 }

@@ -30,6 +30,7 @@
   import AttachmentDroppable from './AttachmentDroppable.svelte'
   import IconAttachments from './icons/Attachments.svelte'
   import UploadDuo from './icons/UploadDuo.svelte'
+  import AttachmentRowPresenter from './AttachmentRowPresenter.svelte'
 
   export let object: Doc | undefined = undefined
   export let objectId: Ref<Doc>
@@ -161,7 +162,7 @@
       <Table
         _class={attachmentClass}
         config={[
-          '',
+          { key: '', presenter: AttachmentRowPresenter },
           'description',
           {
             key: 'pinned',
@@ -183,7 +184,7 @@
     <Table
       _class={attachmentClass}
       config={[
-        '',
+        { key: '', presenter: AttachmentRowPresenter },
         'description',
         {
           key: 'pinned',

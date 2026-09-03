@@ -88,6 +88,9 @@ export interface RoomMetadata {
   // Status for operations
   transcription?: boolean
   recording?: boolean
+
+  /** When the office owner left. Set by the love webhook, cleared once they are back. */
+  ownerLeftAt?: number
 }
 
 export interface ParticipantMetadata {

@@ -20,7 +20,7 @@
   export let logoSrcset: string | undefined = undefined
 </script>
 
-<div class="logo">
+<div class="logo" class:mini>
   {#if logoUrl != null}
     <img class="logo-medium" src={logoUrl} srcset={logoSrcset} alt={''} />
   {:else}
@@ -81,5 +81,10 @@
     height: 0.5rem;
     border-radius: 50%;
     background-color: var(--global-higlight-Color);
+  }
+
+  .logo.mini .notification {
+    top: -0.35rem;
+    right: -0.15rem;
   }
 </style>

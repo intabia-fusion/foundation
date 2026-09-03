@@ -16,7 +16,7 @@
   import { type Attachment } from '@hcengineering/attachment'
   import type { BlobType, WithLookup } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
-  import presentation, { canPreviewFile, getFileUrl, previewTypes } from '@hcengineering/presentation'
+  import presentation, { canPreviewFile, getFileUrl, previewTypes, MessageBox } from '@hcengineering/presentation'
   import { IconMoreH, Menu, Action as UIAction, showPopup, tooltip } from '@hcengineering/ui'
   import view, { Action } from '@hcengineering/view'
   import workbench from '@hcengineering/workbench'
@@ -104,8 +104,7 @@
           label: attachmentPlugin.string.DeleteFile,
           action: async (props: any, evt: Event) => {
             if (isAttachment(attachment)) {
-              const impl = await getResource(attachmentPlugin.actionImpl.DeleteAttachment)
-              await impl(attachment, evt)
+              deleteAttachmentWithConfirmation(attachment, evt)
             }
           }
         })
@@ -122,6 +121,22 @@
       () => {
         hovered = false
       }
+    )
+  }
+
+  function deleteAttachmentWithConfirmation (attachment: Attachment, evt: Event): void {
+    showPopup(
+      MessageBox,
+      {
+        label: view.string.DeleteObject,
+        message: view.string.DeleteObjectConfirm,
+        params: { count: 1 },
+        action: async () => {
+          const impl = await getResource(attachmentPlugin.actionImpl.DeleteAttachment)
+          await impl(attachment, evt)
+        }
+      },
+      'top'
     )
   }
 </script>

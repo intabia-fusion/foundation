@@ -45,6 +45,9 @@
   export let uppercase: boolean = false
   export let propagateClick: boolean = false
   export let shrink: boolean = false
+  export let limit: number = 0
+
+  $: maxlength = limit === 0 ? null : limit
 
   const dispatch = createEventDispatcher()
 
@@ -196,6 +199,7 @@
           bind:this={input}
           bind:value
           placeholder={phTranslate}
+          {maxlength}
           on:input={handleInput}
           on:change
           on:keydown
@@ -215,6 +219,7 @@
         type="Password"
         bind:value
         placeholder={phTranslate}
+        {maxlength}
         on:input={handleInput}
         on:change
         on:keydown
@@ -234,6 +239,7 @@
         placeholder={phTranslate}
         min={minValue}
         max={maxValue}
+        {maxlength}
         on:input={handleInput}
         on:change={() => {
           setValue(value, maxValue, minValue)
@@ -255,6 +261,7 @@
         type="text"
         bind:value
         placeholder={phTranslate}
+        {maxlength}
         on:input={handleInput}
         on:change
         on:keydown

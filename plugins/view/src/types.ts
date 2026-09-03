@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -24,10 +25,12 @@ import {
   Doc,
   DocManager,
   DocumentQuery,
+  DocumentUpdate,
   FindOptions,
   Hierarchy,
   Lookup,
   Mixin,
+  TxCUD,
   Obj,
   ObjQueryType,
   PrimitiveType,
@@ -188,6 +191,16 @@ export interface AttributePresenter extends Class<Doc> {
   arrayPresenter?: AnyComponent
 }
 
+export interface AttributeApplierResult<T extends Doc = Doc> {
+  update?: DocumentUpdate<T>
+  txes?: Array<TxCUD<Doc>>
+}
+
+export type AttributeApplierFn<T extends Doc = Doc, V = any> = (
+  doc: Doc,
+  value: V
+) => Promise<AttributeApplierResult<T>> | AttributeApplierResult<T>
+
 /**
  * @public
  */
@@ -310,6 +323,23 @@ export interface ObjectIdentifier extends Class<Doc> {
  */
 export interface ReferenceObjectProvider extends Class<Doc> {
   provider: Resource<<T extends Doc>(client: Client, ref: Ref<T>, doc?: T) => Promise<Doc | undefined>>
+}
+
+/**
+ * @public
+ */
+export interface ReferenceVersion {
+  id: Ref<Doc>
+  objectclass: Ref<Class<Doc>>
+  label: string
+  fixed?: boolean
+}
+
+/**
+ * @public
+ */
+export interface ReferenceVersionsProvider extends Class<Doc> {
+  provider: Resource<<T extends Doc>(client: Client, ref: Ref<T>, doc?: T) => Promise<ReferenceVersion[]>>
 }
 
 /**
@@ -664,6 +694,7 @@ export interface DisplayProps {
   custom?: boolean // render as custom attribute label
   minWidth?: string
   maxWidth?: string
+  _class?: Ref<Class<Doc>> // Target model class for descendant attribute
 }
 
 /**
@@ -729,12 +760,22 @@ export interface ObjectFactory extends Class<Obj> {
 }
 
 /**
+ * Represents an attribute belonging to a descendant subclass to be displayed in a viewlet.
+ *
+ * @public
+ */
+export interface DescendantAttribute {
+  _class: Ref<Class<Doc>>
+  key: string
+}
+/**
  * @public
  */
 export interface ViewletPreference extends Preference {
   attachedTo: Ref<Viewlet>
   config: (BuildModelKey | string)[]
   customAttributes?: string[]
+  descendantAttributes?: DescendantAttribute[]
 }
 
 /**
@@ -936,6 +977,12 @@ export interface AttrPresenter extends Doc {
   category: AttributeCategory
   objectClass: Ref<Class<Doc>>
   component: AnyComponent
+}
+
+export interface AttrApplier extends Doc {
+  objectClass: Ref<Class<Doc>>
+  key: string
+  applier: Resource<AttributeApplierFn>
 }
 
 /**

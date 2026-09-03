@@ -17,6 +17,10 @@ import { loadServerConfig, type ServerConfig } from '@hcengineering/api-client'
 import { generateUuid, systemAccountUuid, type WorkspaceUuid } from '@hcengineering/core'
 import { getClient as getAccountClient, type AccountClient, type PaymentOperation } from '@hcengineering/account-client'
 import { generateToken } from '@hcengineering/server-token'
+import { adminSessionClient } from './admin.fixtures'
+
+/** Admin RPCs demand a second factor stamped within ADMIN_SESSION_TTL_SEC. */
+const adminMfaAt = (): string => String(Math.floor(Date.now() / 1000))
 
 // Drives the payment ledger against the real account-service DB. Only the payment-service token may
 // append rows (logPaymentOperation); admin reads the audit (getPaymentOperations/Stats/MonthlyStats).
@@ -31,7 +35,7 @@ describe('plan-ledger', () => {
     config = await loadServerConfig('http://localhost:8083')
     const listAdmin = getAccountClient(
       config.ACCOUNTS_URL,
-      generateToken(systemAccountUuid, undefined, { admin: 'true' }, 'secret')
+      generateToken(systemAccountUuid, undefined, { admin: 'true', mfaAt: adminMfaAt() }, 'secret')
     )
     const ws = (await listAdmin.listWorkspaces()).find((w) => w.url === wsName)
     if (ws == null) throw new Error(`Workspace not found: ${wsName}`)
@@ -40,10 +44,7 @@ describe('plan-ledger', () => {
       config.ACCOUNTS_URL,
       generateToken(systemAccountUuid, workspaceUuid, { service: 'payment' }, 'secret')
     )
-    admin = getAccountClient(
-      config.ACCOUNTS_URL,
-      generateToken(systemAccountUuid, workspaceUuid, { admin: 'true' }, 'secret')
-    )
+    admin = await adminSessionClient(config)
   }, 30000)
 
   async function log (op: Omit<PaymentOperation, 'provider' | 'workspaceUuid'>): Promise<void> {

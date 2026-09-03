@@ -196,7 +196,10 @@
 
       .antiSeparator { display: none; }
       &.fly {
-        width: calc(100% - 3.5rem) !important;
+        // No sidebar on mobile - nothing to keep clear of on the right.
+        // max-width (22.5rem) otherwise clamps the drawer and leaves a gap.
+        width: 100% !important;
+        max-width: 100% !important;
         filter: var(--theme-navpanel-shadow-mobile);
       }
       &.second.float.fly {

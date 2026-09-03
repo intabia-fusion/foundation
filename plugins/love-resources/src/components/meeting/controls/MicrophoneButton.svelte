@@ -20,15 +20,17 @@
   }
 </script>
 
-<SplitButton
-  {size}
-  icon={isMicEnabled ? love.icon.MicEnabled : love.icon.MicDisabled}
-  showTooltip={{
-    label: isMicEnabled ? love.string.Mute : love.string.UnMute,
-    keys: micKeys
-  }}
-  action={toggleMicState}
-  secondIcon={IconUpOutline}
-  secondAction={micSettings}
-  separate
-/>
+<div data-id="mic-button" data-enabled={isMicEnabled ? 'true' : 'false'} style="display: contents">
+  <SplitButton
+    {size}
+    icon={isMicEnabled ? love.icon.MicEnabled : love.icon.MicDisabled}
+    showTooltip={{
+      label: isMicEnabled ? love.string.Mute : love.string.UnMute,
+      keys: micKeys
+    }}
+    action={toggleMicState}
+    secondIcon={IconUpOutline}
+    secondAction={micSettings}
+    separate
+  />
+</div>

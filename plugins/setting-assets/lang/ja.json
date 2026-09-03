@@ -220,7 +220,15 @@
     "SelectUsers": "ユーザーを選択",
     "ShowInTitle": "タイトルに表示",
     "SpaceMembersOnly": "スペースメンバーのみ",
-    "Reset": "リセット"
+    "OverrideAttribute": "属性をオーバーライド",
+    "Required": "必須",
+    "Reset": "リセット",
+    "ConfirmOperation": "操作の確認",
+    "Confirm": "確認",
+    "OtpCode": "コード",
+    "OtpSent": "メールにコードを送信しました",
+    "OtpSendFailed": "コードを送信できませんでした",
+    "SendCode": "コードを送信"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

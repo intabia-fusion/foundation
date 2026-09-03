@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,9 +14,10 @@
 // limitations under the License.
 //
 
-import core, { Doc, Tx, TxCUD, TxCreateDoc, TxProcessor, TxUpdateDoc } from '@hcengineering/core'
+import core, { Doc, Tx, TxCUD, TxCreateDoc, TxProcessor, TxRemoveDoc, TxUpdateDoc } from '@hcengineering/core'
+import { getEmbeddedLabel } from '@hcengineering/platform'
 import { TriggerControl } from '@hcengineering/server-core'
-import task, { Task } from '@hcengineering/task'
+import task, { Task, TaskType } from '@hcengineering/task'
 
 /**
  * @public
@@ -53,9 +55,55 @@ export async function OnStateUpdate (txes: TxCUD<Doc>[], control: TriggerControl
   return result
 }
 
+/**
+ * @public
+ */
+export async function OnTaskTypeUpdate (txes: TxUpdateDoc<TaskType>[], control: TriggerControl): Promise<Tx[]> {
+  const result: Tx[] = []
+  for (const updateTx of txes) {
+    if (updateTx.operations.icon == null && updateTx.operations.color == null && updateTx.operations.name == null) {
+      continue
+    }
+
+    const taskType = control.modelDb.findAllSync<TaskType>(task.class.TaskType, { _id: updateTx.objectId })[0]
+    if (taskType?.targetClass != null) {
+      result.push(
+        control.txFactory.createTxUpdateDoc(core.class.Class, core.space.Model, taskType.targetClass, {
+          ...(updateTx.operations.icon == null ? {} : { icon: updateTx.operations.icon }),
+          ...(updateTx.operations.color == null ? {} : { color: updateTx.operations.color }),
+          ...(updateTx.operations.name == null ? {} : { label: getEmbeddedLabel(updateTx.operations.name) })
+        })
+      )
+    }
+  }
+  return result
+}
+
+/**
+ * @public
+ */
+export async function OnTaskTypeRemove (txes: TxRemoveDoc<TaskType>[], control: TriggerControl): Promise<Tx[]> {
+  const result: Tx[] = []
+  for (const tx of txes) {
+    const taskType = control.removedMap.get(tx.objectId) as TaskType | undefined
+    if (taskType?.targetClass != null && taskType.targetClass !== taskType.ofClass) {
+      result.push(control.txFactory.createTxRemoveDoc(core.class.Class, core.space.Model, taskType.targetClass))
+      const attributes = control.modelDb.findAllSync(core.class.Attribute, {
+        attributeOf: taskType.targetClass
+      })
+      for (const attribute of attributes) {
+        result.push(control.txFactory.createTxRemoveDoc(attribute._class, attribute.space, attribute._id))
+      }
+    }
+  }
+  return result
+}
+
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   trigger: {
-    OnStateUpdate
+    OnStateUpdate,
+    OnTaskTypeUpdate,
+    OnTaskTypeRemove
   }
 })

@@ -13,7 +13,9 @@
 // limitations under the License.
 //
 import { MeasureContext, Ref, WorkspaceUuid } from '@hcengineering/core'
+import aiBot, { AudioTranscribe, ChatVoiceTranscriptionTask } from '@hcengineering/ai-bot'
 import config from './config'
+import { pushTranscriptDuration, pushTranscriptUsageRecord } from './billing'
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { createTranscriptionConsumer, SendToDeadLetterCallback, TranscriptionConsumer } from './transcription/consumer'
@@ -22,9 +24,18 @@ import love, { parseRoomName } from '@hcengineering/love'
 import { Person } from '@hcengineering/contact'
 import { ChatMessage } from '@hcengineering/chunter'
 import { PlatformQueueProducer } from '@hcengineering/server-core'
-import { TranscriptionConfig, TranscriptionQueueTask } from './transcription/types'
+import { AudioFormat, TranscriptionConfig, TranscriptionQueueTask } from './transcription/types'
 import { ClisrServer } from '@intabiafusion/clisr'
 import { createTranscriptionProvider } from './transcription'
+import { resolveTranscriptionConfig } from './transcription/asrRegistry'
+
+// Upper bound for one voice-note ASR call; past it the attachment is marked failed.
+const CHAT_VOICE_ASR_TIMEOUT_MS = 120000
+
+export interface TranscriptionSupport {
+  consumer: TranscriptionConsumer
+  processChatVoice: (ctx: MeasureContext, workspace: WorkspaceUuid, task: ChatVoiceTranscriptionTask) => Promise<void>
+}
 
 export async function createTranscriptionsSupport (
   ctx: MeasureContext,
@@ -35,16 +46,13 @@ export async function createTranscriptionsSupport (
     errorType: string
   }>,
   server?: ClisrServer
-): Promise<TranscriptionConsumer | undefined> {
-  // Set up transcription configuration from environment
-  const transcriptionConfig: TranscriptionConfig = {
-    provider: config.SttProvider,
-    url: config.SttUrl,
-    apiKey: config.SttApiKey,
-    model: config.SttModel,
-    vadRmsThreshold: config.VadRmsThreshold,
-    vadSpeechRatioThreshold: config.VadSpeechRatioThreshold
-  }
+): Promise<TranscriptionSupport | undefined> {
+  // Resolve provider/model from the ASR registry (yaml `asr:` block). Empty registry -> disabled.
+  const transcriptionConfig: TranscriptionConfig = resolveTranscriptionConfig(
+    config.AsrProviders,
+    config.AsrDefaultLevel,
+    { vadRmsThreshold: config.VadRmsThreshold, vadSpeechRatioThreshold: config.VadSpeechRatioThreshold }
+  )
 
   ctx.info('Transcription config', {
     provider: transcriptionConfig.provider,
@@ -59,6 +67,36 @@ export async function createTranscriptionsSupport (
   }
 
   const provider = createTranscriptionProvider(ctx, transcriptionConfig, server)
+
+  // Per-workspace ASR level enforcement: resolve the provider for the workspace's
+  // AISpaceSettings.asrLevel, caching one provider instance per level.
+  const providerByLevel = new Map<string, ReturnType<typeof createTranscriptionProvider>>()
+  providerByLevel.set(config.AsrDefaultLevel, provider)
+  const resolveProvider = async (
+    rctx: MeasureContext,
+    workspace: WorkspaceUuid
+  ): Promise<{ provider: ReturnType<typeof createTranscriptionProvider>, level: string } | undefined> => {
+    try {
+      const wsClient = await aiControl.getWorkspaceClient(workspace)
+      const settings = await wsClient?.client?.findOne(aiBot.class.AISpaceSettings, { attachedTo: { $exists: false } })
+      const level = settings?.asrLevel
+      if (level === undefined || level === '' || level === config.AsrDefaultLevel) return undefined
+      let p = providerByLevel.get(level)
+      if (p === undefined) {
+        const cfg = resolveTranscriptionConfig(config.AsrProviders, level, {
+          vadRmsThreshold: config.VadRmsThreshold,
+          vadSpeechRatioThreshold: config.VadSpeechRatioThreshold
+        })
+        if (cfg.provider === undefined || cfg.provider === '') return undefined
+        p = createTranscriptionProvider(rctx, cfg, server)
+        providerByLevel.set(level, p)
+      }
+      return { provider: p, level }
+    } catch (e) {
+      rctx.error('Failed to resolve per-workspace ASR provider', { workspace, e })
+      return undefined
+    }
+  }
 
   try {
     if (config.DebugDir !== '' && config.DebugDir != null) {
@@ -162,7 +200,10 @@ export async function createTranscriptionsSupport (
       (async (ctx, workspace, task, error, errorType) => {
         await transcriptionDeadLetterProducer?.send(ctx, workspace, [{ task, error, errorType }])
       }) as SendToDeadLetterCallback,
-      config.DebugDir
+      config.DebugDir,
+      undefined,
+      resolveProvider,
+      config.AsrDefaultLevel
     )
 
     if (!transcriptionHandler.isReady()) {
@@ -170,7 +211,67 @@ export async function createTranscriptionsSupport (
         provider: transcriptionConfig.provider
       })
     }
-    return transcriptionHandler
+
+    // Chat voice-note path: read the attachment blob from workspace storage, transcribe,
+    // LLM-correct, and write the text back onto the AudioTranscribe doc.
+    const processChatVoice = async (
+      pctx: MeasureContext,
+      workspace: WorkspaceUuid,
+      task: ChatVoiceTranscriptionTask
+    ): Promise<void> => {
+      const wsClient = await aiControl.getWorkspaceClient(workspace)
+      // Nothing to write the result onto, so fail loudly: swallowing this leaves the attachment
+      // 'pending' forever with no trace of why.
+      if (wsClient === undefined) {
+        throw new Error(`no workspace client for chat-voice transcription ${workspace}`)
+      }
+      // Under system: the bot is not a member of a personal direct, so its own client sees nothing.
+      // The bot stays the author of the change - only the access comes from the system.
+      const client = wsClient.systemAccessClient()
+      const asBot = wsClient.primarySocialId._id
+      const doc = await client.findOne(aiBot.class.AudioTranscribe, { _id: task.transcribeId as Ref<AudioTranscribe> })
+      if (doc === undefined || doc.state !== 'pending') return
+
+      try {
+        const audio = await aiControl.storageAdapter.read(pctx, wsClient.wsIds, task.blobId)
+        // Container as recorded: providers name the file by it. openai/deepgram unverified,
+        // see foundation-tasks TSK-2026-08-29-401.
+        const audioFormat: AudioFormat = task.audioFormat ?? 'ogg'
+        const resolved = await resolveProvider(pctx, workspace)
+        const asrProvider = resolved?.provider ?? provider
+        const asrLevel = resolved?.level ?? config.AsrDefaultLevel
+        // ponytail: race, not abort - providers take no signal, so a hung request leaks until it
+        // settles. Bounded here so the attachment never stays 'pending' forever when ASR is down.
+        const result = await Promise.race([
+          asrProvider.transcribe(Buffer.concat(audio), { audioFormat, language: task.language }),
+          new Promise<never>((_resolve, reject) =>
+            setTimeout(() => {
+              reject(new Error('chat-voice transcription timed out'))
+            }, CHAT_VOICE_ASR_TIMEOUT_MS)
+          )
+        ])
+
+        if (task.durationSec > 0) {
+          await pushTranscriptDuration(pctx, workspace, task.durationSec, task.blobId)
+          await pushTranscriptUsageRecord(pctx, workspace, task.durationSec, result.clientId, asrLevel)
+        }
+
+        const raw = result.text?.trim() ?? ''
+        if (raw === '') {
+          await client.update(doc, { state: 'failed' }, false, undefined, asBot)
+          return
+        }
+        const corrected = (await aiControl.correctTranscript(workspace, raw, task.language, task.level)) ?? raw
+        await client.update(doc, { text: corrected, state: 'done', lang: result.language }, false, undefined, asBot)
+      } catch (err: any) {
+        pctx.error('chat-voice transcription failed', { error: err?.message, blobId: task.blobId })
+        try {
+          await client.update(doc, { state: 'failed' }, false, undefined, asBot)
+        } catch {}
+      }
+    }
+
+    return { consumer: transcriptionHandler, processChatVoice }
   } catch (err: any) {
     ctx.info('Failed to create transcription consumer', { error: err.message })
   }

@@ -40,6 +40,9 @@
   export let currency: string = ''
   // Auto-renewal is the expected default; unchecking makes it a one-off payment with no card saved.
   export let recurrent: boolean = true
+  // One-off catalog purchases: force non-recurring and hide the auto-renew consent entirely.
+  export let hideRecurrent: boolean = false
+  $: if (hideRecurrent) recurrent = false
 
   const dispatch = createEventDispatcher()
   const DEFAULT_LOCALE = 'ru'
@@ -129,21 +132,23 @@
 
     <!-- Opt-in: unchecked sends no Recurrent to the provider, so no card is saved and the
          subscription simply ends at period end instead of auto-renewing. -->
-    <div class="flex-row-top flex-gap-2" data-id="checkoutRecurrentCheckbox">
-      <CheckBox id="recurrent-input" bind:checked={recurrent} kind={'primary'} />
-      <span class="text-sm">
-        <label for="recurrent-input" class="cursor-pointer">
-          <Label
-            label={period === 'yearly' ? plugin.string.AgreeYearlyCharge : plugin.string.AgreeMonthlyCharge}
-            params={{ amount: `${fmt(total)} ${currency}` }}
-          />
-        </label>
-      </span>
-    </div>
-    {#if !recurrent}
-      <div class="text-sm dark-color" data-id="checkoutNoRenewalHint">
-        <Label label={plugin.string.NoAutoRenewalHint} />
+    {#if !hideRecurrent}
+      <div class="flex-row-top flex-gap-2" data-id="checkoutRecurrentCheckbox">
+        <CheckBox id="recurrent-input" bind:checked={recurrent} kind={'primary'} />
+        <span class="text-sm">
+          <label for="recurrent-input" class="cursor-pointer">
+            <Label
+              label={period === 'yearly' ? plugin.string.AgreeYearlyCharge : plugin.string.AgreeMonthlyCharge}
+              params={{ amount: `${fmt(total)} ${currency}` }}
+            />
+          </label>
+        </span>
       </div>
+      {#if !recurrent}
+        <div class="text-sm dark-color" data-id="checkoutNoRenewalHint">
+          <Label label={plugin.string.NoAutoRenewalHint} />
+        </div>
+      {/if}
     {/if}
   </div>
 </Card>

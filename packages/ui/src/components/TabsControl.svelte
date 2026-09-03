@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Icon, TabBase } from '..'
+  import { Icon, TabBase, tooltip } from '..'
   import Label from './Label.svelte'
 
   export let model: TabBase[]
@@ -22,6 +23,7 @@
   export let noMargin: boolean = false
   export let size: 'small' | 'medium' | 'large' = 'medium'
   export let gap: 'small' | 'medium' | 'large' = 'large'
+  export let maxTabWidth: string | undefined = undefined
 </script>
 
 <div class="flex-stretch tabs-container no-print {size} gap-{gap}" style:padding class:noMargin>
@@ -31,6 +33,7 @@
     <div
       class="flex-row-center tab"
       class:selected={i === selected}
+      use:tooltip={{ label: tab.label !== '' ? tab.label : undefined }}
       on:click={() => {
         selected = i
       }}
@@ -41,7 +44,9 @@
         </div>
       {/if}
       {#if tab.label !== ''}
-        <Label label={tab.label} />
+        <span class="overflow-label" style:max-width={maxTabWidth}>
+          <Label label={tab.label} />
+        </span>
       {/if}
     </div>
   {/each}
@@ -61,6 +66,12 @@
     min-width: 0;
     min-height: 0;
     border-bottom: 1px solid var(--theme-divider-color);
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
 
     &.gap-small {
       gap: 0.5rem;
@@ -94,6 +105,8 @@
       color: var(--theme-dark-color);
       cursor: pointer;
       user-select: none;
+      flex-shrink: 0;
+      min-width: 0;
 
       &.selected {
         border-top: 0.125rem solid transparent;

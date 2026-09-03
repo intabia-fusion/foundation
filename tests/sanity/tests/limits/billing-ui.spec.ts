@@ -1,6 +1,7 @@
-import { expect, test, type Page, type APIRequestContext } from '@playwright/test'
+import { expect, test, type Page, type APIRequestContext } from '../fixtures'
 import { type WorkspaceUuid } from '@hcengineering/core'
 import { PlatformSetting, PlatformURI, generateId } from '../utils'
+import { retryIntervals } from '../retry'
 import { setWorkspacePlanByUuid, getTierSubscription } from '../API/Billing'
 import { ApiEndpoint } from '../API/Api'
 
@@ -141,8 +142,14 @@ async function connectPackage (page: Page, ws: string, pkgKey: string, expect_?:
   } else {
     await payMockCheckout(page, ws)
   }
-  // The connect button for this package disappears once it becomes the current package.
-  await expect(page.locator(`[data-id="packageConnect-${pkgKey}"]`)).toHaveCount(0, { timeout: 20000 })
+  // Once connected, the card's button turns into Disconnect, so the connect id is gone. The mock bank
+  // fires the confirmation webhook fire-and-forget, so activation can land after this page load -
+  // reload until the card flips instead of betting on a single render.
+  await expect(async () => {
+    await openBilling(page, ws)
+    await expect(page.locator(`[data-id="packageDisconnect-${pkgKey}"]`)).toBeVisible({ timeout: 3000 })
+  }).toPass({ intervals: retryIntervals, timeout: 30000 })
+  await expect(page.locator(`[data-id="packageConnect-${pkgKey}"]`)).toHaveCount(0)
 }
 
 test.describe('billing UI lifecycle (tbank + mock bank)', () => {
@@ -177,7 +184,7 @@ test.describe('billing UI lifecycle (tbank + mock bank)', () => {
       const tier = await getTierSubscription(workspace)
       expect(tier?.status).toBe('active')
       expect(tier?.plan).toBe('business')
-    }).toPass({ intervals: [1000, 2000, 3000], timeout: 20000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
 
     // The active card reflects the purchase: Business name, Active status, a price, a renewal date,
     // and the seat-change action.
@@ -196,13 +203,13 @@ test.describe('billing UI lifecycle (tbank + mock bank)', () => {
     await changeSeats(page, wsUrl, 6, 'charge')
     await expect(async () => {
       expect((await getTierSubscription(workspace))?.usersLimit).toBe(6)
-    }).toPass({ intervals: [1000, 2000, 3000], timeout: 20000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
 
     // Down: 6 -> 2 (above the single owner member), preview shows the renewal-date shift, no charge.
     await changeSeats(page, wsUrl, 2, 'extend')
     await expect(async () => {
       expect((await getTierSubscription(workspace))?.usersLimit).toBe(2)
-    }).toPass({ intervals: [1000, 2000, 3000], timeout: 20000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
   })
 
   test('seat count cannot go below the current member count', async ({ page, request }) => {
@@ -276,7 +283,7 @@ test.describe('billing UI lifecycle (tbank + mock bank)', () => {
       const tier = await getTierSubscription(workspace)
       expect(tier?.status).toBe('active')
       expect(tier?.plan).toBe('business')
-    }).toPass({ intervals: [1000, 2000, 3000], timeout: 20000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
 
     // The active card labels the amount as a yearly charge (not monthly).
     await expect(page.locator('[data-id="currentTierAmount"]')).toContainText(/Yearly|В год/)
@@ -295,12 +302,38 @@ test.describe('billing UI lifecycle (tbank + mock bank)', () => {
       expect(tier?.providerData?.recurrent).toBe(false)
       // No RebillId -> nothing for the renewal scheduler to charge.
       expect(tier?.providerData?.rebillId).toBeUndefined()
-    }).toPass({ intervals: [1000, 2000, 3000], timeout: 20000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
 
     // Cancel means "do not renew" — meaningless here, so the action is gone.
     await expect(page.locator('[data-id="cancelSubscription"]')).toHaveCount(0)
     await expect(page.locator('[data-id="uncancelSubscription"]')).toHaveCount(0)
     // Seats stay changeable (buying more is just another one-off payment).
     await expect(page.locator('[data-id="changeSeats"]')).toBeVisible()
+  })
+
+  // Whole one-time token purchase chain: checkout -> PurchaseActivated -> aibot applies the grant
+  // -> billing credits the balance -> the widget shows it. Nothing below is mocked past the bank.
+  test('buying a token pack credits the purchased balance', async ({ page, request }) => {
+    const { wsUrl } = await freshBusinessWorkspace(request, 'tokens')
+    await openBilling(page, wsUrl)
+    await subscribeBusiness(page, wsUrl, 2)
+
+    const balance = page.locator('[data-id="tokenPurchased"]')
+    // Nothing bought yet: the purchased row only renders once the balance is non-zero.
+    await expect(balance).toHaveCount(0)
+
+    await page.locator('[data-id="purchasableBuy-ai-tokens-10m"]').click()
+    await submitCheckoutDialog(page)
+    await payMockCheckout(page, wsUrl)
+
+    // The grant travels through the purchase event and the billing pod, so poll rather than assume.
+    await expect(async () => {
+      await openBilling(page, wsUrl)
+      // Rendered compact ("10M" / "10 млн" depending on locale), so match the digits only.
+      await expect(balance).toContainText('10', { timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 90000 })
+
+    // Purchased tokens are spendable on top of the tier window, so available exceeds it.
+    await expect(page.locator('[data-id="tokenAvailable"]')).not.toHaveText('0')
   })
 })

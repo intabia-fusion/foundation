@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import { NavigationMenuPage } from '../model/recruiting/navigation-menu-page'
 import { TalentDetailsPage } from '../model/recruiting/talent-details-page'
 import { TalentsPage } from '../model/recruiting/talents-page'
@@ -136,6 +136,8 @@ test.describe('candidate/talents tests', () => {
     await talentsPage.checkRowsInTableExist(talentName)
     await talentsPage.filterOppositeCondition('Skill', 'is', 'is not')
     await talentsPage.checkRowsInTableNotExist(talentName)
-    await talentsPage.checkRowsInTableExist('', talentsCount - 1)
+    // Other specs keep adding talents to the shared workspace, so the total can only be compared as
+    // a lower bound - an exact count races whatever was created since talentsCount was read.
+    expect(await talentsPage.linesFromTable().count()).toBeGreaterThanOrEqual(talentsCount - 1)
   })
 })

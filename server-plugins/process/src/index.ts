@@ -67,6 +67,7 @@ export default plugin(serverProcessId, {
     CheckToDoCancelled: '' as Resource<CheckFunc>,
     MatchCardCheck: '' as Resource<CheckFunc>,
     FieldChangedCheck: '' as Resource<CheckFunc>,
+    RequiredFieldsFilledCheck: '' as Resource<CheckFunc>,
     CheckSubProcessesDone: '' as Resource<CheckFunc>,
     CheckSubProcessMatch: '' as Resource<CheckFunc>,
     CheckTime: '' as Resource<CheckFunc>,
@@ -114,20 +115,26 @@ export default plugin(serverProcessId, {
     EmptyValue: '' as Resource<TransformFunc>,
     EmptyArray: '' as Resource<TransformFunc>,
     Filter: '' as Resource<TransformFunc>,
+    AllMatchValue: '' as Resource<TransformFunc>,
     FirstMatchValue: '' as Resource<TransformFunc>,
     ExecutionInitiator: '' as Resource<TransformFunc>,
     ExecutionStarted: '' as Resource<TransformFunc>,
     StringFromNumber: '' as Resource<TransformFunc>,
     StringFromDate: '' as Resource<TransformFunc>,
+    StringFromMarkup: '' as Resource<TransformFunc>,
     StringFromBoolean: '' as Resource<TransformFunc>,
     NumberFromDate: '' as Resource<TransformFunc>,
     DateFromNumber: '' as Resource<TransformFunc>,
     NumberFromString: '' as Resource<TransformFunc>,
     DateFromString: '' as Resource<TransformFunc>,
+    MarkupFromString: '' as Resource<TransformFunc>,
+    StringFromIdentifier: '' as Resource<TransformFunc>,
     YearFromDate: '' as Resource<TransformFunc>,
     MonthFromDate: '' as Resource<TransformFunc>,
     DayFromDate: '' as Resource<TransformFunc>,
-    DateDifference: '' as Resource<TransformFunc>
+    DateDifference: '' as Resource<TransformFunc>,
+    StringFromEnum: '' as Resource<TransformFunc>,
+    EnumFromString: '' as Resource<TransformFunc>
   },
   trigger: {
     OnTransition: '' as Resource<TriggerFunc>,
@@ -141,6 +148,7 @@ export default plugin(serverProcessId, {
     OnProcessToDoRemove: '' as Resource<TriggerFunc>,
     OnExecutionContinue: '' as Resource<TriggerFunc>,
     OnCustomEvent: '' as Resource<TriggerFunc>,
+    OnExecutionDone: '' as Resource<TriggerFunc>,
     OnExecutionRemove: '' as Resource<TriggerFunc>
   }
 })

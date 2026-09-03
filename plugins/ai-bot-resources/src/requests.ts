@@ -13,10 +13,11 @@
 // limitations under the License.
 //
 import {
+  type AILevelInfo,
+  type AsrLevelInfo,
   type ConnectMeetingRequest,
   type DisconnectMeetingRequest,
   type SummarizeMessagesRequest,
-  type SummarizeMessagesResponse,
   type TranslateRequest,
   type TranslateResponse
 } from '@hcengineering/ai-bot'
@@ -56,16 +57,13 @@ export async function translate (text: Markup, lang: string): Promise<TranslateR
   }
 }
 
-export async function summarizeMessages (
-  lang: string,
-  target: Ref<Doc>,
-  targetClass: Ref<Class<Doc>>
-): Promise<SummarizeMessagesResponse | undefined> {
+/** Queues the summary; the text is written into the document by the pod, not returned here. */
+export async function summarizeMessages (lang: string, target: Ref<Doc>, targetClass: Ref<Class<Doc>>): Promise<void> {
   const url = getMetadata(aiBot.metadata.EndpointURL) ?? ''
   const token = getMetadata(presentation.metadata.Token) ?? ''
 
   if (url === '' || token === '') {
-    return undefined
+    return
   }
 
   try {
@@ -83,13 +81,10 @@ export async function summarizeMessages (
       body: JSON.stringify(req)
     })
     if (!resp.ok) {
-      return undefined
+      console.error('Failed to queue summary', resp.status)
     }
-
-    return (await resp.json()) as SummarizeMessagesResponse
   } catch (error) {
     console.error(error)
-    return undefined
   }
 }
 
@@ -107,7 +102,7 @@ export async function connectMeeting (
 
   try {
     const req: ConnectMeetingRequest = { meetingId, transcription: options.transcription ?? false, language }
-    await fetch(concatLink(url, 'love/connect'), {
+    const resp = await fetch(concatLink(url, 'love/connect'), {
       method: 'POST',
       headers: {
         Authorization: 'Bearer ' + token,
@@ -115,9 +110,62 @@ export async function connectMeeting (
       },
       body: JSON.stringify(req)
     })
+    if (!resp.ok) {
+      console.error('Failed to connect the assistant to the meeting', resp.status)
+    }
   } catch (error) {
     console.error(error)
     return undefined
+  }
+}
+
+export async function getAILevels (): Promise<AILevelInfo[]> {
+  const url = getMetadata(aiBot.metadata.EndpointURL) ?? ''
+  const token = getMetadata(presentation.metadata.Token) ?? ''
+
+  if (url === '' || token === '') {
+    return []
+  }
+
+  try {
+    const resp = await fetch(concatLink(url, '/levels'), {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer ' + token
+      }
+    })
+    if (!resp.ok) {
+      return []
+    }
+    return (await resp.json()) as AILevelInfo[]
+  } catch (error) {
+    console.error(error)
+    return []
+  }
+}
+
+export async function getAsrLevels (): Promise<AsrLevelInfo[]> {
+  const url = getMetadata(aiBot.metadata.EndpointURL) ?? ''
+  const token = getMetadata(presentation.metadata.Token) ?? ''
+
+  if (url === '' || token === '') {
+    return []
+  }
+
+  try {
+    const resp = await fetch(concatLink(url, '/asr-levels'), {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer ' + token
+      }
+    })
+    if (!resp.ok) {
+      return []
+    }
+    return (await resp.json()) as AsrLevelInfo[]
+  } catch (error) {
+    console.error(error)
+    return []
   }
 }
 
@@ -131,7 +179,7 @@ export async function disconnectMeeting (meetingId: Ref<MeetingMinutes>): Promis
 
   try {
     const req: DisconnectMeetingRequest = { meetingId }
-    await fetch(concatLink(url, 'love/disconnect'), {
+    const resp = await fetch(concatLink(url, 'love/disconnect'), {
       method: 'POST',
       headers: {
         Authorization: 'Bearer ' + token,
@@ -139,6 +187,35 @@ export async function disconnectMeeting (meetingId: Ref<MeetingMinutes>): Promis
       },
       body: JSON.stringify(req)
     })
+    if (!resp.ok) {
+      console.error('Failed to disconnect the assistant from the meeting', resp.status)
+    }
+  } catch (error) {
+    console.error(error)
+    return undefined
+  }
+}
+
+/**
+ * The conversation transcript the pod writes after every reply (tool calls included). Undefined
+ * when the pod has nothing yet - the caller then builds a transcript from the chat messages.
+ */
+export async function fetchConversationExport (conversation: Ref<Doc>): Promise<string | undefined> {
+  const url = getMetadata(aiBot.metadata.EndpointURL) ?? ''
+  const token = getMetadata(presentation.metadata.Token) ?? ''
+
+  if (url === '' || token === '') {
+    return undefined
+  }
+
+  try {
+    const resp = await fetch(concatLink(url, `/conversation/${encodeURIComponent(conversation)}/export`), {
+      headers: { Authorization: 'Bearer ' + token }
+    })
+    if (!resp.ok) {
+      return undefined
+    }
+    return await resp.text()
   } catch (error) {
     console.error(error)
     return undefined

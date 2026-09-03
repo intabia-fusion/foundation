@@ -17,5 +17,9 @@ export class PublicLinkPopup extends IssuesPage {
   async revokePublicLink (): Promise<void> {
     await this.buttonRevoke().click()
     await this.buttonOk().click()
+    // Ok closes the confirmation only once the removal round trip is done, and the link form closes
+    // with it. Returning earlier lets a guest page opened right after still find the link and render
+    // the issue - and the guest checks the link once at boot, so waiting there never recovers.
+    await expect(this.textPublicLink()).toHaveCount(0)
   }
 }

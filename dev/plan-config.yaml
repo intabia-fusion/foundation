@@ -49,6 +49,7 @@ plans:
     tokenLimit: 100000
     usersLimit: 5
     guestsLimit: 50
+    windowMonthLimit: 100000
     index: 0
     color: Sky
   business:
@@ -101,6 +102,8 @@ plans:
     meetingMinutesLimit: 0
     tokenLimit: 0
     usersLimit: 0
+    # Per-seat AI token window (per-seat plan): effective limit = windowMonthLimit * paid seats.
+    windowMonthLimit: 300000
     index: 1
     color: Orchid
   corporation:
@@ -162,6 +165,7 @@ plans:
     meetingMinutesLimit: 0
     tokenLimit: 0
     usersLimit: 0
+    windowMonthLimit: 0
     index: 2
     color: Orange
 # Trial for new workspaces. When set, a new workspace starts on this plan with Trialing status
@@ -171,34 +175,80 @@ trial:
   plan: business
   days: 14
   usersLimit: 10
+  # Flat AI grant for the whole trial. After conversion the plan's per-seat window applies
+  # (business: 300k per paid seat).
+  windowMonthLimit: 1000000
 packages:
   100gb:
     description:
       ru: 100 Гб
       en: 100 GB
-    priceMonthly: 1000
+    priceMonthly: 500
     currency: ₽
     eligiblePlans:
       - start
       - business
+    category: storage
     storageLimitGB: 100
   500gb:
     description:
       ru: 500 Гб
       en: 500 GB
-    priceMonthly: 5000
+    priceMonthly: 2500
     currency: ₽
     eligiblePlans:
       - start
       - business
+    category: storage
     storageLimitGB: 500
   1000gb:
     description:
       ru: 1 000 Гб
       en: 1 000 GB
-    priceMonthly: 10000
+    priceMonthly: 5000
     currency: ₽
     eligiblePlans:
       - start
       - business
+    category: storage
     storageLimitGB: 1000
+# One-time catalog purchases (not subscriptions). Bought once via the same checkout (recurrent:false),
+# the effect runs on payment confirmation. add-ai-tokens adds tokenLimit billed tokens to the current
+# period budget; they burn with the period like the tier and package quotas.
+purchasables:
+  ai-tokens-1m:
+    description:
+      ru: 1М AI-токенов разово
+      en: 1M AI tokens one-time
+    priceMonthly: 100
+    currency: ₽
+    eligiblePlans:
+      - start
+      - business
+    category: ai
+    effect: add-ai-tokens
+    tokenLimit: 1000000
+  ai-tokens-10m:
+    description:
+      ru: 10М AI-токенов разово
+      en: 10M AI tokens one-time
+    priceMonthly: 1000
+    currency: ₽
+    eligiblePlans:
+      - start
+      - business
+    category: ai
+    effect: add-ai-tokens
+    tokenLimit: 10000000
+  ai-tokens-50m:
+    description:
+      ru: 50М AI-токенов разово
+      en: 50M AI tokens one-time
+    priceMonthly: 5000
+    currency: ₽
+    eligiblePlans:
+      - start
+      - business
+    category: ai
+    effect: add-ai-tokens
+    tokenLimit: 50000000

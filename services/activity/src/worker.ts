@@ -23,7 +23,9 @@ import core, {
   type TxCUD,
   TxProcessor,
   type WorkspaceUuid,
-  type Branding
+  type Branding,
+  DOMAIN_TRANSIENT,
+  type WorkspaceInfoWithStatus
 } from '@hcengineering/core'
 import { loadBrandingMap } from '@hcengineering/server-core'
 import { generateToken } from '@hcengineering/server-token'
@@ -32,6 +34,8 @@ import { type StorageAdapter } from '@hcengineering/storage'
 import { buildStorageFromConfig, storageConfigFrom } from '@hcengineering/server-storage'
 import activity from '@hcengineering/activity'
 import notification from '@hcengineering/notification'
+import platform from '@hcengineering/platform'
+import pulse from '@hcengineering/pulse'
 
 import Workspace from './workspace'
 import { getTransactorApiEndpoint, getWorkspaceInfo } from './utils'
@@ -52,9 +56,7 @@ export class Worker {
     ctx: MeasureContext,
     private readonly modelTxes: Tx[]
   ) {
-    for (const tx of modelTxes) {
-      this.sysHierarchy.tx(tx)
-    }
+    // addTxes feeds sysHierarchy itself, a separate pass would just deserialize everything twice.
     this.sysModel.addTxes(ctx, modelTxes, true)
 
     this.storage = buildStorageFromConfig(storageConfigFrom(config.StorageConfig))
@@ -86,6 +88,13 @@ export class Worker {
     if (this.sysHierarchy.isDerived(tx.objectClass, notification.class.AppPushNotification)) return
     if (this.sysHierarchy.isDerived(tx.objectClass, notification.class.PushSubscription)) return
     if (this.sysHierarchy.isDerived(tx.objectClass, notification.class.ReadState)) return
+
+    if (this.sysHierarchy.isDerived(tx.objectClass, pulse.class.DocumentPresence)) return
+    if (this.sysHierarchy.isDerived(tx.objectClass, pulse.class.TypingIndicator)) return
+    if (this.sysHierarchy.isDerived(tx.objectClass, pulse.class.WorkspacesNotification)) return
+
+    const domain = this.sysHierarchy.findDomain(tx.objectClass)
+    if (domain === DOMAIN_TRANSIENT) return
 
     const exists = this.workspaces.get(ws)
 
@@ -124,37 +133,47 @@ export class Worker {
     ws: WorkspaceUuid,
     initialTx: TxCUD<Doc>
   ): Promise<Workspace | undefined> {
-    const token = generateToken(systemAccountUuid, ws, { service: config.ServiceId })
-    const wsInfo = await getWorkspaceInfo(token)
-    if (wsInfo === undefined) return
+    let wsInfo: (WorkspaceInfoWithStatus & { endpoint: string }) | undefined
+    try {
+      const token = generateToken(systemAccountUuid, ws, { service: config.ServiceId })
+      wsInfo = await getWorkspaceInfo(token)
+      if (wsInfo === undefined) return undefined
 
-    const endpoint = getTransactorApiEndpoint(wsInfo)
-    if (endpoint === undefined) return
+      const endpoint = getTransactorApiEndpoint(wsInfo)
+      if (endpoint === undefined) return undefined
 
-    const client = createRestClient(endpoint, ws, token)
+      const client = createRestClient(endpoint, ws, token)
 
-    const { model, hierarchy } = await client.getModel(true)
+      const { model, hierarchy } = await client.getModel(true)
 
-    const branding: Branding | undefined =
-      wsInfo.branding !== undefined && wsInfo.branding !== ''
-        ? this.brandingMap[wsInfo.branding]
-        : this.brandingMap[Object.keys(this.brandingMap)[0]]
+      const branding: Branding | undefined =
+        wsInfo.branding !== undefined && wsInfo.branding !== ''
+          ? (this.brandingMap[wsInfo.branding] ?? this.brandingMap[Object.keys(this.brandingMap)[0]])
+          : this.brandingMap[Object.keys(this.brandingMap)[0]]
 
-    const workspace = await Workspace.create(
-      ctx.newChild(ws, {}),
-      wsInfo,
-      hierarchy,
-      model,
-      this.modelTxes,
-      this.storage,
-      client,
-      branding,
-      initialTx.modifiedOn
-    )
+      const workspace = await Workspace.create(
+        ctx.newChild(ws, {}),
+        wsInfo,
+        hierarchy,
+        model,
+        this.modelTxes,
+        this.storage,
+        client,
+        branding,
+        initialTx.modifiedOn
+      )
 
-    this.workspaces.set(ws, workspace)
+      this.workspaces.set(ws, workspace)
 
-    return workspace
+      return workspace
+    } catch (e: any) {
+      ctx.error('Failed to connect workspace', wsInfo)
+      if (e?.status?.code === platform.status.Forbidden) {
+        ctx.error('Workspace is forbidden, dropping workspace initialization', { e, wsUuid: ws })
+        return undefined
+      }
+      throw e
+    }
   }
 
   public close (): void {

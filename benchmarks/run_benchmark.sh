@@ -24,8 +24,13 @@ NODE_IMAGE="front-bench-node"
 NGINX_IMAGE="front-bench-nginx"
 NODE_CONTAINER="front-bench-node-run"
 NGINX_CONTAINER="front-bench-nginx-run"
+# Same image as NODE_CONTAINER, only STATIC_CACHE_SIZE_MB differs - isolates the in-memory
+# static cache from every other difference.
+CACHE_CONTAINER="front-bench-node-cache-run"
 NODE_PORT=8091
 NGINX_PORT=8092
+CACHE_PORT=8093
+CACHE_MB=${CACHE_MB:-128}
 
 # Common environment variables (from dev/docker-compose.yaml)
 ENV_ARGS=(
@@ -82,12 +87,16 @@ if [ "$BUILD" = true ]; then
 fi
 
 # Cleanup old containers
-docker rm -f "$NODE_CONTAINER" "$NGINX_CONTAINER" 2>/dev/null || true
+docker rm -f "$NODE_CONTAINER" "$NGINX_CONTAINER" "$CACHE_CONTAINER" 2>/dev/null || true
 
 # Start containers
 echo "Starting Node-only container on port $NODE_PORT..."
 docker run -d --name "$NODE_CONTAINER" -p "$NODE_PORT:8080" \
-  -e SERVER_PORT=8080 "${ENV_ARGS[@]}" "$NODE_IMAGE" >/dev/null
+  -e SERVER_PORT=8080 -e STATIC_CACHE_SIZE_MB=0 "${ENV_ARGS[@]}" "$NODE_IMAGE" >/dev/null
+
+echo "Starting Node+cache container on port $CACHE_PORT (${CACHE_MB}MB)..."
+docker run -d --name "$CACHE_CONTAINER" -p "$CACHE_PORT:8080" \
+  -e SERVER_PORT=8080 -e "STATIC_CACHE_SIZE_MB=$CACHE_MB" "${ENV_ARGS[@]}" "$NODE_IMAGE" >/dev/null
 
 echo "Starting Nginx+Node container on port $NGINX_PORT..."
 docker run -d --name "$NGINX_CONTAINER" -p "$NGINX_PORT:8080" \
@@ -98,8 +107,9 @@ echo "Waiting for containers to start..."
 for i in $(seq 1 30); do
   NODE_OK=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$NODE_PORT/config.json" 2>/dev/null || echo "000")
   NGINX_OK=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$NGINX_PORT/config.json" 2>/dev/null || echo "000")
-  if [ "$NODE_OK" = "200" ] && [ "$NGINX_OK" = "200" ]; then
-    echo "Both containers ready."
+  CACHE_OK=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$CACHE_PORT/config.json" 2>/dev/null || echo "000")
+  if [ "$NODE_OK" = "200" ] && [ "$NGINX_OK" = "200" ] && [ "$CACHE_OK" = "200" ]; then
+    echo "All containers ready."
     break
   fi
   sleep 1
@@ -109,7 +119,11 @@ done
 echo "Extracting file list..."
 docker exec "$NODE_CONTAINER" find /app/dist -type f | sed 's|/app/dist/||' > /tmp/bench_files.txt
 FILE_COUNT=$(wc -l < /tmp/bench_files.txt | tr -d ' ')
-echo "Found $FILE_COUNT files."
+# A browser asks for "foo.js" and gets foo.js.br - it never requests the .br/.gz sibling, and it
+# never requests a source map. Everything else in dist is load a real client does not generate.
+grep -vE '\.(br|gz|map)$' /tmp/bench_files.txt > /tmp/bench_files_browser.txt
+BROWSER_COUNT=$(wc -l < /tmp/bench_files_browser.txt | tr -d ' ')
+echo "Found $FILE_COUNT files ($BROWSER_COUNT a browser would ask for)."
 
 # Write results header
 cat > "$RESULTS_FILE" << EOF
@@ -156,8 +170,26 @@ run_scenario "Node: index.html (SPA)" \
 run_scenario "Node: random files" \
   "http://localhost:$NODE_PORT" "$NODE_CONTAINER" "-files=/tmp/bench_files.txt"
 
+run_scenario "Node: browser assets" \
+  "http://localhost:$NODE_PORT" "$NODE_CONTAINER" "-files=/tmp/bench_files_browser.txt"
+
 run_scenario "Node: mixed (files + config.json)" \
   "http://localhost:$NODE_PORT" "$NODE_CONTAINER" \
+  "-files=/tmp/bench_files.txt -mixed=/config.json -mixed-conns=10"
+
+# --- Nginx+Node ---
+# --- Node + in-memory static cache ---
+run_scenario "Node+cache: index.html (SPA)" \
+  "http://localhost:$CACHE_PORT/" "$CACHE_CONTAINER" "-exact"
+
+run_scenario "Node+cache: random files" \
+  "http://localhost:$CACHE_PORT" "$CACHE_CONTAINER" "-files=/tmp/bench_files.txt"
+
+run_scenario "Node+cache: browser assets" \
+  "http://localhost:$CACHE_PORT" "$CACHE_CONTAINER" "-files=/tmp/bench_files_browser.txt"
+
+run_scenario "Node+cache: mixed (files + config.json)" \
+  "http://localhost:$CACHE_PORT" "$CACHE_CONTAINER" \
   "-files=/tmp/bench_files.txt -mixed=/config.json -mixed-conns=10"
 
 # --- Nginx+Node ---
@@ -183,4 +215,4 @@ echo "=========================================="
 
 # Cleanup containers
 echo "Stopping containers..."
-docker rm -f "$NODE_CONTAINER" "$NGINX_CONTAINER" 2>/dev/null || true
+docker rm -f "$NODE_CONTAINER" "$NGINX_CONTAINER" "$CACHE_CONTAINER" 2>/dev/null || true

@@ -49,12 +49,23 @@
 
   let colorSet = false
 
+  const MAX_TITLE_LENGTH = 64
+  const MAX_DESCRIPTION_LENGTH = 256
+
   $: if (!colorSet) {
     color = getColorNumberByText(title)
   }
 
   $: if (!categoryWasSet && categories.length > 0) {
     category = findTagCategory(title, categories)
+  }
+
+  $: if (title !== undefined && title.length > MAX_TITLE_LENGTH) {
+    title = title.slice(0, MAX_TITLE_LENGTH)
+  }
+
+  $: if (description !== undefined && description.length > MAX_DESCRIPTION_LENGTH) {
+    description = description.slice(0, MAX_DESCRIPTION_LENGTH)
   }
 
   export function canClose (): boolean {
@@ -115,11 +126,22 @@
           style={getTagStyle(getPlatformColorDef(color, $themeStore.dark))}
           on:click={showColorPopup}
         />
-        <EditBox bind:value={title} placeholder={tags.string.TagName} placeholderParam={{ word: keyTitle }} autoFocus />
+        <EditBox
+          bind:value={title}
+          placeholder={tags.string.TagName}
+          placeholderParam={{ word: keyTitle }}
+          autoFocus
+          limit={MAX_TITLE_LENGTH}
+        />
       </div>
 
       <div class="fs-title mt-4 flex-grow">
-        <TextArea placeholder={tags.string.TagDescriptionPlaceholder} bind:value={description} height={'10rem'} />
+        <TextArea
+          placeholder={tags.string.TagDescriptionPlaceholder}
+          bind:value={description}
+          height={'10rem'}
+          limit={MAX_DESCRIPTION_LENGTH}
+        />
       </div>
       {#if categories.length > 1}
         <div class="text-sm mt-4">

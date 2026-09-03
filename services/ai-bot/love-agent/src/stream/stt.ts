@@ -35,7 +35,8 @@ import {
   MAX_CHUNK_DURATION_MS,
   MIN_CHUNK_DURATION_MS,
   SPEECH_START_THRESHOLD_MS,
-  LOOK_AHEAD_BUFFER_MS
+  LOOK_AHEAD_BUFFER_MS,
+  PRE_BUFFER_MS
 } from './types.js'
 
 import { AudioAnalyzer, isFrameSpeech, getAdaptiveVADThreshold } from './audio-analysis.js'
@@ -78,6 +79,9 @@ export class STT implements Stt {
   private transcriptionCount = 0
   private sessionNumber = 0
   private readonly meetingStartTime: number = Date.now()
+
+  /** Set to divert finalized chunks away from the platform (offline tooling). */
+  chunkSink?: (wav: Buffer, ogg: Buffer, metadata: ChunkMetadata) => Promise<void>
 
   private readonly rootDir: string
   private readonly meetingId: string = randomUUID()
@@ -398,8 +402,12 @@ export class STT implements Stt {
       const wavSize = normalizedWavData.length
       const oggData = readFileSync(oggFilePath)
 
-      // Send to platform
-      await this.sendChunkToPlatform(oggData, sid, metadata)
+      // Offline runs (rushx split-audio) take the chunk here instead of the platform.
+      if (this.chunkSink !== undefined) {
+        await this.chunkSink(normalizedWavData, oggData, metadata)
+      } else {
+        await this.sendChunkToPlatform(oggData, sid, metadata)
+      }
 
       console.info('Finalized chunk (opus)', {
         sid,
@@ -726,7 +734,7 @@ export class STT implements Stt {
         })
         chunkState.preBufferDurationMs += frameDurationMs
 
-        const maxPreBufferMs = SPEECH_START_THRESHOLD_MS * 2
+        const maxPreBufferMs = PRE_BUFFER_MS
         while (chunkState.preBufferDurationMs > maxPreBufferMs && chunkState.preBuffer.length > 1) {
           const removed = chunkState.preBuffer.shift()
           if (removed !== undefined) {
@@ -745,25 +753,26 @@ export class STT implements Stt {
           chunkState.speechStartTime = frameStartTime - chunkState.consecutiveSpeechMs
 
           if (chunkState.fd === null) {
-            this.startNewChunk(sid, streamDir, chunkState.speechStartTime)
+            // Write the whole pre-buffer, not just what falls after speechStartTime: the VAD
+            // only fires once the phrase is already loud enough, so its idea of "start" is
+            // late by ~580ms on average (p90 1.4s) and the first word lands before it.
+            const chunkStart = chunkState.preBuffer[0]?.frameStartTime ?? chunkState.speechStartTime
+            this.startNewChunk(sid, streamDir, chunkStart)
 
-            const speechStartTime = chunkState.speechStartTime
             for (const preFrame of chunkState.preBuffer) {
-              if (preFrame.frameEndTime >= speechStartTime) {
-                try {
-                  this.writeToChunk(chunkState, preFrame.buf)
-                  chunkState.totalSamples += preFrame.analysis.totalSamples
-                  chunkState.activeSamples += preFrame.analysis.activeSamples
-                  chunkState.sumSquares += preFrame.analysis.sumSquares
-                  if (preFrame.analysis.peak > chunkState.peakAmplitude) {
-                    chunkState.peakAmplitude = preFrame.analysis.peak
-                  }
-                  if (preFrame.frameStartTime === frameStartTime) {
-                    currentFrameWrittenFromPreBuffer = true
-                  }
-                } catch (e) {
-                  console.error('Error writing pre-buffered frame to chunk', { error: e, sid })
+              try {
+                this.writeToChunk(chunkState, preFrame.buf)
+                chunkState.totalSamples += preFrame.analysis.totalSamples
+                chunkState.activeSamples += preFrame.analysis.activeSamples
+                chunkState.sumSquares += preFrame.analysis.sumSquares
+                if (preFrame.analysis.peak > chunkState.peakAmplitude) {
+                  chunkState.peakAmplitude = preFrame.analysis.peak
                 }
+                if (preFrame.frameStartTime === frameStartTime) {
+                  currentFrameWrittenFromPreBuffer = true
+                }
+              } catch (e) {
+                console.error('Error writing pre-buffered frame to chunk', { error: e, sid })
               }
             }
             chunkState.preBuffer = []

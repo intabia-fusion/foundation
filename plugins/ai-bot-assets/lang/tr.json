@@ -1,0 +1,25 @@
+{
+  "string": {
+    "AISettings": "Yapay zeka ayarları",
+    "TokenLimitReachedMonth": "AI tokenleriniz bitti. Çalışma alanı ayarlarından (Ayarlar -> Abonelik) satın alın veya bir sonraki dönemi bekleyin.",
+    "AIServiceUnavailable": "Yapay zeka hizmeti geçici olarak kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
+    "AIEmptyResponse": "Bu sefer bir yanıt oluşturamadım. Lütfen soruyu yeniden ifade edin veya tekrar deneyin.",
+    "AILevel": "AI düzeyi",
+    "AILevelHint": "Bu çalışma alanı için kalite düzeyi tavanı",
+    "AILevelCapabilities": "Düzey yetenekleri",
+    "AILevelCapabilitiesHint": "Her düzeyin neler yapabildiği.",
+    "AILevelChat": "Sohbetler",
+    "AILevelTalk": "Tartış",
+    "AILevelSummary": "Özetle",
+    "AILevelTasks": "Görev yönetimi",
+    "Language": "Dil",
+    "LanguageHint": "Bot yanıtları için varsayılan dil (ör. tr, en). Boş = pod varsayılanı.",
+    "AssistIssue": "{name}",
+    "AssistIssueApply": "Uygula",
+    "AssistIssueThreadStart": "Görev taslağı{project, select, undefined {} other { - {project}}}",
+    "AssistIssueNewContext": "Yeni bağlam",
+    "AssistIssueApplyAgain": "Tekrar uygula",
+    "AssistIssueAppliedMark": "Uygulandı",
+    "ProposedEstimation": "Tahmin: {hours} sa"
+  }
+}

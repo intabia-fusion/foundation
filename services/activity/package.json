@@ -63,6 +63,7 @@
     "@hcengineering/notification": "workspace:^0.7.0",
     "@hcengineering/platform": "workspace:^0.7.19",
     "@hcengineering/postgres": "workspace:^0.7.22",
+    "@hcengineering/pulse": "workspace:^0.7.0",
     "@hcengineering/retry": "workspace:^0.7.17",
     "@hcengineering/server-client": "workspace:^0.7.17",
     "@hcengineering/server-core": "workspace:^0.7.18",

@@ -1,5 +1,5 @@
 #!/bin/bash
 
 pushd ../
-./prepare-pg.sh
+./prepare-pg.sh "$@"
 popd

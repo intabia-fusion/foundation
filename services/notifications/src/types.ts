@@ -56,7 +56,7 @@ export interface NotificationSettings {
   typesByProvider: Map<Ref<NotificationProvider>, NotificationTypeSetting[]>
 }
 
-export type EmployeeInfo = Pick<Employee, '_id' | 'personUuid' | 'role'>
+export type EmployeeInfo = Pick<Employee, '_id' | 'personUuid' | 'role' | 'active'>
 export type SocialIdentityInfo = Pick<SocialIdentity, '_id' | 'attachedTo'>
 
 export type NotifyProviders = Record<Ref<NotificationProvider>, NotificationType[]>

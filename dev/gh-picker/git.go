@@ -14,6 +14,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -29,8 +30,8 @@ type Commit struct {
 	Partial      bool     // True if only some files/lines are already present in HEAD
 	AppliedRatio string   // e.g. "3/5 files" when Partial
 	MissingFiles []string // files not yet applied to HEAD (set when Partial)
-	HasConflict  bool   // True if cherry-pick would have conflicts
-	Diff         string // Full diff of the commit
+	HasConflict  bool     // True if cherry-pick would have conflicts
+	Diff         string   // Full diff of the commit
 }
 
 // GitExec runs a git command and returns the output
@@ -44,6 +45,10 @@ func GitExecIn(dir string, args ...string) (string, error) {
 	if dir != "" {
 		cmd.Dir = dir
 	}
+	// Without this, read-only commands still try to refresh the index and race
+	// each other on index.lock when the content check runs in parallel, which
+	// silently turns into "no diff" and a false "already applied".
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -272,6 +277,7 @@ func runApplyCheck(patch string, reverse bool) bool {
 	cmd := exec.Command("git", args...)
 	cmd.Stdin = strings.NewReader(patch)
 	var stderr bytes.Buffer
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	cmd.Stderr = &stderr
 	return cmd.Run() == nil
 }

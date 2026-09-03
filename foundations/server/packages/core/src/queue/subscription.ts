@@ -17,11 +17,13 @@ export enum QueueSubscriptionEvent {
   // Provider reports a subscription created/updated/renewed — consumer bakes limits and upserts.
   Upserted = 'upserted',
   // Provider reports a subscription canceled — consumer upserts the canceled state.
-  Canceled = 'canceled'
+  Canceled = 'canceled',
+  // An admin canceled a subscription — consumer provisions the free fallback plan.
+  AdminCanceled = 'admin-canceled'
 }
 
 // What triggered the event, for observability/debugging only (not branched on).
-export type QueueSubscriptionTrigger = 'webhook' | 'reconcile' | 'scheduler' | 'renewal'
+export type QueueSubscriptionTrigger = 'webhook' | 'reconcile' | 'scheduler' | 'renewal' | 'admin'
 
 export interface QueueSubscriptionMessage {
   type: QueueSubscriptionEvent
@@ -52,5 +54,11 @@ export const subscriptionEvents = {
     subscription,
     provider,
     trigger
+  }),
+  adminCanceled: (subscription: Record<string, any>, provider: string): QueueSubscriptionMessage => ({
+    type: QueueSubscriptionEvent.AdminCanceled,
+    subscription,
+    provider,
+    trigger: 'admin'
   })
 }

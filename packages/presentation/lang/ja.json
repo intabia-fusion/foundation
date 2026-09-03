@@ -5,6 +5,7 @@
     "Ok": "OK",
     "Save": "保存",
     "Saved": "保存しました",
+    "Saving": "保存中...",
     "Download": "ダウンロード",
     "DownloadOriginal": "オリジナルをダウンロード",
     "Delete": "削除",
@@ -56,7 +57,8 @@
     "LineTool": "直線",
     "RectangleTool": "長方形",
     "EllipseTool": "楕円",
-    "PaletteManagementMenu": "カラープリセットを管理"
+    "PaletteManagementMenu": "カラープリセットを管理",
+    "Draft": "下書き"
   },
   "status": {
     "FileTooLarge": "ファイルサイズが大きすぎます"

@@ -20,16 +20,22 @@
 
 import type { MeasureContext, WorkspaceUuid } from '@hcengineering/core'
 import type { PersonMessage } from '@hcengineering/ai-bot'
-import type { HistoryRecord } from '../types'
+import type { AILevel, AIProviderConfig } from '../config'
 import type {
   LLMProvider,
   ChatMessage,
-  ChatCompletionResult,
   ChatCompletionWithToolsResult,
-  RequestSummaryResult,
-  ContextMode
+  ChatToolStepResult,
+  ContextMode,
+  ToolDefinition,
+  ToolResult,
+  ToolLoopHooks
 } from './types'
+
 import type { RunnableTools, BaseFunctionsArgs } from 'openai/lib/RunnableFunction'
+import { runToolCalls, buildToolExecutor, MAX_TOOL_ITERATIONS } from './toolLoop'
+import { providerLevels, billingMetaFor } from './modelRegistry'
+import { billUsage } from '../billing'
 import { ClisrServer } from '@intabiafusion/clisr'
 
 /**
@@ -48,43 +54,37 @@ export interface SummarizeMessagesRequest {
   lang: string
   workspace: WorkspaceUuid
   description?: string
-}
-
-export interface ChatCompletionRequest {
-  method: 'createChatCompletion'
-  message: ChatMessage
-  user?: string
-  history?: ChatMessage[]
-  skipCache?: boolean
-  reason?: string
-  workspace: WorkspaceUuid
+  level?: AILevel
 }
 
 export interface ChatCompletionWithToolsRequest {
   method: 'createChatCompletionWithTools'
   message: ChatMessage
   contextMode: ContextMode
-  assistantMemory: string
-  userMemory: string
-  sharedContext: string
+  sharedPrompt: string
+  personalContext: string
   user: string
   history?: ChatMessage[]
   skipCache?: boolean
   reason?: string
+  level?: AILevel
+  lang?: string
   workspace: WorkspaceUuid
-  // Note: tools are not serializable, so we pass tool definitions instead
-  toolDefinitions?: Array<{
-    name: string
-    description: string
-    parameters: Record<string, unknown>
-  }>
+  // Note: tools are not serializable, so we pass tool definitions instead.
+  toolDefinitions?: ToolDefinition[]
+  // Prior tool-call round: model-issued calls and the results we computed on the pod.
+  // The client replays these into the conversation before continuing.
+  priorToolResults?: ToolResult[]
+  // Text produced so far when the model hit its output cap: the worker must continue it.
+  continueFrom?: string
 }
 
-export interface RequestSummaryRequest {
-  method: 'requestSummary'
-  personMemory: string
-  history: HistoryRecord[]
-  workspace: WorkspaceUuid
+/**
+ * Reply from the clisr client: final `content`, or `toolCalls` the pod must execute and resubmit.
+ */
+export type ChatCompletionWithToolsReply = ChatToolStepResult & {
+  // The clisr worker that served this step (echoed by the client). Empty for direct providers.
+  clientId?: string
 }
 
 export interface CountTokensRequest {
@@ -95,19 +95,29 @@ export interface CountTokensRequest {
 export type LLMRequest =
   | TranslateHtmlRequest
   | SummarizeMessagesRequest
-  | ChatCompletionRequest
   | ChatCompletionWithToolsRequest
-  | RequestSummaryRequest
   | CountTokensRequest
 
 /**
  * Server provider that distributes LLM requests to connected clients via Clisr
  */
 export default class ServerLLMProvider implements LLMProvider {
+  private readonly defaultLevel: AILevel
+
   constructor (
     private readonly ctx: MeasureContext,
-    private readonly server: ClisrServer
-  ) {}
+    private readonly server: ClisrServer,
+    private readonly provider: AIProviderConfig
+  ) {
+    const served = providerLevels(provider)
+    // strongest level is the default for ops that don't carry an explicit level
+    this.defaultLevel = served[served.length - 1] ?? 'low'
+  }
+
+  /** Billing metadata for a level. */
+  private billingFor (level?: AILevel): { multiplier: number, modelId: string, providerId: string, level: string } {
+    return billingMetaFor(this.provider, level, this.defaultLevel, () => '')
+  }
 
   /**
    * Select clients that have LLM capability enabled
@@ -160,7 +170,8 @@ export default class ServerLLMProvider implements LLMProvider {
     workspace: WorkspaceUuid,
     messages: PersonMessage[],
     lang: string,
-    description?: string
+    description?: string,
+    level?: AILevel
   ): Promise<string | undefined> {
     const startTime = Date.now()
 
@@ -170,7 +181,8 @@ export default class ServerLLMProvider implements LLMProvider {
         messages,
         lang,
         workspace,
-        description
+        description,
+        level
       }
 
       const result = await this.server.requestWithFilter(ctx, 'llm', [request], this.selectLLMClient)
@@ -196,97 +208,58 @@ export default class ServerLLMProvider implements LLMProvider {
     }
   }
 
-  async createChatCompletion (
-    ctx: MeasureContext,
-    workspace: WorkspaceUuid,
-    message: ChatMessage,
-    user?: string,
-    history: ChatMessage[] = [],
-    skipCache = true,
-    reason = 'chat'
-  ): Promise<ChatCompletionResult | undefined> {
-    const startTime = Date.now()
-
-    try {
-      const request: ChatCompletionRequest = {
-        method: 'createChatCompletion',
-        message,
-        user,
-        history,
-        skipCache,
-        reason,
-        workspace
-      }
-
-      const result = (await this.server.requestWithFilter(ctx, 'llm', [request], this.selectLLMClient)) as
-        | ChatCompletionResult
-        | undefined
-
-      const elapsed = Date.now() - startTime
-      this.ctx.info('Server LLM createChatCompletion completed', {
-        provider: 'server',
-        workspace,
-        reason,
-        hasResult: result !== undefined,
-        elapsedMs: elapsed
-      })
-
-      return result
-    } catch (err: any) {
-      const elapsed = Date.now() - startTime
-      this.ctx.error('Server LLM createChatCompletion failed', {
-        provider: 'server',
-        workspace,
-        reason,
-        error: err.message,
-        elapsedMs: elapsed
-      })
-      return undefined
-    }
-  }
-
   async createChatCompletionWithTools (
     tools: RunnableTools<BaseFunctionsArgs>,
     message: ChatMessage,
     contextMode: ContextMode,
-    assistantMemory: string,
-    userMemory: string,
-    sharedContext: string,
+    sharedPrompt: string,
+    personalContext: string,
     user: string,
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
     history: ChatMessage[] = [],
     skipCache = true,
-    reason = 'chat'
+    reason = 'chat',
+    level?: AILevel,
+    lang?: string,
+    hooks?: ToolLoopHooks
   ): Promise<ChatCompletionWithToolsResult | undefined> {
     const startTime = Date.now()
 
     try {
-      // Extract tool definitions (tools themselves are not serializable)
-      const toolDefinitions = tools.map((tool) => ({
-        name: tool.function.name ?? '',
-        description: tool.function.description ?? '',
-        parameters: tool.function.parameters as Record<string, unknown>
-      }))
+      // Extract tool definitions (tools themselves are not serializable) and a local executor
+      // bound to them (closures already carry WorkspaceClient context, built in getTools).
+      const { toolDefinitions, execute, knownTools } = buildToolExecutor(tools)
 
-      const request: ChatCompletionWithToolsRequest = {
-        method: 'createChatCompletionWithTools',
-        message,
-        contextMode,
-        assistantMemory,
-        userMemory,
-        sharedContext,
-        user,
-        history,
-        skipCache,
-        reason,
-        workspace,
-        toolDefinitions
+      const ask = async (
+        priorToolResults: ToolResult[],
+        noTools?: boolean,
+        continueFrom?: string
+      ): Promise<ChatCompletionWithToolsReply | undefined> => {
+        const request: ChatCompletionWithToolsRequest = {
+          method: 'createChatCompletionWithTools',
+          message,
+          contextMode,
+          sharedPrompt,
+          personalContext,
+          user,
+          history,
+          skipCache,
+          reason,
+          level,
+          lang,
+          workspace,
+          // Final round: withhold tools so the model must produce a text answer.
+          toolDefinitions: noTools === true ? [] : toolDefinitions,
+          continueFrom,
+          priorToolResults: priorToolResults.length > 0 ? priorToolResults : undefined
+        }
+        return (await this.server.requestWithFilter(ctx, 'llm', [request], this.selectLLMClient)) as
+          | ChatCompletionWithToolsReply
+          | undefined
       }
 
-      const result = (await this.server.requestWithFilter(ctx, 'llm', [request], this.selectLLMClient)) as
-        | ChatCompletionWithToolsResult
-        | undefined
+      const result = await runToolCalls(ask, execute, MAX_TOOL_ITERATIONS, hooks, knownTools)
 
       const elapsed = Date.now() - startTime
       this.ctx.info('Server LLM createChatCompletionWithTools completed', {
@@ -299,7 +272,16 @@ export default class ServerLLMProvider implements LLMProvider {
         elapsedMs: elapsed
       })
 
-      return result
+      if (result === undefined) return undefined
+
+      billUsage(ctx, workspace, result.usage, this.billingFor(level), reason, new Date().toISOString(), result.clientId)
+
+      return {
+        completion: result.completion,
+        usage: result.usage,
+        cancelled: result.cancelled,
+        toolTranscript: result.toolTranscript
+      }
     } catch (err: any) {
       const elapsed = Date.now() - startTime
       this.ctx.error('Server LLM createChatCompletionWithTools failed', {
@@ -314,52 +296,8 @@ export default class ServerLLMProvider implements LLMProvider {
     }
   }
 
-  async requestSummary (
-    ctx: MeasureContext,
-    workspace: WorkspaceUuid,
-    personMemory: string,
-    history: HistoryRecord[]
-  ): Promise<RequestSummaryResult> {
-    const startTime = Date.now()
-
-    try {
-      const request: RequestSummaryRequest = {
-        method: 'requestSummary',
-        personMemory,
-        history,
-        workspace
-      }
-
-      const result = (await this.server.requestWithFilter(ctx, 'llm', [request], this.selectLLMClient)) as
-        | RequestSummaryResult
-        | undefined
-
-      const elapsed = Date.now() - startTime
-      this.ctx.info('Server LLM requestSummary completed', {
-        provider: 'server',
-        workspace,
-        historyCount: history.length,
-        hasResult: result?.summary !== undefined,
-        elapsedMs: elapsed
-      })
-
-      return result ?? { tokens: 0 }
-    } catch (err: any) {
-      const elapsed = Date.now() - startTime
-      this.ctx.error('Server LLM requestSummary failed', {
-        provider: 'server',
-        workspace,
-        error: err.message,
-        elapsedMs: elapsed
-      })
-      return { tokens: 0 }
-    }
-  }
-
   countTokens (messages: ChatMessage[]): number {
-    // For server provider, we can't easily count tokens locally
-    // Return a rough estimate based on character count
-    // Actual token counting should be done on the client side
+    // Server provider can't count tokens locally; rough char-count estimate (real counting is client-side).
     let totalChars = 0
     for (const message of messages) {
       totalChars += message.content.length
@@ -370,8 +308,14 @@ export default class ServerLLMProvider implements LLMProvider {
 }
 
 /**
- * Factory function to create a server LLM provider
+ * Factory function to create a server (clisr) LLM provider.
+ * Routing to a specific model/endpoint is handled client-side (T9 router addressing);
+ * the provider config is used here only for billing metadata.
  */
-export function createServerLLMProvider (ctx: MeasureContext, server: ClisrServer): ServerLLMProvider {
-  return new ServerLLMProvider(ctx, server)
+export function createServerLLMProvider (
+  ctx: MeasureContext,
+  server: ClisrServer,
+  provider: AIProviderConfig
+): ServerLLMProvider {
+  return new ServerLLMProvider(ctx, server, provider)
 }

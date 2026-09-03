@@ -65,6 +65,10 @@ import * as yaml from 'js-yaml'
 import path from 'path'
 import { sendTransactorEvent } from './utils'
 
+// A workspace runs ~40 model and migrate operations, nearly all of them in hundredths of a
+// millisecond. Only report the ones slow enough to be worth looking at; failures log on their own.
+const SLOW_OP_MS = 250
+
 export * from './connect'
 export * from './plugin'
 export * from './utils'
@@ -190,7 +194,7 @@ export async function updateModel (
           await op[1].upgrade(migrateState, async () => connection, mode)
         })
         const tdelta = platformNowDiff(st)
-        if (tdelta > 0) {
+        if (tdelta > SLOW_OP_MS) {
           logger.log('Create', { name: op[0], time: tdelta })
         }
         i++
@@ -219,13 +223,12 @@ export async function initializeWorkspace (
 ): Promise<void> {
   const initWS = branding?.initWorkspace ?? getMetadata(toolPlugin.metadata.InitWorkspace)
   const initRepoDir = getMetadata(toolPlugin.metadata.InitRepoDir) ?? ''
-  ctx.info('Init script details', { initWS, initRepoDir })
 
   const initScriptFile = path.resolve(initRepoDir, 'script.yaml')
   if (!fs.existsSync(initScriptFile)) {
-    ctx.warn('Init script file not found in init directory', { initScriptFile })
-    return
+    return // no init script configured, which is the normal case
   }
+  ctx.info('Init script details', { initWS, initRepoDir })
 
   try {
     const text = fs.readFileSync(initScriptFile, 'utf8')
@@ -306,7 +309,10 @@ export async function upgradeModel (
         logger.error(`error during pre-migrate: ${op[0]} ${err.message}`, err)
         throw err
       }
-      logger.log('pre-migrate:', { workspaceId: wsIds, operation: op[0], time: platformNowDiff(t) })
+      const preDelta = platformNowDiff(t)
+      if (preDelta > SLOW_OP_MS) {
+        logger.log('pre-migrate:', { workspaceId: wsIds, operation: op[0], time: preDelta })
+      }
       await progress(((100 / migrateOperations.length) * i * 10) / 100)
       i++
     }
@@ -349,7 +355,7 @@ export async function upgradeModel (
         const t = platformNow()
         await ctx.with(op[0], {}, () => op[1].migrate(migrateClient, mode))
         const tdelta = platformNowDiff(t)
-        if (tdelta > 0) {
+        if (tdelta > SLOW_OP_MS) {
           logger.log('migrate:', { workspaceId: wsIds, operation: op[0], time: tdelta })
         }
       } catch (err: any) {
@@ -439,12 +445,8 @@ export async function buildModel (
   const hierarchy = new Hierarchy()
   const modelDb = new ModelDb(hierarchy)
 
+  // addTxes feeds the hierarchy itself, a separate pass would just deserialize everything twice.
   ctx.withSync('build local model', {}, () => {
-    for (const tx of model ?? []) {
-      try {
-        hierarchy.tx(tx)
-      } catch (err: any) {}
-    }
     modelDb.addTxes(ctx, model, false)
   })
   return { hierarchy, modelDb, model: model ?? [] }

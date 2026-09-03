@@ -255,6 +255,20 @@ describe('metrics', () => {
       const keys = Object.keys(json)
       expect(keys.some((k) => k.includes('operation'))).toBe(true)
     })
+
+    it('should average a child by its own operations, not the parent ones', () => {
+      const metrics = newMetrics()
+      metrics.operations = 10
+      metrics.value = 100
+      const child = childMetrics(metrics, ['op'])
+      child.operations = 4
+      child.value = 8
+
+      const key = Object.keys(metricsToJson(metrics)).find((k) => k.startsWith('op '))
+
+      // 8 / 4, not 8 / 10
+      expect(key).toBe('op 8 4 2')
+    })
   })
 
   describe('metricsToRows', () => {

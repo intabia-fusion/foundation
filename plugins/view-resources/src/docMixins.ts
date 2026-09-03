@@ -20,7 +20,8 @@ import core, {
   type Hierarchy,
   type Mixin,
   type Rank,
-  type Ref
+  type Ref,
+  notEmpty
 } from '@hcengineering/core'
 import { toRank } from '@hcengineering/rank'
 import setting from '@hcengineering/setting'
@@ -41,7 +42,10 @@ export function filterDocMixins (
     return []
   }
 
-  const descendants = hierarchy.getDescendants(core.class.Doc).map((p) => hierarchy.getClass(p))
+  const descendants = hierarchy
+    .getDescendants(core.class.Doc)
+    .map((p) => hierarchy.findClass(p))
+    .filter(notEmpty)
   const _class = objectClass ?? object._class
 
   const rankOf = (m: Class<Doc>): Rank =>

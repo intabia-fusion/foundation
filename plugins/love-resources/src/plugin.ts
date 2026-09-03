@@ -58,6 +58,9 @@ export default mergeIds(loveId, love, {
     UserMeetingInviteTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>
   },
   string: {
+    SwitchWorkspaceInMeeting: '' as IntlString,
+    SwitchWorkspaceLeaveMeeting: '' as IntlString,
+    SwitchWorkspaceEndsMeeting: '' as IntlString,
     CreateMeeting: '' as IntlString,
     LeaveRoom: '' as IntlString,
     AcceptRecording: '' as IntlString,

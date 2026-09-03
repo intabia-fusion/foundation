@@ -15,23 +15,30 @@
 -->
 <script lang="ts">
   import contact, { PermissionsStore } from '@hcengineering/contact'
-  import type { Attachment } from '@hcengineering/attachment'
+  import attachment, { type Attachment } from '@hcengineering/attachment'
   import core, { BlobType, type WithLookup } from '@hcengineering/core'
   import presentation, {
     canPreviewFile,
     getBlobRef,
+    getClient,
     getFileUrl,
     previewTypes,
     getJsonOrEmpty,
     sizeToWidth
   } from '@hcengineering/presentation'
-  import { Label, Spinner } from '@hcengineering/ui'
+  import { Component, Label, Spinner } from '@hcengineering/ui'
   import WebIcon from './icons/Web.svelte'
   import filesize from 'filesize'
   import { createEventDispatcher, onMount } from 'svelte'
   import { getResource } from '@hcengineering/platform'
   import { Readable } from 'svelte/store'
-  import { getType, isAttachment, openAttachmentInSidebar, showAttachmentPreviewPopup } from '../utils'
+  import {
+    getCustomPresenter,
+    getType,
+    isAttachment,
+    openAttachmentInSidebar,
+    showAttachmentPreviewPopup
+  } from '../utils'
   import AttachmentName from './AttachmentName.svelte'
 
   export let value: WithLookup<Attachment> | BlobType | undefined
@@ -54,6 +61,11 @@
     fname.length > maxLength ? fname.substr(0, (maxLength - 1) / 2) + '...' + fname.substr(-(maxLength - 1) / 2) : fname
 
   $: canRemove = isRemovable(removable, value, $permissionsStore)
+
+  // Subclasses can register a custom ObjectPresenter mixin (e.g. voice-note player) to render instead.
+  const hierarchy = getClient().getHierarchy()
+  $: customPresenter =
+    value !== undefined && isAttachment(value) ? getCustomPresenter(hierarchy, value._class) : undefined
 
   function isRemovable (
     removable: boolean,
@@ -136,7 +148,9 @@
   }
 </script>
 
-{#if preview}
+{#if customPresenter !== undefined && !preview}
+  <Component is={customPresenter} props={{ value, removable: canRemove, onRemove: () => dispatch('remove', value) }} />
+{:else if preview}
   <AttachmentName {value} />
 {:else}
   <div class="flex-row-center attachment-container">

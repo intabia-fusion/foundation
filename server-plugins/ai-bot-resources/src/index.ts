@@ -13,9 +13,25 @@
 // limitations under the License.
 //
 
-import core, { AccountUuid, Doc, PersonId, Ref, SortingOrder, Tx, TxCreateDoc, TxProcessor } from '@hcengineering/core'
+import core, {
+  AccountUuid,
+  Doc,
+  PersonId,
+  Ref,
+  SortingOrder,
+  Space,
+  Tx,
+  TxCreateDoc,
+  TxProcessor
+} from '@hcengineering/core'
 import { PlatformQueueProducer, QueueTopic, TriggerControl } from '@hcengineering/server-core'
-import { aiBotEmailSocialKey, AIEventRequest } from '@hcengineering/ai-bot'
+import aiBot, {
+  type AIContextMessage,
+  aiBotEmailSocialKey,
+  AIEventRequest,
+  type AudioTranscribe,
+  type ChatVoiceTranscriptionTask
+} from '@hcengineering/ai-bot'
 import chunter, { ChatMessage, DirectMessage, ThreadMessage } from '@hcengineering/chunter'
 import contact, { Employee, SocialIdentity } from '@hcengineering/contact'
 
@@ -122,7 +138,10 @@ async function OnMessageSend (originTxs: TxCreateDoc<ChatMessage>[], control: Tr
         return !mentioned
       })
 
-      if (docClass === chunter.class.DirectMessage) {
+      // Context-starter opens a thread; bot must not answer it top-level in the Direct.
+      const isContextStarter = hierarchy.isDerived(message._class, aiBot.class.AIContextMessage)
+
+      if (docClass === chunter.class.DirectMessage && !isContextStarter) {
         await onBotDirectMessageSend(control, message, 'direct', wsID, producer)
       } else if (mentioned) {
         await onBotDirectMessageSend(control, message, 'mentioned', wsID, producer)
@@ -151,6 +170,7 @@ function getMessageData (doc: Doc, message: ChatMessage): AIEventRequest {
   }
 }
 
+// A top-level message in the Direct channel with the bot starts a new conversation.
 function getThreadMessageData (message: ThreadMessage): AIEventRequest {
   return {
     createdOn: message.createdOn ?? message.modifiedOn,
@@ -191,6 +211,50 @@ function isDirectAvailable (direct: DirectMessage, control: TriggerControl, wsID
   return members.length === 2
 }
 
+/** Sets effective AI level + language on the event from AISpaceSettings (space -> workspace-wide). */
+async function applySpaceSettings (control: TriggerControl, event: AIEventRequest): Promise<void> {
+  // Set before the lookups: a failed settings read must not leave the feature unset.
+  event.feature = 'chat'
+  const { level, language } = await resolveSpaceLevel(control, event.objectSpace)
+  event.level = level
+  event.language = language
+}
+
+/** Per-thread level (from the AIContextMessage root) overrides the space/workspace level. */
+async function applyThreadLevel (control: TriggerControl, message: ChatMessage, event: AIEventRequest): Promise<void> {
+  // The root of an assistant conversation carries the purpose itself; a reply carries it on its root.
+  if (control.hierarchy.isDerived(message._class, aiBot.class.AIContextMessage)) {
+    applyConversationPurpose(message as AIContextMessage, event)
+    return
+  }
+  if (!control.hierarchy.isDerived(message._class, chunter.class.ThreadMessage)) return
+  try {
+    const rootId = (message as ThreadMessage).attachedTo as unknown as Ref<AIContextMessage>
+    const root = (await control.findAll(control.ctx, aiBot.class.AIContextMessage, { _id: rootId }))[0]
+    if (root === undefined) return
+    // An AIContextMessage thread is the "discuss with Julia" feature; the level stays the space
+    // one unless this thread carries an explicit pick.
+    event.feature = 'talk'
+    applyConversationPurpose(root, event)
+    if (root.level != null && root.level !== '') {
+      event.level = root.level
+    }
+  } catch (err: any) {
+    control.ctx.warn('failed to apply thread AI level', { error: err?.message })
+  }
+}
+
+/**
+ * A conversation started by the create-issue assistant is task work, not a chat: routing must pick
+ * a level that is allowed to propose tasks, otherwise a chat-only level would answer with prose.
+ */
+function applyConversationPurpose (root: AIContextMessage, event: AIEventRequest): void {
+  if (root.purpose === 'issue-draft') {
+    event.feature = 'tasks'
+    event.purpose = root.purpose
+  }
+}
+
 async function onBotDirectMessageSend (
   control: TriggerControl,
   message: ChatMessage,
@@ -209,11 +273,16 @@ async function onBotDirectMessageSend (
     }
     let messageEvent: AIEventRequest
     if (control.hierarchy.isDerived(message._class, chunter.class.ThreadMessage)) {
+      // Reply within a thread = continue that conversation (full thread context).
       messageEvent = getThreadMessageData(message as ThreadMessage)
     } else {
+      // Top-level message in the Direct = the bot replies inline in the Direct;
+      // context is the recent Direct messages (current day, see pod-side).
       messageEvent = getMessageData(direct, message)
     }
     messageEvent.objectIdIsSpace = control.hierarchy.isDerived(messageEvent.objectClass, core.class.Space)
+    await applySpaceSettings(control, messageEvent)
+    await applyThreadLevel(control, message, messageEvent)
     await producer.send(control.ctx, control.workspace.uuid, [messageEvent])
   } else if (kind === 'mentioned') {
     let messageEvent: AIEventRequest
@@ -223,13 +292,69 @@ async function onBotDirectMessageSend (
       messageEvent = getMessageData(message, message)
     }
     messageEvent.objectIdIsSpace = control.hierarchy.isDerived(messageEvent.objectClass, core.class.Space)
+    await applySpaceSettings(control, messageEvent)
+    await applyThreadLevel(control, message, messageEvent)
     await producer.send(control.ctx, control.workspace.uuid, [messageEvent])
   }
+}
+
+// Effective ASR/LLM level+language for a space. Per field, not per document: a space that sets
+// only a language still inherits the workspace-wide level.
+async function resolveSpaceLevel (
+  control: TriggerControl,
+  space: Ref<Space>
+): Promise<{ level?: string, language?: string }> {
+  try {
+    const all = await control.findAll(control.ctx, aiBot.class.AISpaceSettings, {})
+    const spaceSetting = all.find((s) => s.attachedTo === space)
+    const wsSetting = all.find((s) => s.attachedTo == null)
+    return { level: spaceSetting?.level ?? wsSetting?.level, language: spaceSetting?.language ?? wsSetting?.language }
+  } catch (err: any) {
+    control.ctx.warn('failed to resolve space AI level', { error: err?.message })
+    return {}
+  }
+}
+
+// A voice-note (AudioTranscribe) created in a chat -> enqueue an STT task; the stt-worker
+// transcribes + LLM-corrects and writes the text back onto the doc.
+async function OnAudioTranscribe (originTxs: TxCreateDoc<AudioTranscribe>[], control: TriggerControl): Promise<Tx[]> {
+  const wsID = await getAIWorkspaceID(control)
+  if (wsID === undefined) return []
+
+  const producer = control.queue?.getProducer<ChatVoiceTranscriptionTask>(control.ctx, QueueTopic.TranscriptionQueue)
+  if (producer === undefined) return []
+
+  // Ignore the bot's own writes (it fills text via updateDoc, not create).
+  const txes = originTxs.filter((it) => !wsID.all.includes(it.modifiedBy))
+
+  for (const tx of txes) {
+    const doc = TxProcessor.createDoc2Doc(tx)
+    if (doc.state !== 'pending') continue
+    const type = doc.type ?? ''
+    const fmt = (['ogg', 'mp4', 'wav'] as const).find((f) => type.includes(f)) ?? 'webm'
+    const { level, language } = await resolveSpaceLevel(control, doc.space)
+    const task: ChatVoiceTranscriptionTask = {
+      kind: 'chat-voice',
+      transcribeId: doc._id,
+      space: doc.space,
+      attachedTo: doc.attachedTo,
+      attachedToClass: doc.attachedToClass,
+      blobId: doc.file,
+      audioFormat: fmt,
+      durationSec: doc.durationSec ?? 0,
+      level,
+      language
+    }
+    await producer.send(control.ctx, control.workspace.uuid, [task], doc.space)
+  }
+
+  return []
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   trigger: {
-    OnMessageSend
+    OnMessageSend,
+    OnAudioTranscribe
   }
 })

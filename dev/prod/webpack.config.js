@@ -1,5 +1,6 @@
 //
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -20,6 +21,7 @@ const Dotenv = require('dotenv-webpack')
 const path = require('path')
 const CompressionPlugin = require('compression-webpack-plugin')
 const DefinePlugin = require('webpack').DefinePlugin
+const ContextReplacementPlugin = require('webpack').ContextReplacementPlugin
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const { Configuration } = require('webpack')
@@ -698,6 +700,7 @@ module.exports = [
       new DefinePlugin({
         'process.env.CLIENT_TYPE': JSON.stringify(process.env.CLIENT_TYPE)
       }),
+      new ContextReplacementPlugin(/emojibase-data/, /^\.\/(en|ru|de|es|es-mx|fr|it|ja|pt|zh)(\/.*)?\.json$/),
       ...(doValidate ? [new ForkTsCheckerWebpackPlugin()] : [])
     ],
     watchOptions: {

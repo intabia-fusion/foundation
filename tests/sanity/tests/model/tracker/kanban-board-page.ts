@@ -15,6 +15,7 @@
 
 import { expect, type Locator } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
+import { retryIntervals, waitStable } from '../../retry'
 
 export class KanbanBoardPage extends CommonTrackerPage {
   column (state: string): Locator {
@@ -73,27 +74,76 @@ export class KanbanBoardPage extends CommonTrackerPage {
       target =
         (await cardInCell.count()) > 0 && (await cardInCell.getAttribute('data-card-id')) !== cardId ? cardInCell : cell
     }
-    await target.scrollIntoViewIfNeeded()
-    await this.card(cardId).scrollIntoViewIfNeeded()
-    await this.card(cardId).dragTo(target)
+    await this.ensureVisible(this.card(cardId))
+    await this.dragPointer(this.card(cardId), target)
   }
 
   async dragCardToSwimLaneCell (cardId: string, laneId: string, targetState: string): Promise<void> {
     const cell = this.swimLaneCell(laneId, targetState)
-    await cell.scrollIntoViewIfNeeded()
-    await this.card(cardId).scrollIntoViewIfNeeded()
+    await this.ensureVisible(this.card(cardId))
     // Prefer dropping onto an existing card inside the cell — Svelte's drop handler
     // fires reliably on card-container, while empty cells sometimes miss CDP drag.
     const cardInCell = cell.locator('[data-id="kanban-card"]').first()
     const target =
       (await cardInCell.count()) > 0 && (await cardInCell.getAttribute('data-card-id')) !== cardId ? cardInCell : cell
-    await this.card(cardId).dragTo(target)
+    await this.dragPointer(this.card(cardId), target)
+  }
+
+  /** Scrolling can race the board re-rendering, which detaches the node mid-action. */
+  private async ensureVisible (locator: Locator): Promise<void> {
+    await expect(async () => {
+      await locator.scrollIntoViewIfNeeded({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 15000 })
+  }
+
+  /**
+   * dragTo() moves to the target in one hop, and a single dragover is often not enough for the
+   * board to register the drop target - the drag then ends with no status change and no error.
+   * Walk the pointer across in steps and jiggle on the target so dragover fires repeatedly.
+   */
+  private async dragPointer (source: Locator, target: Locator): Promise<void> {
+    // Bounded wait for the drop target: a card can page out of a column while other tests keep
+    // modifying issues, and then evaluate/boundingBox below block until the whole test times out,
+    // leaving the caller's retry loop no turn at all.
+    await target.waitFor({ state: 'attached', timeout: 5000 })
+    await source.hover()
+    await this.page.mouse.down()
+    try {
+      // The board scrolls horizontally and does not fit five columns, so bring the target into view
+      // only after the card is grabbed: hovering the source scrolls it back and a box measured
+      // before that points outside the viewport. Scroll through the DOM - scrollIntoViewIfNeeded
+      // waits for the element to be stable, and the board animates for as long as a card is held.
+      await target.evaluate((el) => {
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      })
+      // The board keeps scrolling for a frame or two after scrollIntoView, so a box read right away
+      // points where the target no longer is - and the drop then lands on the neighbouring column.
+      const raw = await waitStable(async () => JSON.stringify(await target.boundingBox()), {
+        stableFor: 200,
+        interval: 50,
+        timeout: 5000
+      })
+      const box = JSON.parse(raw)
+      if (box === null) throw new Error('Drop target has no bounding box')
+      const x = box.x + box.width / 2
+      const y = box.y + box.height / 2
+
+      await this.page.mouse.move(x, y, { steps: 10 })
+      await this.page.mouse.move(x + 2, y + 2)
+      await this.page.mouse.move(x, y)
+    } finally {
+      await this.page.mouse.up()
+    }
   }
 
   async dragCardToCard (cardId: string, targetCardId: string): Promise<void> {
-    await this.card(cardId).scrollIntoViewIfNeeded()
-    await this.card(targetCardId).scrollIntoViewIfNeeded()
-    await this.card(cardId).dragTo(this.card(targetCardId))
+    const source = this.card(cardId)
+    const target = this.card(targetCardId)
+    // Both cards can be beyond the loaded page of their column - the target no less than the source.
+    await this.revealCard(cardId)
+    await this.revealCard(targetCardId)
+    await this.ensureVisible(source)
+    await this.dragPointer(source, target)
   }
 
   async getScrollTop (): Promise<number> {
@@ -119,6 +169,25 @@ export class KanbanBoardPage extends CommonTrackerPage {
       await this.page.locator('[data-id="kanban-column"]').first().waitFor({ state: 'visible', timeout: 10000 })
     } else {
       await this.page.locator('[data-id="kanban-swimlane"]').first().waitFor({ state: 'visible', timeout: 10000 })
+      // Lanes from the previous grouping stay in the DOM while the board
+      // re-renders, so a bare visibility wait returns stale lane ids. Wait for
+      // the id list to stop changing before the caller reads it.
+      let previous = ''
+      await expect
+        .poll(
+          async () => {
+            const ids = (
+              await this.page
+                .locator('[data-id="kanban-swimlane"]')
+                .evaluateAll((els) => els.map((el) => el.getAttribute('data-swimlane-id') ?? ''))
+            ).join(',')
+            const stable = ids !== '' && ids === previous
+            previous = ids
+            return stable
+          },
+          { timeout: 10000, intervals: retryIntervals }
+        )
+        .toBe(true)
     }
   }
 

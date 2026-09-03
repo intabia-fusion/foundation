@@ -80,6 +80,7 @@ import admin, { adminId } from '@hcengineering/admin'
 import { hulyMailId } from '@hcengineering/huly-mail'
 import { aiAssistantId } from '@hcengineering/ai-assistant'
 import { ratingId } from '@hcengineering/rating'
+import { workflowId } from '@hcengineering/workflow'
 import { fetchMetadataLocalStorage } from '@hcengineering/ui'
 
 async function loadAssets(): Promise<void> {
@@ -141,7 +142,8 @@ async function loadAssets(): Promise<void> {
     await import(/* webpackChunkName: "assets" */'@hcengineering/billing-assets'),
     // await import(/* webpackChunkName: "assets" */'@hcengineering/huly-mail-assets'),
     // await import(/* webpackChunkName: "assets" */'@hcengineering/ai-assistant-assets'),
-    await import(/* webpackChunkName: "assets" */'@hcengineering/rating-assets')]
+    await import(/* webpackChunkName: "assets" */'@hcengineering/rating-assets'),
+    await import(/* webpackChunkName: "assets" */'@hcengineering/workflow-assets')]
   )
 }
 
@@ -322,6 +324,7 @@ function configureI18n(): void {
     attachmentId,
     async (lang: string) => await import(`@hcengineering/attachment-assets/lang/${lang}.json`)
   )
+  addStringsLoader(aiBotId, async (lang: string) => await import(`@hcengineering/ai-bot-resources/lang/${lang}.json`))
   addStringsLoader(calendarId, async (lang: string) => await import(`@hcengineering/calendar-assets/lang/${lang}.json`))
   addStringsLoader(chunterId, async (lang: string) => await import(`@hcengineering/chunter-assets/lang/${lang}.json`))
   addStringsLoader(contactId, async (lang: string) => await import(`@hcengineering/contact-assets/lang/${lang}.json`))
@@ -415,6 +418,7 @@ function configureI18n(): void {
     async (lang: string) => await import(`@hcengineering/ai-assistant-assets/lang/${lang}.json`)
   )
   addStringsLoader(ratingId, async (lang: string) => await import(`@hcengineering/rating-assets/lang/${lang}.json`))
+  addStringsLoader(workflowId, async (lang: string) => await import(`@hcengineering/workflow-assets/lang/${lang}.json`))
 }
 
 export async function configurePlatform() {
@@ -736,6 +740,7 @@ export async function configurePlatform() {
   addLocation(cardId, async () => await import(/* webpackChunkName: "card" */ '@hcengineering/card-resources'))
 
   addLocation(processId, async () => await import(/* webpackChunkName: "process" */ '@hcengineering/process-resources'))
+  addLocation(workflowId, async () => await import(/* webpackChunkName: "workflow" */ '@hcengineering/workflow-resources'))
   addLocation(
     achievementId,
     async () => await import(/* webpackChunkName: "achievement" */ '@hcengineering/achievement-resources')
@@ -785,6 +790,8 @@ export async function configurePlatform() {
   } catch (err) {
     setMetadata(workbench.metadata.ExcludedApplicationsForAnonymous, [])
   }
+
+  setMetadata(workbench.metadata.DefaultHiddenApplications, ['contact', 'drive'])
 
   setMetadata(setting.metadata.BackupUrl, config.BACKUP_URL ?? '')
 

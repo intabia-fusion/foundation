@@ -1425,8 +1425,19 @@ describe('TSessionManager', () => {
       sessionManager.broadcast(mockContext, null, workspaceId, tx, undefined)
 
       // Verify both sessions received the broadcast
-      expect(mockSession1.session.broadcast).toHaveBeenCalledWith(expect.any(Object), mockSession1.socket, tx)
-      expect(mockSession2.session.broadcast).toHaveBeenCalledWith(expect.any(Object), mockSession2.socket, tx)
+      // The fourth argument is the SendMemo the fan-out shares so identical bytes are packed once.
+      expect(mockSession1.session.broadcast).toHaveBeenCalledWith(
+        expect.any(Object),
+        mockSession1.socket,
+        tx,
+        expect.any(Map)
+      )
+      expect(mockSession2.session.broadcast).toHaveBeenCalledWith(
+        expect.any(Object),
+        mockSession2.socket,
+        tx,
+        expect.any(Map)
+      )
     })
 
     it('should broadcast to specific target user', () => {

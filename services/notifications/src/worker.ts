@@ -87,9 +87,7 @@ export class Worker {
     private readonly modelTxes: Tx[],
     private readonly queue: PlatformQueue
   ) {
-    for (const tx of modelTxes) {
-      this.sysHierarchy.tx(tx)
-    }
+    // addTxes feeds sysHierarchy itself, a separate pass would just deserialize everything twice.
     this.sysModel.addTxes(ctx, modelTxes, true)
 
     this.userEventProducer = this.queue.getProducer(
@@ -189,6 +187,11 @@ export class Worker {
     }
 
     const exists = this.workspaces.get(ws)
+
+    if (tx.meta?.silent === true && exists === undefined) {
+      return
+    }
+
     const isTrigger = isTxTrigger(this.sysHierarchy, tx, this.triggerClasses, this.txTypes)
 
     if (exists === undefined && !isTrigger) {

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures'
 import { PlatformSetting, generateId } from '../utils'
 import { getTierSubscription, setWorkspacePlanByUuid } from '../API/Billing'
 import { ApiEndpoint } from '../API/Api'

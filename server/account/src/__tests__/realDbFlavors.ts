@@ -17,7 +17,7 @@ import { getDBClient, type PostgresClientReference } from '@hcengineering/postgr
 import { PostgresAccountDB } from '../collections/postgres/postgres'
 import { type DBFlavor } from '../types'
 
-/** A real database the migration suite runs against. Both flavors run so flavor-specific DDL is covered. */
+/** A real database the migration suite runs against. */
 export interface RealDbFlavor {
   flavor: DBFlavor
   /** Admin connection string (points at the server's default database). */
@@ -26,24 +26,32 @@ export interface RealDbFlavor {
   dbUri: (adminUri: string, dbUuid: string) => string
 }
 
-const cockroachAdminUri = process.env.DB_URL ?? 'postgresql://root@localhost:26258/defaultdb?sslmode=disable'
-const postgresAdminUri = process.env.POSTGRES_URL ?? 'postgresql://postgres:postgres@localhost:5433/postgres'
+function withDatabase (adminUri: string, dbUuid: string): string {
+  const parts = adminUri.split('/')
+  parts[parts.length - 1] = dbUuid
+  return parts.join('/')
+}
+
+// Postgres is the default stand database, so it always runs. CockroachDB is an opt-in overlay
+// (ws-tests/docker-compose.cockroach.yaml): its suite runs only when its url is given.
+const postgresAdminUri = process.env.ACCOUNT_TEST_PG_URL ?? 'postgresql://postgres:postgres@localhost:5433/postgres'
+const cockroachAdminUri = process.env.ACCOUNT_TEST_CR_URL
 
 export const realDbFlavors: RealDbFlavor[] = [
   {
-    flavor: 'cockroach',
-    adminUri: cockroachAdminUri,
-    dbUri: (adminUri, dbUuid) => adminUri.replace('/defaultdb', '/' + dbUuid)
-  },
-  {
     flavor: 'postgres',
     adminUri: postgresAdminUri,
-    dbUri: (adminUri, dbUuid) => {
-      const parts = adminUri.split('/')
-      parts[parts.length - 1] = dbUuid
-      return parts.join('/')
-    }
-  }
+    dbUri: withDatabase
+  },
+  ...(cockroachAdminUri !== undefined
+    ? [
+        {
+          flavor: 'cockroach' as DBFlavor,
+          adminUri: cockroachAdminUri,
+          dbUri: (adminUri: string, dbUuid: string) => adminUri.replace('/defaultdb', '/' + dbUuid)
+        }
+      ]
+    : [])
 ]
 
 /**

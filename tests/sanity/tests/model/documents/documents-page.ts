@@ -3,6 +3,7 @@ import { NewDocument, NewTeamspace } from './types'
 import { CommonPage } from '../common-page'
 import { DocumentCreatePopup } from './document-create-popup'
 import { DocumentMovePopup } from './document-move-popup'
+import { retryIntervals } from '../../retry'
 
 export class DocumentsPage extends CommonPage {
   readonly page: Page
@@ -110,10 +111,16 @@ export class DocumentsPage extends CommonPage {
   }
 
   async moreActionTeamspace (name: string, action: string): Promise<void> {
-    await this.page.locator('button.hulyNavGroup-header span[class*="label"]', { hasText: name }).hover()
-    await this.page
-      .locator(`xpath=//span[text()="${name}"]/../../div[@class="hulyNavGroup-header__tools"]/button[last()]`)
-      .click()
+    const header = this.page.locator('button.hulyNavGroup-header span[class*="label"]', { hasText: name })
+    const tools = this.page.locator(
+      `xpath=//span[text()="${name}"]/../../div[@class="hulyNavGroup-header__tools"]/button[last()]`
+    )
+    // The tools button only exists while the group is hovered, so a re-render of the navigator
+    // hides it again and a plain click waits out the whole timeout. Re-hover on every attempt.
+    await expect(async () => {
+      await header.hover()
+      await tools.click({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
     await this.selectFromDropdown(this.page, action)
   }
 
@@ -132,8 +139,13 @@ export class DocumentsPage extends CommonPage {
   }
 
   async clickAddDocumentIntoDocument (documentTitle: string): Promise<void> {
-    await this.buttonDocumentWrapper(documentTitle).hover()
-    await this.buttonAddDocumentToDocument(documentTitle).click()
+    // The button only exists while the row is hovered, and the navigator keeps re-rendering as
+    // documents arrive - the row moves under the sticky teamspace header and the hover is lost.
+    // Hovering once outside the retry leaves the click waiting out the whole test timeout.
+    await expect(async () => {
+      await this.buttonDocumentWrapper(documentTitle).hover()
+      await this.buttonAddDocumentToDocument(documentTitle).click({ timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
   }
 
   async openDocumentForTeamspace (spaceName: string, documentName: string): Promise<void> {

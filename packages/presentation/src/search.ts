@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import type { Class, Ref, Doc, SearchResultDoc, TxOperations } from '@hcengineering/core'
+import type { Ref, SearchResultDoc, TxOperations } from '@hcengineering/core'
 import { type ObjectSearchCategory } from './types'
 import plugin from './plugin'
 import { getClient } from './utils'
@@ -118,17 +118,11 @@ export async function searchFor (
     categoriesByContext.set(context, categories)
   }
 
-  if (categories === undefined) {
+  if ((categories?.length ?? 0) === 0) {
     return { items: [], query }
   }
 
-  const classesToSearch: Array<Ref<Class<Doc>>> = []
   const cats = category === undefined ? categories : categories.filter((it) => it._id === category)
-  for (const cat of cats) {
-    if (cat.classToSearch !== undefined) {
-      classesToSearch.push(cat.classToSearch)
-    }
-  }
 
   const sections = await doFulltextSearch(client, cats, query, limit)
   return { items: packSearchResultsForListView(sections), query }

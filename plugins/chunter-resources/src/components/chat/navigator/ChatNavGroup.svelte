@@ -94,7 +94,7 @@
         {
           ...model.query,
           account: me.uuid,
-          attachedToClass: _class,
+          attachedToClass: { $in: hierarchy.getDescendants(_class) },
           ...searchQuery,
           ...(isSpace ? { '$lookup.attachedTo.archived': false } : {}),
           '$lookup.attachedTo._id': { $exists: true }

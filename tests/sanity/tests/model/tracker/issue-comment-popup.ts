@@ -13,7 +13,9 @@ export class IssueCommentPopup extends IssuesPage {
     await this.inputCommentText().fill(commentText)
     if (attachmentFileName != null) {
       await this.inputAttachFile().setInputFiles(path.join(__dirname, `../../files/${attachmentFileName}`))
-      await expect(this.textAttachFileName()).toHaveText(attachmentFileName)
+      // AttachmentPresenter renders nothing until getBlobRef resolves, so this waits out the upload
+      // and the preview metadata round-trip - more than the 15s default allows under parallel load.
+      await expect(this.textAttachFileName()).toHaveText(attachmentFileName, { timeout: 45000 })
     }
 
     await this.buttonSendComment().click()

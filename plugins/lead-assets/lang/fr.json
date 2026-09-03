@@ -3,6 +3,7 @@
     "CreateFunnel": "Nouveau pipeline",
     "CreateLead": "Nouveau prospect",
     "Funnel": "Pipeline",
+    "DefaultFunnel": "Pipeline par défaut",
     "FunnelName": "Nom du pipeline",
     "Funnels": "Pipelines",
     "LeadApplication": "Prospects (bêta)",

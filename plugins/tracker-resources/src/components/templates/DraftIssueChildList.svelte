@@ -136,6 +136,7 @@
     <div class="flex-row-center ml-6 clear-mins gap-2">
       <StatusEditor
         value={{ ...issue, space: project }}
+        isCreate={true}
         kind="list"
         size="small"
         on:change={({ detail }) => (issue.status = detail)}

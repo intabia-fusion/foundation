@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,15 +14,13 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { DocumentQuery, Ref, WithLookup } from '@hcengineering/core'
+  import { DocumentQuery, Ref } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
   import { Issue, IssueStatus, Project } from '@hcengineering/tracker'
   import { IModeSelector, resolvedLocationStore } from '@hcengineering/ui'
-  import view, { Viewlet } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
 
-  import { TypeSelector, selectedTaskTypeStore, selectedTypeStore, taskTypeStore } from '@hcengineering/task-resources'
   import tracker from '../../plugin'
   import IssuesView from './IssuesView.svelte'
 
@@ -32,9 +31,6 @@
   export let title: IntlString
   export let icon: Asset | undefined = undefined
   export let config: [string, IntlString, object][]
-  export let allProjectsTypes: boolean = false
-
-  export let baseClass = tracker.class.Issue
 
   const dispatch = createEventDispatcher()
 
@@ -82,33 +78,8 @@
       onChange: (newMode: string) => dispatch('action', { mode: newMode })
     }
   }
-
-  $: allTypes = Array.from($taskTypeStore.values())
-    .filter((it) => it.parent === $selectedTypeStore)
-    .map((it) => it._id)
-
-  let currentViewlet: WithLookup<Viewlet> | undefined = undefined
-
-  $: isListMode = currentViewlet?.descriptor === view.viewlet.List
-
-  $: finalQuery = {
-    ...query,
-    ...(allProjectsTypes || isListMode
-      ? {}
-      : $selectedTaskTypeStore !== undefined
-        ? { kind: $selectedTaskTypeStore }
-        : { kind: { $in: allTypes } })
-  }
-
-  const toVL = (data: any): Viewlet | undefined => data as Viewlet
 </script>
 
 {#if query !== undefined && modeSelectorProps !== undefined}
-  <IssuesView bind:viewlet={currentViewlet} query={finalQuery} space={currentSpace} {icon} {title} {modeSelectorProps}>
-    <svelte:fragment slot="type_selector" let:viewlet>
-      {#if !allProjectsTypes}
-        <TypeSelector {baseClass} project={currentSpace} allTypes={toVL(viewlet)?.descriptor === view.viewlet.List} />
-      {/if}
-    </svelte:fragment>
-  </IssuesView>
+  <IssuesView {query} space={currentSpace} {icon} {title} {modeSelectorProps} />
 {/if}

@@ -1,6 +1,7 @@
 import { expect, type Locator } from '@playwright/test'
 import { NewComponent } from './types'
 import { CommonTrackerPage } from './common-tracker-page'
+import { retry } from '../../retry'
 
 export class ComponentsDetailsPage extends CommonTrackerPage {
   inputComponentName = (): Locator => this.page.locator('div.antiEditBox input')
@@ -8,17 +9,30 @@ export class ComponentsDetailsPage extends CommonTrackerPage {
   buttonLead = (): Locator => this.page.locator('//span[text()="Lead"]/following-sibling::div[1]/div/button')
 
   async editComponent (data: NewComponent): Promise<void> {
-    if (data.name != null) {
-      await this.inputComponentName().fill(data.name)
+    const { name, description, lead } = data
+    // Each field is verified on its own: the panel's query callback can put the stored value back
+    // over a fresh one, and redoing the whole edit would reopen the lead popup for nothing.
+    if (name != null) {
+      await retry(async () => {
+        await this.inputComponentName().fill(name)
+        await expect(this.inputComponentName()).toHaveValue(name, { timeout: 3000 })
+      })
     }
-    if (data.description != null) {
-      await this.inputComponentDescription().fill(data.description)
-      // Click outside the description field to trigger save
-      await this.inputComponentName().click()
+    if (description != null) {
+      await retry(async () => {
+        await this.inputComponentDescription().fill(description)
+        // Click outside the description field to trigger save
+        await this.inputComponentName().click()
+        await expect(this.inputComponentDescription()).toHaveText(description, { timeout: 3000 })
+      })
     }
-    if (data.lead != null) {
-      await this.buttonLead().click()
-      await this.selectMenuItem(this.page, data.lead)
+    if (lead != null) {
+      await retry(async () => {
+        if (((await this.buttonLead().textContent()) ?? '').includes(lead)) return
+        await this.buttonLead().click()
+        await this.selectMenuItem(this.page, lead)
+        await expect(this.buttonLead()).toHaveText(lead, { timeout: 3000 })
+      })
     }
   }
 

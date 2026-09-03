@@ -147,9 +147,31 @@ export function isAllowedToRole (role: AccountRole | undefined, acc: Account): b
   return hasAccountRole(acc, role)
 }
 
+// The model only records apps the user hid, so a fresh account and one that re-enabled everything
+// look identical. This flag tells them apart, letting the defaults apply only until the first edit.
+const appsCustomizedKey = 'workbench.appsCustomized'
+
+function isAppsCustomized (): boolean {
+  return localStorage.getItem(appsCustomizedKey) === 'true'
+}
+
+function markAppsCustomized (): void {
+  localStorage.setItem(appsCustomizedKey, 'true')
+}
+
+/**
+ * Aliases hidden on the app panel for a user who has never customized it.
+ * Only while the panel is collapsed: a full-width bar has room for every app.
+ */
+export function getDefaultHiddenApps (appsMini: boolean): string[] {
+  if (!appsMini || isAppsCustomized()) return []
+  return getMetadata(workbench.metadata.DefaultHiddenApplications) ?? []
+}
+
 export async function hideApplication (app: Application): Promise<void> {
   const client = getClient()
 
+  markAppsCustomized()
   await client.createDoc(workbench.class.HiddenApplication, core.space.Workspace, {
     attachedTo: app._id
   })
@@ -158,6 +180,7 @@ export async function hideApplication (app: Application): Promise<void> {
 export async function showApplication (app: Application): Promise<void> {
   const client = getClient()
 
+  markAppsCustomized()
   const current = await client.findOne(workbench.class.HiddenApplication, { attachedTo: app._id })
   if (current !== undefined) {
     await client.remove(current)
@@ -232,6 +255,7 @@ export async function logOut (): Promise<void> {
   setMetadata(presentation.metadata.WorkspaceDataId, null)
   setMetadataLocalStorage(login.metadata.LoginEndpoint, null)
   setMetadataLocalStorage(login.metadata.LoginAccount, null)
+  setMetadataLocalStorage(login.metadata.AuthEmail, null)
 
   void closeClient()
 }

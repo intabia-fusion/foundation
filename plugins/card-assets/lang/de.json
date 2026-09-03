@@ -81,7 +81,11 @@
     "SectionUnlocked": "Sektion {section} entsperrt",
     "LayoutAuto": "Auto",
     "SingleColumn": "Einspaltig",
+    "BaseType": "Basistyp",
+    "BaseTypeDescription": "Verwende diesen Typ nur als übergeordneten Typ. Karten können nur aus seinen Untertypen erstellt werden.",
     "TwoColumns": "Zwei spaltig",
-    "Grid": "Gitter"
+    "Grid": "Gitter",
+    "RichtextProperties": "Textfelder",
+    "ShowAllVersions": "Alle Versionen anzeigen"
   }
 }

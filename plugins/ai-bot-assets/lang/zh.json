@@ -1,0 +1,25 @@
+{
+  "string": {
+    "AISettings": "AI 设置",
+    "TokenLimitReachedMonth": "AI 令牌已用完。请在工作区设置中购买（设置 -> 订阅）或等待下一个周期。",
+    "AIServiceUnavailable": "AI 服务暂时不可用。请稍后再试。",
+    "AIEmptyResponse": "这次未能生成回答。请换个说法或重试。",
+    "AILevel": "AI 级别",
+    "AILevelHint": "此工作区的质量级别上限",
+    "AILevelCapabilities": "各级别能力",
+    "AILevelCapabilitiesHint": "每个级别可以做什么。",
+    "AILevelChat": "对话",
+    "AILevelTalk": "讨论",
+    "AILevelSummary": "总结",
+    "AILevelTasks": "任务管理",
+    "Language": "语言",
+    "LanguageHint": "机器人回复的默认语言（如 zh、en）。留空 = pod 默认。",
+    "AssistIssue": "{name}",
+    "AssistIssueApply": "应用",
+    "AssistIssueThreadStart": "任务草稿{project, select, undefined {} other {（{project}）}}",
+    "AssistIssueNewContext": "新上下文",
+    "AssistIssueApplyAgain": "再次应用",
+    "AssistIssueAppliedMark": "已应用",
+    "ProposedEstimation": "预估：{hours} 小时"
+  }
+}

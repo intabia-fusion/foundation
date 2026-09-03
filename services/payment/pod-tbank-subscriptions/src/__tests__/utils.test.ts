@@ -103,6 +103,21 @@ describe('buildPricingFromPlanConfig', () => {
     expect(plans['corporation@tier']).toBeUndefined()
   })
 
+  // One-time purchases go through the same checkout, so a missing entry makes the provider
+  // reject the whole purchase with "Unknown plan: <sku>@purchase".
+  test('prices one-time purchasables under the purchase key', () => {
+    const plans = buildPricingFromPlanConfig({
+      purchasables: {
+        'ai-tokens-10m': { priceMonthly: 1000 },
+        'ai-tokens-50m': { priceMonthly: 5000 },
+        broken: { priceMonthly: undefined }
+      }
+    })
+    expect(plans['ai-tokens-10m@purchase']).toEqual({ amount: 100000, yearlyDiscount: 0 })
+    expect(plans['ai-tokens-50m@purchase']).toEqual({ amount: 500000, yearlyDiscount: 0 })
+    expect(plans['broken@purchase']).toBeUndefined()
+  })
+
   test('handles empty config', () => {
     expect(buildPricingFromPlanConfig({})).toEqual({})
   })

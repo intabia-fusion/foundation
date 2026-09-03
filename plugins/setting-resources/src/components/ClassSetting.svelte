@@ -24,7 +24,7 @@
     isOwnerOrMaintainer
   } from '@hcengineering/core'
   import { Asset, IntlString, getEmbeddedLabel } from '@hcengineering/platform'
-  import { createQuery, getClient } from '@hcengineering/presentation'
+  import { createQuery, getClient, IconWithEmoji } from '@hcengineering/presentation'
   import {
     AnySvelteComponent,
     Scroller,
@@ -42,6 +42,8 @@
     NavGroup
   } from '@hcengineering/ui'
   import { showMenu } from '@hcengineering/view-resources'
+  import view from '@hcengineering/view'
+
   import setting from '../plugin'
   import { filterDescendants } from '../utils'
   import ClassAttributes from './ClassAttributes.svelte'
@@ -197,7 +199,8 @@
               {@const clazz = hierarchy.getClass(cl)}
               <NavItem
                 _id={clazz._id}
-                icon={clazz.icon ?? setting.icon.Clazz}
+                icon={clazz.icon === view.ids.IconWithEmoji ? IconWithEmoji : (clazz.icon ?? setting.icon.Clazz)}
+                iconProps={clazz.icon === view.ids.IconWithEmoji ? { icon: clazz.color ?? 0 } : {}}
                 label={clazz.label}
                 selected={cl === _class}
                 on:click={() => {

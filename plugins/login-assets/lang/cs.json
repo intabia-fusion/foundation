@@ -71,11 +71,11 @@
     "Skip": "Přeskočit",
     "SignUpCompleted": "Registrace dokončena",
     "StartUsingHuly": "Začněte používat Huly",
-    "PasswordMinLength": "{count, plural, =1 {Heslo musí být alespoň # znak dlouhé} other {Heslo musí být alespoň # znaků dlouhé}}",
-    "PasswordMinSpecialChars": "{count, plural, =1 {Heslo musí obsahovat alespoň # speciální znak} other {Heslo musí obsahovat alespoň # speciálních znaků}}",
-    "PasswordMinDigits": "{count, plural, =1 {Heslo musí obsahovat alespoň # číslo} other {Heslo musí obsahovat alespoň # čísel}}",
-    "PasswordMinUpperChars": "{count, plural, =1 {Heslo musí obsahovat alespoň # velké písmeno} other {Heslo musí obsahovat alespoň # velkých písmen}}",
-    "PasswordMinLowerChars": "{count, plural, =1 {Heslo musí obsahovat alespoň # malé písmeno} other {Heslo musí obsahovat alespoň # malých písmen}}",
+    "PasswordMinLength": "{count, plural, one {Heslo musí být alespoň # znak dlouhé} few {Heslo musí být alespoň # znaky dlouhé} many {Heslo musí být alespoň # znaků dlouhé} other {Heslo musí být alespoň # znaků dlouhé}}",
+    "PasswordMinSpecialChars": "{count, plural, one {Heslo musí obsahovat alespoň # speciální znak} few {Heslo musí obsahovat alespoň # speciální znaky} many {Heslo musí obsahovat alespoň # speciálních znaků} other {Heslo musí obsahovat alespoň # speciálních znaků}}",
+    "PasswordMinDigits": "{count, plural, one {Heslo musí obsahovat alespoň # číslo} few {Heslo musí obsahovat alespoň # čísla} many {Heslo musí obsahovat alespoň # čísel} other {Heslo musí obsahovat alespoň # čísel}}",
+    "PasswordMinUpperChars": "{count, plural, one {Heslo musí obsahovat alespoň # velké písmeno} few {Heslo musí obsahovat alespoň # velká písmena} many {Heslo musí obsahovat alespoň # velkých písmen} other {Heslo musí obsahovat alespoň # velkých písmen}}",
+    "PasswordMinLowerChars": "{count, plural, one {Heslo musí obsahovat alespoň # malé písmeno} few {Heslo musí obsahovat alespoň # malá písmena} many {Heslo musí obsahovat alespoň # malých písmen} other {Heslo musí obsahovat alespoň # malých písmen}}",
     "WorkspaceIsArchived": "Pracovní prostor je archivován kvůli nečinnosti.",
     "RestoreArchivedWorkspace": "Obnovit pracovní prostor.",
     "Hello": "Ahoj {name},",
@@ -106,6 +106,13 @@
     "ExpiredLink": "Platnost odkazu na pozvánku vypršela",
     "ExpiredLinkDescription": "Požádejte prosím o nový odkaz na pozvánku",
     "UsageConditions": "Podmínky použití",
-    "IntabiaFusion": "Intabia Fusion"
+    "IntabiaFusion": "Intabia Fusion",
+    "Continue": "Pokračovat",
+    "AlreadyRegistered": "Jste již zaregistrováni na platformě",
+    "RegistrationComplete": "Registrace je dokončena",
+    "RegistrationCompleteHint": "Vytvořte si vlastní pracovní prostor, nebo si vyžádejte odkaz s přístupem od vlastníka existujícího prostoru.",
+    "CheckingLink": "Kontrolujeme odkaz...",
+    "InvalidLink": "Tento odkaz již není platný",
+    "ConfirmationFailed": "Registraci se nepodařilo dokončit"
   }
 }

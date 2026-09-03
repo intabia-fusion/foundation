@@ -159,6 +159,9 @@
     "GroupByStatus": "Podle stavu",
     "GroupByDate": "Podle data",
     "SpeakingWhileMuted": "Máte vypnutý mikrofon - ostatní vás neslyší",
-    "SpeakingWhileMutedAlert": "Upozornit, když mluvím s vypnutým mikrofonem"
+    "SpeakingWhileMutedAlert": "Upozornit, když mluvím s vypnutým mikrofonem",
+    "SwitchWorkspaceInMeeting": "Jste ve schůzce",
+    "SwitchWorkspaceLeaveMeeting": "Přepnutí pracovního prostoru vás odpojí od aktuální schůzky.",
+    "SwitchWorkspaceEndsMeeting": "Toto je vaše kancelář: přepnutí pracovního prostoru vás odpojí a ukončí schůzku pro všechny."
   }
 }

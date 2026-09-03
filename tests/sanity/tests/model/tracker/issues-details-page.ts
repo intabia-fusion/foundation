@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
 import { Issue, NewIssue } from './types'
 import { convertEstimation } from '../../tracker/tracker.utils'
+import { retry, retryIntervals } from '../../retry'
 
 export class IssuesDetailsPage extends CommonTrackerPage {
   readonly page: Page
@@ -27,9 +28,15 @@ export class IssuesDetailsPage extends CommonTrackerPage {
     this.page.locator('//span[text()="Milestone"]/following-sibling::div[1]/div/button')
 
   readonly textEstimation = (): Locator =>
-    this.page.locator('//span[text()="Estimation"]/following-sibling::div[1]/button/span')
+    this.page.locator(
+      '//span[contains(@class, "labelOnPanel") and normalize-space(text())="Estimation"]/following-sibling::div[1]//div[contains(@class, "link-container")]'
+    )
 
-  readonly buttonEstimation = (): Locator => this.page.locator('(//span[text()="Estimation"]/../div/button)[3]')
+  readonly buttonEstimation = (): Locator =>
+    this.page.locator(
+      '//span[contains(@class, "labelOnPanel") and normalize-space(text())="Estimation"]/following-sibling::div[1]//div[contains(@class, "link-container")]'
+    )
+
   readonly buttonCreatedBy = (): Locator =>
     this.page.locator('//span[text()="Created by"]/following-sibling::div[1]/button')
 
@@ -123,8 +130,15 @@ export class IssuesDetailsPage extends CommonTrackerPage {
       await this.inputTitle().fill(data.title)
     }
     if (data.status != null) {
-      await this.buttonStatus().click()
-      await this.selectFromDropdown(this.page, data.status)
+      const status = data.status
+      // The dropdown locator matches any element whose class ends in "opup", so a stray tooltip or
+      // leftover popup can swallow the click and leave the status untouched. Retry until it sticks.
+      await expect(async () => {
+        await this.buttonStatus().click()
+        await this.selectFromDropdown(this.page, status)
+        // Case-insensitive on purpose: callers pass labels like "ToDo" while the UI renders "Todo".
+        await expect(this.buttonStatus()).toHaveText(status, { timeout: 3000, ignoreCase: true })
+      }).toPass({ intervals: retryIntervals, timeout: 20000 })
     }
     if (data.priority != null) {
       await this.buttonPriority().click()
@@ -142,7 +156,7 @@ export class IssuesDetailsPage extends CommonTrackerPage {
       } else {
         await this.checkFromDropdownWithSearch(this.page, data.labels)
       }
-      await this.inputTitle().press('Escape')
+      await this.closePopups()
     }
     if (data.component != null) {
       await this.buttonComponent().click()
@@ -153,9 +167,39 @@ export class IssuesDetailsPage extends CommonTrackerPage {
       await this.selectMenuItem(this.page, data.milestone)
     }
     if (data.estimation != null) {
-      await this.buttonEstimation().click()
-      await this.fillToSelectPopup(this.page, data.estimation)
+      const estimation = data.estimation
+      // Same story as the status above: the popup click can be swallowed, leaving the old value
+      // and turning the later check into a 10s wait for something that never happens.
+      await expect(async () => {
+        await this.buttonEstimation().click()
+        await this.fillEstimationPopup(this.page, estimation)
+        await expect(this.textEstimation()).toHaveText(convertEstimation(estimation), { timeout: 3000 })
+        // The write is lost when a previous estimation update is still in flight: the panel renders
+        // the new value optimistically and then falls back to the stored one about 70ms later, and
+        // the server never sees it. Settle before believing the first read, so the retry re-saves.
+        // 200ms was not enough: `Edit an issue` then read the previous value (1d instead of 0m).
+        await this.page.waitForTimeout(500)
+        await expect(this.textEstimation()).toHaveText(convertEstimation(estimation), { timeout: 3000 })
+      }).toPass({ intervals: retryIntervals, timeout: 20000 })
     }
+  }
+
+  async addExistingLabel (label: string): Promise<void> {
+    await this.buttonAddLabel().click()
+    await this.selectPopupInput().fill(label)
+    const item = this.selectPopupSpanLines(label)
+    // In a project of a freshly created type the popup can open before the client knows the new
+    // task type class and then lists nothing. Reopen it instead of waiting an empty list out.
+    await expect(async () => {
+      if ((await item.count()) === 0) {
+        await this.closePopups()
+        await this.buttonAddLabel().click()
+        await this.selectPopupInput().fill(label)
+      }
+      await expect(item).toHaveCount(1, { timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+    await item.click()
+    await this.closePopups()
   }
 
   async checkIssue (data: NewIssue): Promise<void> {
@@ -184,8 +228,12 @@ export class IssuesDetailsPage extends CommonTrackerPage {
       const val = convertEstimation(data.estimation)
       await expect(async () => {
         const curValue = JSON.stringify((await this.textEstimation().allTextContents()).join(' '))
-        await expect(this.textEstimation(), `should be ${JSON.stringify(val)} but it ${curValue})}`).toHaveText(val)
-      }).toPass({ intervals: [100, 200, 500, 1000], timeout: 10000 })
+        // Short inner timeout on purpose: the default 15s outlives the enclosing toPass, so the
+        // retry never happens and the failure carries no value to look at.
+        await expect(this.textEstimation(), `should be ${JSON.stringify(val)} but it is ${curValue}`).toHaveText(val, {
+          timeout: 2000
+        })
+      }).toPass({ intervals: retryIntervals, timeout: 15000 })
     }
     if (data.parentIssue != null) {
       await expect(this.textParentTitle()).toHaveText(data.parentIssue)
@@ -247,13 +295,24 @@ export class IssuesDetailsPage extends CommonTrackerPage {
   async fillSearchForIssueModal (issueTitle: string): Promise<void> {
     await this.buttonIssueOnSearchForIssueModal().click()
     await this.inputSearchOnSearchForIssueModal().fill(issueTitle)
-    await this.popupListItems(issueTitle).click()
+    // Wait for the list to re-filter: clicking while the pre-filter rows are still there either
+    // hits a strict-mode violation or links the wrong issue, and the relation check fails later.
+    const item = this.popupListItems(issueTitle)
+    await expect(item).toHaveCount(1, { timeout: 15000 })
+    await item.click()
   }
 
   async moreActionOnIssueWithSecondLevel (actionFirst: string, actionSecond: string): Promise<void> {
     await this.buttonMoreActions().click()
-    await this.antiPopupSubMenueBtn(actionFirst).hover()
-    await this.antiPopupSubMenueBtn(actionFirst).click()
+    // The submenu is gated by MouseSpeedTracker (see openSubmenu): a fast hover then click leaves
+    // the parent marked active with nothing under it, and the second-level click then waits out
+    // the whole test timeout.
+    await retry(async () => {
+      if (await this.popupSpanLabel(actionSecond).isVisible()) return
+      await this.antiPopupSubMenueBtn(actionFirst).hover()
+      await this.antiPopupSubMenueBtn(actionFirst).click()
+      await expect(this.popupSpanLabel(actionSecond)).toBeVisible({ timeout: 3000 })
+    })
     await this.selectFromDropdown(this.page, actionSecond)
   }
 

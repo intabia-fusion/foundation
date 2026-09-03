@@ -81,7 +81,11 @@
     "SectionUnlocked": "Секция {section} разблокирована",
     "LayoutAuto": "Авто",
     "SingleColumn": "Один столбец",
+    "BaseType": "Базовый тип",
+    "BaseTypeDescription": "Используйте этот тип только как родительский. Карточки можно создавать только из его подтипов.",
     "TwoColumns": "Два столбца",
-    "Grid": "Сетка"
+    "Grid": "Сетка",
+    "RichtextProperties": "Текстовые поля",
+    "ShowAllVersions": "Показывать все версии"
   }
 }

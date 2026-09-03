@@ -20,7 +20,10 @@ import presentation, { getClient } from '@hcengineering/presentation'
 import type { PersonRating } from '@hcengineering/rating'
 import setting from '@hcengineering/setting'
 import { type TemplateDataProvider } from '@hcengineering/templates'
+import { showPopup } from '@hcengineering/ui'
 import { get } from 'svelte/store'
+
+import OperationOtpDialog from './components/OperationOtpDialog.svelte'
 
 function isEditable (hierarchy: Hierarchy, p: Class<Doc>): boolean {
   let ancestors = [p._id]
@@ -120,4 +123,13 @@ export async function getIntegrationClient (kind: IntegrationKind): Promise<Inte
     throw new Error('Accounts URL or token is not defined')
   }
   return getIntegrationClientRaw(accountsUrl, token, kind, 'settings')
+}
+
+/** Prompts for the email confirmation code required by self-service destructive actions. */
+export async function requestOperationOtpCode (): Promise<string | undefined> {
+  return await new Promise<string | undefined>((resolve) => {
+    showPopup(OperationOtpDialog, {}, undefined, (code) => {
+      resolve(typeof code === 'string' && code.length > 0 ? code : undefined)
+    })
+  })
 }

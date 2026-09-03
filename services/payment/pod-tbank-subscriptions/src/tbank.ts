@@ -249,11 +249,12 @@ export default class TbankPayments {
         return json // Success:false returned as-is (business decline), never thrown
       } catch (err: any) {
         if (err instanceof TbankApiError) throw err // non-retriable, surface immediately
-        // Network error / timeout / abort -> retry
-        lastErr = new TbankTransportError(err?.message ?? String(err))
+        // Network error / timeout / abort -> retry. undici hides the real reason
+        // (ENOTFOUND/ECONNREFUSED/EAI_AGAIN/TLS) in err.cause — keep it or the log says only "fetch failed".
+        lastErr = new TbankTransportError(describeFetchError(err))
       }
     }
-    this.logger.error?.(`[T-Bank] ${path} transport failed`, { message: lastErr?.message })
+    this.logger.error?.(`[T-Bank] ${path} transport failed`, { url, reason: lastErr?.message })
     throw lastErr ?? new TbankTransportError(`Request to ${path} failed`)
   }
 
@@ -273,6 +274,16 @@ export default class TbankPayments {
       clearTimeout(timer)
     }
   }
+}
+
+export function describeFetchError (err: any): string {
+  const parts: string[] = [err?.message ?? String(err)]
+  // depth cap guards against a self-referencing cause chain
+  let cause = err?.cause
+  for (let depth = 0; cause != null && depth < 5; depth++, cause = cause.cause) {
+    parts.push([cause.code, cause.message ?? String(cause)].filter(Boolean).join(' '))
+  }
+  return parts.join(' <- ')
 }
 
 async function sleep (ms: number): Promise<void> {

@@ -1,0 +1,28 @@
+name: rename-is-proposed
+mode: thread
+lang: ru
+world:
+  document:
+    title: Регламент выпуска
+    body: |
+      Выпуск раз в неделю.
+
+      ## Роли
+      Релиз-менеджер отвечает за выпуск.
+requirements:
+  - id: R1
+    text: вызван rename_document, новое название только подготовлено
+  - id: R2
+    text: документ не переименован сам, применяет пользователь
+turns:
+  # apply: never - карточка остаётся неприменённой, как если бы пользователь её не нажал.
+  - ask: Переименуй документ в "Регламент релизов".
+    apply: never
+expect:
+  worldUnchanged: true
+  staged:
+    kind: edit
+    titleMatches: 'Регламент релизов'
+  toolsCalled: [rename_document]
+  forbidTools: [propose_new_document]
+  maxRoundsTotal: 4

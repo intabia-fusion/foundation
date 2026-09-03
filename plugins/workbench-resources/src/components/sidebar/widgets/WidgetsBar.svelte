@@ -13,9 +13,10 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Widget, WidgetPreference, WidgetType } from '@hcengineering/workbench'
+  import workbench, { Widget, WidgetPreference, WidgetType } from '@hcengineering/workbench'
   import { IconSettings, ModernButton, showPopup, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { Ref } from '@hcengineering/core'
+  import { ComponentExtensions } from '@hcengineering/presentation'
 
   import WidgetPresenter from './/WidgetPresenter.svelte'
   import AddWidgetsPopup from './AddWidgetsPopup.svelte'
@@ -88,6 +89,8 @@
       <div class="separator" />
       <ModernButton icon={IconSettings} size="small" on:click={handleAddWidget} />
     {/if}
+
+    <ComponentExtensions extension={workbench.extensions.WidgetsBarExtensions} />
   </div>
 </div>
 

@@ -28,7 +28,8 @@
     "test": "jest --passWithNoTests --coverage",
     "dev": "node esbuild.config.cjs && node bundle/agent.js dev",
     "start": "node bundle/agent.js start",
-    "connect": "node esbuild.config.cjs && node bundle/agent.js connect"
+    "connect": "node esbuild.config.cjs && node bundle/agent.js connect",
+    "split-audio": "node esbuild.config.js && node bundle/cli/split-audio.js"
   },
   "devDependencies": {
     "@types/jest": "^29.5.5",
@@ -55,8 +56,8 @@
   "dependencies": {
     "@deepgram/sdk": "^4.11.2",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "@livekit/agents": "^1.2.1",
-    "@livekit/rtc-node": "^0.13.24",
+    "@livekit/agents": "^1.7.0",
+    "@livekit/rtc-node": "^0.13.34",
     "dotenv": "^16.4.5",
     "jwt-simple": "^0.5.6",
     "uuid": "^8.3.2",

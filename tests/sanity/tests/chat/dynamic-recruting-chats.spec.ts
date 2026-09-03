@@ -1,10 +1,7 @@
-import { test } from '@playwright/test'
-import { ApiEndpoint } from '../API/Api'
+import { test } from '../fixtures'
 import { ChannelPage } from '../model/channel-page'
 import { LeftSideMenuPage } from '../model/left-side-menu-page'
-import { LoginPage } from '../model/login-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
-import { PlatformURI, generateTestData, generateId } from '../utils'
+import { createAccountAndWorkspace, generateId, generateTestData } from '../utils'
 import { LinkedChannelTypes } from '../model/types'
 import { VacanciesPage } from '../model/recruiting/vacancies-page'
 import { TalentsPage } from '../model/recruiting/talents-page'
@@ -18,8 +15,6 @@ test.describe('Dynamic reqruting chats', () => {
   let channelPage: ChannelPage
   let vacanciesPage: VacanciesPage
   let talentsPage: TalentsPage
-  let loginPage: LoginPage
-  let api: ApiEndpoint
   let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
 
   test.beforeEach(async ({ page, request }) => {
@@ -29,15 +24,10 @@ test.describe('Dynamic reqruting chats', () => {
     channelPage = new ChannelPage(page)
     vacanciesPage = new VacanciesPage(page)
     talentsPage = new TalentsPage(page)
-    loginPage = new LoginPage(page)
 
-    api = new ApiEndpoint(request)
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-    await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    await (await page.goto(`${PlatformURI}`))?.finished()
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
+    // Straight into the workspace from the account token: the login form plus the workspace
+    // picker are three page loads and cost about a second per test.
+    await createAccountAndWorkspace(page, request, data)
     const userProfilePage = new UserProfilePage(page)
     await userProfilePage.openProfileMenu()
     await userProfilePage.clickSettings()

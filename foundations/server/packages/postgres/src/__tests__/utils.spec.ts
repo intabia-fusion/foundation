@@ -883,3 +883,23 @@ describe('utils - edge cases and potential bugs', () => {
     expect(decodeArray('{" "}')).toEqual([' '])
   })
 })
+
+describe('parseDoc without jsonb payload', () => {
+  // Hash scans select columns only, so `data` is absent on the row.
+  it('should parse a row that has no data column', () => {
+    const doc: any = { _id: 'id1', _class: 'class1', workspaceId: 'ws', '%hash%': 'h' }
+
+    const res: any = parseDoc(doc, {} as any)
+
+    expect(res._id).toBe('id1')
+    expect(res._class).toBe('class1')
+    expect(res.workspaceId).toBeUndefined()
+  })
+
+  it('should keep the hash when asked', () => {
+    const doc: any = { _id: 'id1', workspaceId: 'ws', '%hash%': 'h' }
+
+    const res: any = parseDoc(doc, {} as any, true)
+    expect(res['%hash%']).toBe('h')
+  })
+})

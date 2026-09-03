@@ -38,7 +38,17 @@ import {
 import { generateToken } from '@hcengineering/server-token'
 
 import { collectDatalakeStats } from './billing'
+import billingConfig from './config'
 import { type BillingDB, type BillingUsageMessage, type LimitCategory, type UsageMetric } from './types'
+
+/**
+ * What a finished period takes out of the purchased pack: the monthly grant is spent first, so
+ * only the overflow is charged. Staying under the grant costs nothing.
+ */
+export function packCharge (periodUsage: number, limitMonth: number, pack: number): number {
+  if (limitMonth <= 0) return 0 // unlimited grant never overflows
+  return Math.min(pack, Math.max(0, periodUsage - limitMonth))
+}
 
 /** Computes volume-limit state, persists it, and publishes edge-triggered LimitsChanged events. */
 export class LimitsEngine {
@@ -113,7 +123,7 @@ export class LimitsEngine {
   ): Promise<void> {
     const category = metricToCategory(metric)
     const subs = await this.accountClient(workspace).getSubscriptions(workspace, false)
-    const limitValue = getEffectiveLimit(subs, metric)
+    const limitValue = await this.effectiveLimit(ctx, workspace, subs, metric)
 
     const prev = await this.db.getLimitState(ctx, workspace, category)
     const prevUsed = prev?.used ?? 0
@@ -130,6 +140,42 @@ export class LimitsEngine {
 
     // Reflect the increment in the displayed usageInfo so the UI moves without waiting for the tick.
     await this.bumpUsageInfo(ctx, workspace, metric, amount)
+
+    // Tokens: nudge the UI to re-read the window whenever the monthly fill crosses a
+    // 5% step, so the indicator stays fresh between the hourly poll.
+    if (metric === 'tokens') {
+      await this.maybeNotifyWindowStep(ctx, workspace, amount, subs)
+    }
+  }
+
+  // Takes the caller's `subs`: resolving the plan again here would mean a second account-service
+  // round trip on every token delta.
+  private async maybeNotifyWindowStep (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    amount: number,
+    subs: Subscription[]
+  ): Promise<void> {
+    try {
+      const limitMonth = tokenWindowLimit(subs)
+      if (limitMonth <= 0) return
+      const pkgs = subs.filter((s) => s.type === SubscriptionType.Package && s.status === SubscriptionStatus.Active)
+      const periodStart = getPeriodStartDate(grantPeriodAnchor(latestGrantingTier(subs)?.periodStart, pkgs))
+      const stats = await this.db.getAiTokensStats(ctx, workspace, periodStart, new Date())
+      const usedNow = stats.map((s) => s.totalTokens).reduce((a, b) => a + b, 0)
+      const balance = await this.db.getTokenBalance(ctx, workspace)
+      // Step over tier + pack, matching the bar the user actually sees.
+      const total = limitMonth + (balance?.remainingTokens ?? 0)
+      const stepNow = Math.floor(Math.min(100, (usedNow / total) * 100) / 5)
+      const stepPrev = Math.floor(Math.min(100, (Math.max(0, usedNow - amount) / total) * 100) / 5)
+      if (stepNow !== stepPrev) {
+        await this.producer.send(ctx, workspace, [
+          workspaceEvents.limitsChanged(SCLimitCategory.Tokens, LimitStatus.Ok)
+        ])
+      }
+    } catch (err: any) {
+      ctx.error('window step notify failed', { workspace, err })
+    }
   }
 
   /** Increment a single usageInfo field on the account (best-effort; the hourly worker rewrites the absolute). */
@@ -165,21 +211,22 @@ export class LimitsEngine {
 
     for (const ws of workspaces) {
       if (isArchivingMode(ws.mode) || isDeletingMode(ws.mode)) continue
-      for (const metric of ['tokens', 'transcript', 'storage', 'meetingMinutes'] as UsageMetric[]) {
-        try {
-          await this.recompute(ctx, ws.uuid, metric)
-        } catch (err: any) {
-          ctx.error('startup scan failed', { workspace: ws.uuid, metric, err })
-        }
+      try {
+        await this.recomputeWorkspace(ctx, ws.uuid)
+      } catch (err: any) {
+        ctx.error('startup scan failed', { workspace: ws.uuid, err })
       }
     }
   }
 
   /** Plan changed: re-evaluate all volume metrics so an upgrade lifts exhausted without a restart. */
   async recomputeWorkspace (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<void> {
+    // Subscriptions cannot change between the four metrics of one pass - fetch them once instead
+    // of paying an account round-trip per metric.
+    const subs = await this.accountClient(workspace).getSubscriptions(workspace, false)
     for (const metric of ['tokens', 'transcript', 'storage', 'meetingMinutes'] as UsageMetric[]) {
       try {
-        await this.recompute(ctx, workspace, metric)
+        await this.recompute(ctx, workspace, metric, subs)
       } catch (err: any) {
         ctx.error('plan recompute failed', { workspace, metric, err })
       }
@@ -187,12 +234,17 @@ export class LimitsEngine {
   }
 
   /** Recompute used vs limit for one metric and publish on exhausted-flag flip. */
-  private async recompute (ctx: MeasureContext, workspace: WorkspaceUuid, metric: UsageMetric): Promise<void> {
+  private async recompute (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    metric: UsageMetric,
+    knownSubs?: Subscription[]
+  ): Promise<void> {
     const category = metricToCategory(metric)
-    const subs = await this.accountClient(workspace).getSubscriptions(workspace, false)
-    const tier = latestGrantingTier(subs)
-    const used = await this.computeUsed(ctx, workspace, metric, tier)
-    const limitValue = getEffectiveLimit(subs, metric)
+    const subs = knownSubs ?? (await this.accountClient(workspace).getSubscriptions(workspace, false))
+    // computeUsed absorbs first, so the limit below already reflects the drained balance.
+    const used = await this.computeUsed(ctx, workspace, metric, subs)
+    const limitValue = await this.effectiveLimit(ctx, workspace, subs, metric)
 
     const nowExhausted = limitValue > 0 && used >= limitValue
     const prev = await this.db.getLimitState(ctx, workspace, category)
@@ -211,7 +263,7 @@ export class LimitsEngine {
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
     metric: UsageMetric,
-    tier: Subscription | undefined
+    subs: Subscription[]
   ): Promise<number> {
     if (metric === 'storage') {
       // storage is absolute, from datalake; ignores billing period
@@ -219,13 +271,21 @@ export class LimitsEngine {
       return stats.size
     }
 
-    const periodStart = getPeriodStartDate(tier?.periodStart)
     const periodEnd = new Date()
+    const tier = latestGrantingTier(subs)
 
     if (metric === 'tokens') {
+      // Same anchor as resolveWorkspacePlan, so limit_state and the token window agree on the period.
+      const pkgs = subs.filter((s) => s.type === SubscriptionType.Package && s.status === SubscriptionStatus.Active)
+      const periodStart = getPeriodStartDate(grantPeriodAnchor(tier?.periodStart, pkgs))
       const stats = await this.db.getAiTokensStats(ctx, workspace, periodStart, periodEnd)
+      // `used` is the full spend and the limit below is grant + pack, so `used >= limit` is still
+      // exactly "nothing left".
+      await this.settlePreviousPeriod(ctx, workspace, periodStart, tokenWindowLimit(subs))
       return stats.map((s) => s.totalTokens).reduce((a, b) => a + b, 0)
     }
+
+    const periodStart = getPeriodStartDate(tier?.periodStart)
     if (metric === 'meetingMinutes') {
       // limit state keeps seconds, matching the delta unit love sends
       const stats = await this.db.getParticipantMinutes(ctx, workspace, periodStart, periodEnd)
@@ -237,8 +297,62 @@ export class LimitsEngine {
     return stats.totalDurationSeconds
   }
 
+  /**
+   * Tier limit widened by the purchased balance: `used` counts only what the balance did not cover,
+   * so `used >= limit` is exactly the "available <= 0" block condition of the two-pool model.
+   */
+  private async effectiveLimit (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    subs: Subscription[],
+    metric: UsageMetric
+  ): Promise<number> {
+    if (metric !== 'tokens') return getEffectiveLimit(subs, metric)
+    // Grant + pack. The AI package's own `tokenLimit` is not added: activating one grants into
+    // `token_balance`, so counting it here again would double it.
+    const base = tokenWindowLimit(subs)
+    if (base === 0) return 0
+    const balance = await this.db.getTokenBalance(ctx, workspace)
+    return base + (balance?.remainingTokens ?? 0)
+  }
+
+  /**
+   * Charges the pack for the period that just ended, once. Within a period nothing is written:
+   * everything a reader needs is derivable from usage, the grant and the pack.
+   *
+   * The overflow is measured against today's grant, not the one in force back then - a mid-period
+   * seat change therefore undercharges slightly. Deliberate: it errs in the customer's favour and
+   * saves storing a per-period limit.
+   */
+  private async settlePreviousPeriod (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    periodStart: Date,
+    limitMonth: number
+  ): Promise<void> {
+    const balance = await this.db.getTokenBalance(ctx, workspace)
+    if (balance === undefined) return
+
+    const prevStart = new Date(balance.periodStart)
+    // `period_start` doubles as the idempotency marker: equal means this period is already settled.
+    if (prevStart.getTime() >= periodStart.getTime()) return
+
+    const stats = await this.db.getAiTokensStats(ctx, workspace, prevStart, periodStart)
+    const prevUsage = stats.map((s) => s.totalTokens).reduce((a, b) => a + b, 0)
+    const charge = packCharge(prevUsage, limitMonth, balance.remainingTokens)
+
+    ctx.info('settling token pack for the finished period', { workspace, prevUsage, limitMonth, charge })
+    // The write itself re-checks that period_start is still behind: a concurrent settle (or a retry
+    // of a committed one) loses the race and skips instead of charging twice, and the decrement is
+    // relative so a concurrent grantAiTokens cannot be lost.
+    const settled = await this.db.settleTokenBalance(ctx, workspace, charge, null, charge, periodStart.toISOString())
+    if (!settled) {
+      ctx.info('token pack period already settled, skipping', { workspace })
+    }
+  }
+
   private accountClient (workspace: WorkspaceUuid | undefined): AccountClient {
-    const token = generateToken(systemAccountUuid, workspace, { service: 'billing', admin: 'true' })
+    const token = generateToken(systemAccountUuid, workspace, { service: 'billing' })
     return getClient(this.accountsUrl, token)
   }
 }
@@ -272,8 +386,19 @@ function latestGrantingTier (subs: Subscription[]): Subscription | undefined {
 
 // One place resolving the effective plan: the latest granting tier uses its own limits; otherwise
 // (no tier, expired trial, unpaid) fall back to the free limits baked into the latest tier.
-function resolveTierLimits (subs: Subscription[]): TierLimits | undefined {
+export function resolveTierLimits (subs: Subscription[]): TierLimits | undefined {
   return latestGrantingTier(subs)?.limits ?? latestTier(subs)?.freeLimits ?? undefined
+}
+
+/**
+ * The monthly AI grant. Deliberately `windowMonthLimit` and not `tokenLimit`: payment bakes the
+ * per-seat grant into the former (`resolveLimits`), while plans leave `tokenLimit` at 0 - reading
+ * it here made the limit look unlimited and silently disabled token enforcement on per-seat plans.
+ * The token window in `handleGetWorkspaceTokenWindows` has always used this field, so this is also
+ * what the user sees.
+ */
+export function tokenWindowLimit (subs: Subscription[]): number {
+  return resolveTierLimits(subs)?.windowMonthLimit ?? billingConfig.WindowMonthLimit
 }
 
 function getLimitValue (limits: TierLimits | undefined, metric: UsageMetric): number {
@@ -295,9 +420,30 @@ function getEffectiveLimit (subs: Subscription[], metric: UsageMetric): number {
   return base + getLimitValue(pkg?.limits, metric)
 }
 
-function getPeriodStartDate (periodStart: number | undefined): Date {
-  if (periodStart !== undefined) return new Date(periodStart)
+/**
+ * Start of the usage window, floored to the hour to match hourly usage buckets. UTC, like the
+ * buckets themselves: a local floor drifts by half an hour in zones such as Asia/Kolkata.
+ */
+export function getPeriodStartDate (periodStart: number | undefined): Date {
+  if (periodStart !== undefined) {
+    const start = new Date(periodStart)
+    start.setUTCMinutes(0, 0, 0)
+    return start
+  }
   const date = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  date.setHours(0, 0, 0, 0)
+  date.setUTCHours(0, 0, 0, 0)
   return date
+}
+
+// Anchor of the AI grant period: the earliest active AI-token package start when there is one, so the
+// package quota and the tier window top up on the same date. Falls back to the tier start.
+export function grantPeriodAnchor (
+  tierStart: number | undefined,
+  packages: Array<Pick<Subscription, 'periodStart' | 'limits'>>
+): number | undefined {
+  const aiStarts = packages
+    .filter((p) => (p.limits?.tokenLimit ?? 0) > 0)
+    .map((p) => p.periodStart)
+    .filter((s): s is number => s !== undefined)
+  return aiStarts.length > 0 ? Math.min(...aiStarts) : tierStart
 }

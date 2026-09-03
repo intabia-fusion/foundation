@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { getSecondPage, PlatformSetting, PlatformURI } from '../utils'
 import { NavigationMenuPage } from '../model/recruiting/navigation-menu-page'
 import { ApplicationsPage } from '../model/recruiting/applications-page'

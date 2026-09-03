@@ -40,7 +40,6 @@ import { getTableCellWidgetDecorationPos, getTableWidthPx } from './utils'
 
 interface TableColumnHandlerDecorationPluginState {
   decorations?: DecorationSet
-  debounceTimeout?: ReturnType<typeof setTimeout>
 }
 
 export const TableColumnHandlerDecorationPlugin = (editor: Editor): Plugin<TableColumnHandlerDecorationPluginState> => {
@@ -54,34 +53,12 @@ export const TableColumnHandlerDecorationPlugin = (editor: Editor): Plugin<Table
       apply (tr, prev, oldState, newState) {
         const table = findTable(newState.selection)
 
-        if (table === undefined && prev.debounceTimeout !== undefined) {
-          clearTimeout(prev.debounceTimeout)
-          return {}
-        }
-
         if (!haveTableRelatedChanges(editor, table, oldState, newState, tr)) {
           return table !== undefined ? prev : {}
         }
 
         const cache = TableCachePluginKey.getState(newState)
         const tableMap = cache?.tableMap ?? TableMap.get(table.node)
-
-        if (tr.docChanged && tr.steps.length === 1 && !(newState.selection instanceof CellSelection)) {
-          if (prev.debounceTimeout !== undefined) {
-            clearTimeout(prev.debounceTimeout)
-          }
-
-          const debounceTimeout = setTimeout(() => {
-            editor.view.updateState(editor.state)
-          }, 100)
-
-          const mapped = prev.decorations?.map(tr.mapping, tr.doc)
-          return { decorations: mapped, debounceTimeout }
-        }
-
-        if (prev.debounceTimeout !== undefined) {
-          clearTimeout(prev.debounceTimeout)
-        }
 
         let isStale = false
         const mapped = prev.decorations?.map(tr.mapping, tr.doc)
@@ -112,15 +89,7 @@ export const TableColumnHandlerDecorationPlugin = (editor: Editor): Plugin<Table
       decorations (state) {
         return key.getState(state).decorations
       }
-    },
-    view: () => ({
-      destroy: () => {
-        const state = key.getState(editor.state)
-        if (state?.debounceTimeout !== undefined) {
-          clearTimeout(state.debounceTimeout)
-        }
-      }
-    })
+    }
   })
 }
 

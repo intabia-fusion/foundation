@@ -1,5 +1,5 @@
-import { test } from '@playwright/test'
-import { PlatformSetting, PlatformURI, uploadFile } from '../utils'
+import { test } from '../fixtures'
+import { generateId, PlatformSetting, PlatformURI, uploadFile } from '../utils'
 import { Drive } from '../model/drive/types'
 import { faker } from '@faker-js/faker'
 import { DriveLeftMenu } from '../model/drive/drive-left-menu'
@@ -24,7 +24,9 @@ test.describe('Drive tests', () => {
     drivesPage = new DrivesPage(page)
     filesPage = new DriveFilesPage(page)
     drive = {
-      name: faker.word.noun()
+      // A bare noun collides with drives left by earlier runs and by parallel workers, and the row
+      // is looked up by an accessible name that matches on substring.
+      name: `${faker.word.noun()}-${generateId(5)}`
     }
     await (await page.goto(`${PlatformURI}/workbench/sanity-ws/drive`))?.finished()
     await leftMenu.clickCreateNewDrive()
@@ -37,14 +39,14 @@ test.describe('Drive tests', () => {
   })
 
   test('Create new folder, check if folder exists in drive tree', async () => {
-    const folder = faker.word.noun()
+    const folder = `${faker.word.noun()}-${generateId(5)}`
     await drivesPage.createFolder(drive, folder)
     await leftMenu.checkFolderExists(drive, folder)
   })
 
   test('Edit drive, rename drive, check if it was renamed', async () => {
     const newDrive: Drive = {
-      name: faker.word.noun()
+      name: `${faker.word.noun()}-${generateId(5)}`
     }
     await drivesPage.clickEditDrive(drive)
     await popupDrive.createOrEditDrive(newDrive)

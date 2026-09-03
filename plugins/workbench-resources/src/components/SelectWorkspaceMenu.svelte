@@ -13,28 +13,22 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact from '@hcengineering/contact'
   import {
-    getCurrentAccount,
     isArchivingMode,
-    SortingOrder,
     systemAccountUuid,
     WorkspaceInfoWithStatus
   } from '@hcengineering/core'
   import login from '@hcengineering/login'
-  import { getMetadata, getResource } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import presentation, {
+    canLeaveWorkspace,
     createQuery,
-    decodeTokenPayload,
     hasResource,
-    isAdminUser,
     getCurrentWorkspaceUuid
   } from '@hcengineering/presentation'
   import {
     closePopup,
-    fetchMetadataLocalStorage,
     getCurrentLocation,
-    Icon,
     IconCheck,
     isSameSegments,
     Label,
@@ -44,12 +38,10 @@
     locationToUrl,
     navigate,
     resolvedLocationStore,
-    SearchEdit,
-    ticker
+    SearchEdit
   } from '@hcengineering/ui'
   import { workbenchId } from '@hcengineering/workbench'
-  import { onDestroy, onMount } from 'svelte'
-  import { Analytics } from '@hcengineering/analytics'
+  import { onMount } from 'svelte'
   import type { PersonRating } from '@hcengineering/rating'
   import ratingPlugin from '@hcengineering/rating'
 
@@ -85,9 +77,12 @@
   async function clickHandler (e: MouseEvent, wsUrl: string): Promise<void> {
     if (!e.metaKey && !e.ctrlKey) {
       e.preventDefault()
-      closePopup()
-      closePopup()
       const current = getCurrentLocation()
+      if (wsUrl !== current.path[1]) {
+        if (!(await canLeaveWorkspace())) return
+      }
+      closePopup()
+      closePopup()
       if (wsUrl !== current.path[1]) {
         let last: Location | undefined
         try {
@@ -133,41 +128,10 @@
     }
   }
 
-  $: isAdmin = isAdminUser()
-
   let search: string = ''
 
-  const _endpoint: string = fetchMetadataLocalStorage(login.metadata.LoginEndpoint) ?? ''
-  const token: string = getMetadata(presentation.metadata.Token) ?? ''
-
-  let endpoint = 'http://huly.local:8080'
-  if (endpoint.endsWith('/')) {
-    endpoint = endpoint.substring(0, endpoint.length - 1)
-  }
-
-  let data: any
-  onDestroy(
-    ticker.subscribe(() => {
-      void fetch(endpoint + `/api/v1/statistics?token=${token}`, {})
-        .then(async (json) => {
-          data = await json.json()
-        })
-        .catch((err: any) => {
-          Analytics.handleError(err)
-        })
-    })
-  )
-
-  $: activeSessions =
-    (data?.statistics?.activeSessions as Record<
-    string,
-    Array<{
-      userId: string
-      data?: Record<string, any>
-    }>
-    >) ?? {}
-
   $: workspacesNotification = $crossWorkspaceNotificationStore
+
   $: sortedWorkspaces = $workspacesStore
     .filter((it) => search === '' || (it.name?.includes(search) ?? false) || it.url.includes(search))
     .sort((a, b) => {
@@ -202,28 +166,15 @@
     <!--      {/if}-->
     <!--    </div>-->
 
-    {#if isAdmin}
+    {#if $workspacesStore.length > 8}
       <div class="p-2 ml-2 mr-2 mb-2 flex-grow flex-row-center">
         <SearchEdit bind:value={search} width={'100%'} />
-        {#if isAdminUser()}
-          <div class="p-1">
-            {#if $workspacesStore.length > 500}
-              500 /
-            {/if}
-            {$workspacesStore.length}
-          </div>
-        {/if}
-      </div>
-      <div class="p-2 ml-2 mb-4 select-text flex-col bordered">
-        {decodeTokenPayload(getMetadata(presentation.metadata.Token) ?? '').workspace ?? ''}
       </div>
     {/if}
     <div class="ap-scroll">
       <div class="ap-box">
         {#each sortedWorkspaces as ws, i}
           {@const wsName = ws.name ?? ws.url}
-          {@const _activeSession = activeSessions[ws.uuid]}
-          {@const lastUsageDays = Math.round((Date.now() - (ws.lastVisit ?? 0)) / (1000 * 3600 * 24))}
           <a
             class="stealth"
             href={getWorkspaceLink(ws)}
@@ -234,7 +185,6 @@
             <button
               bind:this={btns[i]}
               class="ap-menuItem flex-row-center flex-grow"
-              class:active={isAdmin && (_activeSession?.length ?? 0) > 0}
               class:hover={btns[i] === activeElement}
               on:mousemove={() => {
                 focusTarget(btns[i])
@@ -250,43 +200,8 @@
                     {#if isArchivingMode(ws.mode)}
                       - <Label label={presentation.string.Archived} />
                     {/if}
-                    {#if isAdmin}
-                      {#if ws.region != null && ws.region !== ''}
-                        - ({ws.region})
-                      {/if}
-                    {/if}
-                    {#if isAdmin && ws.lastVisit != null && ws.lastVisit !== 0}
-                      <div class="text-sm">
-                        {#if ws.backupInfo != null}
-                          {@const sz = Math.max(
-                            ws.backupInfo.backupSize,
-                            ws.backupInfo.dataSize + ws.backupInfo.blobsSize
-                          )}
-                          {@const szGb = Math.round((sz * 100) / 1024) / 100}
-                          {#if szGb > 0}
-                            {Math.round((sz * 100) / 1024) / 100}Gb -
-                          {:else}
-                            {Math.round(sz)}Mb -
-                          {/if}
-                        {/if}
-                        ({lastUsageDays} days)
-                      </div>
-                    {/if}
                   </span>
                 </div>
-                {#if isAdmin && wsName !== ws.url}
-                  <span class="text-xs">
-                    ({ws.url})
-                  </span>
-                {/if}
-                {#if isAdmin && (_activeSession?.length ?? 0) > 0}
-                  <span class="text-xs flex-row-center">
-                    <div class="mr-1">
-                      <Icon icon={contact.icon.Person} size={'x-small'} />
-                    </div>
-                    {_activeSession?.length ?? 0}
-                  </span>
-                {/if}
               </div>
               <!-- <span class="description overflow-label">Description</span> -->
               <!-- </div> -->

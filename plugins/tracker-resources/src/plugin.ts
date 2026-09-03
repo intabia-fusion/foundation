@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -12,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import { type StatusCategory, type Client, type Doc, type Ref, type Space } from '@hcengineering/core'
+import { type Status, type StatusCategory, type Client, type Doc, type Ref, type Space } from '@hcengineering/core'
 import type { Asset, IntlString, Metadata, Resource } from '@hcengineering/platform'
 import { mergeIds } from '@hcengineering/platform'
 import type { ObjectSearchCategory, ObjectSearchFactory } from '@hcengineering/presentation/src/types'
@@ -20,6 +21,7 @@ import { type ProjectType, type TaskType } from '@hcengineering/task'
 import tracker, { trackerId, type IssueDraft, type Issue } from '@hcengineering/tracker'
 import { type AnyComponent, type ComponentExtensionId, type Location } from '@hcengineering/ui/src/types'
 import {
+  type AttributeApplierFn,
   type CreateAggregationManagerFunc,
   type GetAllValuesFunc,
   type GrouppingManagerResource,
@@ -47,6 +49,7 @@ export default mergeIds(trackerId, tracker, {
     IssueCategory: '' as Ref<ObjectSearchCategory>
   },
   string: {
+    ClassicProject: '' as IntlString,
     More: '' as IntlString,
     Delete: '' as IntlString,
     Open: '' as IntlString,
@@ -97,6 +100,8 @@ export default mergeIds(trackerId, tracker, {
     SelectIssue: '' as IntlString,
     SelectProject: '' as IntlString,
     SaveIssue: '' as IntlString,
+    CreateAndOpen: '' as IntlString,
+    CreateAndNew: '' as IntlString,
     Todo: '' as IntlString,
     Done: '' as IntlString,
     SetPriority: '' as IntlString,
@@ -112,10 +117,12 @@ export default mergeIds(trackerId, tracker, {
     DefaultIssueStatus: '' as IntlString,
     IssueStatus: '' as IntlString,
     EditWorkflowStatuses: '' as IntlString,
+    Configured: '' as IntlString,
     EditProject: '' as IntlString,
     DeleteProject: '' as IntlString,
     DeleteIssue: '' as IntlString,
     DeleteIssueConfirm: '' as IntlString,
+    DeleteIssueWithSubIssuesConfirm: '' as IntlString,
     ArchiveProjectName: '' as IntlString,
     ArchiveProjectConfirm: '' as IntlString,
     DeleteProjectConfirm: '' as IntlString,
@@ -147,6 +154,8 @@ export default mergeIds(trackerId, tracker, {
     ChangeParent: '' as IntlString,
     RemoveParent: '' as IntlString,
     OpenParent: '' as IntlString,
+    ParentNotApplicable: '' as IntlString,
+    NoParentIssuesExist: '' as IntlString,
     OpenSubIssues: '' as IntlString,
     AddSubIssues: '' as IntlString,
     AddExistingSubIssue: '' as IntlString,
@@ -280,6 +289,7 @@ export default mergeIds(trackerId, tracker, {
     TimeSpendReportValue: '' as IntlString,
     TimeSpendReportDescription: '' as IntlString,
     TimeSpendDays: '' as IntlString,
+    DurationParseError: '' as IntlString,
     TimeSpendMinutes: '' as IntlString,
     TimeRangeWeek: '' as IntlString,
     TimeRangeTwoWeeks: '' as IntlString,
@@ -321,7 +331,12 @@ export default mergeIds(trackerId, tracker, {
     UnsetParent: '' as IntlString,
     PreviousAssigned: '' as IntlString,
     EditRelatedTargets: '' as IntlString,
-    RelatedIssueTargetDescription: '' as IntlString
+    RelatedIssueTargetDescription: '' as IntlString,
+    ClassicIssue: '' as IntlString,
+    ClassicIssues: '' as IntlString,
+    Parent: '' as IntlString,
+    ExportToCSV: '' as IntlString,
+    ExportToCSVTooltip: '' as IntlString
   },
   component: {
     NopeComponent: '' as AnyComponent,
@@ -391,6 +406,7 @@ export default mergeIds(trackerId, tracker, {
     IssueStatusIcon: '' as AnyComponent,
     MilestoneStatusIcon: '' as AnyComponent,
     ParentIssuePresenter: '' as AnyComponent,
+    ParentIssueSelector: '' as AnyComponent,
     RemoveRelationButton: '' as AnyComponent
   },
   extensions: {
@@ -421,9 +437,11 @@ export default mergeIds(trackerId, tracker, {
     IsProjectJoined: '' as Resource<(space: Space) => Promise<boolean>>,
     IssueChatTitleProvider: '' as Resource<(object: Doc) => string>,
     GetIssueStatusCategories: '' as Resource<(project: ProjectType) => Array<Ref<StatusCategory>>>,
+    GetIssueDefaultStatuses: '' as Resource<(project: ProjectType) => Array<Ref<Status>>>,
     GetIssueIdByIdentifier: '' as Resource<(id: string) => Promise<Ref<Issue> | undefined>>,
     OpenIssuesOfTaskType: '' as Resource<(taskType: TaskType) => Promise<void>>,
-    FormatIssueMarkdownValue: '' as Resource<ValueFormatter>
+    FormatIssueMarkdownValue: '' as Resource<ValueFormatter>,
+    ReportedTimeApplier: '' as Resource<AttributeApplierFn>
   },
   aggregation: {
     CreateComponentAggregationManager: '' as CreateAggregationManagerFunc,

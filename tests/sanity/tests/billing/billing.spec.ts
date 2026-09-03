@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../fixtures'
 import { generateToken } from '@hcengineering/server-token'
 import { systemAccountUuid } from '@hcengineering/core'
 import { ApiEndpoint } from '../API/Api'

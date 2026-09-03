@@ -16,15 +16,19 @@
   import { type PlanItem, type PackageItem } from '@hcengineering/billing'
   import { UsageStatus } from '@hcengineering/core'
   import type { SubscriptionData } from '@hcengineering/account-client'
+  import type { WorkspaceTokenWindows } from '@hcengineering/billing-client'
   import UsageSection from './UsageSection.svelte'
+  import TokenWindows from './TokenWindows.svelte'
 
   export let usage: UsageStatus
   export let plan: PlanItem | undefined
   export let pkg: PackageItem | undefined = undefined
   export let tierSub: SubscriptionData | undefined = undefined
   export let pkgSub: SubscriptionData | undefined = undefined
+  export let windows: WorkspaceTokenWindows | undefined = undefined
 </script>
 
 <div class="p-2">
-  <UsageSection {usage} {plan} {pkg} {tierSub} {pkgSub} />
+  <UsageSection {usage} {plan} {pkg} {tierSub} {pkgSub} compact />
+  <TokenWindows {windows} />
 </div>

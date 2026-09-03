@@ -26,7 +26,9 @@ import config from './config'
 import { registerLoaders } from './loaders'
 import { createTranscriptionProvider, TranscriptionConfig, TranscriptionOptions } from './transcription'
 import { ClisrClient, createCallbackClient } from '@intabiafusion/clisr'
-import { createLLMFromConfig, type LLMRequest } from './llms'
+import { createDefaultProvider, createProvidersFromRegistry, type LLMProvider, type LLMRequest } from './llms'
+import { resolveModel } from './llms/modelRegistry'
+import { resolveTranscriptionConfig } from './transcription/asrRegistry'
 
 export const startClient = async (): Promise<void> => {
   setMetadata(serverToken.metadata.Secret, config.ServerSecret)
@@ -51,14 +53,15 @@ export const startClient = async (): Promise<void> => {
   })
   ctx.info('AI Bot Client Service started', { firstName: config.FirstName, lastName: config.LastName })
 
-  const transcriptionConfig: TranscriptionConfig = {
-    provider: config.SttProvider,
-    url: config.SttUrl,
-    apiKey: config.SttApiKey,
-    model: config.SttModel,
-    vadRmsThreshold: config.VadRmsThreshold,
-    vadSpeechRatioThreshold: config.VadSpeechRatioThreshold
-  }
+  // STT_PROVIDER=none opts a worker out of ASR even when the shared registry yaml has an `asr:`
+  // block (e.g. an LLM-only worker mounts the same config but must not register transcription).
+  const asrDisabled = config.SttProvider === 'none'
+  const transcriptionConfig: TranscriptionConfig = asrDisabled
+    ? { provider: '' }
+    : resolveTranscriptionConfig(config.AsrProviders, config.AsrDefaultLevel, {
+      vadRmsThreshold: config.VadRmsThreshold,
+      vadSpeechRatioThreshold: config.VadSpeechRatioThreshold
+    })
 
   ctx.info('Transcription config', {
     provider: transcriptionConfig.provider,
@@ -72,8 +75,24 @@ export const startClient = async (): Promise<void> => {
   let transcriptionEnabled = false
   let llmEnabled = false
 
-  // Create LLM provider for client mode
-  const llmProvider = createLLMFromConfig(ctx)
+  // LLM_PROVIDER=none opts a worker out of LLM even when the shared registry yaml has an `llm:` block.
+  const providers = config.LLMProvider === 'none' ? new Map<string, LLMProvider>() : createProvidersFromRegistry(ctx)
+  const llmProvider = config.LLMProvider === 'none' ? undefined : createDefaultProvider(ctx, undefined, providers)
+  // The provider serving the request's level; the default level's one when nobody serves it.
+  function providerFor (level?: string): LLMProvider | undefined {
+    const cfg = config.AIProviders.find((c) => c.levels[level ?? config.DefaultLevel] !== undefined)
+    return (cfg !== undefined ? providers.get(cfg.id) : undefined) ?? llmProvider
+  }
+
+  // Resolve the concrete endpoint + model this client serves a request with (for logging).
+  function resolveTarget (level?: string): { endpoint: string, model: string } {
+    try {
+      const resolved = resolveModel(level ?? config.DefaultLevel, config.AIProviders)
+      return { endpoint: resolved.provider.endpoint ?? config.OpenAIBaseUrl ?? '', model: resolved.model.model }
+    } catch {
+      return { endpoint: config.OpenAIBaseUrl ?? '', model: '' }
+    }
+  }
 
   // Build LLM request handler
   async function handleLLMRequest (ctx: MeasureContext, args: any[]): Promise<any> {
@@ -81,6 +100,67 @@ export const startClient = async (): Promise<void> => {
       throw new Error('LLM provider is not configured')
     }
     const request = args[0] as LLMRequest
+    const level: string | undefined = (request as any).level
+    const target = resolveTarget(level)
+    const startTime = Date.now()
+    ctx.info('LLM client request -> server', {
+      method: request.method,
+      level: level ?? config.DefaultLevel,
+      endpoint: target.endpoint,
+      model: target.model,
+      workspace: (request as any).workspace
+    })
+    if (config.LLMDebug) {
+      const r = request as any
+      ctx.info('LLM debug request payload', {
+        method: request.method,
+        message: r.message,
+        history: r.history,
+        toolDefinitions: r.toolDefinitions,
+        priorToolResults: r.priorToolResults,
+        sharedPrompt: r.sharedPrompt,
+        personalContext: r.personalContext
+      })
+    }
+    try {
+      const result = await dispatchLLMRequest(ctx, request, level)
+      // Tag tool-loop steps with this worker's id so the router can attribute usage per client.
+      if (config.ClientId !== '' && request.method === 'createChatCompletionWithTools' && result != null) {
+        result.clientId = config.ClientId
+      }
+      const usage = result?.usage
+      ctx.info('LLM client request <- server done', {
+        method: request.method,
+        model: target.model,
+        elapsedMs: Date.now() - startTime,
+        promptTokens: usage?.promptTokens,
+        completionTokens: usage?.completionTokens
+      })
+      if (config.LLMDebug) {
+        ctx.info('LLM debug response payload', {
+          method: request.method,
+          content: result?.content ?? result?.completion,
+          toolCalls: result?.toolCalls,
+          result: result?.toolCalls === undefined && result?.content === undefined ? result : undefined
+        })
+      }
+      return result
+    } catch (err: any) {
+      ctx.error('LLM client request failed', {
+        method: request.method,
+        model: target.model,
+        elapsedMs: Date.now() - startTime,
+        error: err?.message
+      })
+      throw err
+    }
+  }
+
+  async function dispatchLLMRequest (ctx: MeasureContext, request: LLMRequest, level?: string): Promise<any> {
+    const llmProvider = providerFor(level)
+    if (llmProvider === undefined) {
+      throw new Error('LLM provider is not configured')
+    }
     switch (request.method) {
       case 'translateHtml':
         return await llmProvider.translateHtml(ctx, request.workspace, request.html, request.lang)
@@ -90,36 +170,47 @@ export const startClient = async (): Promise<void> => {
           request.workspace,
           request.messages,
           request.lang,
-          request.description
+          request.description,
+          request.level
         )
-      case 'createChatCompletion':
-        return await llmProvider.createChatCompletion(
-          ctx,
-          request.workspace,
-          request.message,
-          request.user,
-          request.history,
-          request.skipCache,
-          request.reason
-        )
-      case 'createChatCompletionWithTools':
-        // Tools are not fully serializable, pass empty tools array
+      case 'createChatCompletionWithTools': {
+        // Runs one model step, returning tool_calls or a final completion; falls back
+        // to a tool-less completion for providers without chatToolStep.
+        if (llmProvider.chatToolStep !== undefined) {
+          return await llmProvider.chatToolStep(
+            ctx,
+            request.workspace,
+            request.message,
+            request.contextMode,
+            request.sharedPrompt,
+            request.personalContext,
+            request.user,
+            request.toolDefinitions ?? [],
+            request.priorToolResults ?? [],
+            request.history,
+            request.skipCache,
+            request.reason,
+            request.level,
+            request.lang,
+            request.continueFrom
+          )
+        }
         return await llmProvider.createChatCompletionWithTools(
           [] as any,
           request.message,
           request.contextMode,
-          request.assistantMemory,
-          request.userMemory,
-          request.sharedContext,
+          request.sharedPrompt,
+          request.personalContext,
           request.user,
           ctx,
           request.workspace,
           request.history,
           request.skipCache,
-          request.reason
+          request.reason,
+          request.level,
+          request.lang
         )
-      case 'requestSummary':
-        return await llmProvider.requestSummary(ctx, request.workspace, request.personMemory, request.history)
+      }
       case 'countTokens':
         return llmProvider.countTokens(request.messages)
       default:
@@ -144,7 +235,7 @@ export const startClient = async (): Promise<void> => {
     },
     onConnect: async (event) => {
       if (transcriptionEnabled) {
-        await client.request('transcription', [true])
+        await client.request('transcription', [true, config.SttCapacity])
       }
       if (llmEnabled) {
         await client.request('llm', [true])
@@ -166,11 +257,16 @@ export const startClient = async (): Promise<void> => {
       methods.transcribe = async (ctx, method, data, headers) => {
         const options: TranscriptionOptions = headers?.options ?? {}
         // OGG/Opus audio format - pass directly to provider
-        return await provider.transcribe(Buffer.from(data), options)
+        const result = await provider.transcribe(Buffer.from(data), options)
+        // Tag with this worker's id so the router can attribute transcription usage per client.
+        if (config.ClientId !== '') {
+          result.clientId = config.ClientId
+        }
+        return result
       }
       transcriptionEnabled = true
       // Inform aibot client is enabled for transcriptions
-      await client.request('transcription', [true])
+      await client.request('transcription', [true, config.SttCapacity])
     } catch (err: any) {
       ctx.warn('Failed to create transcription provider', { error: err.message })
     }

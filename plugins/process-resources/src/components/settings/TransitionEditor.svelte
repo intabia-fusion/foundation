@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -32,7 +33,7 @@
     showPopup
   } from '@hcengineering/ui'
   import view from '@hcengineering/view-resources/src/plugin'
-  import { createEventDispatcher } from 'svelte'
+  import { createEventDispatcher, onDestroy } from 'svelte'
   import plugin from '../../plugin'
   import { initState } from '../../utils'
   import ActionPresenter from './ActionPresenter.svelte'
@@ -142,6 +143,10 @@
     if (value === undefined) return
     await client.update(value, { actions: value.actions })
   }
+
+  onDestroy(() => {
+    clearSettingsStore()
+  })
 </script>
 
 <div class="hulyComponent-content__container columns">

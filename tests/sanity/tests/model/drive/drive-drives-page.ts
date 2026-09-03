@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { ButtonDrivesContextMenu, Drive } from './types'
 import { CommonPage } from '../common-page'
+import { retryIntervals } from '../../retry'
 
 export class DrivesPage extends CommonPage {
   page: Page
@@ -45,8 +46,16 @@ export class DrivesPage extends CommonPage {
   }
 
   async clickButtonDriveContextMenu (drive: Drive, buttonText: ButtonDrivesContextMenu): Promise<void> {
-    await this.cellDriveName(drive.name).click({ button: 'right' })
-    await this.buttonContextMenu(buttonText).click()
+    const item = this.buttonContextMenu(buttonText)
+    // The right click can land while the table is still rendering and open nothing at all, and then
+    // the click below waits out the whole test timeout instead of trying again.
+    await expect(async () => {
+      if ((await item.count()) === 0) {
+        await this.cellDriveName(drive.name).click({ button: 'right' })
+      }
+      await expect(item).toBeVisible({ timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+    await item.click()
   }
 
   async createFolder (drive: Drive, folderName: string): Promise<void> {
@@ -59,16 +68,28 @@ export class DrivesPage extends CommonPage {
     await this.clickButtonDriveContextMenu(drive, 'Edit drive')
   }
 
+  // The context menu can close without applying (a right click landing during a table re-render),
+  // leaving the drive in its old state. Check the resulting status and redo only if it did not move.
   async archiveDrive (drive: Drive): Promise<void> {
-    await this.clickButtonDriveContextMenu(drive, 'Archive')
-    await this.popupSubmitButton().click()
-    await this.popupArchive().waitFor({ state: 'detached' })
+    const archived = this.cellArchiveStatusYes(drive.name)
+    await expect(async () => {
+      if (await archived.isVisible()) return
+      await this.clickButtonDriveContextMenu(drive, 'Archive')
+      await this.popupSubmitButton().click()
+      await this.popupArchive().waitFor({ state: 'detached' })
+      await expect(archived).toBeVisible({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
   }
 
   async unarchiveDrive (drive: Drive): Promise<void> {
-    await this.clickButtonDriveContextMenu(drive, 'Unarchive')
-    await this.popupSubmitButton().click()
-    await this.popupArchive().waitFor({ state: 'detached' })
+    const archived = this.cellArchiveStatusYes(drive.name)
+    await expect(async () => {
+      if (!(await archived.isVisible())) return
+      await this.clickButtonDriveContextMenu(drive, 'Unarchive')
+      await this.popupSubmitButton().click()
+      await this.popupArchive().waitFor({ state: 'detached' })
+      await expect(archived).toBeHidden({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
   }
 
   async disableHideArchived (): Promise<void> {

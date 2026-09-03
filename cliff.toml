@@ -24,7 +24,7 @@ body = """
       {% for commit in commits %}\
         · {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
-            {{ commit.message | trim | upper_first }} \
+            {{ commit.message | split(pat="\n") | first | trim | upper_first }} \
     {% endfor %}
 {% endfor %}\n
 """
@@ -43,7 +43,7 @@ postprocessors = [
 # parse the commits based on https://www.conventionalcommits.org
 conventional_commits = true
 # filter out the commits that are not conventional
-filter_unconventional = true
+filter_unconventional = false
 # process each line of a commit as an individual commit
 split_commits = false
 # regex for preprocessing the commit messages
@@ -71,6 +71,9 @@ commit_preprocessors = [
    { pattern = '^Navigate ', replace = "feat: " },
    { pattern = '^Clear ', replace = "fix: " },
    { pattern = '^Do not ', replace = "fix: " },
+   # Keep ticket id in message instead of parsing it as a conventional type
+   { pattern = '(?i)^fusio-([0-9]+):\s*', replace = "FUSIO-${1} " },
+   { pattern = '(?i)^fusion-([0-9]+):\s*', replace = "FUSION-${1} " },
    # Link issue numbers
    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/hcengineering/platform/issues/${2}))"},
    { pattern = "Merge pull request #([0-9]+) from [^ ]+", replace = "PR [#${1}](https://github.com/hcengineering/platform/pull/${1}):"},
@@ -95,6 +98,8 @@ commit_parsers = [
   { message = "^chore|^ci", group = "<!-- 7 -->⚙️ Miscellaneous Tasks" },
   { body = ".*security", group = "<!-- 8 -->🛡️ Security" },
   { message = "^revert", group = "<!-- 9 -->◀️ Revert" },
+  { message = "^PR \\[#", skip = true },
+  { message = ".*", group = "<!-- 10 -->🧩 Other" },
 ]
 # protect breaking changes from being skipped due to matching a skipping commit_parser
 protect_breaking_commits = false

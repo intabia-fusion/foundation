@@ -14,7 +14,14 @@
 -->
 <script lang="ts">
   import { EditBox, ModernButton } from '@hcengineering/ui'
-  import { Room, isOffice, MeetingStatus, type ParticipantInfo } from '@hcengineering/love'
+  import {
+    Room,
+    isOffice,
+    MeetingStatus,
+    isScheduledJoinable,
+    type MeetingMinutes,
+    type ParticipantInfo
+  } from '@hcengineering/love'
   import { createEventDispatcher, onMount } from 'svelte'
   import { getMetadata, IntlString } from '@hcengineering/platform'
   import presentation from '@hcengineering/presentation'
@@ -23,7 +30,15 @@
 
   import love from '../plugin'
   import { getRoomName } from '../utils'
-  import { infos, myOffice, currentRoom, meetings, myConnectingSessionId, aiBotPerson } from '../stores'
+  import {
+    infos,
+    myOffice,
+    currentRoom,
+    meetings,
+    myConnectingSessionId,
+    aiBotPerson,
+    connectingToMeeting
+  } from '../stores'
   import { lkSessionConnected } from '../liveKitClient'
   import { createMeeting, joinMeeting } from '../meetings'
   import { get } from 'svelte/store'
@@ -46,12 +61,28 @@
     dispatch('open', { ignoreKeys: ['name'] })
   })
 
+  // The store holds everything but Finished, unordered, so a plain find could pick next week's
+  // Scheduled meeting. Live ones win; a Scheduled one only inside its start window.
+  function pickRoomMeeting (roomId: Ref<Room>, all: MeetingMinutes[]): MeetingMinutes | undefined {
+    const ofRoom = all.filter((it) => it.roomId === roomId)
+    return (
+      ofRoom.find((it) => it.status === MeetingStatus.Active) ??
+      ofRoom.find((it) => it.status === MeetingStatus.Pending) ??
+      ofRoom.find((it) => isScheduledJoinable(it))
+    )
+  }
+
   async function connect (): Promise<void> {
-    const mm = get(meetings).find((it) => it.roomId === object._id)
+    if ($connectingToMeeting) return
+    const mm = pickRoomMeeting(object._id, get(meetings))
     if (mm !== undefined) {
       await joinMeeting(mm)
-    } else {
-      await createMeeting(object)
+      return
+    }
+    const outcome = await createMeeting(object)
+    // Someone is inside a meeting we cannot see - knocking is the only way in.
+    if ('refused' in outcome && outcome.refused === 'room-occupied') {
+      await knock()
     }
   }
 
@@ -76,7 +107,7 @@
   $: currentSessionId = getMetadata(presentation.metadata.SessionId)
   $: hasPendingJoinInThisSession = $myConnectingSessionId !== null && $myConnectingSessionId === currentSessionId
 
-  $: void updateConnecting(object, $infos, hasPendingJoinInThisSession)
+  $: void updateConnecting(object, $infos, hasPendingJoinInThisSession || $connectingToMeeting)
 
   function showConnectionButton (
     object: Room,

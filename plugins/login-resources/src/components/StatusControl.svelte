@@ -20,14 +20,15 @@
   // import { Status as StatusControl } from '@hcengineering/ui'
 
   export let status: Status
-  export let overflow: boolean = true
+  // Validation messages wrap onto several lines instead of being ellipsised.
+  export let overflow: boolean = false
 </script>
 
 {#if status.severity !== Severity.OK}
   <div class="flex-row-center container {status.severity}" class:error={status.severity === Severity.ERROR}>
     <!-- <StatusControl {status} overflow={false} /> -->
     <IconInfo size={'small'} />
-    <span class="text-sm ml-2" class:overflow-label={overflow}>
+    <span class="text-sm ml-2 message" class:overflow-label={overflow}>
       <Label label={status.code} params={status.params} />
     </span>
   </div>
@@ -35,6 +36,7 @@
 
 <style lang="scss">
   .container {
+    align-items: flex-start;
     user-select: none;
     font-size: 14px;
     padding: 0.75rem 1rem;
@@ -51,6 +53,16 @@
     &.ERROR {
       color: var(--system-error-color);
     }
+  }
+
+  .container :global(svg) {
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+
+  .message {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .error {

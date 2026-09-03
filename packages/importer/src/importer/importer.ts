@@ -313,7 +313,6 @@ export class WorkspaceImporter {
         taskTypes.push({
           _id: taskTypeId,
           descriptor: tracker.descriptors.Issue,
-          kind: 'both',
           name: taskType.name,
           ofClass: tracker.class.Issue,
           statusCategories: [
@@ -326,6 +325,8 @@ export class WorkspaceImporter {
           statusClass: tracker.class.IssueStatus,
           icon: tracker.icon.Issue,
           color: 0,
+          isRootTaskType: true,
+          allowAnyParent: true,
           allowedAsChildOf: [taskTypeId],
           factory: statuses
         })

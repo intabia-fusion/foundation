@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import { SubscriptionStatus } from '@hcengineering/account-client'
+import { SubscriptionStatus, SubscriptionType } from '@hcengineering/account-client'
 import { SubscriptionStorage } from '../storage'
 
 const NOW = Date.UTC(2026, 6, 19)
@@ -102,5 +102,37 @@ describe('SubscriptionStorage.needsRenewal', () => {
   test('other statuses (Canceled, ReadOnly) -> false', () => {
     expect(SubscriptionStorage.needsRenewal({ ...baseSub, status: SubscriptionStatus.Canceled }, NOW)).toBe(false)
     expect(SubscriptionStorage.needsRenewal({ ...baseSub, status: SubscriptionStatus.ReadOnly }, NOW)).toBe(false)
+  })
+})
+
+describe('SubscriptionStorage.claimCheckout slot', () => {
+  const workspace = 'ws-1' as any
+
+  function storageWith (): { storage: SubscriptionStorage, claimIntent: jest.Mock } {
+    const claimIntent = jest.fn().mockResolvedValue({ claimed: true, intent: { id: 'i1', status: 'pending' } })
+    return { storage: new SubscriptionStorage({ claimIntent } as any, async () => {}), claimIntent }
+  }
+
+  test('tier keeps one slot per type: a different order collides with the pending checkout', async () => {
+    const { storage, claimIntent } = storageWith()
+    await storage.claimCheckout(workspace, SubscriptionType.Tier, 'pro:5:monthly')
+    await storage.claimCheckout(workspace, SubscriptionType.Tier, 'pro:9:monthly')
+    expect(claimIntent.mock.calls[0][0]).toBe('checkout:ws-1:tier')
+    expect(claimIntent.mock.calls[1][0]).toBe(claimIntent.mock.calls[0][0])
+  })
+
+  test('purchases claim per order: an abandoned SKU does not block buying another', async () => {
+    const { storage, claimIntent } = storageWith()
+    await storage.claimCheckout(workspace, SubscriptionType.Purchase, 'tokens-1m:1:undefined')
+    await storage.claimCheckout(workspace, SubscriptionType.Purchase, 'tokens-5m:1:undefined')
+    expect(claimIntent.mock.calls[0][0]).toBe('checkout:ws-1:purchase:tokens-1m:1:undefined')
+    expect(claimIntent.mock.calls[1][0]).toBe('checkout:ws-1:purchase:tokens-5m:1:undefined')
+  })
+
+  test('repeat click on the same purchase still shares a slot (URL reuse, no duplicate charge)', async () => {
+    const { storage, claimIntent } = storageWith()
+    await storage.claimCheckout(workspace, SubscriptionType.Purchase, 'tokens-1m:1:undefined')
+    await storage.claimCheckout(workspace, SubscriptionType.Purchase, 'tokens-1m:1:undefined')
+    expect(claimIntent.mock.calls[1][0]).toBe(claimIntent.mock.calls[0][0])
   })
 })

@@ -1,0 +1,25 @@
+{
+  "string": {
+    "AISettings": "Nastavení AI",
+    "TokenLimitReachedMonth": "Došly vám AI tokeny. Dokupte je v nastavení pracovního prostoru (Nastavení -> Předplatné) nebo počkejte na další období.",
+    "AIServiceUnavailable": "Služba AI je dočasně nedostupná. Zkuste to prosím později.",
+    "AIEmptyResponse": "Tentokrát se mi nepodařilo vytvořit odpověď. Přeformulujte dotaz nebo to zkuste znovu.",
+    "AILevel": "Úroveň AI",
+    "AILevelHint": "Strop úrovně kvality pro tento pracovní prostor",
+    "AILevelCapabilities": "Možnosti úrovní",
+    "AILevelCapabilitiesHint": "Co každá úroveň zvládne.",
+    "AILevelChat": "Rozhovory",
+    "AILevelTalk": "Diskuse",
+    "AILevelSummary": "Shrnutí",
+    "AILevelTasks": "Správa úkolů",
+    "Language": "Jazyk",
+    "LanguageHint": "Výchozí jazyk odpovědí bota (např. cs, en). Prázdné = výchozí podu.",
+    "AssistIssue": "{name}",
+    "AssistIssueApply": "Použít",
+    "AssistIssueThreadStart": "Návrh úkolu{project, select, undefined {} other { v {project}}}",
+    "AssistIssueNewContext": "Nový kontext",
+    "AssistIssueApplyAgain": "Použít znovu",
+    "AssistIssueAppliedMark": "Použito",
+    "ProposedEstimation": "Odhad: {hours} h"
+  }
+}

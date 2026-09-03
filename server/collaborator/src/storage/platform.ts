@@ -168,7 +168,7 @@ export class PlatformStorageAdapter implements CollabStorageAdapter {
 
     let client: TxOperations
     try {
-      client = await ctx.with('connect', {}, () => clientFactory())
+      client = await ctx.with('connect', {}, () => clientFactory({ meta: context.meta }))
     } catch (err: any) {
       Analytics.handleError(err)
       ctx.error('failed to connect to platform', { documentName, error: err })

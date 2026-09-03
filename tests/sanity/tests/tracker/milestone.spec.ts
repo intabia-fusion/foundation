@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
 import { MilestonesPage } from '../model/tracker/milestones-page'
@@ -36,13 +36,20 @@ test.describe('Tracker milestone tests', () => {
 
   test('Edit a Milestone', async () => {
     const commentText = 'Edit Milestone comment'
+    // Created here on purpose: editing the seeded milestone appends one more "Status set to" message
+    // to its activity on every run/retry, so the activity check hits a strict mode violation.
     const editMilestone: NewMilestone = {
-      name: 'Edit Milestone',
+      name: `Edit Milestone-${generateId()}`,
       description: 'Edit Milestone Description',
       status: 'Completed',
       targetDateInDays: 'in 30 days'
     }
     await trackerNavigationMenuPage.openMilestonesForProject('Default')
+    await milestonesPage.createNewMilestone({
+      name: editMilestone.name,
+      description: 'Milestone description before edit',
+      status: 'In progress'
+    })
     await milestonesPage.openMilestoneByName(editMilestone.name)
     await milestonesDetailsPage.editIssue(editMilestone)
     await milestonesDetailsPage.checkIssue(editMilestone)
@@ -54,12 +61,14 @@ test.describe('Tracker milestone tests', () => {
   })
 
   test('Delete a Milestone', async () => {
+    // Created here on purpose: the test destroys it, so seeded data would only survive one run.
     const deleteMilestone: NewMilestone = {
-      name: 'Delete Milestone',
+      name: `Delete Milestone-${generateId()}`,
       description: 'Delete Milestone Description',
       status: 'Canceled'
     }
     await trackerNavigationMenuPage.openMilestonesForProject('Default')
+    await milestonesPage.createNewMilestone(deleteMilestone)
     await milestonesPage.openMilestoneByName(deleteMilestone.name)
     await milestonesDetailsPage.checkIssue(deleteMilestone)
     await milestonesDetailsPage.deleteMilestone()

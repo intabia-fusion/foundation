@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -46,14 +47,14 @@ import {
   type WorkspaceDataId,
   type WorkspaceIds
 } from '@hcengineering/core'
-import { PlatformError, unknownError } from '@hcengineering/platform'
+import platform, { PlatformError, Severity, Status, unknownError } from '@hcengineering/platform'
 import {
   BackupClientOps,
   createBroadcastEvent,
-  estimateDocSize,
   SessionDataImpl,
   type ClientSessionCtx,
   type ConnectionSocket,
+  type SendMemo,
   type OneSecondCounters,
   type Pipeline,
   type Session,
@@ -158,9 +159,7 @@ export class ClientSession implements Session {
         ctx.pipeline.loadModel(ctx.ctx, lastModelTx, hash)
       )
 
-      await this.counter.withCounter('clientSendMemory', this.estimateSize(result), () =>
-        ctx.sendResponse(ctx.requestId, result)
-      )
+      await ctx.sendResponse(ctx.requestId, result)
     } catch (err) {
       await ctx.sendError(ctx.requestId, 'Failed to loadModel', unknownError(err))
       ctx.ctx.error('failed to loadModel', { err })
@@ -204,10 +203,6 @@ export class ClientSession implements Session {
     return ctx.pipeline.findAll(ctx.ctx, _class, query, options)
   }
 
-  estimateSize (doc: any): number {
-    return Math.round((estimateDocSize(doc) * 10) / (1024 * 1024)) / 10
-  }
-
   async findAll<T extends Doc>(
     ctx: ClientSessionCtx,
     _class: Ref<Class<T>>,
@@ -229,9 +224,7 @@ export class ClientSession implements Session {
         domain
       })
 
-      await this.counter.withCounter('clientSendMemory', this.estimateSize(result), () =>
-        ctx.sendResponse(ctx.requestId, result)
-      )
+      await ctx.sendResponse(ctx.requestId, result)
     } catch (err) {
       await ctx.sendError(ctx.requestId, 'Failed to findAll', unknownError(err))
       ctx.ctx.error('failed to findAll', { err })
@@ -245,9 +238,7 @@ export class ClientSession implements Session {
       const result = await this.counter.withCounter('fulltext', 1, () =>
         ctx.pipeline.searchFulltext(ctx.ctx, query, options)
       )
-      await this.counter.withCounter('clientSendMemory', this.estimateSize(result), () =>
-        ctx.sendResponse(ctx.requestId, result)
-      )
+      await ctx.sendResponse(ctx.requestId, result)
     } catch (err) {
       await ctx.sendError(ctx.requestId, 'Failed to searchFulltext', unknownError(err))
       ctx.ctx.error('failed to searchFulltext', { err })
@@ -268,6 +259,10 @@ export class ClientSession implements Session {
       broadcastPromise: Promise<void>
       asyncsPromise: Promise<void> | undefined
     }> {
+    // Read-only sessions (guests, operator impersonation) never write, not even derived tx.
+    if (this.token.extra?.readonly === 'true') {
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    }
     this.lastRequest = Date.now()
     this.total.tx++
     this.current.tx++
@@ -327,14 +322,20 @@ export class ClientSession implements Session {
           }
         } catch (err) {
           await ctx.sendError(ctx.requestId, 'Failed to tx', unknownError(err))
-          ctx.ctx.error('failed to tx', { err })
+          ctx.ctx.error('failed to tx', {
+            err,
+            _id: tx._id,
+            _class: tx._class,
+            objectClass: (tx as any).objectClass,
+            objectId: (tx as any).objectId
+          })
         }
       },
       { domain }
     )
   }
 
-  broadcast (ctx: MeasureContext, socket: ConnectionSocket, tx: Tx[]): void {
+  broadcast (ctx: MeasureContext, socket: ConnectionSocket, tx: Tx[], memo?: SendMemo): void {
     if (this.tx.length > 10000) {
       const classes = new Set<Ref<Class<Doc>>>()
       for (const dtx of tx) {
@@ -356,7 +357,7 @@ export class ClientSession implements Session {
         this.useCompression
       )
     } else {
-      void socket.send(ctx, { result: tx }, this.binaryMode, this.useCompression)
+      void socket.send(ctx, { result: tx }, this.binaryMode, this.useCompression, memo)
     }
   }
 
@@ -484,9 +485,7 @@ export class ClientSession implements Session {
 
     const result: DomainResult = await ctx.pipeline.domainRequest(ctx.ctx, domain, params)
 
-    await this.counter.withCounter('clientSendMemory', this.estimateSize(result), () =>
-      ctx.sendResponse(ctx.requestId, result)
-    )
+    await ctx.sendResponse(ctx.requestId, result)
     // We need to broadcast all collected transactions
     const broadcastPromise = ctx.pipeline.handleBroadcast(ctx.ctx)
 

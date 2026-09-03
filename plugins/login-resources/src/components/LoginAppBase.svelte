@@ -54,6 +54,8 @@
     // set local override and apply accent class immediately (no store change)
     setLoginTheme(v)
   }
+  $: isNarrow = $deviceInfo.docWidth <= 768
+
   const currentYear = new Date().getFullYear()
   const copyright = getMetadata(login.metadata.Copyright) as IntlString
 </script>
@@ -61,6 +63,7 @@
 <div
   class="w-full h-full backd"
   class:accent-intabia={activeTheme.name === 'intabia'}
+  class:wide-layout={wide}
   class:paneld={$deviceInfo.docWidth <= 768}
   class:login-theme-intabia={activeTheme.name === 'intabia'}
   class:login-theme-huly={activeTheme.name === 'huly'}
@@ -85,35 +88,37 @@
       </picture>
     {/if}
 
-    <div
-      style:position="fixed"
-      style:left={$deviceInfo.docWidth <= 480 ? '.75rem' : '1.75rem'}
-      style:top={'3rem'}
-      style:z-index={10001}
-      class="flex-row-center"
-    >
-      <svelte:component this={activeTheme.logoComponent} />
-      {#if activeTheme.showTitle}
-        <span class="fs-title ml-2">{getMetadata(workbench.metadata.PlatformTitle)}</span>
-      {/if}
-    </div>
-
-    {#if getMetadata(platform.metadata.DevModel)}
-      <div style:position="fixed" style:left={'0px'} style:top={'0px'} style:z-index={10000} class="flex-row-center">
-        <select class="select small" value={$loginTheme.name} on:change={onDevThemeChange}>
-          <option value="intabia">Intabia</option>
-          <option value="huly">Huly</option>
-        </select>
+    <div class="content-block">
+      <div
+        style:position={isNarrow && !wide ? 'static' : 'fixed'}
+        style:left={isNarrow && !wide ? undefined : '1.75rem'}
+        style:top={isNarrow && !wide ? undefined : '3rem'}
+        style:z-index={10001}
+        class="px-4 logo"
+      >
+        <svelte:component this={activeTheme.logoComponent} />
+        {#if activeTheme.showTitle}
+          <span class="fs-title ml-2">{getMetadata(workbench.metadata.PlatformTitle)}</span>
+        {/if}
       </div>
-    {/if}
 
-    <div class:panel-base={!wide} class="panel" class:wide>
-      <Scroller padding={'1rem 0'}>
-        <div class="form-content">
-          <slot name="form-content" />
+      {#if getMetadata(platform.metadata.DevModel)}
+        <div style:position="fixed" style:left={'0px'} style:top={'0px'} style:z-index={10000} class="flex-row-center">
+          <select class="select small" value={$loginTheme.name} on:change={onDevThemeChange}>
+            <option value="intabia">Intabia</option>
+            <option value="huly">Huly</option>
+          </select>
         </div>
-        <slot name="extra-form-content" />
-      </Scroller>
+      {/if}
+
+      <div class:panel-base={!wide} class="panel" class:wide>
+        <Scroller padding={'1rem 0'} noStretch={!wide}>
+          <div class="form-content">
+            <slot name="form-content" />
+          </div>
+          <slot name="extra-form-content" />
+        </Scroller>
+      </div>
     </div>
 
     <Popup />
@@ -171,6 +176,10 @@
   /* Page layout helpers */
   .backd {
     position: relative;
+  }
+  /* Transparent on desktop; the mobile block makes it the centering box. */
+  .content-block {
+    display: contents;
   }
   .bg-image {
     display: flex;
@@ -270,6 +279,21 @@
     height: 100%;
   }
 
+  /* Let the content define its own height so the page can grow around it. */
+  @media (max-height: 760px), (max-width: 768px) {
+    .panel:not(.wide) .form-content {
+      height: auto;
+    }
+  }
+
+  /* Desktop keeps a fixed, centered panel, so its Scroller handles overflow. */
+  @media (max-height: 760px) and (min-width: 769px) {
+    .panel-base {
+      max-height: calc(100dvh - 2rem);
+      overflow: hidden;
+    }
+  }
+
   .footer {
     position: fixed;
     left: 1.75rem;
@@ -359,8 +383,8 @@
   /* Mobile fallbacks: make panel full-width and ensure panel-base padding/background
      so the login container looks correct on smaller screens and is controlled centrally. */
   @media (max-width: 768px) {
-    /* Keep a small margin from the screen edges on narrow devices */
-    .panel,
+    /* Full width minus margins; `wide` keeps its own fullscreen layout. */
+    .panel:not(.wide),
     .panel-base {
       position: static !important;
       left: auto !important;
@@ -371,6 +395,9 @@
       max-width: calc(100% - 2rem) !important;
       margin-left: 1rem !important;
       margin-right: 1rem !important;
+      /* Grow with the form; `.bg-image` scrolls the whole page instead. */
+      max-height: none;
+      overflow: visible;
     }
 
     .backd.paneld .panel-base,
@@ -380,13 +407,70 @@
       margin-right: 1rem !important;
     }
 
-    .footer {
+    /* Inner Scroller must size to content so `.bg-image` owns the scrolling. */
+    .backd:not(.wide-layout) .panel :global(.scroller-container),
+    .backd:not(.wide-layout) .panel :global(.scroll) {
+      height: auto;
+      overflow: visible;
+    }
+
+    /* Page-level scroller; the column stacks from the top. */
+    .backd:not(.wide-layout) .bg-image {
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+      padding: 1.5rem 0 0 !important;
+      height: 100dvh;
+      overflow-y: auto;
+    }
+
+    /* No auto margins: they swallow overflow and hide the footer. */
+    .backd:not(.wide-layout) .panel {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+      flex-shrink: 0;
+    }
+
+    /* Grows into the free space and centers a short form; on a tall form it
+       shrinks to its content, leaving the footer reachable. */
+    .backd:not(.wide-layout) .content-block {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex: 1 0 auto;
+      min-height: 0;
+    }
+
+    /* Scrolls away with the page. */
+    .backd:not(.wide-layout) .logo {
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    /* Cap the 235x50 Intabia svg; Huly's 16x16 icon is already smaller. */
+    .backd:not(.wide-layout) .logo :global(svg) {
+      max-width: min(11rem, 55vw);
+      height: auto;
+    }
+
+    /* In flow at the end of the column, so the scroll reaches it. */
+    .backd:not(.wide-layout) .footer {
+      position: static;
+      left: auto;
+      bottom: auto;
+      width: 100%;
       flex-direction: column;
       align-items: center;
       gap: 0.5rem;
+      margin-top: 1.5rem;
+      /* Bottom padding lives here: a scrolling flex container's own
+         padding-bottom is dropped by Chrome/Safari. */
+      padding: 0 1rem 3rem;
+      flex-shrink: 0;
     }
 
-    .support {
+    .backd:not(.wide-layout) .support {
       margin-left: 0;
       order: -1;
     }

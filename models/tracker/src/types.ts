@@ -154,21 +154,21 @@ export class TRelatedIssueTarget extends TDoc implements RelatedIssueTarget {
  * @public
  */
 export function TypeReportedTime (): Type<number> {
-  return { _class: tracker.class.TypeReportedTime, label: tracker.string.ReportedTime }
+  return { _class: tracker.class.TypeReportedTime, label: tracker.string.ReportedTime, icon: core.icon.Time }
 }
 
 /**
  * @public
  */
 export function TypeRemainingTime (): Type<number> {
-  return { _class: tracker.class.TypeRemainingTime, label: tracker.string.RemainingTime }
+  return { _class: tracker.class.TypeRemainingTime, label: tracker.string.RemainingTime, icon: core.icon.Time }
 }
 
 /**
  * @public
  */
 export function TypeEstimation (): Type<number> {
-  return { _class: tracker.class.TypeEstimation, label: tracker.string.Estimation }
+  return { _class: tracker.class.TypeEstimation, label: tracker.string.Estimation, icon: core.icon.Time }
 }
 
 /**
@@ -200,6 +200,7 @@ export class TIssue extends TTask implements Issue {
   declare status: Ref<IssueStatus>
 
   @Prop(TypeIssuePriority(), tracker.string.Priority, {
+    icon: tracker.icon.Priority,
     iconComponent: tracker.component.PriorityIconPresenter
   })
   @Index(IndexKind.Indexed)
@@ -273,6 +274,7 @@ export class TIssue extends TTask implements Issue {
   declare childInfo: IssueChildInfo[]
 
   @Prop(Collection(time.class.ToDo), getEmbeddedLabel('Action Items'))
+  @Hidden()
     todos?: CollectionSize<ToDo>
 }
 /**
@@ -329,7 +331,7 @@ export class TIssueTemplate extends TDoc implements IssueTemplate {
   @Prop(ArrOf(TypeRef(tracker.class.IssueTemplate)), tracker.string.IssueTemplate)
     children!: IssueTemplateChild[]
 
-  @Prop(Collection(chunter.class.ChatMessage), tracker.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments!: number
 
   @Prop(Collection(attachment.class.Attachment), tracker.string.Attachments)
@@ -385,7 +387,7 @@ export class TComponent extends TDoc implements Component {
   @Prop(TypeRef(contact.mixin.Employee), tracker.string.ComponentLead)
     lead!: Ref<Employee> | null
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments!: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
@@ -413,7 +415,7 @@ export class TMilestone extends TDoc implements Milestone {
   @Index(IndexKind.Indexed)
     status!: MilestoneStatus
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments!: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
@@ -450,11 +452,11 @@ export class TProjectTargetPreference extends TPreference implements ProjectTarg
 }
 
 @Mixin(tracker.mixin.ClassicProjectTypeData, tracker.class.Project)
-@UX(getEmbeddedLabel('Classic project'), tracker.icon.Issues)
+@UX(tracker.string.ClassicProject, tracker.icon.Issues)
 export class TClassicProjectTypeData extends TProject implements RolesAssignment {
   [key: Ref<Role>]: AccountUuid[]
 }
 
-@Mixin(tracker.mixin.IssueTypeData, tracker.class.Issue)
-@UX(getEmbeddedLabel('Issue'), tracker.icon.Issue)
-export class TIssueTypeData extends TIssue {}
+@Model(tracker.class.IssueTaskType, tracker.class.Issue)
+@UX(tracker.string.ClassicIssue, tracker.icon.Issue, 'TSK', 'title', undefined, tracker.string.ClassicIssues, 'title')
+export class TIssueTaskType extends TIssue {}

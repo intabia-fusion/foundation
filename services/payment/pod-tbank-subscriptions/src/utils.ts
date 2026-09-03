@@ -145,6 +145,8 @@ export interface PlanPricing {
 export interface PlanConfigLike {
   plans?: Record<string, { priceMonthlyPerUser?: number, yearlyDiscount?: number, label?: Record<string, string> }>
   packages?: Record<string, { priceMonthly?: number, description?: Record<string, string> }>
+  // One-time catalog purchases: flat-priced, charged once (no renewal).
+  purchasables?: Record<string, { priceMonthly?: number, description?: Record<string, string> }>
 }
 
 // TBank Amount is expressed in the currency's minor units; prices in plan-config are whole major units.
@@ -174,6 +176,11 @@ export function buildPricingFromPlanConfig (planConfig: PlanConfigLike): Record<
   for (const [pkg, item] of Object.entries(planConfig.packages ?? {})) {
     if (typeof item.priceMonthly !== 'number' || item.priceMonthly <= 0) continue
     plans[getPlanKey('package', pkg)] = { amount: toMinorUnits(item.priceMonthly), yearlyDiscount: 0 }
+  }
+  // Purchases are charged through the same checkout, so they need a price entry too.
+  for (const [sku, item] of Object.entries(planConfig.purchasables ?? {})) {
+    if (typeof item.priceMonthly !== 'number' || item.priceMonthly <= 0) continue
+    plans[getPlanKey('purchase', sku)] = { amount: toMinorUnits(item.priceMonthly), yearlyDiscount: 0 }
   }
   return plans
 }

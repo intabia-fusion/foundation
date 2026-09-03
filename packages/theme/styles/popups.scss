@@ -69,7 +69,6 @@
     &__label {
       flex-grow: 1;
       font-weight: 400;
-      line-height: 1rem;
 
       &:not(.small) { font-size: .875rem; }
       &.small { font-size: .75rem; }
@@ -136,7 +135,7 @@
   width: fit-content;
   min-width: 12.5rem;
   max-width: 17rem;
-  max-height: 22rem;
+  max-height: 30rem;
 
   &:focus {
     outline: 0;

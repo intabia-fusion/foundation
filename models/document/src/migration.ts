@@ -293,7 +293,6 @@ async function migrateRanks (client: MigrationClient): Promise<void> {
 async function migrateAccountsToSocialIds (client: MigrationClient): Promise<void> {
   const socialKeyByAccount = await getSocialKeyByOldAccount(client)
 
-  client.logger.log('processing document lockedBy ', {})
   const iterator = await client.traverse(DOMAIN_DOCUMENT, { _class: document.class.Document })
 
   try {
@@ -331,7 +330,6 @@ async function migrateAccountsToSocialIds (client: MigrationClient): Promise<voi
   } finally {
     await iterator.close()
   }
-  client.logger.log('finished processing document lockedBy ', {})
 }
 
 async function migrateSocialIdsToGlobalAccounts (client: MigrationClient): Promise<void> {
@@ -378,7 +376,6 @@ async function migrateSocialIdsToGlobalAccounts (client: MigrationClient): Promi
   } finally {
     await iterator.close()
   }
-  client.logger.log('finished processing document lockedBy ', {})
 }
 
 async function removeOldClasses (client: MigrationClient): Promise<void> {

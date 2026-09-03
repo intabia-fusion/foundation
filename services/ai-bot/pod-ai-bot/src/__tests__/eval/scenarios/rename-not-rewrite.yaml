@@ -1,0 +1,27 @@
+name: rename-not-rewrite
+mode: thread
+lang: ru
+world:
+  document:
+    title: Регламент выпуска
+    # Заголовок документа хранится отдельно от тела, дублировать его как H1 не надо:
+    # rename_document меняет title, а H1 внутри остался бы старым и выглядел бы расхождением.
+    body: |
+      Выпуск раз в неделю.
+
+      ## Роли
+      Релиз-менеджер отвечает за выпуск.
+requirements:
+  - id: R1
+    text: изменён только заголовок документа
+  - id: R2
+    text: тело документа не тронуто
+turns:
+  - ask: Переименуй документ в "Регламент релизов".
+expect:
+  document:
+    title: Регламент релизов
+    unchanged: true
+  toolsCalled: [rename_document]
+  forbidTools: [propose_new_document]
+  maxRoundsTotal: 4

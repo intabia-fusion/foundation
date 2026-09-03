@@ -54,6 +54,7 @@
 {#if objectPresenter}
   <Component
     is={objectPresenter.presenter}
+    showLoading={false}
     props={{
       space: value.space,
       value,

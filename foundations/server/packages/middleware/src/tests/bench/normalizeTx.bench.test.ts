@@ -24,7 +24,7 @@ import core, {
 } from '@hcengineering/core'
 import type { Middleware } from '@hcengineering/server-core'
 import { NormalizeTxMiddleware } from '../../normalizeTx'
-import { bench, describeBench } from './bench'
+import { bench, describeBench } from '@hcengineering/measurements'
 import { createHarness, makeNextMiddleware } from './harness'
 
 describeBench('NormalizeTxMiddleware bench', () => {

@@ -38,7 +38,7 @@ describe('frame-utils', () => {
       const compressFn = jest.fn()
       const msg: Response<any> = { id: 1, result: { small: 'data' }, time: Date.now() }
 
-      await sendFrame(ctx, sendFn, msg, compressFn, true)
+      await sendFrame(ctx, sendFn, msg, compressFn)
 
       expect(sentData.length).toBe(1)
       expect(sentData[0][0]).toBe(FRAME_MSGPACK)
@@ -58,29 +58,13 @@ describe('frame-utils', () => {
       const largeData = 'x'.repeat(2000)
       const msg: Response<any> = { id: 1, result: { data: largeData }, time: Date.now() }
 
-      await sendFrame(ctx, sendFn, msg, compressFn, true)
+      await sendFrame(ctx, sendFn, msg, compressFn)
 
       expect(sentData.length).toBe(1)
       expect(sentData[0][0]).toBe(FRAME_MSGPACK_SNAPPY)
       expect(compressFn).toHaveBeenCalled()
       // The rest should be the compressed payload
       expect(sentData[0].slice(1)).toEqual(new Uint8Array(compressedPayload))
-    })
-
-    it('sends request messages (isResponse=false)', async () => {
-      const ctx = createFakeCtx()
-      const sentData: Uint8Array[] = []
-      const sendFn = (data: Uint8Array): void => {
-        sentData.push(data)
-      }
-      const compressFn = jest.fn()
-      // Use a response-like structure since RPC handler serializes both similarly
-      const msg: Response<any> = { id: 'req-1', result: { test: 'data' }, time: Date.now() }
-
-      await sendFrame(ctx, sendFn, msg, compressFn, true)
-
-      expect(sentData.length).toBe(1)
-      expect(sentData[0][0]).toBe(FRAME_MSGPACK)
     })
 
     it('catches synchronous sendFn errors for small messages and logs without throwing (Send before connected)', async () => {
@@ -93,7 +77,7 @@ describe('frame-utils', () => {
       const compressFn = jest.fn()
       const msg: Response<any> = { id: 2, result: { test: 'data' }, time: Date.now() }
 
-      await expect(sendFrame(ctx, sendFn, msg, compressFn, true)).resolves.toBeUndefined()
+      await expect(sendFrame(ctx, sendFn, msg, compressFn)).resolves.toBeUndefined()
       expect(errorSpy).toHaveBeenCalled()
       expect(analyticsSpy).not.toHaveBeenCalled()
     })
@@ -108,7 +92,7 @@ describe('frame-utils', () => {
       const compressFn = jest.fn()
       const msg: Response<any> = { id: 3, result: { test: 'data' }, time: Date.now() }
 
-      await expect(sendFrame(ctx, sendFn, msg, compressFn, true)).resolves.toBeUndefined()
+      await expect(sendFrame(ctx, sendFn, msg, compressFn)).resolves.toBeUndefined()
       expect(errorSpy).toHaveBeenCalled()
       expect(analyticsSpy).toHaveBeenCalled()
     })

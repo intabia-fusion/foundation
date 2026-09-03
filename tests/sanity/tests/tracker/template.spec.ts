@@ -1,9 +1,10 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { Issue, NewIssue } from '../model/tracker/types'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
 import { TemplatePage } from '../model/tracker/templates-page'
 import { TemplateDetailsPage } from '../model/tracker/template-details-page'
+import { TEST_ESTIMATIONS } from './tracker.utils'
 
 test.use({
   storageState: PlatformSetting
@@ -66,9 +67,7 @@ test.describe('Tracker template tests', () => {
 
     await templateDetailsPage.checkActivityContent(`New template: ${newTemplate.title}`)
 
-    const estimations = ['0', '1', '1.25', '1.259', '1.26', '1.27', '1.5', '1.75', '2', '7', '8', '9', '9.5']
-
-    for (const input of estimations) {
+    for (const input of TEST_ESTIMATIONS) {
       await templateDetailsPage.editTemplate({
         estimation: input
       })

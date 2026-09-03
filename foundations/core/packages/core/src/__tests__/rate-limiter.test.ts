@@ -353,7 +353,8 @@ describe('RateLimiter', () => {
       await limiter.exec(mockFn)
       const duration = Date.now() - start
 
-      expect(duration).toBeGreaterThanOrEqual(50)
+      // setTimeout may fire a millisecond early against Date.now(), so allow a small slack
+      expect(duration).toBeGreaterThanOrEqual(45)
     })
 
     it('should handle mixed sync and async operations', async () => {

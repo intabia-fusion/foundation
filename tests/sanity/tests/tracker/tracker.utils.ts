@@ -1,5 +1,6 @@
 import { expect, Page } from '@playwright/test'
 import { generateId, PlatformURI } from '../utils'
+import { retry } from '../retry'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
 
 export interface IssueProps {
@@ -32,6 +33,22 @@ export const DEFAULT_STATUSES_ID = new Map([
   ['Done', 'task:statusCategory:Won'],
   ['Canceled', 'task:statusCategory:Lost']
 ])
+
+export const TEST_ESTIMATIONS = [
+  '0m',
+  '30m',
+  '1h',
+  '1h 15m',
+  '1h 30m',
+  '2h',
+  '7h 45m',
+  '8h',
+  '1d',
+  '1d 1h',
+  '1d 1h 30m',
+  '1w',
+  '1w 2d 3h 15m'
+]
 
 export async function navigate (page: Page): Promise<void> {
   await (await page.goto(`${PlatformURI}/workbench/sanity-ws`))?.finished()
@@ -78,8 +95,23 @@ export async function fillIssueForm (page: Page, props: IssueProps): Promise<voi
     })
   }
   if (status !== undefined) {
-    await page.click(af + '#status-editor')
-    await page.click(`.menu-item:has-text("${status}")`)
+    const statusItem = page.locator(`.menu-item:has-text("${status}")`).first()
+    // SelectPopup gets a snapshot of the status list (StatusEditor.svelte:96), so a state
+    // renamed moments earlier is absent until the dropdown is reopened.
+    // Clicking outside the retry could land after the popup closed again, so the whole
+    // open-wait-click sequence lives in one attempt.
+    await retry(async () => {
+      await page.click(af + '#status-editor')
+      try {
+        await expect(statusItem).toBeVisible({ timeout: 3000 })
+        await statusItem.click()
+      } catch (err) {
+        if (await page.locator('.selectPopup').isVisible()) {
+          await page.keyboard.press('Escape')
+        }
+        throw err
+      }
+    })
   }
   if (priority !== undefined) {
     await page.click(af + 'button:has-text("No priority")')
@@ -220,7 +252,16 @@ export async function checkIssueDraft (page: Page, props: IssueProps): Promise<v
 
 export async function checkIssueFromList (page: Page, issueName: string): Promise<void> {
   await page.click(ViewletSelectors.Board)
-  await expect(page.locator(`.panel-container:has-text("${issueName}")`)).toContainText(issueName)
+  // The board renders a limited number of cards per column, so the issue stays out of the DOM
+  // until every truncated column is expanded.
+  const card = page.locator(`.panel-container:has-text("${issueName}")`)
+  for (let i = 0; i < 50; i++) {
+    if ((await card.count()) > 0) break
+    const showMore = page.locator('button[data-id="btn-kanban-show-more"]').first()
+    if ((await showMore.count()) === 0) break
+    await showMore.click().catch(() => {})
+  }
+  await expect(card).toContainText(issueName)
 }
 
 export async function openIssue (page: Page, name: string): Promise<void> {
@@ -235,7 +276,7 @@ export function floorFractionDigits (n: number | string, amount: number): number
 
 export async function toTime (value: number): Promise<string> {
   if (value <= 0) {
-    return '0h'
+    return '0m'
   }
 
   return convertEstimation(value)
@@ -277,6 +318,40 @@ export async function performPanelTest (page: Page, statuses: string[], panel: s
   }
 }
 
+const UNIT_HOURS: Record<string, number> = { m: 1 / 60, h: 1, d: 8, w: 40 }
+
+export function parseEstimationInput (input: string): number {
+  const trimmed = input.trim()
+  if (/^\d+(?:[.,]\d+)?$/.test(trimmed)) return parseFloat(trimmed.replace(',', '.'))
+
+  const regex = /(\d+)\s*(w|d|h|m)/g
+  let total = 0
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(trimmed)) !== null) {
+    total += parseInt(match[1], 10) * UNIT_HOURS[match[2]]
+  }
+  return total
+}
+
 export function convertEstimation (estimation: number | string): string {
-  return `${floorFractionDigits(estimation, 3)}h`
+  const hours = typeof estimation === 'number' ? estimation : parseEstimationInput(estimation)
+  if (hours === 0 || Number.isNaN(hours)) return '0m'
+
+  const totalMin = Math.round(hours * 60)
+  // Mirrors formatDurationCompact: the largest non-zero unit plus the next one down.
+  const units: Array<[number, string]> = [
+    [Math.floor(totalMin / 2400), 'w'],
+    [Math.floor((totalMin % 2400) / 480), 'd'],
+    [Math.floor((totalMin % 480) / 60), 'h'],
+    [totalMin % 60, 'm']
+  ]
+
+  const first = units.findIndex(([value]) => value > 0)
+  if (first === -1) return '0m'
+
+  return units
+    .slice(first, first + 2)
+    .filter(([value]) => value > 0)
+    .map(([value, unit]) => `${value}${unit}`)
+    .join(' ')
 }

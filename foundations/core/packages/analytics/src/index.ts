@@ -14,6 +14,8 @@ export interface AnalyticProvider {
   handleEvent: (event: string, params: Record<string, string>) => void
   handleError: (error: Error) => void
   handleMetric?: (name: string, value: number, labels?: Record<string, any>) => void
+  // Send whatever is batched right now; providers that send eagerly can omit it.
+  flush?: () => Promise<void>
   navigate: (path: string) => void
   logout: () => void
 }
@@ -68,6 +70,14 @@ export const Analytics = {
     providers.forEach((provider) => {
       provider.handleMetric?.(name, value, labels)
     })
+  },
+
+  async flush (): Promise<void> {
+    await Promise.all(
+      providers.map(async (provider) => {
+        await provider.flush?.()
+      })
+    )
   },
 
   navigate (path: string): void {

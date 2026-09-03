@@ -1,0 +1,23 @@
+name: split-task-adds-subtasks
+mode: thread
+lang: ru
+world:
+  issues:
+    - title: Импорт CSV падает на больших файлах
+      description: Файлы больше 10 МБ обрываются по таймауту парсера.
+      subtasks:
+        - Воспроизвести на файле 20 МБ
+        - Снять профиль парсера
+requirements:
+  - id: R1
+    text: добавлены ровно четыре новые подзадачи
+  - id: R2
+    text: существующие две не продублированы
+turns:
+  - ask: Разбей эту задачу ещё на 4 подзадачи, не повторяя те, что уже есть.
+expect:
+  issues:
+    subtasksOfRoot: 6
+    titlesMatch: '.+'
+  toolsCalled: [propose_subtasks]
+  maxRoundsTotal: 6

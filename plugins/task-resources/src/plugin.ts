@@ -1,5 +1,6 @@
 //
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -37,7 +38,10 @@ export default mergeIds(taskId, task, {
     TodoName: '' as IntlString,
     TaskProject: '' as IntlString,
     SelectProject: '' as IntlString,
-    TaskName: '' as IntlString,
+    TaskTypeName: '' as IntlString,
+    RootTaskType: '' as IntlString,
+    TaskTypeNameAlreadyExists: '' as IntlString,
+    TaskTypeNameEmpty: '' as IntlString,
     AssignThisTask: '' as IntlString,
     TaskUnAssign: '' as IntlString,
     More: '' as IntlString,
@@ -62,7 +66,12 @@ export default mergeIds(taskId, task, {
     StatusDelete: '' as IntlString,
     CantStatusDelete: '' as IntlString,
     CantStatusDeleteError: '' as IntlString,
-
+    RootTaskTooltip: '' as IntlString,
+    NoSubtaskTypesHint: '' as IntlString,
+    NoSubtaskTypesShort: '' as IntlString,
+    SelfRefLegend: '' as IntlString,
+    MergeArrows: '' as IntlString,
+    GroupAny: '' as IntlString,
     Tasks: '' as IntlString,
     Task: '' as IntlString,
     SubTask: '' as IntlString,
@@ -90,7 +99,23 @@ export default mergeIds(taskId, task, {
     RenameStatus: '' as IntlString,
     UpdateTasksStatusRequest: '' as IntlString,
     TaskTypes: '' as IntlString,
-    Collections: '' as IntlString
+    Collections: '' as IntlString,
+
+    AllowRootTask: '' as IntlString,
+    AllowRootTaskTooltip: '' as IntlString,
+    AllowedParentTaskTypes: '' as IntlString,
+    HierarchyRelations: '' as IntlString,
+    HierarchyWarningNoParentAndNoRoot: '' as IntlString,
+    HierarchyWarningShort: '' as IntlString,
+    SameTypeNesting: '' as IntlString,
+    SelectAll: '' as IntlString,
+    ClearAll: '' as IntlString,
+    AllowAnyParent: '' as IntlString,
+    AllowAnyParentSubtask: '' as IntlString,
+    AllowAnyParentTooltip: '' as IntlString,
+    TaskTypeHierarchyTitle: '' as IntlString,
+    ShowDetails: '' as IntlString,
+    HideDetails: '' as IntlString
   },
   status: {
     AssigneeRequired: '' as IntlString

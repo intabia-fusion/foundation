@@ -13,13 +13,22 @@
 // limitations under the License.
 //
 
-import { get, writable } from 'svelte/store'
-import core, { SortingOrder, type WithLookup } from '@hcengineering/core'
+import { get, writable, readable } from 'svelte/store'
+import core, { SortingOrder, type WithLookup, type PersonId } from '@hcengineering/core'
 import attachment, { type SavedAttachments } from '@hcengineering/attachment'
-import { createQuery, onClient } from '@hcengineering/presentation'
+import { createQuery, onClient, getClient } from '@hcengineering/presentation'
+import { getAllSocialStringsByPersonRef, getCurrentEmployee } from '@hcengineering/contact'
 
 export const savedAttachmentsStore = writable<Array<WithLookup<SavedAttachments>>>([])
 export const isSavedAttachmentsLoaded = writable(false)
+export const mySocialStringsStore = readable<Set<PersonId> | undefined>(undefined, (set) => {
+  void getMySocialStrings().then((s) => {
+    set(s)
+  })
+})
+
+let mySocialStringsCache: Set<PersonId> | undefined
+let mySocialStringsPromise: Promise<Set<PersonId>> | undefined
 
 const savedAttachmentsQuery = createQuery(true)
 
@@ -39,4 +48,13 @@ export function loadSavedAttachments (): void {
       { lookup: { attachedTo: attachment.class.Attachment }, sort: { modifiedOn: SortingOrder.Descending } }
     )
   })
+}
+
+export async function getMySocialStrings (): Promise<Set<PersonId>> {
+  if (mySocialStringsCache !== undefined) return mySocialStringsCache
+  mySocialStringsPromise ??= getAllSocialStringsByPersonRef(getClient(), getCurrentEmployee()).then((ids) => {
+    mySocialStringsCache = new Set<PersonId>(ids)
+    return mySocialStringsCache
+  })
+  return await mySocialStringsPromise
 }

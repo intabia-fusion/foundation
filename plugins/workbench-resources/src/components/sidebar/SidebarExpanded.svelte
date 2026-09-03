@@ -18,15 +18,11 @@
   import {
     Component,
     resizeObserver,
-    location as locationStore,
-    Location,
     Header,
     Breadcrumbs,
-    getCurrentLocation,
     Separator,
     deviceOptionsStore as deviceInfo
   } from '@hcengineering/ui'
-  import { onDestroy, onMount } from 'svelte'
 
   import { closeWidgetTab, sidebarStore, SidebarVariant, WidgetState, openWidgetTab, closeWidget } from '../../sidebar'
   import WidgetsBar from './widgets/WidgetsBar.svelte'
@@ -55,33 +51,6 @@
     sidebarStore.update((s) => ({ ...s, variant: SidebarVariant.MINI }))
   }
   $: float = $sidebarStore.float
-
-  function closeWrongTabs (loc: Location): void {
-    if (widget === undefined) return
-    const path = loc.path.join('/')
-    for (const tab of tabs) {
-      if (tab.allowedPath !== undefined && !tab.isPinned) {
-        if (!path.startsWith(tab.allowedPath)) {
-          void handleTabClose(tab.id, widget)
-        }
-      }
-    }
-  }
-
-  const unsubscribe = locationStore.subscribe((loc: Location) => {
-    closeWrongTabs(loc)
-  })
-
-  onMount(() => {
-    // We need to wait for location to be updated
-    setTimeout(() => {
-      closeWrongTabs(getCurrentLocation())
-    }, 100)
-  })
-
-  onDestroy(() => {
-    unsubscribe()
-  })
 
   async function handleTabClose (tabId: string, widget?: Widget): Promise<void> {
     if (widget === undefined) return

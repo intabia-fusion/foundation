@@ -54,6 +54,8 @@
     "RemovedAttachment": "Příloha odstraněna",
     "ContentType": "Typ obsahu",
     "OpenInWindow": "Otevřít v okně",
-    "Embeddings": "Vnoření"
+    "Embeddings": "Vnoření",
+    "Transcribing": "Přepis...",
+    "TranscriptionFailed": "Přepis selhal"
   }
 }

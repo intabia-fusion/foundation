@@ -13,7 +13,8 @@
 -->
 <script lang="ts">
   import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
-  import { isTranscription, isTranscriptionAllowed, startTranscription, stopTranscription } from '../../../utils'
+  import { TranscriptionState } from '@hcengineering/love'
+  import { isTranscriptionAllowed, startTranscription, stopTranscription } from '../../../utils'
   import { lkSessionConnected } from '../../../liveKitClient'
   import { currentMeetingMinutes } from '../../../stores'
   import love from '../../../plugin'
@@ -22,22 +23,43 @@
 
   export let size: ButtonBaseSize = 'large'
   export let kind: 'primary' | 'secondary' | 'tertiary' | 'negative' = 'secondary'
+
+  // Same reasoning as RecordingButton: read the meeting document, not the room metadata.
+  $: isTranscribing = $currentMeetingMinutes?.transcriptionState === TranscriptionState.Transcribing
+
+  let inFlight = false
+
+  async function toggle (): Promise<void> {
+    const mm = $currentMeetingMinutes
+    if (mm === undefined || inFlight) return
+
+    inFlight = true
+    try {
+      if (isTranscribing) {
+        await stopTranscription(mm)
+      } else {
+        await startTranscription(mm)
+      }
+    } catch (err) {
+      console.error('[TranscriptionButton] toggle failed', err)
+    } finally {
+      inFlight = false
+    }
+  }
 </script>
 
 {#if hasAccountRole(getCurrentAccount(), AccountRole.User) && isTranscriptionAllowed() && $lkSessionConnected && $currentMeetingMinutes !== undefined}
   <ModernButton
     icon={view.icon.Feather}
-    iconProps={$isTranscription ? { fill: 'var(--button-negative-BackgroundColor)' } : {}}
-    tooltip={{ label: $isTranscription ? love.string.StopTranscription : love.string.StartTranscription }}
+    iconProps={isTranscribing ? { fill: 'var(--button-negative-BackgroundColor)' } : {}}
+    tooltip={{ label: isTranscribing ? love.string.StopTranscription : love.string.StartTranscription }}
+    disabled={inFlight}
+    loading={inFlight}
+    dataId="transcription-button"
     {kind}
     {size}
     on:click={() => {
-      if ($currentMeetingMinutes === undefined) return
-      if ($isTranscription) {
-        void stopTranscription($currentMeetingMinutes)
-      } else {
-        void startTranscription($currentMeetingMinutes)
-      }
+      void toggle()
     }}
   />
 {/if}

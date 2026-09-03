@@ -1,6 +1,7 @@
 <script lang="ts">
   //
   // © 2025 Hardcore Engineering, Inc. All Rights Reserved.
+  // Copyright © 2026 Intabia Fusion.
   // Licensed under the Eclipse Public License v2.0 (SPDX: EPL-2.0).
   //
   import { createEventDispatcher, onMount, onDestroy } from 'svelte'
@@ -203,7 +204,7 @@
       if (em.id === 'frequently-used') {
         emojiCategories[index].emojis = getFrequentlyEmojis()
       }
-      if (em.emojisString !== undefined && Array.isArray(em.emojisString) && em.emojis === undefined) {
+      if (em.emojisString !== undefined && Array.isArray(em.emojisString)) {
         const tempEmojis: string[] = em.emojisString
         const emojis: EmojiWithGroup[] = []
         tempEmojis.forEach((te) => {
@@ -219,6 +220,10 @@
       (em) => em.categories !== undefined || (Array.isArray(em.emojis) && em.emojis.length > 0)
     )
     currentCategory = emojisCat.find((ec) => ec.emojis !== undefined) ?? emojisCat[0]
+  }
+
+  $: if ($unicodeEmojiStore.length > 0 || $customEmojiStore.length > 0) {
+    initEmoji()
   }
 
   onMount(() => {

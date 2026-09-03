@@ -31,8 +31,18 @@
 
   const dispatch = createEventDispatcher()
 
+  // The panel's live query reassigns `object` on any change to the doc, which dropped a name that
+  // had been typed but not yet round-tripped. Follow the server only when the server value changed.
+  let name = object.name
+  let serverName = object.name
+  $: if (object.name !== serverName) {
+    serverName = object.name
+    name = object.name
+  }
+
   function nameChange () {
-    client.updateDoc(object._class, object.space, object._id, { name: object.name })
+    serverName = name
+    client.updateDoc(object._class, object.space, object._id, { name })
   }
 
   let integrations: Set<Ref<IntegrationType>> = new Set<Ref<IntegrationType>>()
@@ -64,7 +74,7 @@
         <EditBox
           disabled={readonly}
           placeholder={contact.string.PersonFirstNamePlaceholder}
-          bind:value={object.name}
+          bind:value={name}
           on:change={nameChange}
           focusIndex={1}
         />

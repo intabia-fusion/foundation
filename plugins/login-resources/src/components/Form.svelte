@@ -162,7 +162,7 @@
 <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <form
   class="container"
-  style:padding={$deviceInfo.docWidth <= 480 ? '.25rem 1.25rem' : '2rem 2rem'}
+  style:padding={$deviceInfo.docWidth <= 480 ? '1.25rem 1rem' : '2rem 2rem'}
   on:keydown={(evt) => {
     if (evt.key === 'Enter') {
       evt.preventDefault()
@@ -204,6 +204,7 @@
           label={field.i18n}
           name={field.idOverride ?? field.id}
           password={field.password}
+          inputmode={field.inputmode}
           disabled={inAction || field.disabled}
           bind:value={object[field.name]}
           on:input={() => {
@@ -246,6 +247,7 @@
       />
     </div>
     {#if secondaryButtonLabel !== undefined && secondaryButtonAction}
+      <slot name="before-secondary" />
       <div class="form-row">
         <FormButton
           label={secondaryButtonLabel}
@@ -275,6 +277,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    max-width: 100%;
 
     .fs-title {
       color: var(--login-content-color, var(--theme-content-color));
@@ -300,8 +303,9 @@
       justify-content: center;
       align-items: flex-end;
       padding: 0 0 16px;
-      width: 412px;
-      height: 36px;
+      max-width: 412px;
+      width: 100%;
+      min-height: 36px;
       font-family: 'Open Sans', sans-serif;
       font-style: normal;
       font-weight: var(--login-main-heading-font-weight, 700);
@@ -359,6 +363,31 @@
         font-weight: 500;
         text-decoration: underline;
         color: var(--login-label-color, var(--login-content-color, var(--theme-content-color)));
+      }
+    }
+  }
+
+  @media (max-width: 600px) {
+    .container {
+      // The page scrolls as a whole; clipping here would hide tall forms.
+      overflow: visible;
+
+      .main-heading {
+        font-size: 1.5rem;
+      }
+
+      /* Grid stays 2-column: slotted content elsewhere hardcodes a 1/3 span. */
+      .form {
+        row-gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .status {
+        padding-top: 0.5rem;
+      }
+
+      .footer {
+        margin-top: 1.25rem;
       }
     }
   }

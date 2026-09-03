@@ -42,6 +42,7 @@ export interface Config {
   // Scheduler
   SchedulerIntervalMinutes: number // How often to check for expiring subscriptions
   GracePeriodDays: number // Days after periodEnd a failed subscription stays in past_due before going readonly
+  UpcomingNoticeDays: number // Days before a charge/expiry date the reminder email is sent
 
   // Email notifications (optional — payment-failed emails are skipped when MailUrl is unset)
   MailUrl?: string // pod-mail base URL, e.g. http://mail:8097
@@ -78,6 +79,7 @@ const config: Config = (() => {
     TbankMock: process.env.TBANK_MOCK === 'true',
     SchedulerIntervalMinutes: parseNumber(process.env.SCHEDULER_INTERVAL_MINUTES, 60),
     GracePeriodDays: parseNumber(process.env.GRACE_PERIOD_DAYS, 7),
+    UpcomingNoticeDays: parseNumber(process.env.UPCOMING_NOTICE_DAYS, 5),
     MailUrl: process.env.MAIL_URL,
     MailApiKey: process.env.MAIL_API_KEY,
     MailFrom: process.env.MAIL_FROM,

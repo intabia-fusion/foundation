@@ -48,7 +48,8 @@
   const rem = (n: number, fs: number): number => n * fs
   $: scrolled = docHeight < rem(39, $deviceInfo.fontSize)
 
-  let viewDate: Date = currentDate ?? today
+  $: isValidDate = (d: Date | null | undefined): d is Date => d instanceof Date && !isNaN(d.getTime())
+  $: viewDate = isValidDate(currentDate) ? currentDate : today
   let viewDateSec: Date
   let dateInput: DateInputBox
 

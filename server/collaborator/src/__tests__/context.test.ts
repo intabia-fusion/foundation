@@ -181,5 +181,28 @@ describe('context', () => {
       expect(result.connectionId).toBeDefined()
       expect(mockSimpleClientFactory).toHaveBeenCalledWith(mockToken)
     })
+
+    it('should extract silent parameter from requestParameters into meta', () => {
+      const mockToken = { account: 'account-uuid', workspace: 'workspace-uuid', extra: {} }
+      mockDecodeToken.mockReturnValue(mockToken)
+
+      const requestParams = new Map([['silent', 'true']])
+      const payload = createMockPayload({ requestParameters: requestParams })
+
+      const result = buildContext(payload, mockWorkspaceIds)
+
+      expect(result.meta?.silent).toBe(true)
+    })
+
+    it('should extract silent parameter from context meta if not in requestParameters', () => {
+      const mockToken = { account: 'account-uuid', workspace: 'workspace-uuid', extra: {} }
+      mockDecodeToken.mockReturnValue(mockToken)
+
+      const payload = createMockPayload({ context: { meta: { silent: true } } })
+
+      const result = buildContext(payload, mockWorkspaceIds)
+
+      expect(result.meta?.silent).toBe(true)
+    })
   })
 })

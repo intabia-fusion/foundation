@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { getCurrentAccount, Ref } from '@hcengineering/core'
-  import presentation, { createQuery, IconWithEmoji, isAdminUser } from '@hcengineering/presentation'
+  import presentation, { createQuery, IconWithEmoji } from '@hcengineering/presentation'
   import { Project } from '@hcengineering/tracker'
   import { Icon, Label, getPlatformColorDef, getPlatformColorForTextDef, themeStore } from '@hcengineering/ui'
   import view from '@hcengineering/view'
@@ -62,7 +62,7 @@
       />
     </div>
     <span class="label no-underline nowrap" class:fs-bold={accent}>
-      {#if openIssues && (isAdminUser() || projectObj.members.includes(getCurrentAccount().uuid))}
+      {#if openIssues && projectObj.members.includes(getCurrentAccount().uuid)}
         <NavLink space={projectObj._id} special={'issues'} noUnderline={false}>
           {projectObj.name}
         </NavLink>

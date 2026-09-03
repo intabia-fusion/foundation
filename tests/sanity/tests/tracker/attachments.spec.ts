@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { IssuesDetailsPage } from '../model/tracker/issues-details-page'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'

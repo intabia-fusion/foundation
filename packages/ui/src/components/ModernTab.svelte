@@ -31,6 +31,7 @@
   export let kind: 'primary' | 'secondary' = 'primary'
   export let canClose = true
   export let readonly = false
+  export let italic = false
 
   const dispatch = createEventDispatcher()
 
@@ -49,8 +50,10 @@
   style:max-width={orientation === 'horizontal' ? maxSize : 'auto'}
   style:max-height={orientation === 'vertical' ? maxSize : 'auto'}
   class:active={highlighted}
+  class:italic
   use:tooltip={{ label: label ? getEmbeddedLabel(label) : labelIntl, direction: 'bottom' }}
   on:click
+  on:dblclick
   on:contextmenu={handleContextMenu}
 >
   <slot name="prefix" />
@@ -97,6 +100,11 @@
     cursor: pointer;
     overflow: hidden;
     color: var(--theme-content-color);
+
+    // Preview tab, same idea as an italic editor tab in VSCode: it gets replaced by the next one.
+    &.italic {
+      font-style: italic;
+    }
 
     &.primary {
       background-color: var(--theme-button-pressed);

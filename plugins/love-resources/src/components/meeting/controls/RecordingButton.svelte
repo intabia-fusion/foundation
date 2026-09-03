@@ -13,8 +13,9 @@
 -->
 <script lang="ts">
   import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
+  import { RecordingState } from '@hcengineering/love'
   import { ButtonBaseSize, ModernButton } from '@hcengineering/ui'
-  import { isRecording, isRecordingAvailable, loveClient } from '../../../utils'
+  import { isRecordingAvailable, loveClient } from '../../../utils'
   import love from '../../../plugin'
   import { lkSessionConnected } from '../../../liveKitClient'
   import { currentMeetingMinutes, currentVideoRecording, isCancellingVideoRecording } from '../../../stores'
@@ -22,24 +23,44 @@
   export let size: ButtonBaseSize = 'large'
   export let kind: 'primary' | 'secondary' | 'tertiary' | 'negative' = 'secondary'
 
-  $: isVideoRecording = $isRecording && $currentVideoRecording !== undefined
-  $: isStopping = $isCancellingVideoRecording
+  // State comes from documents, not from LiveKit room metadata: the metadata flag
+  // travels through the event queue and goes stale whenever the queue is degraded.
+  $: isVideoRecording =
+    $currentVideoRecording !== undefined || $currentMeetingMinutes?.recordingState === RecordingState.Recording
+  $: isCancelling = $isCancellingVideoRecording
+
+  // `/startRecord` answers only after the recording really started, so keeping the
+  // spinner for the request alone is enough - and it cannot wedge.
+  let inFlight = false
+
+  async function toggle (): Promise<void> {
+    const mm = $currentMeetingMinutes
+    if (mm === undefined || inFlight || isCancelling) return
+
+    inFlight = true
+    try {
+      await loveClient.record(mm, isVideoRecording)
+    } catch (err) {
+      console.error('[RecordingButton] toggle failed', err)
+    } finally {
+      inFlight = false
+    }
+  }
 </script>
 
 {#if hasAccountRole(getCurrentAccount(), AccountRole.User) && $isRecordingAvailable && $currentMeetingMinutes !== undefined}
   <ModernButton
     icon={isVideoRecording ? love.icon.StopRecord : love.icon.Record}
     tooltip={{
-      label: isStopping ? love.string.StoppingRecord : isVideoRecording ? love.string.StopRecord : love.string.Record
+      label: isCancelling ? love.string.StoppingRecord : isVideoRecording ? love.string.StopRecord : love.string.Record
     }}
-    disabled={!$lkSessionConnected || isStopping}
-    loading={isStopping}
+    disabled={!$lkSessionConnected || isCancelling || inFlight}
+    loading={isCancelling || inFlight}
+    dataId="recording-button"
     {kind}
     {size}
     on:click={() => {
-      if ($currentMeetingMinutes !== undefined && !isStopping) {
-        void loveClient.record($currentMeetingMinutes)
-      }
+      void toggle()
     }}
   />
 {/if}

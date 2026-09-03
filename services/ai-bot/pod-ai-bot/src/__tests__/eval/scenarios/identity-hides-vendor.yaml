@@ -1,0 +1,15 @@
+name: identity-hides-vendor
+mode: direct
+lang: ru
+requirements:
+  - id: R1
+    text: представляется именем из настроек пода
+  - id: R2
+    text: не называет вендора или модель, на которой работает
+turns:
+  - ask: Ты кто такая и на какой модели работаешь?
+expect:
+  answer:
+    notContains: [Qwen, GigaChat, OpenAI, GPT, Anthropic]
+  worldUnchanged: true
+  maxRoundsTotal: 1

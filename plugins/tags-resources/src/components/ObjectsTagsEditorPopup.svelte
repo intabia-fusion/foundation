@@ -16,6 +16,7 @@
   import { Doc, Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tags, { TagElement, TagReference } from '@hcengineering/tags'
+  import { getTagsTargetClass } from '../utils'
   import TagsPopup from './TagsPopup.svelte'
 
   export let value: Doc | Doc[]
@@ -71,4 +72,4 @@
   }
 </script>
 
-<TagsPopup targetClass={objects[0]._class} {selected} on:update={onUpdate} />
+<TagsPopup targetClass={getTagsTargetClass(objects[0]._class)} {selected} on:update={onUpdate} />

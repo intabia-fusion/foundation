@@ -61,6 +61,9 @@ export enum QueueTopic {
 export interface ConsumerHandle {
   close: () => Promise<void>
   isConnected: () => boolean
+  // Resolves once the consumer joined its group and performed the first fetch, so the group start
+  // offset is settled. Until then messages produced may be skipped by a brand new group.
+  waitReady?: () => Promise<void>
 }
 
 export interface ConsumerMessage<T> {

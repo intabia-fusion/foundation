@@ -81,7 +81,7 @@ export interface Action {
   id?: string
   label: IntlString
   labelParams?: Record<string, any>
-  icon?: Asset | AnySvelteComponent
+  icon?: IconComponent
   iconProps?: Record<string, any>
   action: (props: any, ev: Event) => Promise<void>
   inline?: boolean
@@ -127,7 +127,7 @@ export interface TabItem {
   label?: string
   labelIntl?: IntlString
   labelParams?: Record<string, any>
-  icon?: Asset | AnySvelteComponent
+  icon?: IconComponent
   color?: string
   tooltip?: IntlString
   action?: () => void
@@ -138,7 +138,7 @@ export interface TabItem {
 
 export interface BreadcrumbItem {
   id?: string
-  icon?: Asset | AnySvelteComponent | ComponentType
+  icon?: IconComponent
   iconProps?: any
   iconWidth?: string
   iconMargin?: string
@@ -208,7 +208,7 @@ export type HeaderAdaptive = 'default' | 'freezeActions' | 'autoExtra' | 'double
 
 export interface ButtonItem {
   id: string
-  icon?: Asset | AnySvelteComponent | ComponentType
+  icon?: IconComponent
   label?: IntlString
   labelParams?: Record<string, any>
   disabled?: boolean
@@ -326,28 +326,40 @@ export interface LabelAndProps {
 export interface ListItem {
   _id: string
   label: string
-  icon?: Asset
-  iconProps?: any
+  icon?: IconComponent
+  iconProps?: Record<string, any>
   image?: string
+  component?: AnySvelteComponent
+  componentProps?: Record<string, any>
   isSelectable?: boolean
   fontWeight?: 'normal' | 'medium' | 'semi-bold'
   paddingLeft?: number
 }
 
 export interface DropdownTextItem {
-  id: string
+  id: string | number
   label: string
+  icon?: IconComponent
+  iconProps?: Record<string, any>
+  exclusive?: boolean
+  separatorBefore?: boolean
+  separatorLabel?: IntlString
 }
 
 export interface DropdownIntlItem {
   id: string | number
   label: IntlString
-  icon?: Asset | AnySvelteComponent | ComponentType
+  icon?: IconComponent
   iconProps?: Record<string, any>
   params?: Record<string, any>
   description?: IntlString
   paramsDescription?: Record<string, any>
+  component?: AnySvelteComponent
+  componentProps?: Record<string, any>
+  exclusive?: boolean
   keys?: string[]
+  separatorBefore?: boolean
+  separatorLabel?: IntlString
 }
 
 export interface NestedSelectItem extends DropdownIntlItem {
@@ -404,6 +416,8 @@ export interface DeviceOptions {
   size: WidthType | null
   sizes: Record<WidthType, boolean>
   minWidth: boolean
+  // Viewport is too narrow for the full app panel - it collapses to compact buttons.
+  appsMini: boolean
   twoRows: boolean
   firstDayOfWeek: number
   theme?: string
@@ -412,7 +426,7 @@ export interface DeviceOptions {
 }
 
 export interface TimelineItem {
-  icon?: Asset | AnySvelteComponent
+  icon?: IconComponent
   iconSize?: IconSize
   iconProps?: Record<string, any>
   presenter?: AnySvelteComponent
@@ -515,7 +529,7 @@ export interface SeparatedElement {
  */
 export interface SelectPopupValueType {
   id: number | string | null
-  icon?: Asset | AnySvelteComponent
+  icon?: IconComponent
   iconProps?: Record<string, any>
   iconColor?: string
   label?: IntlString

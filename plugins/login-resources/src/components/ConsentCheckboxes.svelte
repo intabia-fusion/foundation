@@ -120,4 +120,18 @@
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
   }
+
+  @media (max-width: 600px) {
+    .check-label {
+      align-items: flex-start;
+      font-size: 0.875rem;
+      line-height: 1.35;
+    }
+
+    /* Larger hit area on touch screens without changing the visual box size. */
+    .check-label input[type='checkbox'] {
+      margin: 0.15rem 0;
+      outline-offset: 0.5rem;
+    }
+  }
 </style>

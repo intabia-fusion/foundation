@@ -85,7 +85,7 @@ export class TDocument extends TDoc implements Document, Todoable {
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
     attachments?: number
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments?: number
 
   @Prop(Collection(tags.class.TagReference), document.string.Labels)
@@ -406,6 +406,20 @@ function defineDocument (builder: Builder): void {
     },
     document.action.UnlockContent
   )
+
+  createAction(builder, {
+    action: view.actionImpl.OpenInSidebar,
+    label: view.string.OpenInSidebar,
+    icon: view.icon.DetailsFilled,
+    input: 'focus',
+    category: document.category.Document,
+    target: document.class.Document,
+    context: {
+      mode: ['context', 'browser'],
+      application: document.app.Documents,
+      group: 'create'
+    }
+  })
 
   // Notifications
 

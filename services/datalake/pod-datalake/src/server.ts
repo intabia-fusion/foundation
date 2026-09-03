@@ -200,7 +200,7 @@ export async function createServer (
   )
 
   app.get(
-    '/blob/:workspace/:name/:filename(.*)',
+    '/blob/:workspace/:name/:filename([^?]+)',
     withOptionalAuth(config.Secure),
     withBlob,
     wrapRequest(ctx, 'getBlob', handleBlobGet)

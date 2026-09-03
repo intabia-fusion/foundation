@@ -9,11 +9,10 @@
   export let sortOrder: 'ops' | 'avg' | 'total'
 
   const endpoint = getMetadata(presentation.metadata.StatsUrl)
-  const token: string = getMetadata(presentation.metadata.Token) ?? ''
 
   async function fetchStats (time: number): Promise<void> {
     try {
-      data = await fetchStatsJson<ServiceStatistics>(endpoint + `/api/v1/statistics?token=${token}&name=${serviceName}`)
+      data = await fetchStatsJson<ServiceStatistics>(endpoint + `/api/v1/statistics?name=${serviceName}`)
     } catch (err) {
       console.error(err)
     }

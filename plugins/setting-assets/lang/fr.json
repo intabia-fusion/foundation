@@ -220,7 +220,15 @@
     "SelectUsers": "Sélectionner des utilisateurs",
     "ShowInTitle": "Afficher dans le titre",
     "SpaceMembersOnly": "Membres de l'espace uniquement",
-    "Reset": "Réinitialiser"
+    "OverrideAttribute": "Surcharger l'attribut",
+    "Required": "Requis",
+    "Reset": "Réinitialiser",
+    "ConfirmOperation": "Confirmer l'opération",
+    "Confirm": "Confirmer",
+    "OtpCode": "Code",
+    "OtpSent": "Un code a été envoyé à votre e-mail",
+    "OtpSendFailed": "Échec de l'envoi du code",
+    "SendCode": "Envoyer le code"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

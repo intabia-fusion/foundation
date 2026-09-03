@@ -42,10 +42,13 @@ export class MilestonesPage extends CommonTrackerPage {
   }
 
   async openMilestoneByName (milestoneName: string): Promise<void> {
+    await this.expandCollapsedCategories()
     await this.page.locator('div.listGrid a', { hasText: milestoneName }).click()
   }
 
   async checkMilestoneNotExist (milestoneName: string): Promise<void> {
+    // Without expanding, a folded category makes this assertion pass for the wrong reason.
+    await this.expandCollapsedCategories()
     await expect(this.page.locator('div.listGrid a', { hasText: milestoneName })).toHaveCount(0)
   }
 }

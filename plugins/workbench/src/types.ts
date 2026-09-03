@@ -98,8 +98,12 @@ export interface WidgetTab {
   icon?: Asset | AnySvelteComponent
   iconComponent?: AnyComponent
   iconProps?: Record<string, any>
+  // Three states, like VSCode editor tabs:
+  //   neither flag - preview, replaced by the next tab opened in this widget
+  //   isKept       - stays until closed
+  //   isPinned     - stays, sorted first, no close button (implies isKept)
+  isKept?: boolean
   isPinned?: boolean
-  allowedPath?: string
   objectId?: Ref<Doc>
   objectClass?: Ref<Class<Doc>>
   data?: Record<string, any>

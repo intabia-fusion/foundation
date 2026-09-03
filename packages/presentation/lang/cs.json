@@ -5,6 +5,7 @@
     "Ok": "OK",
     "Save": "Uložit",
     "Saved": "Uloženo...",
+    "Saving": "Ukládání...",
     "Download": "Stáhnout",
     "DownloadOriginal": "Stáhnout originál",
     "Delete": "Smazat",
@@ -56,7 +57,8 @@
     "LineTool": "Čára",
     "RectangleTool": "Obdélník",
     "EllipseTool": "Elipsa",
-    "PaletteManagementMenu": "Spravovat barevné předvolby"
+    "PaletteManagementMenu": "Spravovat barevné předvolby",
+    "Draft": "Koncept"
   },
   "status": {
     "FileTooLarge": "Soubor je příliš velký"

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminFetch } from '../../utils'
   import { FixedColumn } from '@hcengineering/view-resources'
   import { getEmbeddedLabel, getMetadata } from '@hcengineering/platform'
   import presentation, { type OverviewStatistics } from '@hcengineering/presentation'
@@ -7,13 +8,11 @@
   import TopProblems from './TopProblems.svelte'
   import { fetchStatsJson } from './statsFetch'
 
-  const token: string = getMetadata(presentation.metadata.Token) ?? ''
-
   const endpoint = getMetadata(presentation.metadata.StatsUrl)
 
   async function fetchStats (time: number): Promise<void> {
     try {
-      data = await fetchStatsJson<OverviewStatistics>(endpoint + `/api/v1/overview?token=${token}`)
+      data = await fetchStatsJson<OverviewStatistics>(endpoint + '/api/v1/overview')
       admin = data?.admin ?? false
     } catch (err) {
       console.error(err)
@@ -50,7 +49,7 @@
         icon={IconArrowRight}
         label={getEmbeddedLabel('Wipe statistics')}
         on:click={() => {
-          void fetch(endpoint + `/api/v1/manage?token=${token}&operation=wipe-statistics`, {
+          void adminFetch(endpoint + '/api/v1/manage?operation=wipe-statistics', {
             method: 'PUT'
           }).then(async () => {
             await fetchStats(0)

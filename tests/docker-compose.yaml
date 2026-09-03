@@ -25,7 +25,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - DB_URL=postgres://postgres:postgres@postgres:5433/postgres
+      - DB_URL=${DB_PG_URL}
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
       # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
@@ -43,7 +43,7 @@ services:
     volumes:
       - ./branding-test.json:/var/cfg/branding.json
     environment:
-      - DB_URL=postgres://postgres:postgres@postgres:5433/postgres
+      - DB_URL=${DB_PG_URL}
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
       - ACCOUNTS_URL=http://account:3003
@@ -51,12 +51,6 @@ services:
       - SECRET=secret
       - BRANDING_PATH=/var/cfg/branding.json
       # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-    restart: unless-stopped
-  cockroach:
-    image: cockroachdb/cockroach:v24.1.2
-    command: start-single-node --insecure
-    ports:
-      - "26258:26257"
     restart: unless-stopped
   postgres:
     image: postgres:18.1
@@ -81,7 +75,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - DB_URL=postgres://postgres:postgres@postgres:5433/postgres
+      - DB_URL=${DB_PG_URL}
     restart: "no"
 
   redpanda:
@@ -180,7 +174,6 @@ services:
         condition: service_healthy
     links:
       - minio
-      - cockroach
       - postgres
     volumes:
       - ./branding-test.json:/var/cfg/branding.json
@@ -190,7 +183,9 @@ services:
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - SERVER_SECRET=secret
       - ADMIN_EMAILS=admin,${PLATFORM_ADMIN_EMAILS}
-      - WORKSPACE_LIMIT_PER_USER=100
+      # Dev/testing only: fixed admin-operation OTP code (email delivery is off in tests). NEVER set in prod.
+      - ADMIN_OTP_DEV_CODE=000000
+      - WORKSPACE_LIMIT_PER_USER=10000
       # Free fallback limits (match the free:true plan in plan-config.yaml). storagePerUserGB scales disk.
       - FREE_PLAN_LIMITS={"usersLimit":5,"storagePerUserGB":2,"tokenLimit":100000,"trafficLimitGB":0,"meetingMinutesLimit":0}
       - DB_URL=${DB_PG_URL}
@@ -203,7 +198,6 @@ services:
     image: 'intabiafusion/workspace:${DOCKER_TAG:-latest}'
     pull_policy: never
     links:
-      - cockroach
       - postgres
       - minio
       - redpanda
@@ -214,6 +208,7 @@ services:
       - ./branding-test.json:/var/cfg/branding.json
       - ./region-config.yaml:/var/cfg/region-config.yaml
     environment:
+      - WAIT_TIMEOUT=100
       - SERVER_SECRET=secret
       - DB_URL=${DB_PG_URL}
       - REGION_CONFIG=/var/cfg/region-config.yaml
@@ -275,8 +270,10 @@ services:
       - STATS_API=http://localhost:8083/_stats
       - STREAM_URL=http://localhost:8083/_stream/recording
       - DATALAKE_URL=http://localhost:8083/_datalake
+      - PRINT_URL=http://localhost:8083/_print
       - BILLING_URL=http://localhost:8083/_billing
       - PAYMENT_URL=http://localhost:8083/_payment
+      - AI_URL=http://localhost:8083/_ai
       - USE_OTP=false
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
       - ANALYTICS_COLLECTOR_URL=http://localhost:4018
@@ -292,7 +289,6 @@ services:
       - elastic
       - minio
       - rekoni
-      - cockroach
       - postgres
       - account
       - stats
@@ -349,13 +345,13 @@ services:
     depends_on:
       redpanda:
         condition: service_started
-      cockroach:
-        condition: service_started
+      postgres:
+        condition: service_healthy
       elastic:
         condition: service_healthy
     links:
       - elastic
-      - cockroach
+      - postgres
       - rekoni
       - redpanda
     environment:
@@ -424,8 +420,8 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-      cockroach:
-        condition: service_started
+      postgres:
+        condition: service_healthy
       stats:
         condition: service_started
       account:
@@ -475,7 +471,9 @@ services:
       # not the global minio one (collectDatalakeStats filters by kind === 'datalake').
       - STORAGE_CONFIG=datalake|http://datalake:4031
       - QUEUE_CONFIG=${QUEUE_CONFIG}
-      - USAGE_UPDATE_INTERVAL=30
+      - USAGE_UPDATE_INTERVAL=600
+      # Sanity tests drive the workspace token window through reset / set-used.
+      - ALLOW_TEST_ENDPOINTS=true
       # - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
     restart: unless-stopped
 
@@ -498,6 +496,8 @@ services:
       - ALLOW_MOCK_PROVIDER=false
       # Tests fire many subscription mutations in a row from one IP; lift the per-IP cap.
       - SUBSCRIPTION_RATE_LIMIT_MAX=100000
+      # Same for plan-config: every billing page open reads it twice, the whole suite shares one IP.
+      - PLAN_CONFIG_RATE_LIMIT_MAX=100000
       - PLAN_CONFIG=/var/cfg/plan-config.yaml
       - QUEUE_CONFIG=${QUEUE_CONFIG}
     volumes:
@@ -565,11 +565,79 @@ services:
       # a global webhook in livekit-test-config.yaml pointing back to love
       # via nginx, so per-egress webhook override is not needed.
       - POLLING_ENABLED=true
-      - POLLING_INTERVAL_MS=30000
+      - POLLING_INTERVAL_MS=10000
       - PENDING_JOIN_TIMEOUT_MS=60000
       - STATS_URL=http://stats:4901
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - QUEUE_REGION=
+    restart: unless-stopped
+
+  # clisr worker serving the `pro` level from a local model on the host. Starts always but
+  # idles unless a model server is up; only the @llm suite (rushx run-uitests) uses it.
+  aibot_client_llm:
+    image: intabiafusion/ai-bot
+    pull_policy: never
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      aibot:
+        condition: service_started
+    volumes:
+      - ./config-aibot-client.yaml:/var/cfg/config.yaml
+    environment:
+      - API_TOKEN=api-secret
+      - MODE=client
+      - SERVER_URL=ws://aibot:4010
+      - CONFIG_PATH=/var/cfg/config.yaml
+      - MAX_CONTENT_TOKENS=12800
+      - MAX_HISTORY_RECORDS=500
+      - STATS_URL=http://stats:4901
+      - STT_PROVIDER=
+    restart: unless-stopped
+
+  aibot:
+    image: intabiafusion/ai-bot
+    pull_policy: never
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      account:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    volumes:
+      # Mock provider registry: deterministic replies, per-level billing multipliers.
+      - ./config-aibot.yaml:/var/cfg/config.yaml
+    environment:
+      - ACCOUNTS_URL=http://account:3003
+      - SERVER_SECRET=secret
+      - SERVICE_ID=ai-bot-service
+      - API_TOKEN=api-secret
+      # All-in-one role for sanity (event-router + llm-router + stt-worker).
+      - MODE=all
+      - FIRST_NAME=Julia
+      - LAST_NAME=AI
+      - PASSWORD=password
+      - AVATAR_PATH=./avatar.png
+      - AVATAR_CONTENT_TYPE=.png
+      - PORT=4010
+      # Mock LLM provider (deterministic, offline) — registry from CONFIG_PATH.
+      # Mock provider runs inline on the pod (no clisr worker).
+      - CONFIG_PATH=/var/cfg/config.yaml
+      # STT served in-process via clisr (no external STT needed for sanity).
+      - STT_PROVIDER=server
+      - VAD_RMS_THRESHOLD=0.02
+      - VAD_SPEECH_RATIO_THRESHOLD=0.1
+      - LOVE_ENDPOINT=http://love:8087
+      - BILLING_URL=http://billing:4043
+      # Test stand only: append in/out/reasoning tokens + tok/s to every reply.
+      - LLM_SHOW_USAGE=true
+      - MAX_CONTENT_TOKENS=12800
+      - MAX_HISTORY_RECORDS=500
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - STORAGE_CONFIG=${STORAGE_CONFIG}
+      - CHUNK_STORAGE_CONFIG=minio|minio?accessKey=minioadmin&secretKey=minioadmin&rootBucket=ai-bot-chunks-test
+      - STATS_URL=http://stats:4901
     restart: unless-stopped
 
   sign:
@@ -610,6 +678,21 @@ services:
       - redis-test
       - minio
     restart: unless-stopped
+
+  print:
+    image: "intabiafusion/print:${DOCKER_TAG:-latest}"
+    network_mode: "service:nginx"
+    depends_on:
+     nginx:
+      condition: service_started
+    restart: unless-stopped
+    environment:
+      - SECRET=secret
+      - REGION=
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - STORAGE_CONFIG=${DATALAKE_STORAGE_CONFIG}
+      - STATS_URL=http://stats:4901
+      - ACCOUNTS_URL=http://account:3003
 
 volumes:
   elastic-plugins:

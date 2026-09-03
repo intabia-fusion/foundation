@@ -27,15 +27,14 @@ import core, {
   generateUuid,
   MeasureMetricsContext,
   pickPrimarySocialId,
-  systemAccountUuid,
   type Ref,
   type SocialId,
   type TxOperations
 } from '@hcengineering/core'
 import { getClient as getAccountClient } from '@hcengineering/account-client'
 import { ensureEmployee } from '@hcengineering/contact'
-import { generateToken } from '@hcengineering/server-token'
 import drivePlugin, { type Drive } from '@hcengineering/drive'
+import { adminSessionClient, DEV_OTP } from './admin.fixtures'
 
 // Workspace api-tests-seats boots with business (10 seats) so user1(OWNER)/user2/user3 all onboard.
 // The test then sets usersLimit=2: seats go by role priority (Owner first), then account uuid — the
@@ -68,9 +67,9 @@ describe('plan-seats', () => {
   }, 30000)
 
   async function setUsersLimit (usersLimit: number): Promise<void> {
-    const adminToken = generateToken(systemAccountUuid, owner.workspaceId, { admin: 'true' }, 'secret')
-    const adminClient = getAccountClient(config.ACCOUNTS_URL, adminToken)
+    const adminClient = await adminSessionClient(config)
     await adminClient.adminCreateSubscription({
+      otpCode: DEV_OTP,
       workspaceUuid: owner.workspaceId,
       plan: 'business',
       limits: {

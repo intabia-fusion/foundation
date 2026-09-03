@@ -190,6 +190,19 @@ export function defineFunctions (builder: Builder): void {
     core.space.Model,
     {
       of: core.class.ArrOf,
+      category: 'array',
+      label: process.string.AllMatchValue,
+      type: 'reduce',
+      editor: process.transformEditor.FilterEditor
+    },
+    process.function.AllMatchValue
+  )
+
+  builder.createDoc(
+    process.class.ProcessFunction,
+    core.space.Model,
+    {
+      of: core.class.ArrOf,
       category: undefined,
       label: process.string.FirstMatchValue,
       type: 'reduce',
@@ -604,6 +617,19 @@ export function defineFunctions (builder: Builder): void {
     process.class.ProcessFunction,
     core.space.Model,
     {
+      of: core.class.TypeIdentifier,
+      to: core.class.TypeString,
+      category: 'attribute',
+      label: process.string.TextFromIdentifier,
+      type: 'convert'
+    },
+    process.function.StringFromIdentifier
+  )
+
+  builder.createDoc(
+    process.class.ProcessFunction,
+    core.space.Model,
+    {
       of: core.class.TypeDate,
       to: core.class.TypeString,
       category: 'attribute',
@@ -624,6 +650,32 @@ export function defineFunctions (builder: Builder): void {
       type: 'convert'
     },
     process.function.StringFromBoolean
+  )
+
+  builder.createDoc(
+    process.class.ProcessFunction,
+    core.space.Model,
+    {
+      of: core.class.TypeMarkup,
+      to: core.class.TypeString,
+      category: 'attribute',
+      label: process.string.TextFromMarkup,
+      type: 'convert'
+    },
+    process.function.StringFromMarkup
+  )
+
+  builder.createDoc(
+    process.class.ProcessFunction,
+    core.space.Model,
+    {
+      of: core.class.TypeString,
+      to: core.class.TypeMarkup,
+      category: 'attribute',
+      label: process.string.MarkupFromText,
+      type: 'convert'
+    },
+    process.function.MarkupFromString
   )
 
   builder.createDoc(
@@ -729,5 +781,31 @@ export function defineFunctions (builder: Builder): void {
       type: 'convert'
     },
     process.function.DayFromDate
+  )
+
+  builder.createDoc(
+    process.class.ProcessFunction,
+    core.space.Model,
+    {
+      of: core.class.EnumOf,
+      to: core.class.TypeString,
+      category: 'attribute',
+      label: process.string.TextFromSelect,
+      type: 'convert'
+    },
+    process.function.StringFromEnum
+  )
+
+  builder.createDoc(
+    process.class.ProcessFunction,
+    core.space.Model,
+    {
+      of: core.class.TypeString,
+      to: core.class.EnumOf,
+      category: 'attribute',
+      label: process.string.SelectFromText,
+      type: 'convert'
+    },
+    process.function.EnumFromString
   )
 }

@@ -1,5 +1,5 @@
 #!/bin/bash
 
 pushd ../
-./restore-pg.sh
+./restore-pg.sh "$@"
 popd

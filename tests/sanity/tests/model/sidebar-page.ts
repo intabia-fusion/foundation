@@ -47,6 +47,16 @@ export class SidebarPage extends CommonPage {
     await this.verticalTabByName(tabName).click()
   }
 
+  async doubleClickVerticalTab (tabName: string): Promise<void> {
+    await this.verticalTabByName(tabName).dblclick()
+  }
+
+  // Preview tabs are rendered italic and are the ones replaced when a new object is opened.
+  async checkIfVerticalTabIsPreview (isPreview: boolean, tabName: string): Promise<void> {
+    const tab = this.verticalTabByName(tabName)
+    await (isPreview ? expect(tab) : expect(tab).not).toHaveClass(/italic/)
+  }
+
   async closeVerticalTabByCloseButton (tabName: string): Promise<void> {
     await this.verticalTabCloseButton(tabName).click()
   }

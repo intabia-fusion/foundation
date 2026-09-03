@@ -1,0 +1,54 @@
+# Sanity ai-bot registry (mounted at /var/cfg/config.yaml on the `aibot` pod).
+# Reference: services/ai-bot/pod-ai-bot/config.example.yaml
+#
+# low: mock provider in echo mode — replies with the whole received context as markdown, so
+# tests assert what actually reached the model. Offline, fixed usage, so billing and window
+# enforcement behave exactly as with a real model. Default level: the base suite runs on it.
+# middle: clisr — served by the aibot_client_llm worker against a local model on the host.
+# Only the @llm suite uses it; without a model server the level simply has no worker.
+
+llm:
+  defaultLevel: low
+
+  models:
+    low:
+      order: 0
+      label: Базовый
+      description: Mock (тесты)
+      tokenMultiplier: 0.1
+      displayMultiplier: 0.5
+    middle:
+      order: 10
+      label: Стандарт
+      description: Локальная модель (тесты @llm)
+      tokenMultiplier: 1.2
+      displayMultiplier: 1
+
+  providers:
+    - id: mock
+      provider: mock
+      concurrency: 4
+      batch: 1
+      endpointConfig:
+        # Echo the received context back as markdown instead of a canned reply.
+        echo: true
+        promptTokens: 50
+        completionTokens: 10
+      serves:
+        low:
+          model: mock-model
+          capabilities:
+            tools: true
+            maxContextTokens: 32768
+
+    - id: clisr
+      provider: clisr
+      concurrency: 1
+      batch: 1
+      endpoint: ws://aibot:4010
+      serves:
+        middle:
+          model: Base
+          capabilities:
+            tools: true
+            maxContextTokens: 32768

@@ -25,7 +25,7 @@
 
   import love from '../../plugin'
   import { currentRoom, infos, myInfo, myConnectingSessionId, rooms, meetings, busyPersons } from '../../stores'
-  import { createMeetingWidget, getRoomName } from '../../utils'
+  import { createMeetingWidget, getRoomName, liveKitClient } from '../../utils'
   import PersonActionPopup from '../PersonActionPopup.svelte'
   import RoomButton from '../RoomButton.svelte'
   import { lkIsConnecting, lkSessionConnected } from '../../liveKitClient'
@@ -117,7 +117,15 @@
     if (meetingSessionConnected) {
       // Only check room mismatch if we have a valid myRoomAttached (myInfo exists with meeting/room)
       // Otherwise we're still waiting for ParticipantInfo from server webhook
-      if (currentMeeting !== undefined && myRoomAttached !== undefined && myRoomAttached !== room) {
+      // Only a ParticipantInfo from *this* LiveKit session proves we were moved out:
+      // the row from the previous meeting lingers until its participant_left lands.
+      const mySid = liveKitClient.liveKitRoom.localParticipant.sid
+      if (
+        currentMeeting !== undefined &&
+        myRoomAttached !== undefined &&
+        myRoomAttached !== room &&
+        $myInfo?.sessionId === mySid
+      ) {
         void leaveMeeting()
         return
       }

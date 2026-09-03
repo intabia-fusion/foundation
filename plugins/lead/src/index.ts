@@ -80,12 +80,12 @@ const lead = plugin(leadId, {
   },
   class: {
     Lead: '' as Ref<Class<Lead>>,
-    Funnel: '' as Ref<Class<Funnel>>
+    Funnel: '' as Ref<Class<Funnel>>,
+    LeadTaskType: '' as Ref<Class<Lead>>
   },
   mixin: {
     Customer: '' as Ref<Mixin<Customer>>,
-    DefaultFunnelTypeData: '' as Ref<Mixin<Funnel>>,
-    LeadTypeData: '' as Ref<Mixin<Lead>>
+    DefaultFunnelTypeData: '' as Ref<Mixin<Funnel>>
   },
   string: {
     Lead: '' as IntlString,

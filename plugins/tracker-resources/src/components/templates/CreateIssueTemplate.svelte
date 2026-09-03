@@ -31,7 +31,7 @@
   import MilestoneSelector from '../milestones/MilestoneSelector.svelte'
   import ProjectPresenter from '../projects/ProjectPresenter.svelte'
   import EstimationEditor from './EstimationEditor.svelte'
-  import SubIssueTemplates from './IssueTemplateChilds.svelte'
+  import SubIssueTemplates from '../subtasks/SubtaskSection.svelte'
 
   export let space: Ref<Project>
   export let priority: IssuePriority = IssuePriority.NoPriority

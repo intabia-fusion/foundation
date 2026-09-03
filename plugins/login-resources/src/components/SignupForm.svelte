@@ -27,8 +27,9 @@
   import { OtpLoginSteps, signUp, signUpOtp } from '../index'
   import type { Field } from '../types'
   import OtpForm from './OtpForm.svelte'
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import ConsentCheckboxes from './ConsentCheckboxes.svelte'
+  import { fetchMetadataLocalStorage, setMetadataLocalStorage } from '@hcengineering/ui'
 
   export let signUpDisabled = false
   export let localLoginHidden = false
@@ -49,8 +50,8 @@
     fields = [
       { id: 'given-name', name: 'first', i18n: login.string.FirstName },
       { id: 'family-name', name: 'last', i18n: login.string.LastName },
-      { id: 'email', name: 'username', i18n: login.string.Email },
-      { id: 'phone-number', name: 'phone', i18n: login.string.PhoneNumber, optional: true }
+      { id: 'email', name: 'username', i18n: login.string.Email, inputmode: 'email' },
+      { id: 'phone-number', name: 'phone', i18n: login.string.PhoneNumber, optional: true, inputmode: 'tel' }
     ]
 
     if (withPassword) {
@@ -74,7 +75,7 @@
   const object = {
     first: '',
     last: '',
-    username: '',
+    username: fetchMetadataLocalStorage(login.metadata.AuthEmail) ?? '',
     password: '',
     password2: '',
     phone: ''
@@ -110,6 +111,10 @@
 
         status = loginStatus
 
+        if (result != null) {
+          setMetadataLocalStorage(login.metadata.AuthEmail, null)
+        }
+
         if (onSignUp !== undefined) {
           void onSignUp(result, status)
         } else if (result != null) {
@@ -137,6 +142,10 @@
   }
 
   $: proceedDisabled = !agreedPersonalData || !agreedRules
+
+  onDestroy(() => {
+    setMetadataLocalStorage(login.metadata.AuthEmail, object.username ?? '')
+  })
 </script>
 
 {#if step === OtpLoginSteps.Email}
@@ -233,5 +242,19 @@
     border: solid var(--login-button-text-color, var(--primary-button-color, #ffffff));
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
+  }
+
+  @media (max-width: 600px) {
+    .check-label {
+      align-items: flex-start;
+      font-size: 0.875rem;
+      line-height: 1.35;
+    }
+
+    /* Larger hit area on touch screens without changing the visual box size. */
+    .check-label input[type='checkbox'] {
+      margin: 0.15rem 0;
+      outline-offset: 0.5rem;
+    }
   }
 </style>

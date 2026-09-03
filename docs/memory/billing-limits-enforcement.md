@@ -1,6 +1,6 @@
 # Billing limits enforcement (FUSIO-740)
 
-Состояние после коммита 277d851f4e. Полный статус: `foundation-tasks/billing-limits.md`.
+Состояние после коммита 277d851f4e.
 
 ## Багфиксы при тестировании (2026-06-10)
 
@@ -48,3 +48,9 @@
 - `PlanLimitExceeded` ловится в `ReadOnlyAccessMiddleware` (view-resources) -> notification; intl в platform lang + view-assets.
 - Точный isLimited: клиентская репликация seat-set в `checkIsLimited()`; aibot исключён через `aiBotEmailSocialKey` -> SocialIdentity; `getWorkspaceMembers` доступен любому члену workspace.
 - REST usage-приём pod-billing ОСТАВЛЕН: живые потребители translate-сервис и Deepgram cost-tracking (отдельная природа данных - затраты, не лимиты).
+
+## 2026-08-17: join-по-инвайту маскировался под "invalid otp"
+
+Симптом: новый юзер по инвайт-ссылке видит "invalid otp" на каждом заходе. В логах account: OTP валиден ("OTP login/verification success"), падает `joinByInvite` -> `PlanLimitExceeded` (`assertSeatAvailableOnJoin`, server/account/src/utils.ts). Единственный настоящий `InvalidOtp` - повторная отправка уже потраченного кода (signup сжигает OTP, юзер жмёт ещё раз).
+
+Причина маскировки: `joinByInvite` в plugins/login-resources/src/utils.ts глотал `PlatformError` и возвращал `undefined`; Join.svelte показывал generic `JoinWorkspaceError`. Исправлено: возвращает `[Status, WorkspaceLoginInfo | undefined]`, Join.svelte рендерит реальный статус (у `PlanLimitExceeded` есть intl во всех lang-файлах platform).

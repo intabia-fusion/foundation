@@ -44,6 +44,7 @@ import {
   type PersonUuid,
   type Ref,
   type SocialIdType,
+  type TxMeta,
   type WithLookup
 } from '@hcengineering/core'
 import type { MarkupFormat, MarkupRef } from '../markup'
@@ -95,7 +96,8 @@ export interface ClientOperations {
     attributes: Data<T>,
     id?: Ref<T>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ) => Promise<Ref<T>>
 
   /**
@@ -110,7 +112,8 @@ export interface ClientOperations {
     attributes: AttachedData<P>,
     id?: Ref<P>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ) => Promise<Ref<P>>
 
   /**

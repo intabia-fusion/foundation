@@ -5,6 +5,7 @@
     "Ok": "Ok",
     "Save": "Salvar",
     "Saved": "Salvo...",
+    "Saving": "Salvando...",
     "Download": "Fazer download",
     "DownloadOriginal": "Fazer download do original",
     "Delete": "Excluir",
@@ -56,7 +57,8 @@
     "LineTool": "Linha",
     "RectangleTool": "Retângulo",
     "EllipseTool": "Elipse",
-    "PaletteManagementMenu": "Gerenciar predefinições de cor"
+    "PaletteManagementMenu": "Gerenciar predefinições de cor",
+    "Draft": "Rascunho"
   },
   "status": {
     "FileTooLarge": "Arquivo muito grande"

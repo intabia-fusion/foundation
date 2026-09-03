@@ -54,6 +54,8 @@
     "RemovedAttachment": "Pièce jointe supprimée",
     "ContentType": "Type de contenu",
     "OpenInWindow": "Ouvrir dans une fenêtre",
-    "Embeddings": "Intégrations"
+    "Embeddings": "Intégrations",
+    "Transcribing": "Transcription...",
+    "TranscriptionFailed": "Échec de la transcription"
   }
 }

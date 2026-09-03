@@ -22,16 +22,10 @@ import {
   type ServerConfig,
   type WorkspaceToken
 } from '@hcengineering/api-client'
-import {
-  AccountRole,
-  MeasureMetricsContext,
-  pickPrimarySocialId,
-  systemAccountUuid,
-  type SocialId
-} from '@hcengineering/core'
+import { AccountRole, MeasureMetricsContext, pickPrimarySocialId, type SocialId } from '@hcengineering/core'
 import { getClient as getAccountClient } from '@hcengineering/account-client'
 import contact, { type Employee, ensureEmployee } from '@hcengineering/contact'
-import { generateToken } from '@hcengineering/server-token'
+import { adminSessionClient, DEV_OTP } from './admin.fixtures'
 
 // Reproduces the SANITY "seat downgrade read-only" UI check at the API level: after a downgrade
 // the UI's checkIsLimited must mark the over-limit member seatless. checkIsLimited reads
@@ -56,9 +50,9 @@ describe('plan-seats-ui', () => {
   }, 30000)
 
   async function setUsersLimit (usersLimit: number): Promise<void> {
-    const adminToken = generateToken(systemAccountUuid, owner.workspaceId, { admin: 'true' }, 'secret')
-    const adminClient = getAccountClient(config.ACCOUNTS_URL, adminToken)
+    const adminClient = await adminSessionClient(config)
     await adminClient.adminCreateSubscription({
+      otpCode: DEV_OTP,
       workspaceUuid: owner.workspaceId,
       plan: 'start',
       limits: {

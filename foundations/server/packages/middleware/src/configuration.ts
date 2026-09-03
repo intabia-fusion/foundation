@@ -59,8 +59,10 @@ export class ConfigurationMiddleware extends BaseMiddleware implements Middlewar
         const txCUD = tx as TxCUD<Doc>
         const domain = this.context.hierarchy.getDomain(txCUD.objectClass)
         if (this.targetDomains.includes(domain)) {
+          // Workspace configuration is an owner's call. A global admin flag on the token grants
+          // nothing here: cross-workspace changes go through the audited account RPCs.
           const account = ctx.contextData.account
-          if (account.role !== AccountRole.Owner && ctx.contextData.admin !== true) {
+          if (account.role !== AccountRole.Owner) {
             throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
           }
         }

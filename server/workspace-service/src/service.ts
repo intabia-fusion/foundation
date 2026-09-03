@@ -418,8 +418,9 @@ export class WorkspaceWorker {
       let serverEndpoint = await getTransactorEndpoint(token)
       serverEndpoint = serverEndpoint.replaceAll('wss://', 'https://').replace('ws://', 'http://')
       console.log('sending event', serverEndpoint, ws)
-      await fetch(serverEndpoint + `/api/v1/manage?token=${token}&operation=force-close`, {
-        method: 'PUT'
+      await fetch(serverEndpoint + '/api/v1/manage?operation=force-close', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
       })
     } catch (err: any) {
       console.log(err)

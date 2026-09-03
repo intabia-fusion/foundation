@@ -85,8 +85,8 @@ class Workspace {
       const domain = this.hierarchy.getDomain(tx.objectClass)
 
       if (domain === 'model') {
+        // addTxes keeps the hierarchy in step, applying it here too would double $push/$inc.
         this.model.addTxes(this.ctx, [tx], true)
-        this.hierarchy.tx(tx)
       }
 
       this.cache.tx(tx)
@@ -97,7 +97,8 @@ class Workspace {
 
       if (res.length > 0) {
         this.lastTxDate = tx.createdOn ?? tx.modifiedOn
-        await this.applyTxes(res)
+        const silent = tx.meta?.silent
+        await this.applyTxes(res.map((it) => (silent !== undefined ? { ...it, meta: { ...it.meta, silent } } : it)))
       }
     } finally {
       this.inProgress = false

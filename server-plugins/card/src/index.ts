@@ -33,6 +33,7 @@ export default plugin(serverCardId, {
   trigger: {
     OnAttribute: '' as Resource<TriggerFunc>,
     OnAttributeRemove: '' as Resource<TriggerFunc>,
+    OnViewletUpdate: '' as Resource<TriggerFunc>,
     OnMasterTagCreate: '' as Resource<TriggerFunc>,
     OnTagRemove: '' as Resource<TriggerFunc>,
     OnMasterTagRemove: '' as Resource<TriggerFunc>,

@@ -152,13 +152,24 @@ export async function getMediaDevices (microphone: boolean, camera: boolean): Pr
 
   const activeMicrophone =
     microphonePermission === 'denied' ? undefined : getActiveDevice('audioinput', devices, selectedMicrophoneId)
-  updateSelectedMicId(activeMicrophone?.deviceId)
+  // Persist only a real match: overwriting the stored id with the fallback device
+  // loses the user's choice for good once their device is briefly unplugged.
+  if (isStoredDevice(selectedMicrophoneId, activeMicrophone)) {
+    updateSelectedMicId(activeMicrophone?.deviceId)
+  }
   const activeCamera =
     cameraPermission === 'denied' ? undefined : getActiveDevice('videoinput', devices, selectedCameraId)
-  updateSelectedCamId(activeCamera?.deviceId)
+  if (isStoredDevice(selectedCameraId, activeCamera)) {
+    updateSelectedCamId(activeCamera?.deviceId)
+  }
   const activeSpeaker = getActiveDevice('audiooutput', devices, selectedSpeakerId)
 
   return { activeMicrophone, activeCamera, activeSpeaker, devices }
+}
+
+function isStoredDevice (storedId: string | undefined, active: MediaDeviceInfo | undefined): boolean {
+  if (storedId === undefined || storedId === '') return true
+  return active?.deviceId === storedId
 }
 
 function getActiveDevice (

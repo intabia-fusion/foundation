@@ -159,6 +159,9 @@
     "GroupByStatus": "Duruma göre",
     "GroupByDate": "Tarihe göre",
     "SpeakingWhileMuted": "Mikrofonunuz kapalı - diğerleri sizi duymuyor",
-    "SpeakingWhileMutedAlert": "Mikrofon kapalıyken konuştuğumda uyar"
+    "SpeakingWhileMutedAlert": "Mikrofon kapalıyken konuştuğumda uyar",
+    "SwitchWorkspaceInMeeting": "Bir toplantıdasınız",
+    "SwitchWorkspaceLeaveMeeting": "Çalışma alanını değiştirmek sizi mevcut toplantıdan koparacak.",
+    "SwitchWorkspaceEndsMeeting": "Burası sizin ofisiniz: çalışma alanını değiştirmek sizi koparır ve toplantıyı herkes için sonlandırır."
   }
 }

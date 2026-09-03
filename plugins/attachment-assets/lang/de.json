@@ -54,6 +54,8 @@
     "RemovedAttachment": "Anhang entfernt",
     "ContentType": "Inhaltstyp",
     "OpenInWindow": "In Fenster öffnen",
-    "Embeddings": "Einbettungen"
+    "Embeddings": "Einbettungen",
+    "Transcribing": "Transkription...",
+    "TranscriptionFailed": "Transkription fehlgeschlagen"
   }
 }

@@ -1,5 +1,6 @@
 //
-// Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -25,9 +26,13 @@ import {
   type ModelLogger
 } from '@hcengineering/model'
 import core, { DOMAIN_SPACE } from '@hcengineering/model-core'
-
 import { DOMAIN_CONTACT } from '@hcengineering/model-contact'
-import task, { createSequence, DOMAIN_TASK, migrateDefaultStatusesBase } from '@hcengineering/model-task'
+import task, {
+  createSequence,
+  DOMAIN_TASK,
+  migrateDefaultStatusesBase,
+  migrateTaskTypesToClasses
+} from '@hcengineering/model-task'
 
 import lead from './plugin'
 import { defaultLeadStatuses } from './spaceType'
@@ -106,7 +111,7 @@ async function migrateDefaultTypeMixins (client: MigrationClient): Promise<void>
   const oldSpaceTypeMixin = `${lead.template.DefaultFunnel}:type:mixin`
   const newSpaceTypeMixin = lead.mixin.DefaultFunnelTypeData
   const oldTaskTypeMixin = `${lead.taskType.Lead}:type:mixin`
-  const newTaskTypeMixin = lead.mixin.LeadTypeData
+  const newTaskTypeMixin = 'lead:mixin:LeadTypeData' as any
 
   await client.update(
     DOMAIN_MODEL_TX,
@@ -144,6 +149,10 @@ async function migrateDefaultTypeMixins (client: MigrationClient): Promise<void>
       }
     }
   )
+}
+
+async function migrateLeadTaskTypesToClasses (client: MigrationClient): Promise<void> {
+  await migrateTaskTypesToClasses(client, lead.taskType.Lead, 'lead:mixin:LeadTypeData' as any, lead.class.LeadTaskType)
 }
 
 export const leadOperation: MigrateOperation = {
@@ -184,6 +193,11 @@ export const leadOperation: MigrateOperation = {
             }
           )
         }
+      },
+      {
+        state: 'migrateTaskTypesToClasses-v6',
+        mode: 'upgrade',
+        func: migrateLeadTaskTypesToClasses
       }
     ])
   },

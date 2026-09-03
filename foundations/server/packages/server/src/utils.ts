@@ -19,6 +19,7 @@ import type {
   AddSessionActive,
   AddSessionResponse,
   ConnectionSocket,
+  SendMemo,
   Session,
   SessionManager
 } from '@hcengineering/server-core'
@@ -85,7 +86,8 @@ export function sendResponse (
   ctx: MeasureContext,
   session: Session,
   socket: ConnectionSocket,
-  resp: Response<any>
+  resp: Response<any>,
+  memo?: SendMemo
 ): Promise<void> {
-  return socket.send(ctx, resp, session.binaryMode, session.useCompression)
+  return socket.send(ctx, resp, session.binaryMode, session.useCompression, memo)
 }

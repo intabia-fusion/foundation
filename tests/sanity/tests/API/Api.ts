@@ -23,7 +23,7 @@ export class ApiEndpoint {
     return headers
   }
 
-  private async loginAndGetToken (email: string, password: string): Promise<string> {
+  async loginAndGetToken (email: string, password: string): Promise<string> {
     const loginUrl = this.baseUrl
     const loginPayload = {
       method: 'login',
@@ -56,7 +56,13 @@ export class ApiEndpoint {
     const headers = this.getDefaultHeaders(token)
     const response = await this.request.post(url, { data: payload, headers })
 
-    const wsResult: WorkspaceLoginInfo = (await response.json()).result
+    const body = await response.json()
+    // Without this an account-side refusal (WorkspaceLimitReached and friends) surfaces as
+    // "Cannot read properties of undefined" from the line below.
+    if (body?.result == null) {
+      throw new Error(`createWorkspace failed for ${workspaceName}: ${JSON.stringify(body?.error ?? body)}`)
+    }
+    const wsResult: WorkspaceLoginInfo = body.result
 
     await this.waitWorkspaceReady(token, wsResult.workspaceUrl)
 

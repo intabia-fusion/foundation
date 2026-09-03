@@ -120,7 +120,7 @@ const StaticEditorKit = extensionKit(
         context: getActionContext(context)
       }),
       toc: e(ToCExtension, false),
-      leftMenu: e(LeftMenuExtension, false),
+      leftMenu: e(LeftMenuExtension),
       inlineCommands: e(InlineCommandsExtension, false),
       placeholder: e(I18nPlaceholderExtension, false),
       editorContext: e(EditorContextExtension, {

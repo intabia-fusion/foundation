@@ -858,6 +858,26 @@ export function pluginFilterTx (
             }
           }
 
+          if (c.objectIdFilter != null) {
+            const objectIdFilter = new Set(c.objectIdFilter ?? [])
+            const tx = stx.get(id as Ref<Tx>)
+            if (
+              tx?._class === core.class.TxCreateDoc ||
+              tx?._class === core.class.TxUpdateDoc ||
+              tx?._class === core.class.TxRemoveDoc
+            ) {
+              const cud = tx as TxCUD<Doc>
+              if (objectIdFilter.has(cud.objectId)) {
+                totalExcluded.add(id as Ref<Tx>)
+              }
+            } else if (tx?._class === core.class.TxMixin) {
+              const cud = tx as TxMixin<Doc, Doc>
+              if (objectIdFilter.has(cud.objectId) || objectIdFilter.has(cud.mixin)) {
+                totalExcluded.add(id as Ref<Tx>)
+              }
+            }
+          }
+
           if (c.classFilter !== undefined) {
             const filter = new Set(c.classFilter)
             const tx = stx.get(id as Ref<Tx>)

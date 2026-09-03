@@ -49,10 +49,11 @@ export default {
     failed: 'сбой оплаты',
     final: 'отмена после сбоев'
   },
-  // Russian labels for the subscription type enum (SubscriptionType: tier/support/package).
+  // Russian labels for the subscription type enum (SubscriptionType: tier/support/package/purchase).
   type: {
     tier: 'тариф',
     support: 'поддержка',
-    package: 'пакет'
+    package: 'пакет',
+    purchase: 'разовая покупка'
   }
 }

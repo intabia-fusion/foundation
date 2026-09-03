@@ -1,3 +1,4 @@
+export * from './bench'
 export * from './context'
 export * from './metrics'
 export type * from './types'

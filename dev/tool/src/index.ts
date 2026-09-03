@@ -24,6 +24,9 @@ import accountPlugin, {
   getWorkspacesInfoWithStatusByIds,
   signUpByEmail,
   updateWorkspaceInfo,
+  createManualSubscription,
+  type SubscriptionStatus,
+  type SubscriptionType,
   type AccountDB,
   type Workspace
 } from '@hcengineering/account'
@@ -64,7 +67,7 @@ import { createWorkspace, upgradeWorkspace } from '@hcengineering/workspace-serv
 import { faker } from '@faker-js/faker'
 import { getPlatformQueue } from '@hcengineering/kafka'
 import { buildStorageFromConfig, createStorageFromConfig, storageConfigFromEnv } from '@hcengineering/server-storage'
-import { program, type Command } from 'commander'
+import { Command } from 'commander'
 import { updateField } from './workspace'
 import { dumpIndexes, syncIndexes } from './indexes'
 import { reportSlowSql } from './slowsql'
@@ -101,7 +104,7 @@ import {
   type QueueWorkspaceMessage,
   type StorageAdapter
 } from '@hcengineering/server-core'
-import { getAccountDBUrl, getKvsUrl, getMongoDBUrl } from './__start'
+import { getAccountDBUrl, getKvsUrl, getMongoDBUrl, prepareTools, registerToolLocations } from './setup'
 // import { fillGithubUsers, fixAccountEmails, renameAccount } from './account'
 import { changeConfiguration } from './configuration'
 
@@ -145,19 +148,24 @@ process.on('exit', () => {
   })
 })
 
+export { prepareTools, registerToolLocations } from './setup'
+
+export type PrepareTools = () => {
+  dbUrl: string
+  txes: Tx[]
+  version: Data<Version>
+  migrateOperations: [string, MigrateOperation][]
+}
+
+let runtimeReady = false
+
 /**
- * @public
+ * Adapters, server plugins and process-level handlers are global: register them once even when
+ * several programs are built in the same process (see buildToolProgram).
  */
-export function devTool (
-  prepareTools: () => {
-    dbUrl: string
-    txes: Tx[]
-    version: Data<Version>
-    migrateOperations: [string, MigrateOperation][]
-  },
-  extendProgram?: (prog: Command) => void
-): void {
-  const toolCtx = new MeasureMetricsContext('tool', {})
+function initToolRuntime (toolCtx: MeasureMetricsContext): void {
+  if (runtimeReady) return
+  runtimeReady = true
 
   registerTxAdapterFactory('postgresql', createPostgresTxAdapter, true)
   registerAdapterFactory('postgresql', createPostgresAdapter, true)
@@ -166,16 +174,56 @@ export function devTool (
   registerServerPlugins()
   registerStringLoaders()
 
+  process.on('unhandledRejection', (reason, promise) => {
+    toolCtx.error('Unhandled Rejection at:', { reason, promise })
+  })
+
+  process.on('uncaughtException', (error, origin) => {
+    toolCtx.error('Uncaught Exception at:', { origin, error })
+  })
+}
+
+/**
+ * @public
+ */
+export function devTool (prepareTools: PrepareTools, extendProgram?: (prog: Command) => void): void {
+  buildToolProgram(prepareTools, extendProgram).parse(process.argv)
+}
+
+/**
+ * Runs a single tool command in the current process; env is read per command, so callers may point
+ * separate commands at different regions. Commander throws instead of exiting the embedder.
+ * @public
+ */
+export async function runToolCommand (args: string[]): Promise<void> {
+  registerToolLocations()
+  const program = buildToolProgram(prepareTools)
+  // Commander resolves a bad argument on the sub-command, so every one of them needs the override.
+  for (const cmd of [program, ...program.commands]) {
+    cmd.exitOverride()
+  }
+  await program.parseAsync(['node', 'tool', ...args])
+}
+
+/**
+ * Builds a fresh command tree. Commander keeps parsed options on the command objects, so embedders
+ * running commands concurrently must build one program per invocation.
+ * @public
+ */
+export function buildToolProgram (prepareTools: PrepareTools, extendProgram?: (prog: Command) => void): Command {
+  const toolCtx = new MeasureMetricsContext('tool', {})
+  const program = new Command()
+
+  initToolRuntime(toolCtx)
+
   const serverSecret = process.env.SERVER_SECRET
   if (serverSecret === undefined) {
-    console.error('please provide server secret')
-    process.exit(1)
+    throw new Error('please provide server secret')
   }
 
   const accountsUrl = process.env.ACCOUNTS_URL
   if (accountsUrl === undefined) {
-    console.error('please provide accounts url.')
-    process.exit(1)
+    throw new Error('please provide accounts url.')
   }
 
   const transactorUrl = process.env.TRANSACTOR_URL
@@ -446,6 +494,7 @@ export function devTool (
     .option('--traffic <gb>', 'trafficLimitGB', '0')
     .option('--tokens <n>', 'tokenLimit', '0')
     .option('--meeting-minutes <n>', 'meetingMinutesLimit', '0')
+    .option('--window-month <n>', 'windowMonthLimit (billed tokens, 0 = unlimited)', '0')
     .action(
       async (
         workspace: string,
@@ -458,6 +507,7 @@ export function devTool (
           traffic: string
           tokens: string
           meetingMinutes: string
+          windowMonth: string
         }
       ) => {
         await withAccountDatabase(async (db) => {
@@ -470,16 +520,26 @@ export function devTool (
             storageLimitGB: parseFloat(cmd.storage), // fractional GB allowed (e.g. 0.05 = 50MB)
             trafficLimitGB: parseFloat(cmd.traffic),
             tokenLimit: parseInt(cmd.tokens),
-            meetingMinutesLimit: parseInt(cmd.meetingMinutes)
+            meetingMinutesLimit: parseInt(cmd.meetingMinutes),
+            windowMonthLimit: parseInt(cmd.windowMonth)
           }
-          const accountClient = getAccountClient(getToolToken())
-          await accountClient.adminCreateSubscription({
-            workspaceUuid: ws.uuid,
-            plan,
-            type: cmd.type,
-            status: cmd.status,
-            limits
-          })
+          // Direct DB write: the CLI holds no admin token. Same code path as the admin RPC.
+          const queue = getPlatformQueue('tool', ws.region ?? '')
+          setMetadata(
+            accountPlugin.metadata.WorkspaceQueue,
+            queue.getProducer<QueueWorkspaceMessage>(toolCtx, QueueTopic.Workspace)
+          )
+          try {
+            await createManualSubscription(toolCtx, db, systemAccountUuid, {
+              workspaceUuid: ws.uuid,
+              plan,
+              type: cmd.type as SubscriptionType,
+              status: cmd.status as SubscriptionStatus,
+              limits
+            })
+          } finally {
+            await queue.shutdown()
+          }
           console.log(`plan '${plan}' (${cmd.status}) set for workspace '${workspace}'`, limits)
         })
       }
@@ -1012,13 +1072,17 @@ export function devTool (
           fullVerify: boolean
         }
       ) => {
+        toolCtx.info('backup: opening storage', { dirName })
         const storage = await createFileBackupStorage(dirName)
+        toolCtx.info('backup: connecting to account db')
         await withAccountDatabase(async (db) => {
           const { txes, dbUrl } = prepareTools()
+          toolCtx.info('backup: looking up workspace', { workspace })
           const ws = await getWorkspace(db, workspace)
           if (ws === null) {
             throw new Error(`workspace ${workspace} not found`)
           }
+          toolCtx.info('backup: workspace found', { uuid: ws.uuid, url: ws.url, dataId: ws.dataId })
           const wsIds = {
             uuid: ws.uuid,
             dataId: ws.dataId,
@@ -1030,6 +1094,7 @@ export function devTool (
 
           let pipeline: Pipeline | undefined
           try {
+            toolCtx.info('backup: creating pipeline')
             pipeline = await createBackupPipeline(toolCtx, dbUrl, txes, {
               externalStorage: workspaceStorage,
               usePassedCtx: true
@@ -1047,6 +1112,7 @@ export function devTool (
               toolCtx.error('failed to restore, pipeline is undefined', { workspace })
               return
             }
+            toolCtx.info('backup: pipeline ready')
             const include = cmd.include === '*' ? undefined : new Set(cmd.include.split(';').map((it) => it.trim()))
 
             if (include != null && include.has('account.socialId')) {
@@ -1056,6 +1122,7 @@ export function devTool (
               include.add('contact')
             }
             toolCtx.info('OPT', { include: include != null ? Array.from(include) : '', skip: cmd.skip })
+            toolCtx.info('backup: starting')
             await backup(toolCtx, pipeline, wsIds, storage, db, {
               force: cmd.force,
               include,
@@ -1127,8 +1194,7 @@ export function devTool (
     .action(async (cmd: { timeout: string, workspace: string, region: string, dry: boolean, skip: string }) => {
       const bucketName = process.env.BUCKET_NAME
       if (bucketName === '' || bucketName == null) {
-        console.error('please provide butket name env')
-        process.exit(1)
+        throw new Error('please provide BUCKET_NAME')
       }
 
       const skipWorkspaces = new Set(cmd.skip.split(',').map((it) => it.trim()))
@@ -1817,8 +1883,7 @@ export function devTool (
   program
     .command('generate-token <name> <workspace>')
     .description('generate token')
-    .option('--admin', 'Generate token with admin access', false)
-    .action(async (name: string, workspace: string, opt: { admin: boolean }) => {
+    .action(async (name: string, workspace: string) => {
       await withAccountDatabase(async (db) => {
         if (name === systemAccountEmail) {
           name = systemAccountUuid
@@ -1826,9 +1891,7 @@ export function devTool (
         const wsByUrl = await db.workspace.findOne({ url: workspace })
         const account = await db.socialId.findOne({ value: name })
         console.log(
-          generateToken(account?.personUuid ?? (name as AccountUuid), wsByUrl?.uuid ?? (workspace as WorkspaceUuid), {
-            ...(opt.admin ? { admin: 'true' } : {})
-          })
+          generateToken(account?.personUuid ?? (name as AccountUuid), wsByUrl?.uuid ?? (workspace as WorkspaceUuid))
         )
       })
     })
@@ -1837,14 +1900,16 @@ export function devTool (
     .description('Enable or disable profiling')
     .option('-o, --output <output>', 'Output file', 'profile.cpuprofile')
     .action(async (endpoint: string, mode: string, opt: { output: string }) => {
-      const token = generateToken(systemAccountUuid, undefined, { admin: 'true' })
+      const token = generateToken(systemAccountUuid, undefined, { service: 'tool' })
       if (mode === 'start') {
-        await fetch(`${endpoint}/api/v1/manage?token=${token}&operation=profile-start`, {
-          method: 'PUT'
+        await fetch(`${endpoint}/api/v1/manage?operation=profile-start`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` }
         })
       } else {
-        const resp = await fetch(`${endpoint}/api/v1/manage?token=${token}&operation=profile-stop`, {
-          method: 'PUT'
+        const resp = await fetch(`${endpoint}/api/v1/manage?operation=profile-stop`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` }
         })
         if (resp.ok) {
           const bdir = dirname(opt.output)
@@ -1873,8 +1938,7 @@ export function devTool (
     .action(async (opt: { limit: string, sort: string, source: string, url?: string, json?: string }) => {
       const base = (opt.url ?? process.env.PLATFORM_URL ?? '').replace('ws:/', 'http:/').replace(/\/+$/, '')
       if (base === '') {
-        console.log('Please provide url for a platform to retrieve statistics')
-        process.exit(1)
+        throw new Error('please provide PLATFORM_URL or --url')
       }
       let statsUrl = base
       // Try to resolve STATS_URL from the platform config.json. If target is already
@@ -1894,16 +1958,15 @@ export function devTool (
 
       const serverSecret = process.env.SERVER_SECRET
       if (serverSecret === undefined) {
-        console.error('please provide server secret')
-        process.exit(1)
+        throw new Error('please provide SERVER_SECRET')
       }
 
-      const token = generateToken(systemAccountUuid, undefined, { admin: 'true' }, serverSecret)
+      const token = generateToken(systemAccountUuid, undefined, { service: 'tool' }, serverSecret)
 
       const limit = Math.min(Math.max(parseInt(opt.limit), 1), 1000)
-      const url = `${statsUrl}/api/v1/analytics?limit=${limit}&sort=${opt.sort}&source=${opt.source}&token=${token}`
-      console.log(`GET ${statsUrl}/api/v1/analytics?limit=${limit}&sort=${opt.sort}&source=${opt.source}&token=<jwt>`)
-      const resp = await fetch(url)
+      const url = `${statsUrl}/api/v1/analytics?limit=${limit}&sort=${opt.sort}&source=${opt.source}`
+      console.log(`GET ${statsUrl}/api/v1/analytics?limit=${limit}&sort=${opt.sort}&source=${opt.source}`)
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       if (!resp.ok) {
         const text = await resp.text().catch(() => '')
         console.error(`failed to fetch analytics: ${resp.status} ${resp.statusText}\n${text}`)
@@ -1954,8 +2017,7 @@ export function devTool (
     .action(async (opt: { out: string, filter: string, url?: string }) => {
       const base = (opt.url ?? process.env.PLATFORM_URL ?? '').replace('ws:/', 'http:/').replace(/\/+$/, '')
       if (base === '') {
-        console.log('Please provide url for a platform to retrieve statistics')
-        process.exit(1)
+        throw new Error('please provide PLATFORM_URL or --url')
       }
       let statsUrl = base
       try {
@@ -1973,12 +2035,11 @@ export function devTool (
 
       const serverSecret = process.env.SERVER_SECRET
       if (serverSecret === undefined) {
-        console.error('please provide server secret')
-        process.exit(1)
+        throw new Error('please provide SERVER_SECRET')
       }
-      const token = generateToken(systemAccountUuid, undefined, { admin: 'true' }, serverSecret)
+      const token = generateToken(systemAccountUuid, undefined, { service: 'tool' }, serverSecret)
 
-      const overviewResp = await fetch(`${statsUrl}/api/v1/overview?token=${token}`)
+      const overviewResp = await fetch(`${statsUrl}/api/v1/overview`, { headers: { Authorization: `Bearer ${token}` } })
       if (!overviewResp.ok) {
         console.error(`failed to fetch overview: ${overviewResp.status} ${overviewResp.statusText}`)
         return
@@ -1999,7 +2060,9 @@ export function devTool (
       let failed = 0
       for (const service of services) {
         try {
-          const resp = await fetch(`${statsUrl}/api/v1/statistics?name=${encodeURIComponent(service)}&token=${token}`)
+          const resp = await fetch(`${statsUrl}/api/v1/statistics?name=${encodeURIComponent(service)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
           if (!resp.ok) {
             console.error(`  ${service}: ${resp.status} ${resp.statusText}`)
             failed++
@@ -2058,7 +2121,7 @@ export function devTool (
           indexes: opt.indexes,
           missingOnly: opt.missingOnly,
           serverSecret,
-          makeToken: () => generateToken(systemAccountUuid, undefined, { admin: 'true' }, serverSecret ?? '')
+          makeToken: () => generateToken(systemAccountUuid, undefined, { service: 'tool' }, serverSecret ?? '')
         })
       }
     )
@@ -2070,9 +2133,7 @@ export function devTool (
     .option('--count <count>', 'Number of persons to generate', '1000')
     .action(async (workspace: string, opt: { admin: boolean, count: string }) => {
       const count = parseInt(opt.count)
-      const token = generateToken(systemAccountUuid, workspace as WorkspaceUuid, {
-        ...(opt.admin ? { admin: 'true', service: 'tool' } : { service: 'tool' })
-      })
+      const token = generateToken(systemAccountUuid, workspace as WorkspaceUuid, { service: 'tool' })
       const endpoint = await getTransactorEndpoint(token, 'external')
       const client = createRestClient(endpoint, workspace, token)
       for (let i = 0; i < count; i++) {
@@ -2332,7 +2393,7 @@ export function devTool (
 
   program
     .command('configure <workspace>')
-    .description('clean archived spaces')
+    .description('list or toggle plugin configuration of a workspace')
     .option('--enable <enable>', 'Enable plugin configuration', '')
     .option('--disable <disable>', 'Disable plugin configuration', '')
     .option('--list', 'List plugin states', false)
@@ -2523,8 +2584,7 @@ export function devTool (
     .action(async (workspace: string) => {
       const fulltextUrl = process.env.FULLTEXT_URL
       if (fulltextUrl === undefined) {
-        console.error('please provide FULLTEXT_URL')
-        process.exit(1)
+        throw new Error('please provide FULLTEXT_URL')
       }
 
       await withAccountDatabase(async (db) => {
@@ -2549,8 +2609,7 @@ export function devTool (
     .action(async () => {
       const fulltextUrl = process.env.FULLTEXT_URL
       if (fulltextUrl === undefined) {
-        console.error('please provide FULLTEXT_URL')
-        process.exit(1)
+        throw new Error('please provide FULLTEXT_URL')
       }
 
       let workspaces: Workspace[] = []
@@ -2990,8 +3049,7 @@ export function devTool (
     .action(async (workspace, accsRoot, cmd: { suffix: string, region: string, branding: string, force: boolean }) => {
       const bucketName = process.env.BUCKET_NAME
       if (bucketName === '' || bucketName == null) {
-        console.error('please provide bucket name env')
-        process.exit(1)
+        throw new Error('please provide BUCKET_NAME')
       }
 
       const backupStorageConfig = storageConfigFromEnv(process.env.BACKUP_STORAGE)
@@ -3096,7 +3154,15 @@ export function devTool (
             dataId: ws.dataId,
             url: ws.url
           }
-          const calculator = await RatingCalculator.create(toolCtx, txes, wsIds, dbUrl, async () => '')
+          const calculator = await RatingCalculator.create(
+            toolCtx,
+            txes,
+            undefined,
+            undefined,
+            wsIds,
+            dbUrl,
+            async () => ''
+          )
 
           await calculator.recalculateAll(toolCtx)
 
@@ -3107,13 +3173,5 @@ export function devTool (
 
   extendProgram?.(program)
 
-  process.on('unhandledRejection', (reason, promise) => {
-    toolCtx.error('Unhandled Rejection at:', { reason, promise })
-  })
-
-  process.on('uncaughtException', (error, origin) => {
-    toolCtx.error('Uncaught Exception at:', { origin, error })
-  })
-
-  program.parse(process.argv)
+  return program
 }

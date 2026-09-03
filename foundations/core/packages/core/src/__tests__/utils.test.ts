@@ -14,6 +14,7 @@
 //
 
 import { mergeQueries } from '..'
+import { TxFactory } from '../tx'
 
 describe('mergeQueries', () => {
   it('merges query with empty query', () => {
@@ -181,5 +182,21 @@ describe('mergeQueries', () => {
     } as any
     expect(mergeQueries(q1, q2)).toEqual(res)
     expect(mergeQueries(q2, q1)).toEqual(res)
+  })
+})
+
+describe('TxFactory with meta', () => {
+  it('creates transaction with TxMeta', () => {
+    const factory = new TxFactory('system' as any)
+    const tx = factory.createTxCreateDoc(
+      'class:Test' as any,
+      'space:Test' as any,
+      {},
+      undefined,
+      undefined,
+      undefined,
+      { silent: true }
+    )
+    expect(tx.meta).toEqual({ silent: true })
   })
 })

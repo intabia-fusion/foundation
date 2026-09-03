@@ -20,7 +20,9 @@ const mockConsumer = {
   connect: jest.fn(async () => {}),
   subscribe: jest.fn(async () => {}),
   disconnect: jest.fn(async () => {}),
-  on: jest.fn(),
+  events: { FETCH: 'consumer.fetch' },
+  // kafkajs `on` returns a remove-listener function
+  on: jest.fn(() => () => {}),
   run: jest.fn(async (opts: any) => {
     mockState.eachBatch = opts.eachBatch
   })

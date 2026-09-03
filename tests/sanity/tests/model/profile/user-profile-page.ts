@@ -1,4 +1,5 @@
 import { expect, Page, Locator } from '@playwright/test'
+import { retryIntervals } from '../../retry'
 
 export class UserProfilePage {
   private readonly page: Page
@@ -56,7 +57,11 @@ export class UserProfilePage {
   }
 
   async clickSettings (): Promise<void> {
-    await this.settings().click()
+    // The profile menu re-renders while it loads and can drop the item mid-click, or close outright.
+    await expect(async () => {
+      if ((await this.settings().count()) === 0) await this.openProfileMenu()
+      await this.settings().click({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
   }
 
   async clickConfigure (): Promise<void> {

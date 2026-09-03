@@ -15,7 +15,7 @@
 
 import { Analytics } from '@hcengineering/analytics'
 import { configureAnalytics, createOpenTelemetryMetricsContext, SplitLogger } from '@hcengineering/analytics-service'
-import { newMetrics, systemAccountUuid, type MeasureContext } from '@hcengineering/core'
+import { newMetrics, systemAccountUuid, type MeasureContext, type WorkspaceUuid } from '@hcengineering/core'
 import { getPlatformQueue } from '@hcengineering/kafka'
 import { setMetadata } from '@hcengineering/platform'
 import serverClient from '@hcengineering/server-client'
@@ -24,12 +24,14 @@ import {
   QueueTopic,
   QueueWorkspaceEvent,
   type QueueWorkspaceMessage,
+  type QueueWorkspacePurchaseMessage,
   type QueueSubscriptionMessage,
   QueueSubscriptionEvent,
   subscriptionEvents,
+  workspaceEvents,
   type QueuePaymentOperationMessage
 } from '@hcengineering/server-core'
-import { type SubscriptionData } from '@hcengineering/account-client'
+import { SubscriptionType, type SubscriptionData } from '@hcengineering/account-client'
 import { getAccountClient, isFinalizedUserCancel } from './utils'
 import type { SubscriptionPublisher } from './providers'
 import serverToken, { generateToken } from '@hcengineering/server-token'
@@ -121,11 +123,28 @@ export const main = async (): Promise<void> => {
     }
   }
 
+  // Announce a confirmed one-time purchase (generic). The owning pod (e.g. aibot) consumes
+  // PurchaseActivated on QueueTopic.Workspace, applies the SKU effect, and marks the purchase consumed.
+  const wsPurchaseProducer = queue.getProducer<QueueWorkspacePurchaseMessage>(metricsContext, QueueTopic.Workspace)
+  const publishPurchaseActivated = async (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    sku: string,
+    purchaseId: string,
+    effect?: string,
+    quantity?: number
+  ): Promise<void> => {
+    await wsPurchaseProducer.send(ctx, workspace, [
+      workspaceEvents.purchaseActivated(sku, purchaseId, effect, quantity)
+    ])
+  }
+
   const { app, ensureInitialSubscription, createFreeIfNoActiveTier, persistSubscription, close } = await createServer(
     metricsContext,
     config,
     publish,
-    logOperation
+    logOperation,
+    publishPurchaseActivated
   )
   const server = listen(app, config.Port)
 
@@ -157,6 +176,17 @@ export const main = async (): Promise<void> => {
         for (const msg of msgs) {
           try {
             const sub = msg.value.subscription as SubscriptionData
+            // Admin cancel initiates the free fallback, pod-payment is the sole holder of the free-plan config.
+            if (msg.value.type === QueueSubscriptionEvent.AdminCanceled) {
+              if (sub.type === SubscriptionType.Tier) {
+                await createFreeIfNoActiveTier(
+                  sub.workspaceUuid,
+                  sub.providerData?.actionId as string | undefined,
+                  sub.plan
+                )
+              }
+              continue
+            }
             await persistSubscription(sub)
             await logOperation(ctx, sub, msg.value.type === QueueSubscriptionEvent.Canceled)
             // After a user initiated canceling finalized, we create free subscription.

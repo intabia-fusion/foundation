@@ -41,7 +41,8 @@ const recruit = plugin(recruitId, {
     ApplicantMatch: '' as Ref<Class<ApplicantMatch>>,
     Vacancy: '' as Ref<Class<Vacancy>>,
     Review: '' as Ref<Class<Review>>,
-    Opinion: '' as Ref<Class<Opinion>>
+    Opinion: '' as Ref<Class<Opinion>>,
+    ApplicantTaskType: '' as Ref<Class<Applicant>>
   },
   descriptors: {
     VacancyType: '' as Ref<ProjectTypeDescriptor>
@@ -52,8 +53,7 @@ const recruit = plugin(recruitId, {
   mixin: {
     Candidate: '' as Ref<Mixin<Candidate>>,
     VacancyList: '' as Ref<Mixin<VacancyList>>,
-    DefaultVacancyTypeData: '' as Ref<Mixin<Vacancy>>,
-    ApplicantTypeData: '' as Ref<Mixin<Applicant>>
+    DefaultVacancyTypeData: '' as Ref<Mixin<Vacancy>>
   },
   attribute: {
     State: '' as Ref<Attribute<Status>>

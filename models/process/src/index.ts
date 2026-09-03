@@ -34,8 +34,8 @@ import {
   TypeAny,
   TypeBoolean,
   TypeIntlString,
-  TypeRecord,
   TypeRank,
+  TypeRecord,
   TypeRef,
   TypeString,
   UX
@@ -65,6 +65,7 @@ import {
   type ProcessCustomEvent,
   type ProcessFunction,
   type ProcessToDo,
+  type SlotModel,
   type State,
   type Step,
   type Transition,
@@ -106,6 +107,12 @@ export class TProcess extends TDoc implements Process {
 
   @Prop(TypeBoolean(), process.string.AutomationOnly)
     automationOnly: boolean | undefined
+
+  @Prop(TypeRecord(), process.string.RequiredSlots)
+    requiredSlots?: Record<string, SlotModel>
+
+  @Prop(TypeRecord(), process.string.Bindings)
+    bindings?: Record<string, string>
 
   context!: Record<ContextId, ProcessContext>
 }
@@ -208,6 +215,9 @@ export class TProcessToDo extends TToDo implements ProcessToDo {
 
   @Prop(TypeBoolean(), process.string.Rollback)
     withRollback!: boolean
+
+  @Prop(TypeBoolean(), process.string.AskRequired)
+    askRequired?: boolean
 }
 
 @Model(process.class.ApproveRequest, process.class.ProcessToDo)
@@ -549,7 +559,7 @@ export function createModel (builder: Builder): void {
           {
             key: 'showDone',
             type: 'toggle',
-            defaultValue: true,
+            defaultValue: false,
             actionTarget: 'query',
             action: process.function.ShowDoneQuery,
             label: process.string.ShowDone
@@ -794,6 +804,24 @@ export function createModel (builder: Builder): void {
     of: core.class.TypeString,
     props: {
       modes: ['Equal', 'StringContains', 'Exists']
+    }
+  })
+
+  builder.createDoc(process.class.UpdateCriteriaComponent, core.space.Model, {
+    category: 'attribute',
+    editor: process.criteriaEditor.BaseCriteria,
+    of: core.class.TypeMarkup,
+    props: {
+      modes: ['StringContains', 'Exists']
+    }
+  })
+
+  builder.createDoc(process.class.UpdateCriteriaComponent, core.space.Model, {
+    category: 'inplace',
+    editor: process.criteriaEditor.BaseCriteria,
+    of: core.class.TypeMarkup,
+    props: {
+      modes: ['StringContains', 'Exists']
     }
   })
 

@@ -99,9 +99,20 @@
     }
   )
 
-  // $: persons = Array.from(tasks.filter(it => it.assignee != null).map(it => it.assignee) as Ref<Person>[] ?? [])
+  let currentDate: Date = new Date()
+  type RangeMode = 'week' | 'twoWeeks' | 'month'
+  let rangeMode: RangeMode = 'week'
+
+  $: firstDayOfWeek = $deviceInfo.firstDayOfWeek ?? 1
+  $: periodStart = rangeMode === 'month' ? startOfMonth(currentDate) : startOfWeek(currentDate, firstDayOfWeek)
+  $: periodEndMs = getPeriodEndMs(periodStart, rangeMode)
+
+  $: periodReports = reports.filter(
+    (it) => it.date != null && it.date >= periodStart.getTime() && it.date <= periodEndMs
+  )
+
   $: reportPersons = Array.from(
-    (reports.filter((it) => it.employee != null).map((it) => it.employee) as Ref<Person>[]) ?? []
+    (periodReports.filter((it) => it.employee != null).map((it) => it.employee) as Ref<Person>[]) ?? []
   )
 
   let authorRefs = new Map<PersonId, Ref<Person>>()
@@ -110,19 +121,14 @@
     authorRefs = res
   })
 
-  $: noEmployeeReports = (reports ?? []).filter((it) => it.employee == null)
+  $: noEmployeeReports = periodReports.filter((it) => it.employee == null)
 
-  let onlyReports = false
+  const onlyReportsKey = '#tracker:onlyReports'
+  let onlyReports = localStorage.getItem(onlyReportsKey) !== 'false'
+  $: localStorage.setItem(onlyReportsKey, String(onlyReports))
 
-  $: finalPersons = [
-    ...(noEmployeeReports.length > 0 ? [null] : []),
-    ...Array.from(new Set([...reportPersons, ...(!onlyReports ? authorRefs.values() : [])]))
-  ]
+  $: finalPersons = [...(noEmployeeReports.length > 0 ? [null] : []), ...Array.from(new Set(reportPersons))]
 
-  let currentDate: Date = new Date()
-
-  type RangeMode = 'week' | 'twoWeeks' | 'month'
-  let rangeMode: RangeMode = 'week'
   let rangeSelected: string | number | undefined = 'week'
 
   function toRangeMode (value: string | number | undefined): RangeMode {
@@ -163,15 +169,10 @@
     return nextPeriodStart.getTime() - 1
   }
 
-  $: firstDayOfWeek = $deviceInfo.firstDayOfWeek ?? 1
-  $: periodStart = rangeMode === 'month' ? startOfMonth(currentDate) : startOfWeek(currentDate, firstDayOfWeek)
   $: periodDays = rangeMode === 'week' ? 7 : rangeMode === 'twoWeeks' ? 14 : daysInMonth(currentDate)
-  $: periodEndMs = getPeriodEndMs(periodStart, rangeMode)
   $: navStep = (rangeMode === 'week' ? 7 : rangeMode === 'twoWeeks' ? 14 : 'month') as number | 'month'
 
-  $: periodTotal = reports
-    .filter((it) => it.date != null && it.date >= periodStart.getTime() && it.date <= periodEndMs)
-    .reduce((a, b) => a + b.value, 0)
+  $: periodTotal = periodReports.reduce((a, b) => a + b.value, 0)
 </script>
 
 <TimeReportHeader bind:currentDate step={navStep}>

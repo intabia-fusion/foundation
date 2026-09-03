@@ -2,10 +2,11 @@ import { expect, type Locator } from '@playwright/test'
 import path from 'path'
 import { createIssue, toTime } from '../../tracker/tracker.utils'
 import { attachScreenshot, iterateLocator } from '../../utils'
+import { retry, retryIntervals, waitStable } from '../../retry'
 import { CommonTrackerPage } from './common-tracker-page'
 import { NewIssue } from './types'
 
-const retryOptions = { intervals: [1000, 1500, 2500], timeout: 60000 }
+const retryOptions = { intervals: retryIntervals, timeout: 60000 }
 export class IssuesPage extends CommonTrackerPage {
   modelSelectorAll = (): Locator => this.page.locator('label[data-id="tab-all"]')
   issues = (): Locator => this.page.locator('.antiPanel-navigator').locator('text="Issues"')
@@ -50,7 +51,10 @@ export class IssuesPage extends CommonTrackerPage {
     this.page.locator('form[id="tracker:string:NewIssue"] input[type="file"]#file')
 
   textPopupCreateNewIssueFile = (): Locator => this.page.locator('div[class*="attachments"] > div[class*="attachment"]')
-  buttonCreateIssue = (): Locator => this.page.locator('button > span', { hasText: 'Create issue' })
+  // Matches the plain button and the split create/create-and-open one alike.
+  buttonCreateIssue = (): Locator =>
+    this.page.locator('form[id="tracker:string:NewIssue"] button', { hasText: 'Create issue' })
+
   inputSearch = (): Locator => this.page.locator('input[placeholder="Search"]')
   linkSidebarAll = (): Locator => this.page.locator('a[href$="all-issues"]')
   linkSidebarMyIssue = (): Locator => this.page.locator('a[href$="my-issues"]')
@@ -140,7 +144,7 @@ export class IssuesPage extends CommonTrackerPage {
   totalFooter = (): Locator => this.page.locator('.antiCard-content >> .footer')
   reportsPopupButton = (): Locator => this.page.locator('#ReportsPopupAddButton')
   createButton = (): Locator => this.page.locator('button:has-text("Create")')
-  spentTimeInput = (): Locator => this.page.locator('[placeholder="Spent time"]')
+  spentTimeInput = (): Locator => this.page.locator('form[id="tracker\\:string\\:TimeSpendReportAdd"] input').first()
 
   timeSpentReports = (): Locator => this.page.getByText('Time spent reports', { exact: true })
   addTimeReport = (): Locator => this.page.locator('text="Add time report"')
@@ -190,15 +194,27 @@ export class IssuesPage extends CommonTrackerPage {
   }
 
   async reportTime (time: number): Promise<void> {
-    await this.reportedTimeEditor().click()
-    await this.page.waitForSelector('text="Time spent reports"')
-    await this.addReportButton().click()
-    await this.page.waitForSelector('text="Add time report"')
-    await expect(this.createButton()).toBeDisabled()
-    await this.spentTimeInput().fill(`${time}`)
-    await expect(this.createButton()).toBeEnabled()
-    await this.createButton().click()
-    await this.okButton().click()
+    const expected = await toTime(time)
+    let submitted = false
+    // The dialog can close without persisting the report (the OK click lands over a form that
+    // never saved), leaving the issue at 0h. Verify the value landed and redo the report if not.
+    // Only skip once we have submitted here - the editor can still show the previous issue's total.
+    await expect(async () => {
+      if (submitted && (await this.reportedTimeEditor().innerText()).includes(expected)) return
+
+      await this.reportedTimeEditor().click()
+      await this.page.waitForSelector('text="Time spent reports"')
+      await this.addReportButton().click()
+      await this.page.waitForSelector('text="Add time report"')
+      await expect(this.createButton()).toBeDisabled()
+      await this.spentTimeInput().fill(`${time}`)
+      await expect(this.createButton()).toBeEnabled()
+      await this.createButton().click()
+      submitted = true
+      await this.page.waitForSelector('text="Add time report"', { state: 'detached', timeout: 15000 })
+      await this.okButton().click()
+      await expect(this.reportedTimeEditor()).toContainText(expected, { timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 45000 })
   }
 
   async verifyReportedTime (time: number): Promise<void> {
@@ -256,7 +272,7 @@ export class IssuesPage extends CommonTrackerPage {
     await this.addTimeReport().waitFor()
   }
 
-  async fillSpentTime (time: number): Promise<void> {
+  async fillSpentTime (time: number | string): Promise<void> {
     await this.spentTimeInput().fill(`${time}`)
   }
 
@@ -270,10 +286,6 @@ export class IssuesPage extends CommonTrackerPage {
 
   async clickCloseButton (): Promise<void> {
     await this.closeButton().click()
-  }
-
-  async clickIssuesIndex (index: number): Promise<void> {
-    await this.issuesButton().nth(index).click()
   }
 
   async clickIssues (): Promise<void> {
@@ -379,7 +391,9 @@ export class IssuesPage extends CommonTrackerPage {
 
     for (let i = 0; i < tabs.length; i++) {
       await tabs[i].click()
-      await this.page.waitForTimeout(3000)
+      // The panel still holds the previous tab's rows for a moment, and the negative branch below
+      // would pass against those. Wait for the list to settle rather than for a fixed 3s.
+      await waitStable(async () => await this.issueListPanel().innerText(), { stableFor: 500, interval: 100 })
       if (presence === checks[i]) {
         await expect(this.issueListPanel()).toContainText(issueName)
       } else {
@@ -464,7 +478,7 @@ export class IssuesPage extends CommonTrackerPage {
     }
     if (data.estimation != null) {
       await this.buttonPopupCreateNewIssueEstimation().click()
-      await this.fillToSelectPopup(this.page, data.estimation)
+      await this.fillEstimationPopup(this.page, data.estimation)
     }
     if (data.milestone != null) {
       await this.buttonPopupCreateNewIssueMilestone().click()
@@ -505,8 +519,10 @@ export class IssuesPage extends CommonTrackerPage {
 
   async searchIssueByName (issueName: string): Promise<void> {
     await expect(async () => {
-      await this.inputSearchIcon().click()
-      await this.inputSearch().fill(issueName)
+      // Short per-action timeouts: without them a stuck fill hangs until the test timeout and the
+      // surrounding retry never gets a turn.
+      await this.inputSearchIcon().click({ timeout: 5000 })
+      await this.inputSearch().fill(issueName, { timeout: 5000 })
       const v = await this.inputSearch().inputValue()
       if (v === issueName) {
         await this.inputSearch().press('Enter')
@@ -515,6 +531,7 @@ export class IssuesPage extends CommonTrackerPage {
   }
 
   async openIssueByName (issueName: string): Promise<void> {
+    await this.expandCollapsedCategories()
     await this.issueByName(issueName).click()
   }
 
@@ -533,9 +550,15 @@ export class IssuesPage extends CommonTrackerPage {
   async checkAllIssuesInStatus (statusId?: string, statusName?: string): Promise<void> {
     if (statusId === undefined) throw new Error(`Unknown status id ${statusId}`)
 
+    let checked = 0
     for await (const locator of iterateLocator(this.issuesList())) {
-      await expect(locator.locator('div[class*="square"] > div')).toHaveAttribute('id', `${statusId}:${statusName}`)
+      const square = locator.locator('div[class*="square"] > div')
+      // Rows scrolled out of the virtual list are not in the DOM - skip them, not a status mismatch.
+      if ((await square.count()) === 0) continue
+      await expect(square).toHaveAttribute('id', `${statusId}:${statusName}`)
+      checked++
     }
+    expect(checked).toBeGreaterThan(0)
   }
 
   async checkParentIssue (issueName: string, parentName: string): Promise<void> {
@@ -554,8 +577,10 @@ export class IssuesPage extends CommonTrackerPage {
 
   async checkAllIssuesByPriority (priorityName: string): Promise<void> {
     await expect(async () => {
-      for await (const locator of iterateLocator(this.issuesList())) {
-        const href = await this.priorityContainer(locator).getAttribute('href')
+      // The list re-renders while the filter settles: re-read the rows every attempt and give up on
+      // a row that lost its icon quickly, or one stale row eats the whole retry budget.
+      for (const row of await this.issuesList().all()) {
+        const href = await this.priorityContainer(row).getAttribute('href', { timeout: 2000 })
         expect(href, { message: `Should contain ${priorityName} but it is ${href}` }).toContain(priorityName)
       }
     }).toPass({
@@ -594,28 +619,59 @@ export class IssuesPage extends CommonTrackerPage {
     }).toPass(retryOptions)
   }
 
+  // use:tooltip opens the list on mousemove, so hovering a button the cursor already rests on
+  // can leave a closed tooltip closed. Park the pointer elsewhere first.
+  private async hoverAttachmentButton (issueName: string): Promise<void> {
+    await this.page.mouse.move(0, 0)
+    await this.addAttachmentButton(issueName).hover()
+    // The hover can leave the tooltip closed. Callers then block on an element inside it with no
+    // timeout of their own, so their retry loop never gets a turn - fail here instead.
+    await expect(this.page.locator('div.popup-tooltip')).toBeVisible({ timeout: 5000 })
+  }
+
   async addAttachmentToIssue (issueName: string, filePath: string): Promise<void> {
-    await this.addAttachmentButton(issueName).click()
-    await this.inputPopupAddAttachmentsFile().setInputFiles(path.join(__dirname, `../../files/${filePath}`))
-    await expect(this.textPopupAddAttachmentsFile().filter({ hasText: filePath })).toBeVisible()
+    const uploaded = this.textPopupAddAttachmentsFile().filter({ hasText: filePath })
+    // Same hover tooltip as the check below: it can close between the hover and the upload, so
+    // re-open it per attempt. Uploading the file twice is harmless - the assertion is on presence.
+    await expect(async () => {
+      await this.hoverAttachmentButton(issueName)
+      if (await uploaded.isVisible()) return
+      await this.inputPopupAddAttachmentsFile().setInputFiles(path.join(__dirname, `../../files/${filePath}`), {
+        timeout: 5000
+      })
+      await expect(uploaded).toBeVisible({ timeout: 10000 })
+    }).toPass({ intervals: retryIntervals, timeout: 40000 })
   }
 
   async deleteAttachmentToIssue (issueName: string, filePath: string): Promise<void> {
-    await this.addAttachmentButton(issueName).click()
-    await this.deleteAttachmentLink(filePath).hover()
-    await this.deleteAttachmentLink(filePath).click()
-    await expect(this.textPopupAddAttachmentsFile().filter({ hasText: filePath })).toBeVisible({ visible: false })
+    const item = this.textPopupAddAttachmentsFile().filter({ hasText: filePath })
+    // Same hover tooltip as the check below, and it can stay closed - one closed tooltip failed the
+    // whole test. Removing an attachment that is already gone is a no-op, so retry the pair.
+    await retry(async () => {
+      await this.hoverAttachmentButton(issueName)
+      if (!(await item.isVisible())) return
+      await this.deleteAttachmentLink(filePath).hover()
+      await this.deleteAttachmentLink(filePath).click()
+      await expect(item).toBeVisible({ visible: false })
+    })
   }
 
   async checkCannotDeleteAttachmentToIssue (issueName: string, filePath: string): Promise<void> {
-    await this.addAttachmentButton(issueName).click()
-    await this.deleteAttachmentLink(filePath).hover()
-    await expect(this.deleteAttachmentLink(filePath)).not.toBeVisible()
+    await retry(async () => {
+      await this.hoverAttachmentButton(issueName)
+      await this.deleteAttachmentLink(filePath).hover()
+      await expect(this.deleteAttachmentLink(filePath)).not.toBeVisible()
+    })
   }
 
+  // The attachment list is a hover tooltip on a DocNavLink. Clicking the link runs NavLink's
+  // closeTooltip(), so a click races the very popup these helpers read - and under load the
+  // tooltip can also close on its own between the hover and the assertion. Re-hover each attempt.
   async checkAddAttachmentPopupContainsFile (issueName: string, filePath: string): Promise<void> {
-    await this.addAttachmentButton(issueName).click()
-    await expect(this.textPopupAddAttachmentsFile().filter({ hasText: filePath })).toBeVisible()
+    await expect(async () => {
+      await this.hoverAttachmentButton(issueName)
+      await expect(this.textPopupAddAttachmentsFile().filter({ hasText: filePath })).toBeVisible({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
   }
 
   async checkCommentsCount (issueName: string, count: string): Promise<void> {

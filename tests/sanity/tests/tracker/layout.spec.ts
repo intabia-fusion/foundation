@@ -1,4 +1,6 @@
-import { Page, expect, test } from '@playwright/test'
+import tracker from '@hcengineering/tracker'
+import { Page, expect, test } from '../fixtures'
+import { connectTracker } from '../API/TrackerApi'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { PlatformSetting, expectToContainsOrdered, fillSearch, generateId } from '../utils'
 import {
@@ -183,7 +185,13 @@ test.describe('tracker layout tests', () => {
         //     })
         //     .map((p) => p.name)
       } else {
-        orderedIssueNames = issuesProps.map((props) => props.name).reverse()
+        // Creation order is not modification order: setting a component or a milestone lands as a
+        // separate update, and it can arrive after the next issue was already created. Read the
+        // real modifiedOn instead of assuming it follows the order the issues were typed in.
+        const { client } = await connectTracker()
+        const names = issuesProps.map((props) => props.name)
+        const issues = await client.findAll(tracker.class.Issue, { title: { $in: names } })
+        orderedIssueNames = issues.sort((left, right) => right.modifiedOn - left.modifiedOn).map((i) => i.title)
       }
       const issuesPage = new IssuesPage(page)
       await issuesPage.clickModelSelectorAll()

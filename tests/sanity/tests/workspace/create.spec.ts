@@ -1,6 +1,6 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { LoginPage } from '../model/login-page'
-import { generateId } from '../utils'
+import { generateId, getInviteLink } from '../utils'
 import { SelectWorkspacePage } from '../model/select-workspace-page'
 import { SignUpPage } from '../model/signup-page'
 import { SignUpData } from '../model/common-types'
@@ -123,13 +123,7 @@ test.describe('Workspace tests', () => {
     await selectWorkspacePage.createWorkspace(newWorkspaceName)
     await leftSideMenuPage.clickTracker()
 
-    // Generate invite link
-
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-
-    const linkText = await page.locator('.antiPopup .link').textContent()
+    const linkText = await getInviteLink(page)
     const page2 = await browser.newPage()
     try {
       await page2.goto(linkText ?? '')
@@ -168,12 +162,7 @@ test.describe('Workspace tests', () => {
     await selectWorkspacePage.createWorkspace(newWorkspaceName)
     await leftSideMenuPage.clickTracker()
 
-    // Generate invite link
-    await leftSideMenuPage.openProfileMenu()
-    await leftSideMenuPage.inviteToWorkspace()
-    await leftSideMenuPage.getInviteLink()
-
-    const linkText = await page.locator('.antiPopup .link').textContent()
+    const linkText = await getInviteLink(page)
     const page2 = await browser.newPage()
     try {
       const loginPage2 = new LoginPage(page2)

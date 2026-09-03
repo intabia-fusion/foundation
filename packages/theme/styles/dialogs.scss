@@ -45,17 +45,31 @@
     &.thinHeader:not(.withSub) { padding: 1rem 1.5rem; }
     &:not(.withSub, .thinHeader) { padding: 1.5rem; }
     &.noPadding {
-      padding: 0 1.5rem;
+      // Vertical padding matters only once the header wraps; below that min-height wins.
+      padding: .75rem 1.5rem;
       min-height: 4.75rem;
     }
 
     &__title-wrap {
-      overflow-x: auto;
+      // Wraps instead of scrolling sideways on a narrow dialog.
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
+      row-gap: .5rem;
       min-width: 0;
 
+      // Without this flex shrinks before wrapping, leaving a row of half-clipped labels.
+      & > * {
+        flex-shrink: 0;
+        max-width: 100%;
+      }
       & > *:not(:last-child) { margin-right: .5rem; }
+    }
+    &__title-group {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      min-width: 0;
     }
     &__title {
       overflow: hidden;
@@ -248,26 +262,29 @@
   &.dialog {
     height: auto;
     max-height: inherit;
+    // Fixed widths below are wider than a phone, and `isMobile` comes from the device, not the
+    // viewport - a narrow desktop window still gets `.dialog`.
+    max-width: calc(100vw - 1rem);
 
     &.large {   // 720
       width: 45rem;
-      max-width: 60rem;
+      max-width: min(60rem, calc(100vw - 1rem));
     }
     &.medium {   // 600
       width: 37.5rem;
-      max-width: 37.5rem;
+      max-width: min(37.5rem, calc(100vw - 1rem));
     }
     &.small {   // 480
       width: 30rem;
-      max-width: 30rem;
+      max-width: min(30rem, calc(100vw - 1rem));
     }
     &.x-small { // 400
       width: 25rem;
-      max-width: 25rem;
+      max-width: min(25rem, calc(100vw - 1rem));
     }
     &.menu { // 280
       width: 17.5rem;
-      max-width: 17.5rem;
+      max-width: min(17.5rem, calc(100vw - 1rem));
     }
     &.full {
       width: max-content;

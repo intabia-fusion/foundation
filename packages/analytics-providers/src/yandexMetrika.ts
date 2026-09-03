@@ -36,7 +36,10 @@ export class YandexMetrikaProvider implements AnalyticProvider {
       const path = window.location.pathname
       if (this.isTrackingPath(path)) {
         this.loadMetrika()
-        window.ym(this.counterId, 'hit', path)
+        window.ym(this.counterId, 'hit', window.location.href, {
+          referer: document.referrer,
+          title: document.title
+        })
       }
     }
 
@@ -47,6 +50,7 @@ export class YandexMetrikaProvider implements AnalyticProvider {
     if (path.includes('/selectWorkspace') || path.includes('/workbench')) return false
 
     return (
+      path.includes('/login') ||
       path.includes('/signup') ||
       path.includes('/join') ||
       path.includes('/createWorkspace') ||
@@ -173,7 +177,16 @@ export class YandexMetrikaProvider implements AnalyticProvider {
     if (this.isTrackingPath(path)) {
       this.loadMetrika()
       if (window.ym !== undefined) {
-        window.ym(this.counterId, 'hit', path)
+        let fullUrl: string
+        try {
+          fullUrl = new URL(path, window.location.origin).href
+        } catch {
+          fullUrl = path
+        }
+        window.ym(this.counterId, 'hit', fullUrl, {
+          referer: document.referrer,
+          title: document.title
+        })
       }
     } else if (path.includes('/workbench')) {
       // Delay unloading by 3 seconds to make sure that the network requests

@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -13,19 +14,41 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { AttachedData, Doc, FindOptions, type Rank, Ref, SortingOrder } from '@hcengineering/core'
+  import core, { AttachedData, FindOptions, type Rank, Ref, SortingOrder } from '@hcengineering/core'
   import { ObjectPopup, getClient } from '@hcengineering/presentation'
-  import { makeRank } from '@hcengineering/task'
+  import { makeRank, TaskType } from '@hcengineering/task'
   import { Issue, IssueDraft } from '@hcengineering/tracker'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../plugin'
   import IssueStatusIcon from './issues/IssueStatusIcon.svelte'
+  import { taskTypeStore } from '@hcengineering/task-resources'
 
   export let value: Issue | AttachedData<Issue> | Issue[] | IssueDraft
   export let width: 'medium' | 'large' | 'full' = 'large'
+  export let draft = false
+  export let kind: Ref<TaskType> | undefined
 
   const client = getClient()
   const dispatch = createEventDispatcher()
+
+  $: effectiveKind = kind ?? (!Array.isArray(value) && 'kind' in value ? value.kind : undefined)
+
+  $: allowedParentKinds = getAllowedParentKinds(effectiveKind, $taskTypeStore)
+
+  function getAllowedParentKinds (
+    effectiveKind: Ref<TaskType> | undefined,
+    typesMap: Map<Ref<TaskType>, TaskType>
+  ): Ref<TaskType>[] | undefined {
+    if (effectiveKind === undefined) return undefined
+
+    const currentType = typesMap.get(effectiveKind)
+    if (currentType === undefined) return undefined
+
+    if (currentType.allowAnyParent === true) return undefined
+
+    return currentType.allowedAsChildOf ?? []
+  }
+
   const options: FindOptions<Issue> = {
     lookup: {
       status: [tracker.class.IssueStatus, { category: core.class.StatusCategory }]
@@ -33,31 +56,51 @@
     sort: { modifiedOn: SortingOrder.Descending }
   }
 
-  async function onClose ({ detail: parentIssue }: CustomEvent<Issue | undefined | null>): Promise<void> {
-    const vv = Array.isArray(value) ? value : [value]
-    for (const docValue of vv) {
-      if (
-        '_class' in docValue &&
-        parentIssue !== undefined &&
-        parentIssue?._id !== docValue.attachedTo &&
-        parentIssue?._id !== docValue._id
-      ) {
-        let rank: Rank | null = null
+  $: docQuery = allowedParentKinds === undefined ? {} : { kind: { $in: allowedParentKinds } }
 
-        if (parentIssue) {
-          const lastAttachedIssue = await client.findOne<Issue>(
-            tracker.class.Issue,
-            { attachedTo: parentIssue._id },
-            { sort: { rank: SortingOrder.Descending } }
-          )
+  $: noParentIssuesExist = false
 
-          rank = makeRank(lastAttachedIssue?.rank, undefined)
-        }
-
-        await client.update(docValue, {
-          attachedTo: parentIssue === null ? tracker.ids.NoParent : parentIssue._id,
-          ...(rank ? { rank } : {})
+  $: if (allowedParentKinds !== undefined) {
+    if (allowedParentKinds.length === 0) {
+      noParentIssuesExist = true
+    } else {
+      void client
+        .findOne(tracker.class.Issue, { kind: { $in: allowedParentKinds } }, { projection: { _id: 1 } })
+        .then((found) => {
+          noParentIssuesExist = found === undefined
         })
+    }
+  } else {
+    noParentIssuesExist = false
+  }
+
+  async function onClose ({ detail: parentIssue }: CustomEvent<Issue | undefined | null>): Promise<void> {
+    if (!draft) {
+      const vv = Array.isArray(value) ? value : [value]
+      for (const docValue of vv) {
+        if (
+          '_class' in docValue &&
+          parentIssue !== undefined &&
+          parentIssue?._id !== docValue.attachedTo &&
+          parentIssue?._id !== docValue._id
+        ) {
+          let rank: Rank | null = null
+
+          if (parentIssue) {
+            const lastAttachedIssue = await client.findOne<Issue>(
+              tracker.class.Issue,
+              { attachedTo: parentIssue._id },
+              { sort: { rank: SortingOrder.Descending } }
+            )
+
+            rank = makeRank(lastAttachedIssue?.rank, undefined)
+          }
+
+          await client.update(docValue, {
+            attachedTo: parentIssue === null ? tracker.ids.NoParent : parentIssue._id,
+            ...(rank ? { rank } : {})
+          })
+        }
       }
     }
 
@@ -96,11 +139,12 @@
 <ObjectPopup
   _class={tracker.class.Issue}
   {options}
+  {docQuery}
   {selected}
   category={tracker.completion.IssueCategory}
   multiSelect={false}
   allowDeselect={true}
-  placeholder={tracker.string.SetParent}
+  placeholder={noParentIssuesExist ? tracker.string.NoParentIssuesExist : tracker.string.SetParent}
   create={undefined}
   {ignoreObjects}
   shadows={true}

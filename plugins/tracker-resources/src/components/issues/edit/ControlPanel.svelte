@@ -159,7 +159,7 @@
   </span>
   <MilestoneEditor value={issue} space={issue.space} size={'medium'} isEditable={!readonly} />
 
-  {#if issue.dueDate !== null}
+  {#if issue.dueDate != null}
     <div class="divider" />
 
     <span class="labelOnPanel">

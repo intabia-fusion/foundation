@@ -153,7 +153,8 @@ import {
   grouppingPersonManager,
   permissionsStore,
   resolveLocation,
-  resolveLocationData
+  resolveLocationData,
+  collaboratorsApplier
 } from './utils'
 
 export * from './utils'
@@ -468,6 +469,7 @@ export default async (): Promise<Resources> => ({
     ChannelTitleProvider: channelTitleProvider,
     ChannelIdentifierProvider: channelIdentifierProvider,
     CanResendInvitation: canResendInvitation,
+    CollaboratorsApplier: collaboratorsApplier,
     CanMergePersons: canMergePersons,
     PersonsSpecialVisibleIf: () => !isDisabled(`${contactId}.persons`),
     CompaniesSpecialVisibleIf: () => !isDisabled(`${contactId}.companies`)

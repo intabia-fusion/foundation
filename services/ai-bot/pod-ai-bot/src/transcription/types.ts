@@ -1,9 +1,15 @@
 // Copyright © 2025 Andrey Sobolev (haiodo@gmail.com)
 
-/**
- * Audio format type
- */
-export type AudioFormat = 'ogg' | 'wav'
+/** Audio format: love-agent sends ogg/wav, chat voice-notes add webm (Chrome) and mp4 (Safari, iOS). */
+export type AudioFormat = 'ogg' | 'webm' | 'wav' | 'mp4'
+
+/** How a format names itself to a provider: extension and MIME type. */
+export const AUDIO_FORMAT_INFO: Record<AudioFormat, { extension: string, contentType: string }> = {
+  ogg: { extension: 'ogg', contentType: 'audio/ogg' },
+  webm: { extension: 'webm', contentType: 'audio/webm' },
+  wav: { extension: 'wav', contentType: 'audio/wav' },
+  mp4: { extension: 'mp4', contentType: 'audio/mp4' }
+}
 
 /**
  * Transcription task from the queue (extended from base TranscriptionTask)
@@ -85,6 +91,8 @@ export interface TranscriptionResult {
   words?: TranscriptionWord[]
   /** Segment-level information */
   segments?: TranscriptionSegment[]
+  /** clisr worker that served this transcription; empty for local providers. */
+  clientId?: string
 }
 
 /**
@@ -125,7 +133,8 @@ export interface TranscriptionProvider {
  * - 'deepgram' - Deepgram API
  * - 'server' - Will host a clisr server, and call using round-robin to do a transcription on it.
  */
-export type SttProviderType = 'openai' | 'deepgram' | 'server' | ''
+// 'none' opts a worker out of ASR entirely (ignores any `asr:` registry block).
+export type SttProviderType = 'openai' | 'deepgram' | 'server' | 'none' | ''
 
 /**
  * VAD (Voice Activity Detection) analysis result

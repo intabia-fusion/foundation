@@ -58,12 +58,14 @@ import { createPublicLinkAction } from '@hcengineering/model-guest'
 import view, {
   classPresenter,
   createAction,
+  createAttributePresenter,
   template,
   actionTemplates as viewTemplates
 } from '@hcengineering/model-view'
 import { getEmbeddedLabel, type Asset, type IntlString, type Resource } from '@hcengineering/platform'
 import setting from '@hcengineering/setting'
 import tags from '@hcengineering/tags'
+import workflow from '@hcengineering/workflow'
 import {
   type KanbanCard,
   type Project,
@@ -75,8 +77,7 @@ import {
   type Task,
   type TaskType,
   type TaskTypeClass,
-  type TaskTypeDescriptor,
-  type TaskTypeKind
+  type TaskTypeDescriptor
 } from '@hcengineering/task'
 import { PaletteColorIndexes } from '@hcengineering/ui/src/colors'
 import type { AnyComponent } from '@hcengineering/ui/src/types'
@@ -84,7 +85,14 @@ import type { AnyComponent } from '@hcengineering/ui/src/types'
 import task from './plugin'
 
 export { createProjectType, taskId } from '@hcengineering/task'
-export { createSequence, migrateDefaultStatusesBase, taskOperation } from './migration'
+export {
+  createSequence,
+  migrateDefaultStatusesBase,
+  taskOperation,
+  migrateMixinToClassInModel,
+  migrateTaskTypesToClasses,
+  deleteOrphanedTaskTypeClasses
+} from './migration'
 export { default } from './plugin'
 
 export const DOMAIN_TASK = 'task' as Domain
@@ -123,7 +131,7 @@ export class TTask extends TAttachedDoc implements Task {
   @Prop(Collection(tags.class.TagReference, task.string.TaskLabels), task.string.TaskLabels)
     labels?: number
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments?: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
@@ -154,6 +162,7 @@ export class TTaskTypeDescriptor extends TDoc implements TaskTypeDescriptor {
   // If specified, will allow to be created by users, system type overwize
   allowCreate!: boolean
   statusCategoriesFunc?: Resource<(project: ProjectType) => Ref<StatusCategory>[]>
+  defaultStatusesFunc?: Resource<(project: ProjectType) => Ref<Status>[]>
 }
 
 @Mixin(task.mixin.TaskTypeClass, core.class.Class)
@@ -206,20 +215,23 @@ export class TTaskType extends TDoc implements TaskType {
   @Prop(TypeRef(task.class.ProjectType), getEmbeddedLabel('Task class'))
     parent!: Ref<ProjectType> // Base class for task
 
-  @Prop(TypeString(), getEmbeddedLabel('Kind'))
-    kind!: TaskTypeKind
+  @Prop(TypeBoolean(), task.string.AllowRootTask)
+    isRootTaskType?: boolean
 
-  @Prop(ArrOf(TypeRef(task.class.TaskType)), getEmbeddedLabel('Parent'))
-    allowedAsChildOf!: Ref<TaskType>[] // In case of specified, task type is for sub-tasks
+  @Prop(TypeBoolean(), task.string.AllowAnyParent)
+    allowAnyParent?: boolean
 
-  @Prop(TypeBoolean(), getEmbeddedLabel('Show parent tasks'))
+  @Prop(ArrOf(TypeRef(task.class.TaskType)), task.string.AllowedParentTaskTypes)
+    allowedAsChildOf!: Ref<TaskType>[]
+
+  @Prop(TypeBoolean(), task.string.ShowParentTasks)
     showParentTasks?: boolean
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Task class'))
     ofClass!: Ref<Class<Task>> // Base class for task
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Task target class'))
-    targetClass!: Ref<Class<Task>> // Class or Mixin mixin to hold all user defined attributes.
+    targetClass!: Ref<Class<Task>> // Class to hold all user defined attributes.
 
   @Prop(ArrOf(TypeRef(core.class.Status)), getEmbeddedLabel('Task statuses'))
     statuses!: Ref<Status>[]
@@ -279,6 +291,12 @@ export function createModel (builder: Builder): void {
   builder.mixin(task.class.Task, core.class.Class, view.mixin.ObjectPresenter, {
     presenter: view.component.ObjectPresenter
   })
+
+  builder.mixin(task.class.Task, core.class.Class, view.mixin.AttributePresenter, {
+    presenter: task.component.TaskPresenter
+  })
+
+  createAttributePresenter(builder, task.component.TaskPresenter, task.class.Task, 'attachedTo', 'attribute')
 
   builder.mixin(task.class.ProjectType, core.class.Class, view.mixin.ObjectPresenter, {
     presenter: task.component.KanbanTemplatePresenter
@@ -502,14 +520,21 @@ export function createModel (builder: Builder): void {
         component: task.component.ProjectTypeTasksTypeSectionEditor
       },
       {
-        id: 'automations',
-        label: setting.string.Automations,
-        component: task.component.ProjectTypeAutomationsSectionEditor
+        id: 'screens',
+        label: workflow.string.Screens,
+        component: workflow.component.ProjectTypeScreensSectionEditor
+      },
+      {
+        id: 'workflows',
+        label: workflow.string.Workflows,
+        component: workflow.component.ProjectTypeWorkflowsSectionEditor
       }
     ],
     subEditors: {
       taskTypes: task.component.TaskTypeEditor,
-      roles: setting.component.RoleEditor
+      roles: setting.component.RoleEditor,
+      workflows: workflow.component.WorkflowEditor,
+      screens: workflow.component.ScreenEditor
     }
   })
 

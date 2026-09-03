@@ -21,8 +21,13 @@ import UsageExtension from './components/UsageExtension.svelte'
 import ReadOnlyBanner from './components/ReadOnlyBanner.svelte'
 
 export { isLimited, setIsLimited, planLimits, seatCount, seatLimitReached } from './stores/subscription'
-export { checkWorkspaceLimits } from './utils'
+export { checkWorkspaceLimits, getBillingClient } from './utils'
+export { formatMinutes } from './billingFormat'
 export { ReadOnlyBanner }
+export { default as ModelsTab } from './components/ModelsTab.svelte'
+export { default as CalculatorTab } from './components/CalculatorTab.svelte'
+export { default as ClientsTab } from './components/ClientsTab.svelte'
+export { default as WorkspaceTokenInfo } from './components/WorkspaceTokenInfo.svelte'
 
 export default async (): Promise<Resources> => ({
   component: {

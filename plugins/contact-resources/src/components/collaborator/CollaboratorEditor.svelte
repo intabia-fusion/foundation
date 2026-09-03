@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -19,27 +20,40 @@
   import { AccountArrayEditor } from '../../index'
 
   export let object: Doc
+  export let value: AccountUuid[] = []
+  export let onChange: (value: AccountUuid[]) => void = () => {}
+  export let draft = false
+  export let width: string | undefined = undefined
 
   let collaborators: Collaborator[] = []
 
   const query = createQuery()
   const client = getClient()
 
-  $: query.query(
-    core.class.Collaborator,
-    {
-      attachedTo: object._id
-    },
-    (res) => {
-      collaborators = res
-    }
-  )
+  $: if (object?._id != null) {
+    query.query(
+      core.class.Collaborator,
+      {
+        attachedTo: object._id
+      },
+      (res) => {
+        collaborators = res
+      }
+    )
+  }
 
-  $: accounts = collaborators.map((c) => c.collaborator)
+  $: dbAccounts = Array.isArray(collaborators) ? collaborators.map((c) => c.collaborator) : []
+  $: accounts = draft ? (Array.isArray(value) ? value : dbAccounts) : dbAccounts
 
   async function change (res: AccountUuid[]): Promise<void> {
-    const toAdd: AccountUuid[] = res.filter((a) => !accounts.includes(a))
-    const toRemove: Collaborator[] = collaborators.filter((a) => !res.includes(a.collaborator))
+    if (draft) {
+      value = res
+      onChange(value)
+      return
+    }
+
+    const toAdd: AccountUuid[] = Array.from(new Set(res.filter((a) => !accounts.includes(a))))
+    const toRemove: Collaborator[] = Array.from(new Set(collaborators.filter((a) => !res.includes(a.collaborator))))
     for (const account of toAdd) {
       await client.addCollection(core.class.Collaborator, object.space, object._id, object._class, 'collaborators', {
         collaborator: account
@@ -58,4 +72,4 @@
   }
 </script>
 
-<AccountArrayEditor label={core.string.Collaborators} value={accounts} onChange={change} />
+<AccountArrayEditor label={core.string.Collaborators} value={accounts} onChange={change} {width} />

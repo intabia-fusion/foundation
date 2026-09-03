@@ -159,6 +159,9 @@
     "GroupByStatus": "Par statut",
     "GroupByDate": "Par date",
     "SpeakingWhileMuted": "Votre micro est coupé - les autres ne vous entendent pas",
-    "SpeakingWhileMutedAlert": "M'alerter quand je parle avec le micro coupé"
+    "SpeakingWhileMutedAlert": "M'alerter quand je parle avec le micro coupé",
+    "SwitchWorkspaceInMeeting": "Vous êtes en réunion",
+    "SwitchWorkspaceLeaveMeeting": "Changer d'espace de travail vous déconnectera de la réunion en cours.",
+    "SwitchWorkspaceEndsMeeting": "Ceci est votre bureau : changer d'espace de travail vous déconnectera et mettra fin à la réunion pour tout le monde."
   }
 }

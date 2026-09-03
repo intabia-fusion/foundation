@@ -47,6 +47,6 @@
 </script>
 
 <div class="gapV-2">
-  <AttachmentList attachments={otherAttachments} {savedAttachmentsIds} {imageSize} {videoPreload} />
+  <AttachmentList attachments={otherAttachments} {savedAttachmentsIds} {imageSize} {videoPreload} removable={isOwn} />
   <LinkPreviewList attachments={linkPreviewAttachments} {isOwn} />
 </div>

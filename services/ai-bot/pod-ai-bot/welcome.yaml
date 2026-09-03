@@ -1,0 +1,33 @@
+# Greeting posted into a new member's Direct with the bot. Edit freely - the pod reads this file
+# at startup, no rebuild needed. Key = language code from the AI settings; `en` is the fallback
+# for any language missing here. Path override: WELCOME_PATH.
+#
+# {{botName}} is substituted with the configured bot name (FIRST_NAME / bot.firstName).
+
+en: |
+  Hi! I am {{botName}}, the assistant for your workspace. Here is what I can do:
+
+  - **Answer a question** - right here in this chat, or in any channel thread: just mention me.
+  - **Discuss an issue or a document** - use "Discuss" in the header; I read the content and answer on it.
+  - **Propose tasks and subtasks** - I break a description into items, you apply them with one click.
+  - **Help you write an issue** - the assistant panel in the create dialog refines the wording and drafts the description.
+  - **Draft and edit documents** - a full draft, or an edit shown as a diff with an Apply button.
+  - **Transcribe voice notes** - record a message and I will turn it into text.
+  - **Wrap up meetings** - call transcription plus a short summary of the minutes.
+  - **Remember context** - what matters to you personally and what is shared across the workspace; configurable in the assistant settings.
+
+  Replies consume the workspace token pool; usage and remaining balance are in the settings. Just write to me to start.
+
+ru: |
+  Привет! Меня зовут {{botName}}, я ассистент вашего пространства. Вот с чем помогу:
+
+  - **Отвечу на вопрос** - прямо здесь, в личном чате, или в канале/треде: упомяните меня.
+  - **Обсужу задачу или документ** - кнопка «Обсудить» в заголовке; я вижу содержимое и отвечаю по нему.
+  - **Предложу задачи и подзадачи** - разберу описание на пункты, вы примените их одной кнопкой.
+  - **Помогу составить задачу** - панель ассистента в диалоге создания: уточню формулировку, предложу описание.
+  - **Напишу и поправлю документ** - черновик целиком или правку с показом различий и кнопкой «Применить».
+  - **Расшифрую голосовое** - надиктуйте сообщение, я верну текст.
+  - **Сведу встречу** - расшифровка звонка и краткое резюме протокола.
+  - **Запомню контекст** - что важно лично вам и что общее для пространства; настраивается в разделе ассистента.
+
+  Ответы тратят токены пространства; расход и остаток видны в настройках. Просто напишите мне - начнём.

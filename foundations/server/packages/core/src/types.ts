@@ -612,7 +612,7 @@ export interface Session {
 
   getMode: () => string
 
-  broadcast: (ctx: MeasureContext, socket: ConnectionSocket, tx: Tx[]) => void
+  broadcast: (ctx: MeasureContext, socket: ConnectionSocket, tx: Tx[], memo?: SendMemo) => void
 
   // Client methods
   ping: (ctx: ClientSessionCtx) => Promise<void>
@@ -676,11 +676,24 @@ export interface Session {
 /**
  * @public
  */
+/**
+ * A broadcast goes to many sockets with identical bytes. Sharing this across one fan-out lets the
+ * first socket pay for the pack and the compression and the rest reuse the result.
+ * @public
+ */
+export type SendMemo = Map<string, Promise<any>>
+
 export interface ConnectionSocket {
   id: string
   isClosed: boolean
   close: () => void
-  send: (ctx: MeasureContext, msg: Response<any>, binary: boolean, compression: boolean) => Promise<void>
+  send: (
+    ctx: MeasureContext,
+    msg: Response<any>,
+    binary: boolean,
+    compression: boolean,
+    memo?: SendMemo
+  ) => Promise<void>
 
   sendPong: () => void
   data: () => Record<string, any>

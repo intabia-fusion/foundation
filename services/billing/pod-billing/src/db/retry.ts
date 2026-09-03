@@ -15,11 +15,17 @@
 
 import { MeasureContext, type WorkspaceUuid } from '@hcengineering/core'
 import {
+  AiTokensBreakdown,
+  AiWorkspaceBreakdown,
   AiTokensData,
+  AiTokensGroupBy,
   AiTokensUsage,
   AiTranscriptData,
   AiTranscriptDailyUsage,
   AiTranscriptUsage,
+  AiTranscriptGroupBy,
+  AiTranscriptBreakdown,
+  AiTranscriptUsageData,
   BillingDB,
   LiveKitEgressData,
   LiveKitParticipantSessionData,
@@ -29,7 +35,12 @@ import {
   ParticipantMinutesUsage,
   type LimitCategory,
   type UsageMetric,
-  type WorkspaceLimitState
+  type WorkspaceLimitState,
+  ProviderPool,
+  ProviderPoolConfig,
+  AiModelRegistryEntry,
+  ProviderTokenTotal,
+  type TokenBalance
 } from '../types'
 
 interface RetryOptions {
@@ -136,6 +147,19 @@ export class RetryDB implements BillingDB {
     await retry(() => this.db.pushAiTokensData(ctx, data), this.options)
   }
 
+  async pushTranscriptUsage (ctx: MeasureContext, data: AiTranscriptUsageData[]): Promise<void> {
+    await retry(() => this.db.pushTranscriptUsage(ctx, data), this.options)
+  }
+
+  async getAiTranscriptBreakdown (
+    ctx: MeasureContext,
+    groupBy: AiTranscriptGroupBy,
+    start?: Date,
+    end?: Date
+  ): Promise<AiTranscriptBreakdown[]> {
+    return await retry(() => this.db.getAiTranscriptBreakdown(ctx, groupBy, start, end), this.options)
+  }
+
   async getAiTokensStats (
     ctx: MeasureContext,
     workspace: WorkspaceUuid,
@@ -173,5 +197,120 @@ export class RetryDB implements BillingDB {
 
   async getAllExhaustedStates (ctx: MeasureContext): Promise<WorkspaceLimitState[]> {
     return await retry(() => this.db.getAllExhaustedStates(ctx), this.options)
+  }
+
+  async getAiTokensBreakdown (
+    ctx: MeasureContext,
+    groupBy: AiTokensGroupBy,
+    providerId?: string,
+    start?: Date,
+    end?: Date
+  ): Promise<AiTokensBreakdown[]> {
+    return await retry(() => this.db.getAiTokensBreakdown(ctx, groupBy, providerId, start, end), this.options)
+  }
+
+  async getWorkspaceBreakdown (
+    ctx: MeasureContext,
+    start?: Date,
+    end?: Date,
+    limit?: number,
+    offset?: number
+  ): Promise<AiWorkspaceBreakdown[]> {
+    return await retry(() => this.db.getWorkspaceBreakdown(ctx, start, end, limit, offset), this.options)
+  }
+
+  async getWorkspaceLevelUsage (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    start: Date,
+    end: Date
+  ): Promise<Array<{ level: string, label: string, tokens: number }>> {
+    return await retry(() => this.db.getWorkspaceLevelUsage(ctx, workspace, start, end), this.options)
+  }
+
+  async getProviderTokenTotals (ctx: MeasureContext, start?: Date, end?: Date): Promise<ProviderTokenTotal[]> {
+    return await retry(() => this.db.getProviderTokenTotals(ctx, start, end), this.options)
+  }
+
+  async listProviderPools (ctx: MeasureContext): Promise<ProviderPool[]> {
+    return await retry(() => this.db.listProviderPools(ctx), this.options)
+  }
+
+  async upsertProviderPool (ctx: MeasureContext, config: ProviderPoolConfig): Promise<void> {
+    await retry(() => this.db.upsertProviderPool(ctx, config), this.options)
+  }
+
+  async addPurchasedTokens (ctx: MeasureContext, providerId: string, model: string, delta: number): Promise<void> {
+    await retry(() => this.db.addPurchasedTokens(ctx, providerId, model, delta), this.options)
+  }
+
+  async updateProviderPoolState (
+    ctx: MeasureContext,
+    providerId: string,
+    model: string,
+    usedTokens: number
+  ): Promise<{ pool: ProviderPool, crossed80: boolean, crossed100: boolean }> {
+    return await retry(() => this.db.updateProviderPoolState(ctx, providerId, model, usedTokens), this.options)
+  }
+
+  async markPoolNotified (ctx: MeasureContext, providerId: string, model: string, percent: 80 | 100): Promise<void> {
+    await retry(() => this.db.markPoolNotified(ctx, providerId, model, percent), this.options)
+  }
+
+  async replaceAiModelRegistry (ctx: MeasureContext, entries: AiModelRegistryEntry[]): Promise<void> {
+    await retry(() => this.db.replaceAiModelRegistry(ctx, entries), this.options)
+  }
+
+  async listAiModelRegistry (ctx: MeasureContext): Promise<AiModelRegistryEntry[]> {
+    return await retry(() => this.db.listAiModelRegistry(ctx), this.options)
+  }
+
+  async resetProviderPoolUsed (ctx: MeasureContext, providerId: string, model: string): Promise<void> {
+    await retry(() => this.db.resetProviderPoolUsed(ctx, providerId, model), this.options)
+  }
+
+  async resetAllProviderPoolsUsed (ctx: MeasureContext): Promise<void> {
+    await retry(() => this.db.resetAllProviderPoolsUsed(ctx), this.options)
+  }
+
+  async resetWorkspaceUsed (ctx: MeasureContext, workspace: WorkspaceUuid, periodStart: Date): Promise<void> {
+    await retry(() => this.db.resetWorkspaceUsed(ctx, workspace, periodStart), this.options)
+  }
+
+  async setWorkspaceUsed (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    value: number,
+    level: string,
+    periodStart: Date
+  ): Promise<void> {
+    await retry(() => this.db.setWorkspaceUsed(ctx, workspace, value, level, periodStart), this.options)
+  }
+
+  async getTokenBalance (ctx: MeasureContext, workspace: WorkspaceUuid): Promise<TokenBalance | undefined> {
+    return await retry(() => this.db.getTokenBalance(ctx, workspace), this.options)
+  }
+
+  async grantAiTokens (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    grantId: string,
+    amount: number
+  ): Promise<boolean> {
+    return await retry(() => this.db.grantAiTokens(ctx, workspace, grantId, amount), this.options)
+  }
+
+  async settleTokenBalance (
+    ctx: MeasureContext,
+    workspace: WorkspaceUuid,
+    charge: number,
+    absorbedUntil: string | null,
+    absorbedPeriod: number,
+    newPeriodStart: string
+  ): Promise<boolean> {
+    return await retry(
+      () => this.db.settleTokenBalance(ctx, workspace, charge, absorbedUntil, absorbedPeriod, newPeriodStart),
+      this.options
+    )
   }
 }

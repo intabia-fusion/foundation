@@ -73,6 +73,7 @@
     "UnableToLoadEmbeddedContent": "由于权限设置或不支持的内容，无法加载链接预览",
     "CannotConnectToCollaborationService": "无法连接到协作者",
     "SourceURL": "源URL",
-    "SelectedDocuments": "选定的文档 ({count, plural, =1 {1 项} other {# 项}})"
+    "SelectedDocuments": "选定的文档 ({count, plural, =1 {1 项} other {# 项}})",
+    "LatestVersion": "最新"
   }
 }

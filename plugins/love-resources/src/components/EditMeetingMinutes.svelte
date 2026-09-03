@@ -20,7 +20,7 @@
 
   import love from '../plugin'
   import { joinMeeting, leaveMeeting } from '../meetings'
-  import { currentMeetingMinutes, infos, myConnectingSessionId, rooms } from '../stores'
+  import { currentMeetingMinutes, infos, myConnectingSessionId, rooms, connectingToMeeting } from '../stores'
   import { lkIsConnecting, lkSessionConnected } from '../liveKitClient'
   import { getMetadata } from '@hcengineering/platform'
   import { getCurrentAccount, Ref } from '@hcengineering/core'
@@ -66,6 +66,7 @@
     $myConnectingSessionId !== null && $myConnectingSessionId === currentSessionId && $lkIsConnecting
 
   async function connect (): Promise<void> {
+    if ($connectingToMeeting) return
     await joinMeeting(object)
   }
 
@@ -120,13 +121,13 @@
           dataId={'meeting-toggle-private'}
         />
       {/if}
-      {#if showConnectionButton(object, hasPendingJoinInThisSession, $lkSessionConnected)}
+      {#if showConnectionButton(object, hasPendingJoinInThisSession || $connectingToMeeting, $lkSessionConnected)}
         <ModernButton
           label={connectLabel}
           size="large"
           kind={'primary'}
           on:click={connect}
-          loading={hasPendingJoinInThisSession}
+          loading={hasPendingJoinInThisSession || $connectingToMeeting}
           dataId={'meeting-connect'}
         />
       {:else if $lkSessionConnected}

@@ -84,5 +84,8 @@ loadMetadata(core.icon, {
   TypeRef: `${icons}#link`,
   TypeArray: `${icons}#array`,
   TypeEnumOf: `${icons}#enumof`,
-  TypeCollection: `${icons}#collection`
+  TypeCollection: `${icons}#collection`,
+  TypePersonId: `${icons}#person`,
+  Status: `${icons}#status`,
+  Time: `${icons}#time`
 })

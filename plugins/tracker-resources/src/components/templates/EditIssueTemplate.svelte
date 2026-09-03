@@ -28,7 +28,7 @@
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
   import tracker from '../../plugin'
 
-  import SubIssueTemplates from './IssueTemplateChilds.svelte'
+  import SubIssueTemplates from '../subtasks/SubtaskSection.svelte'
   import TemplateControlPanel from './TemplateControlPanel.svelte'
 
   export let _id: Ref<IssueTemplate>

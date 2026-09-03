@@ -54,6 +54,8 @@
     "RemovedAttachment": "Adjunto eliminado",
     "ContentType": "Tipo de contenido",
     "OpenInWindow": "Abrir en ventana",
-    "Embeddings": "Incrustaciones"
+    "Embeddings": "Incrustaciones",
+    "Transcribing": "Transcribiendo...",
+    "TranscriptionFailed": "Error de transcripción"
   }
 }

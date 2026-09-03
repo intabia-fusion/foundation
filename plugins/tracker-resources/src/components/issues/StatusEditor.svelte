@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,7 +15,7 @@
 -->
 <script lang="ts">
   import { AttachedData, Ref, WithLookup } from '@hcengineering/core'
-  import { getClient } from '@hcengineering/presentation'
+  import { createQuery, getClient } from '@hcengineering/presentation'
   import { getTaskTypeStates } from '@hcengineering/task'
   import { taskTypeStore } from '@hcengineering/task-resources'
   import { Issue, IssueDraft, IssueStatus, Project, TrackerEvents } from '@hcengineering/tracker'
@@ -31,8 +32,11 @@
   import { statusStore } from '@hcengineering/view-resources'
   import { Analytics } from '@hcengineering/analytics'
   import { createEventDispatcher } from 'svelte'
+  import workflow, { ProjectWorkflow, Workflow, WorkflowTransition } from '@hcengineering/workflow'
+  import { isInfoError, isOkError } from '@hcengineering/platform'
 
   import tracker from '../../plugin'
+  import { activeProjects } from '../../utils'
   import IssueStatusIcon from './IssueStatusIcon.svelte'
   import StatusPresenter from './StatusPresenter.svelte'
 
@@ -54,6 +58,7 @@
   export let defaultIssueStatus: Ref<IssueStatus> | undefined = undefined
   export let focusIndex: number | undefined = undefined
   export let short: boolean = false
+  export let isCreate: boolean = false
 
   const client = getClient()
   const dispatch = createEventDispatcher()
@@ -69,11 +74,17 @@
     }
 
     if ('_class' in value) {
-      await client.update(value, { status: newStatus })
-      Analytics.handleEvent(TrackerEvents.IssueSetStatus, {
-        issue: value.identifier,
-        status: newStatus
-      })
+      try {
+        await client.update(value, { status: newStatus })
+        Analytics.handleEvent(TrackerEvents.IssueSetStatus, {
+          issue: value.identifier,
+          status: newStatus
+        })
+      } catch (e) {
+        if (!isInfoError(e) && !isOkError(e)) {
+          throw e
+        }
+      }
     }
   }
 
@@ -90,7 +101,77 @@
     )
   }
 
-  $: statuses = getTaskTypeStates(value.kind, $taskTypeStore, $statusStore.byId)
+  const workflowQuery = createQuery()
+
+  let currentWorkflow: Workflow | undefined = undefined
+  let transitions: WorkflowTransition[] = []
+
+  const h = client.getHierarchy()
+  $: project = value?.space ? ($activeProjects.get(value.space) as ProjectWorkflow | undefined) : undefined
+  $: workflowId =
+    project && value?.kind ? h.as(project, workflow.mixin.ProjectWorkflow).workflows?.[value.kind] : undefined
+
+  $: if (workflowId != null) {
+    workflowQuery.query(
+      workflow.class.Workflow,
+      { _id: workflowId },
+      (res) => {
+        currentWorkflow = res[0]
+        transitions = (res[0]?.$lookup?.transitions ?? []) as WorkflowTransition[]
+      },
+      {
+        lookup: {
+          _id: { transitions: workflow.class.WorkflowTransition }
+        }
+      }
+    )
+  } else {
+    currentWorkflow = undefined
+    transitions = []
+  }
+
+  $: allStatuses = getTaskTypeStates(value.kind, $taskTypeStore, $statusStore.byId) as
+    | WithLookup<IssueStatus>[]
+    | undefined
+
+  function filterStatusesByWorkflow (
+    all: WithLookup<IssueStatus>[] | undefined,
+    wfId: Ref<any> | undefined,
+    wf: Workflow | undefined,
+    transitions: WorkflowTransition[],
+    currentStatus: Ref<IssueStatus> | undefined,
+    isCreate: boolean
+  ): WithLookup<IssueStatus>[] | undefined {
+    if (all == null) return undefined
+    if (wfId == null) return all
+
+    if (isCreate) {
+      if (wf?.initialStatuses != null && wf.initialStatuses.length > 0) {
+        return all.filter((s) => wf.initialStatuses?.includes(s._id))
+      }
+      return all
+    }
+
+    const allowed = new Set<string>()
+
+    if (currentStatus != null) {
+      allowed.add(currentStatus)
+    }
+
+    for (const t of transitions) {
+      if (t.from == null || t.from.length === 0 || (currentStatus != null && t.from.includes(currentStatus))) {
+        allowed.add(t.to)
+      }
+    }
+
+    if (allowed.size === 0) {
+      return all
+    }
+
+    return all.filter((s) => allowed.has(s._id))
+  }
+
+  $: statuses = filterStatusesByWorkflow(allStatuses, workflowId, currentWorkflow, transitions, value?.status, isCreate)
 
   function getSelectedStatus (
     statuses: WithLookup<IssueStatus>[] | undefined,

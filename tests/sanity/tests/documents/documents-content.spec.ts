@@ -1,4 +1,4 @@
-import { test, type Page, expect } from '@playwright/test'
+import { test, type Page, expect } from '../fixtures'
 import {
   generateId,
   getTimeForPlanner,
@@ -9,6 +9,7 @@ import {
   generateTestData,
   getSecondPageByInvite
 } from '../utils'
+import { retryIntervals } from '../retry'
 import { NewDocument, NewTeamspace } from '../model/documents/types'
 import { LeftSideMenuPage } from '../model/left-side-menu-page'
 import { DocumentsPage } from '../model/documents/documents-page'
@@ -19,7 +20,7 @@ import { SignUpData } from '../model/common-types'
 import { TestData } from '../chat/types'
 import { faker } from '@faker-js/faker'
 
-const retryOptions = { intervals: [1000, 1500, 2500], timeout: 60000 }
+const retryOptions = { intervals: retryIntervals, timeout: 60000 }
 
 test.describe('Content in the Documents tests', () => {
   let testData: TestData
@@ -27,7 +28,6 @@ test.describe('Content in the Documents tests', () => {
   let testTeamspace: NewTeamspace
   let testDocument: NewDocument
 
-  let leftSideMenuPage: LeftSideMenuPage
   let documentsPage: DocumentsPage
   let documentContentPage: DocumentContentPage
 
@@ -37,7 +37,6 @@ test.describe('Content in the Documents tests', () => {
   let documentContentSecondPage: DocumentContentPage
 
   test.beforeEach(async ({ page, request }) => {
-    leftSideMenuPage = new LeftSideMenuPage(page)
     documentsPage = new DocumentsPage(page)
     documentContentPage = new DocumentContentPage(page)
     testTeamspace = {
@@ -51,9 +50,8 @@ test.describe('Content in the Documents tests', () => {
     }
 
     testData = generateTestData()
-    await createAccountAndWorkspace(page, request, testData)
+    await createAccountAndWorkspace(page, request, testData, 'document')
 
-    await leftSideMenuPage.clickDocuments()
     await documentsPage.checkTeamspaceNotExist(testTeamspace.title)
     await documentsPage.createNewTeamspace(testTeamspace)
     await documentsPage.clickOnButtonCreateDocument()

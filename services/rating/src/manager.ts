@@ -24,11 +24,12 @@ import {
   type PlatformQueueProducer,
   type QueueWorkspaceMessage
 } from '@hcengineering/server-core'
+import { sharedSystemModel } from '@hcengineering/middleware'
 import { generateToken } from '@hcengineering/server-token'
 
 import { RatingCalculator } from './calculator'
 import { QueueRatingEvent, ratingEvents, type QueueCalculateMessage, type QueueRatingMessage } from './types'
-import { getIgnoreDomains } from './utils'
+import { fulltextModelFilter, getIgnoreDomains } from './utils'
 
 const ratingTopic = 'rating'
 
@@ -59,10 +60,16 @@ export class WorkspaceManager {
       accountsUrl: string
     }
   ) {
+    // The filter needs a complete hierarchy, so classes are applied before documents are dropped.
     for (const tx of model) {
       this.sysHierarchy.tx(tx)
     }
-    this.sysModel.addTxes(ctx, model, true)
+    // System model is the same for every workspace, so it is built (and filtered) once.
+    this.sysModel.addTxes(ctx, fulltextModelFilter(this.sysHierarchy, model), true)
+    if (sharedSystemModel) {
+      // Shared with every calculator: frozen, a stray direct write throws instead of corrupting neighbours.
+      this.sysModel.freeze()
+    }
 
     this.supportedVersion = TxProcessor.createDoc2Doc(
       model.find(
@@ -279,6 +286,8 @@ export class WorkspaceManager {
       return await RatingCalculator.create(
         ctx,
         this.model,
+        sharedSystemModel ? this.sysHierarchy : undefined,
+        sharedSystemModel ? this.sysModel : undefined,
         {
           uuid: workspace,
           dataId: workspaceInfo.dataId,

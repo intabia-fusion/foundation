@@ -39,7 +39,7 @@ import {
 } from '@hcengineering/model'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import preference, { TPreference } from '@hcengineering/model-preference'
-import view, { createAction } from '@hcengineering/model-view'
+import view, { createAction, createAttributeApplier } from '@hcengineering/model-view'
 import workbench, { WidgetType } from '@hcengineering/workbench'
 import { getEmbeddedLabel } from '@hcengineering/platform'
 import presentation from '@hcengineering/model-presentation'
@@ -122,8 +122,11 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(attachment.class.Attachment, core.class.Class, view.mixin.CollectionEditor, {
-    editor: attachment.component.Attachments
+    editor: attachment.component.Attachments,
+    inlineEditor: attachment.component.DraftAttachmentsEditor
   })
+
+  createAttributeApplier(builder, core.class.Doc, 'attachments', attachment.function.AttachmentsApplier)
 
   builder.mixin(attachment.class.Attachment, core.class.Class, core.mixin.TxAccessLevel, {
     createAccessLevel: AccountRole.Guest

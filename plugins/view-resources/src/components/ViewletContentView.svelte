@@ -4,7 +4,9 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { AnySvelteComponent, Component, Loading } from '@hcengineering/ui'
   import view, { ViewOptions, Viewlet, ViewletPreference } from '@hcengineering/view'
+
   import { injectCustomAttributes } from '../utils'
+  import { injectDescendantAttributes } from '../descendantAttributes'
 
   export let viewlet: WithLookup<Viewlet>
   export let _class: Ref<Class<Doc>>
@@ -87,7 +89,10 @@
   $: updateConfiguration(configurationRaw, preference)
 
   $: currentPreference = preference.find((it) => it.attachedTo === viewlet._id)
-  $: config = injectCustomAttributes(currentPreference?.config ?? viewlet.config, currentPreference?.customAttributes)
+  $: config = injectDescendantAttributes(
+    injectCustomAttributes(currentPreference?.config ?? viewlet.config, currentPreference?.customAttributes),
+    currentPreference?.descendantAttributes
+  )
 </script>
 
 {#if viewlet?.$lookup?.descriptor?.component}

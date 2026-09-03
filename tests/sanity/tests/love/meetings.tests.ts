@@ -1,3 +1,18 @@
+//
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
 import { test, expect } from '@playwright/test'
 import { PlatformSetting, PlatformURI } from '../utils'
 import { OfficePage } from '../model/love/office-page'
@@ -13,7 +28,7 @@ export function registerMeetingsTests (): void {
 
     test.beforeEach(async ({ page }) => {
       officePage = new OfficePage(page)
-      await (await page.goto(`${PlatformURI}/workbench/${meetingsWs}`))?.finished()
+      await (await page.goto(`${PlatformURI}/workbench/${meetingsWs}/love`))?.finished()
     })
 
     test('navigate-to-office', async ({ page }) => {
@@ -47,9 +62,8 @@ export function registerMeetingsTests (): void {
       await officePage.navigateToOffice()
       await expect(officePage.floorGrid()).toBeVisible({ timeout: 15000 })
 
-      // Regular rooms (Meeting Room 1, etc.) open the EditRoom aside panel
-      // with a Connect/Knock button — not a popup. The popup variant is
-      // only rendered for already-active meetings (see ControlExt.svelte).
+      // A regular room opens the EditRoom aside, not a popup: the popup is only rendered
+      // for an already-active meeting.
       const room = page.locator('[data-id="room-Meeting Room 1"]').first()
       await expect(room).toBeVisible({ timeout: 10000 })
       await room.click()

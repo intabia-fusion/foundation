@@ -15,7 +15,7 @@
 <script lang="ts">
   import { getCurrentEmployee, Person } from '@hcengineering/contact'
   import { Avatar, myEmployeeStore, getPersonByPersonRef, statusByUserStore } from '@hcengineering/contact-resources'
-  import { ParticipantInfo, Room, RoomType, MeetingStatus, isOffice, Office } from '@hcengineering/love'
+  import { MeetingMinutes, ParticipantInfo, Room, RoomType, MeetingStatus, isOffice, Office } from '@hcengineering/love'
   import { Icon, Label, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import { getClient } from '@hcengineering/presentation'
@@ -35,7 +35,7 @@
   import { getRoomLabel } from '../utils'
   import { IntlString } from '@hcengineering/platform'
   import { lkSessionConnected } from '../liveKitClient'
-  import { AccountUuid, clone, Ref } from '@hcengineering/core'
+  import { AccountUuid, clone, getCurrentAccount, Ref } from '@hcengineering/core'
   // import RoomLanguage from './RoomLanguage.svelte'
   import PersonActionPopup from './PersonActionPopup.svelte'
 
@@ -55,6 +55,7 @@
       if (posMap.has(`${r.x}.${r.y}`)) {
         conflicts.push(r)
       } else {
+        posMap.add(`${r.x}.${r.y}`)
         result.push(r)
       }
     }
@@ -74,12 +75,59 @@
         }
         if (found) break
       }
+      if (!found) {
+        // Grid is full - overflow along x, extra columns still render them.
+        let x = room.width
+        while (posMap.has(`${x}.0`)) x++
+        const nc = clone(c)
+        nc.x = x
+        nc.y = 0
+        posMap.add(`${x}.0`)
+        result.push(nc)
+      }
     }
 
     return result
   }
 
+  // prepareInfo resolves collisions per client, so browsers paint different layouts.
+  // The meeting creator writes its layout back; notMatch keeps it off a taken cell.
+  const persistedPlaces = new Set<string>()
+
+  async function persistPlaces (
+    resolved: ParticipantInfo[],
+    original: ParticipantInfo[],
+    allMeetings: MeetingMinutes[]
+  ): Promise<void> {
+    if (preview) return
+    const myIds = getCurrentAccount().socialIds
+    const client = getClient()
+
+    for (const r of resolved) {
+      const src = original.find((p) => p._id === r._id)
+      if (src === undefined || (src.x === r.x && src.y === r.y)) continue
+      // Overflow cells are outside the grid - the server picks those too.
+      if (r.x >= room.width || r.y >= room.height) continue
+      if (r.meeting == null) continue
+
+      const meeting = allMeetings.find((it) => it._id === r.meeting)
+      if (meeting?.createdBy == null || !myIds.includes(meeting.createdBy)) continue
+
+      const key = `${r._id}.${r.x}.${r.y}`
+      if (persistedPlaces.has(key)) continue
+      persistedPlaces.add(key)
+
+      const ops = client.apply(`love_place_${r._id}`)
+      ops.notMatch(love.class.ParticipantInfo, { room: room._id, x: r.x, y: r.y })
+      await ops.update(src, { x: r.x, y: r.y })
+      await ops.commit()
+    }
+  }
+
   $: _info = prepareInfo(info ?? [])
+  $: persistPlaces(_info, info ?? [], $meetings).catch((err) => {
+    console.error('[RoomPreview] failed to persist places', err)
+  })
 
   const me = getCurrentEmployee()
   $: myName = $myEmployeeStore?.name
@@ -185,6 +233,9 @@
   }
 
   $: extraRow = calcExtraRows(hovered, room, _info, $myInfo)
+  // Footprint grows only on hover; otherwise overflow columns squeeze inside the
+  // room box - widening it permanently would overlap the neighbouring room.
+  $: spanWidth = hovered ? room.width + extraRow : room.width
 
   function calcExtraRows (
     hovered: boolean,
@@ -192,13 +243,14 @@
     info: ParticipantInfo[],
     myInfo: ParticipantInfo | undefined
   ): number {
-    if (!hovered) return 0
     let maxX = info.reduce((acc, p) => {
       acc = Math.max(acc, p.x)
       return acc
     }, 0)
     maxX++
     let init = maxX > room.width ? maxX - room.width : 0
+    // Overflow columns must render unhovered too, else those participants are invisible.
+    if (!hovered) return init
 
     for (let y = 0; y < room.height; y++) {
       for (let x = 0; x < room.width; x++) {
@@ -263,11 +315,11 @@
   class:myOffice={$myOffice?._id === room._id}
   style:--huly-floor-roomWidth={room.width + extraRow}
   style:--huly-floor-roomHeight={room.height}
-  style:grid-column={`${room.x + 2} / span ${room.width + extraRow}`}
+  style:grid-column={`${room.x + 2} / span ${spanWidth}`}
   style:grid-row={`${room.y + 2} / span ${room.height}`}
   style:grid-template-columns={`repeat(${room.width + extraRow}, 1fr)`}
   style:grid-template-rows={`repeat(${room.height}, 1fr)`}
-  style:aspect-ratio={`${room.width + extraRow} / ${room.height}`}
+  style:aspect-ratio={`${spanWidth} / ${room.height}`}
   on:mouseover|stopPropagation
   on:mouseenter|stopPropagation={mouseEnter}
   on:mouseleave|stopPropagation={mouseLeave}

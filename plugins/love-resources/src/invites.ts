@@ -38,6 +38,9 @@ let responsePopup: PopupResult | undefined
 
 export const allInvites: Writable<UserMeetingInvite[]> = writable([])
 
+// `derived` re-runs on every `infos` change, so without this the same removeDoc fires on each tick.
+const droppedInvites = new Set<Ref<UserMeetingInvite>>()
+
 // All invites we send to somebody.
 export const outgoingInvitesStore = derived([allInvites, infos], ([all, allInfos]) => {
   const me = getCurrentEmployee()
@@ -57,8 +60,16 @@ export const outgoingInvitesStore = derived([allInvites, infos], ([all, allInfos
   if (toDrop.length > 0) {
     const client = getClient()
     for (const inv of toDrop) {
-      client.removeDoc(love.class.UserMeetingInvite, inv.space, inv._id).catch((): void => undefined)
+      if (droppedInvites.has(inv._id)) continue
+      droppedInvites.add(inv._id)
+      client.removeDoc(love.class.UserMeetingInvite, inv.space, inv._id).catch((): void => {
+        droppedInvites.delete(inv._id)
+      })
     }
+  }
+  // Forget invites that are gone, so the guard cannot grow for the life of the tab.
+  for (const id of droppedInvites) {
+    if (!all.some((it) => it._id === id)) droppedInvites.delete(id)
   }
 
   return outgoing.filter((it) => it.status === 'pending')
@@ -516,8 +527,9 @@ export async function checkAndJoinIfRecipientJoined (invites: UserMeetingInvite[
           // caller]) picks the meeting up and auto-joins.
           const office = await client.findOne(love.class.Office, { person: me })
           if (office !== undefined) {
-            const created = await createMeeting(office)
-            if (created !== undefined) {
+            const outcome = await createMeeting(office)
+            if ('meeting' in outcome) {
+              const created = outcome.meeting
               const recipient = await getPersonByPersonRef(invite.to)
               const recipientAccount = recipient?.personUuid as AccountUuid | undefined
               if (recipientAccount !== undefined && !created.members.includes(recipientAccount)) {

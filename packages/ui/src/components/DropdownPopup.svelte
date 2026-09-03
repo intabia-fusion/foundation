@@ -23,11 +23,14 @@
   import Icon from './Icon.svelte'
   import ListView from './ListView.svelte'
   import EditWithIcon from './EditWithIcon.svelte'
+  import IconCheck from './icons/Check.svelte'
 
   export let icon: Asset | AnySvelteComponent
   export let placeholder: IntlString = plugin.string.SearchDots
   export let items: ListItem[]
+  export let popupClass: string | undefined = undefined
   export let withSearch: boolean = true
+  export let selectedId: string | undefined = undefined
 
   let search: string = ''
   let phTranslate: string = ''
@@ -76,7 +79,11 @@
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<div class="selectPopup popup" use:resizeObserver={() => dispatch('changeContent')} on:keydown={onKeydown}>
+<div
+  class="selectPopup popup {popupClass ?? ''}"
+  use:resizeObserver={() => dispatch('changeContent')}
+  on:keydown={onKeydown}
+>
   {#if withSearch}
     <div class="header">
       <EditWithIcon
@@ -103,20 +110,31 @@
               handleSelection(evt, idx)
             }}
           >
-            {#if item.image || item.icon || icon}
-              <div class="flex-center img" class:image={item.image}>
-                {#if item.image}
-                  <img src={item.image} alt={item.label} />
-                {:else if item.icon}
-                  <Icon icon={item.icon} size={'medium'} iconProps={item.iconProps} />
-                {:else if typeof icon === 'string'}
-                  <Icon {icon} size={'small'} />
-                {:else}
-                  <svelte:component this={icon} size={'small'} />
-                {/if}
+            {#if item.component}
+              <div class="flex-grow flex-row-center min-w-0 overflow-hidden">
+                <svelte:component this={item.component} {...item.componentProps ?? {}} />
+              </div>
+            {:else}
+              {#if item.image || item.icon || icon}
+                <div class="flex-center img" class:image={item.image}>
+                  {#if item.image}
+                    <img src={item.image} alt={item.label} />
+                  {:else if item.icon}
+                    <Icon icon={item.icon} size={'medium'} iconProps={item.iconProps} />
+                  {:else if typeof icon === 'string'}
+                    <Icon {icon} size={'small'} />
+                  {:else}
+                    <svelte:component this={icon} size={'small'} />
+                  {/if}
+                </div>
+              {/if}
+              <div class="flex-grow caption-color font-{item.fontWeight} pl-{item.paddingLeft}">{item.label}</div>
+            {/if}
+            {#if selectedId !== undefined && item._id === selectedId}
+              <div class="check">
+                <Icon icon={IconCheck} size={'small'} />
               </div>
             {/if}
-            <div class="flex-grow caption-color font-{item.fontWeight} pl-{item.paddingLeft}">{item.label}</div>
           </button>
         </svelte:fragment>
       </ListView>
@@ -144,5 +162,10 @@
   }
   .popup {
     padding: 0.5rem 0;
+  }
+  :global(.selectPopup.wide) {
+    max-width: 90vw !important;
+    width: 30rem;
+    min-width: 22rem;
   }
 </style>

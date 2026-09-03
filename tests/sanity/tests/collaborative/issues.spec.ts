@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { IssuesDetailsPage } from '../model/tracker/issues-details-page'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { NewIssue } from '../model/tracker/types'
@@ -71,10 +71,14 @@ test.describe('Collaborative test for issue', () => {
   })
 
   test('Issues status can be changed by another users', async ({ page, browser }) => {
+    // Created here on purpose: the test moves the issue out of Backlog and never moves it back, so
+    // a seeded issue works exactly once per workspace restore.
     const issue: NewIssue = {
-      title: 'Issues status can be changed by another users',
-      description: 'Collaborative test for issue'
+      title: `Issues status can be changed by another users-${generateId()}`,
+      description: 'Collaborative test for issue',
+      status: 'Backlog'
     }
+    await issuesPage.createNewIssue(issue)
 
     // open second page
     const { page: userSecondPage, context } = await getSecondPage(browser)

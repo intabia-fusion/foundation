@@ -1,5 +1,5 @@
 import { concatLink } from '@hcengineering/core'
-import love, { RecordingState, type MeetingMinutes, type Room } from '@hcengineering/love'
+import love, { type MeetingMinutes, type Room } from '@hcengineering/love'
 import { getMetadata } from '@hcengineering/platform'
 import { getPlatformToken } from './utils'
 import { getCurrentEmployee } from '@hcengineering/contact'
@@ -49,38 +49,33 @@ export class LoveClient {
     }
   }
 
-  async record (mm: MeetingMinutes): Promise<void> {
+  // `isRecording` comes from the caller: the server treats a live PendingRecording as running
+  // long before `recordingState` flips, so deciding on the flag alone sends start into a 409.
+  async record (mm: MeetingMinutes, isRecording: boolean): Promise<void> {
     try {
       const endpoint = this.getLoveEndpoint()
       const token = getPlatformToken()
-      if (mm.recordingState === RecordingState.Recording) {
-        await fetch(concatLink(endpoint, '/stopRecord'), {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer ' + token,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            meetingId: mm._id,
-            title: mm.name
-          })
+      const path = isRecording ? '/stopRecord' : '/startRecord'
+      const res = await fetch(concatLink(endpoint, path), {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          meetingId: mm._id,
+          title: mm.name
         })
-      } else {
-        await fetch(concatLink(endpoint, '/startRecord'), {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer ' + token,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            meetingId: mm._id,
-            title: mm.name
-          })
-        })
+      })
+      // 409 means somebody else already flipped it, or the flip is still settling - the
+      // document carries the real state, so surface it instead of failing silently.
+      if (!res.ok) {
+        throw new LoveServiceError(res.status, `${path} failed: ${res.status}`)
       }
     } catch (err: any) {
       Analytics.handleError(err)
       console.error(err)
+      throw err
     }
   }
 

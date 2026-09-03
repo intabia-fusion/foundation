@@ -188,7 +188,7 @@
         dataId="open-in-sidebar"
         on:click={() => {
           if (object !== undefined) {
-            void openChannelInSidebar(object._id, object._class, object, undefined, true)
+            void openChannelInSidebar(object._id, object._class, object)
           }
         }}
       />

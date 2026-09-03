@@ -42,6 +42,7 @@
     "@hcengineering/server-core": "workspace:^0.7.18",
     "@hcengineering/query": "workspace:^0.7.17",
     "@hcengineering/analytics": "workspace:^0.7.17",
+    "@hcengineering/measurements": "workspace:^0.7.18",
     "fast-equals": "^5.2.2"
   },
   "repository": "https://github.com/hcengineering/huly.server",

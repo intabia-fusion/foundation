@@ -140,7 +140,13 @@ Cloud-based OpenAI Whisper API. Uses existing `OPENAI_API_KEY`.
 Translate text to specified language.
 
 ### POST /summarize
-Summarize chat messages.
+Queue a summary of the chat messages of an object. Returns `202` with an empty body - the text is
+written into the document by the `ai-summary` consumer, not returned here.
+
+### GET /conversation/:id/export
+The thread's transcript file (`text/markdown`): frontmatter plus one `---`-separated chunk per turn,
+tool calls included. `404` when nothing has been written for that thread yet. Written by the pod
+after every reply and re-read on the next turn instead of re-querying the thread.
 
 ### POST /connect
 Connect to a workspace.

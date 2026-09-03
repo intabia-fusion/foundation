@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { PlatformSetting, PlatformURI } from '../utils'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
 import { NewProjectPage } from '../model/tracker/new-project-page'

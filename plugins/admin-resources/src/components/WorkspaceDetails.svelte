@@ -19,8 +19,10 @@
     WorkspaceActivityPoint,
     WorkspaceMemberDetails
   } from '@hcengineering/account-client'
-  import { AccountRole } from '@hcengineering/core'
-  import { getEmbeddedLabel, getMetadata } from '@hcengineering/platform'
+  import { grantsPlan } from '@hcengineering/account-client'
+  import { AccountRole, type AccountUuid } from '@hcengineering/core'
+  import login from '@hcengineering/login'
+  import { getEmbeddedLabel, getMetadata, setMetadata } from '@hcengineering/platform'
   import presentation, {
     copyTextToClipboard,
     isAdminUser,
@@ -33,21 +35,32 @@
     CheckBox,
     Dialog,
     EditBox,
+    Expandable,
     IconCopy,
     IconStop,
     Label,
     Loading,
+    navigate,
+    setMetadataLocalStorage,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
 
   import { onDestroy } from 'svelte'
 
+  import { workbenchId } from '@hcengineering/workbench'
+
+  import { WorkspaceTokenInfo } from '@hcengineering/billing-resources'
+
+  import { currencyOf } from '@hcengineering/billing'
+
   import adminRes from '../plugin'
   import AdminOtpDialog from './AdminOtpDialog.svelte'
   import EditSubscriptionDialog from './EditSubscriptionDialog.svelte'
   import {
+    fmtAmount,
     getAccountClient,
+    requestAdminOtpCode,
     getWorkspaceActivityStats,
     loadPlanOptions,
     type PlanOptions,
@@ -56,8 +69,10 @@
 
   export let workspace: WorkspaceInfo
 
+  let destroyed = false
   onDestroy(() => {
     clearTimeout(searchTimer)
+    destroyed = true
   })
 
   const accountClient = getAccountClient()
@@ -130,31 +145,68 @@
     })
   }
 
+  // Read-only look at the workspace as one of its members. The server refuses every write from
+  // this session, and the code request is what lands in the audit trail.
+  async function impersonate (target: AccountUuid): Promise<void> {
+    const code = await requestAdminOtpCode()
+    if (code === undefined) return
+    try {
+      const info = await accountClient.adminImpersonate(workspace.uuid, target, code)
+      setMetadata(presentation.metadata.Token, info.token)
+      setMetadata(presentation.metadata.WorkspaceUuid, info.workspace)
+      setMetadataLocalStorage(login.metadata.LoginEndpoint, info.endpoint)
+      setMetadataLocalStorage(login.metadata.LoginAccount, info.account)
+      navigate({ path: [workbenchId, info.workspaceUrl ?? workspace.url ?? ''] })
+    } catch (err) {
+      console.error('Failed to open an impersonation session:', err)
+    }
+  }
+
   function reindex (): void {
-    showPopup(MessageBox, {
-      label: adminRes.string.Reindex,
-      message: adminRes.string.PleaseConfirm,
-      action: async () => {
-        await accountClient.adminReindexWorkspace(workspace.uuid)
-      }
+    withOtp(async (code) => {
+      await accountClient.adminReindexWorkspace(workspace.uuid, code)
     })
   }
 
   function editSubscription (s: Subscription): void {
-    showPopup(EditSubscriptionDialog, { subscription: s, perSeatPlan: isPerSeatPlan(s.plan) }, undefined, (changed) => {
-      if (changed === true) void load()
-    })
+    showPopup(
+      EditSubscriptionDialog,
+      { subscription: s, perSeatPlan: isPerSeatPlan(s.plan), planItem: planConfigItem(s.plan) },
+      undefined,
+      (changed) => {
+        if (changed === true) void load()
+      }
+    )
   }
 
   function cancelSubscription (s: Subscription): void {
     withOtp(async (code) => {
       await accountClient.adminCancelSubscription(s.id, code)
+      if (s.type === 'tier') void awaitFreeFallback()
     })
   }
 
+  // pod-payment creates the free fallback off the queue, after the cancel call returns.
+  // Poll 5x1s; giving up is fine (no free plan configured, or free itself was canceled).
+  async function awaitFreeFallback (): Promise<void> {
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      if (destroyed) return
+      const subs = await accountClient.getSubscriptions(workspace.uuid, false).catch(() => undefined)
+      if (subs?.some((sub) => sub.type === 'tier' && grantsPlan(sub)) === true) {
+        await load()
+        return
+      }
+    }
+  }
+
   function isPerSeatPlan (plan: string): boolean {
-    const item = plans?.config?.plans?.[plan] ?? plans?.config?.packages?.[plan]
-    return item?.priceMonthlyPerUser != null
+    return planConfigItem(plan)?.priceMonthlyPerUser != null
+  }
+
+  // Plan-config entry backing a subscription — carries price and currency. Absent for manual plans.
+  function planConfigItem (plan: string): any {
+    return plans?.config?.plans?.[plan] ?? plans?.config?.packages?.[plan]
   }
 
   // Workspace name/url editing
@@ -162,12 +214,17 @@
   let nameValue = ''
   let editingUrl = false
   let urlValue = ''
-  let editingDisabledFeatures = false
   // Feature checkboxes: candidates are the globally disabled features (DISABLED_FEATURES),
   // checked = re-enabled for this workspace. Union with the current override keeps entries
   // visible even if the global metadata was narrowed by a workspace connect in this session.
-  let featureOptions: string[] = []
+  const globalDisabled = getMetadata(presentation.metadata.DisabledFeatures) ?? new Set<string>()
+  $: featureOptions = Array.from(new Set([...globalDisabled, ...(workspace.disabledFeaturesOverride ?? [])])).sort()
   let featureChecked: Record<string, boolean> = {}
+  $: resetFeatureChecked(workspace.disabledFeaturesOverride ?? [])
+
+  function resetFeatureChecked (override: string[]): void {
+    featureChecked = Object.fromEntries(featureOptions.map((f) => [f, override.includes(f)]))
+  }
 
   function startEditName (): void {
     nameValue = workspace.name ?? ''
@@ -177,27 +234,17 @@
     urlValue = workspace.url ?? ''
     editingUrl = true
   }
-  function startEditDisabledFeatures (): void {
-    const global = getMetadata(presentation.metadata.DisabledFeatures) ?? new Set<string>()
-    const override = workspace.disabledFeaturesOverride ?? []
-    featureOptions = Array.from(new Set([...global, ...override])).sort()
-    featureChecked = Object.fromEntries(featureOptions.map((f) => [f, override.includes(f)]))
-    editingDisabledFeatures = true
-  }
-  async function saveName (): Promise<void> {
+  function saveName (): void {
     const name = nameValue.trim()
     if (name.length === 0 || name === workspace.name) {
       editingName = false
       return
     }
-    try {
-      await accountClient.adminUpdateWorkspaceName(workspace.uuid, name)
+    withOtp(async (code) => {
+      await accountClient.adminUpdateWorkspaceName(workspace.uuid, name, code)
       workspace = { ...workspace, name }
-    } catch (err) {
-      console.error('Failed to rename workspace:', err)
-    } finally {
-      editingName = false
-    }
+    })
+    editingName = false
   }
   function saveUrl (): void {
     const url = urlValue.trim().toLowerCase()
@@ -212,16 +259,12 @@
     })
     editingUrl = false
   }
-  async function saveDisabledFeatures (): Promise<void> {
+  function saveDisabledFeatures (): void {
     const features = featureOptions.filter((f) => featureChecked[f])
-    try {
-      await accountClient.adminUpdateWorkspaceDisabledFeatures(workspace.uuid, features)
+    withOtp(async (code) => {
+      await accountClient.adminUpdateWorkspaceDisabledFeatures(workspace.uuid, features, code)
       workspace = { ...workspace, disabledFeaturesOverride: features }
-    } catch (err) {
-      console.error('Failed to update disabled features override:', err)
-    } finally {
-      editingDisabledFeatures = false
-    }
+    })
   }
 
   let subscriptions: Subscription[] = []
@@ -288,6 +331,11 @@
     isCreating = true
 
     const doCreate = async (): Promise<void> => {
+      const code = await requestAdminOtpCode()
+      if (code === undefined) {
+        isCreating = false
+        return
+      }
       try {
         const item = planItem
         let limits: any
@@ -295,17 +343,22 @@
           const usersLimit = perSeat ? (seats != null && seats >= 1 ? seats : 1) : (item.usersLimit ?? 0)
           const storageLimitGB =
             item.storagePerUserGB != null ? usersLimit * item.storagePerUserGB : (item.storageLimitGB ?? 0)
+          // Same shape as the payment pod's resolveLimits: a per-seat plan scales its AI window by
+          // seats. Without it every admin-made subscription falls back to the pod's env default.
+          const baseWindow = item.windowMonthLimit ?? 0
           limits = {
             storageLimitGB,
             trafficLimitGB: item.trafficLimitGB ?? 0,
             meetingMinutesLimit: item.meetingMinutesLimit ?? 0,
             tokenLimit: item.tokenLimit ?? 0,
-            usersLimit
+            usersLimit,
+            windowMonthLimit: perSeat ? baseWindow * usersLimit : baseWindow
           }
         }
         const days = periodDays > 0 ? periodDays : 30
         const trialActive = asTrial && inferredType === 'tier'
         await accountClient.adminCreateSubscription({
+          otpCode: code,
           workspaceUuid: workspace.uuid as any,
           plan: selectedPlan,
           type: inferredType as any,
@@ -360,6 +413,10 @@
         <div class="content-dark-color">
           <Label label={adminRes.string.UpdatedAt} />: {fmtDate(workspace.usageInfo?.updateTime)}
         </div>
+      </div>
+
+      <div class="mr-8 mb-2">
+        <WorkspaceTokenInfo workspace={workspace.uuid} />
       </div>
 
       <div class="mr-8 mb-2">
@@ -421,24 +478,26 @@
             {/if}
           {/if}
         </div>
-        <div class="flex-row-center">
-          <Label label={adminRes.string.DisabledFeaturesOverride} />:
-          {#if editingDisabledFeatures}
-            {#if featureOptions.length === 0}
-              <span class="ml-1 content-dark-color">-</span>
-            {/if}
+        <Expandable label={adminRes.string.DisabledFeaturesOverride} expandable={featureOptions.length > 0}>
+          <svelte:fragment slot="title-tools">
+            <span class="content-dark-color">
+              {(workspace.disabledFeaturesOverride ?? []).join(', ') || '-'}
+            </span>
+          </svelte:fragment>
+          <div class="features">
             {#each featureOptions as f}
-              <label class="ml-2 flex-row-center">
-                <CheckBox bind:checked={featureChecked[f]} />
-                <span class="ml-1">{f}</span>
+              <label class="flex-row-center py-1">
+                <CheckBox bind:checked={featureChecked[f]} readonly={readOnly} />
+                <span class="ml-2">{f}</span>
               </label>
             {/each}
-            <Button size={'small'} kind={'ghost'} label={adminRes.string.Save} on:click={saveDisabledFeatures} />
-          {:else}
-            <span class="ml-1">{(workspace.disabledFeaturesOverride ?? []).join(', ') || '-'}</span>
-            <Button size={'small'} kind={'ghost'} label={adminRes.string.Edit} on:click={startEditDisabledFeatures} />
-          {/if}
-        </div>
+            {#if !readOnly}
+              <div class="mt-2">
+                <Button size={'small'} label={adminRes.string.Save} on:click={saveDisabledFeatures} />
+              </div>
+            {/if}
+          </div>
+        </Expandable>
         <div>
           <Label label={adminRes.string.Region} />: {workspace.region === '' || workspace.region == null
             ? 'Default'
@@ -498,6 +557,15 @@
                 <td>{m.txTotal}</td>
                 <td>
                   {#if !readOnly}
+                    <Button
+                      size={'small'}
+                      kind={'ghost'}
+                      label={adminRes.string.Impersonate}
+                      showTooltip={{ label: adminRes.string.ImpersonateHint }}
+                      on:click={() => {
+                        void impersonate(m.account)
+                      }}
+                    />
                     <Button
                       icon={IconStop}
                       size={'small'}
@@ -594,6 +662,7 @@
               <th><Label label={adminRes.string.Status} /></th>
               <th><Label label={adminRes.string.Provider} /></th>
               <th><Label label={adminRes.string.Users} /></th>
+              <th><Label label={adminRes.string.Amount} /></th>
               <th><Label label={adminRes.string.CreatedOn} /></th>
               <th><Label label={adminRes.string.PeriodEnd} /></th>
               <th></th>
@@ -607,6 +676,7 @@
                 <td>{s.status}</td>
                 <td>{s.provider}</td>
                 <td>{s.limits?.usersLimit ?? '-'}</td>
+                <td>{fmtAmount(s.amount, currencyOf(planConfigItem(s.plan)))}</td>
                 <td>{fmtDate(s.createdOn)}</td>
                 <td>{fmtDate(s.status === 'trialing' ? (s.trialEnd ?? s.periodEnd) : s.periodEnd)}</td>
                 <td>
@@ -679,6 +749,11 @@
 </Dialog>
 
 <style lang="scss">
+  .features {
+    max-height: 12rem;
+    overflow-y: auto;
+  }
+
   .activity {
     display: flex;
     align-items: flex-end;

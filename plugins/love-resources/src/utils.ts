@@ -32,7 +32,6 @@ import {
   type MeetingMinutes,
   type MeetingSchedule,
   type Room,
-  type RoomMetadata,
   type UserMeetingInvite
 } from '@hcengineering/love'
 import { getEmbeddedLabel, getMetadata, translate, type IntlString } from '@hcengineering/platform'
@@ -78,8 +77,6 @@ export function setCustomCreateScreenTracks (value: () => Promise<Array<LocalTra
   lk.localParticipant.createScreenTracks = value
 }
 
-export const isRecording = writable<boolean>(false)
-export const isTranscription = writable<boolean>(false)
 export const isRecordingAvailable = writable<boolean>(false)
 export const isFullScreen = writable<boolean>(false)
 export const isShareWithSound = writable<boolean>(false)
@@ -263,19 +260,7 @@ lk.on(RoomEvent.LocalTrackUnpublished, (pub) => {
     }
   }
 })
-lk.on(RoomEvent.RecordingStatusChanged, (evt) => {
-  isRecording.set(evt)
-})
-lk.on(RoomEvent.RoomMetadataChanged, (metadata) => {
-  const data = parseMetadata(metadata)
-  isRecording.set(data.recording ?? false)
-  isTranscription.set(data.transcription ?? false)
-})
-
 lk.on(RoomEvent.Connected, () => {
-  const data: RoomMetadata = parseMetadata(lk.metadata)
-  isTranscription.set(data.transcription ?? false)
-  isRecording.set(data.recording ?? false)
   Analytics.handleEvent(LoveEvents.ConnectedToRoom)
 })
 if (useKrisp) {
@@ -294,15 +279,6 @@ if (useKrisp) {
     // as the AudioContext may have changed during reconnect.
     void recreateKrispProcessor()
   })
-}
-
-function parseMetadata (metadata: string | undefined): RoomMetadata {
-  try {
-    return metadata == null || metadata === '' ? {} : JSON.parse(metadata)
-  } catch (err: any) {
-    Analytics.handleError(err)
-    return {}
-  }
 }
 
 export function closeMeetingMinutes (): void {

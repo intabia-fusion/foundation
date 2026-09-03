@@ -45,7 +45,7 @@
   } from '@hcengineering/workbench-resources'
   import workbench from '@hcengineering/workbench'
   import { ComponentType, onDestroy, onMount } from 'svelte'
-  import { clearSettingsStore, settingsStore, type SettingsStore } from '../store'
+  import { clearSettingsStore, settingsStore } from '../store'
   import { Analytics } from '@hcengineering/analytics'
 
   export let workbenchWidth: number = 0
@@ -117,11 +117,8 @@
     showPopup(login.component.InviteLink, {})
   }
 
-  const updatedStore = (ss: SettingsStore): ComponentType | AnyComponent | null => {
-    asideProps = ss.props ?? null
-    return ss.component === undefined ? null : ss.component
-  }
-  $: asideComponent = updatedStore($settingsStore)
+  $: asideProps = $settingsStore.props ?? null
+  $: asideComponent = $settingsStore.component === undefined ? null : $settingsStore.component
   let moveASide: boolean = false
   $: if (workbenchWidth < deviceWidths[3] && !moveASide) moveASide = true
   else if (workbenchWidth >= deviceWidths[3] && moveASide) moveASide = false

@@ -21,7 +21,13 @@ import {
   type TxResult,
   type WithLookup
 } from '@hcengineering/core'
-import platform, { PlatformError, setPlatformStatus, unknownError, type Resource } from '@hcengineering/platform'
+import platform, {
+  isPlatformPropagateError,
+  PlatformError,
+  setPlatformStatus,
+  unknownError,
+  type Resource
+} from '@hcengineering/platform'
 
 /**
  * @public
@@ -208,6 +214,11 @@ export class PresentationPipelineImpl implements PresentationPipeline {
       }
       const status = unknownError(err)
       await setPlatformStatus(status)
+
+      if (isPlatformPropagateError(err)) {
+        throw err
+      }
+
       return {}
     }
   }

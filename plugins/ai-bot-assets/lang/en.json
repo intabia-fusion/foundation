@@ -1,0 +1,25 @@
+{
+  "string": {
+    "AISettings": "AI settings",
+    "TokenLimitReachedMonth": "You are out of AI tokens. Buy more in the workspace settings (Settings -> Subscription) or wait for the next period.",
+    "AIServiceUnavailable": "The AI service is temporarily unavailable. Please try again later.",
+    "AIEmptyResponse": "I could not produce an answer this time. Please rephrase the question or try again.",
+    "AILevel": "AI level",
+    "AILevelHint": "Quality level ceiling for this workspace",
+    "AILevelCapabilities": "Level capabilities",
+    "AILevelCapabilitiesHint": "What each level can do.",
+    "AILevelChat": "Conversations",
+    "AILevelTalk": "Discuss",
+    "AILevelSummary": "Summarize",
+    "AILevelTasks": "Task management",
+    "Language": "Language",
+    "LanguageHint": "Default language for bot replies (e.g. en, ru). Empty = pod default.",
+    "AssistIssue": "{name}",
+    "AssistIssueApply": "Apply",
+    "AssistIssueThreadStart": "Task draft{project, select, undefined {} other { in {project}}}",
+    "AssistIssueNewContext": "New context",
+    "AssistIssueApplyAgain": "Apply again",
+    "AssistIssueAppliedMark": "Applied",
+    "ProposedEstimation": "Estimate: {hours}h"
+  }
+}

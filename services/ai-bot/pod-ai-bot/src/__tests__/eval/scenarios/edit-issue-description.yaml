@@ -1,0 +1,24 @@
+name: edit-issue-description
+mode: thread
+lang: ru
+world:
+  issues:
+    - title: Импорт CSV падает на больших файлах
+      description: |
+        Файлы больше 10 МБ обрываются по таймауту парсера.
+requirements:
+  - id: R1
+    text: описание существующей задачи переписано, отдельная новая задача не заведена
+  - id: R2
+    text: исходный текст описания сохранён, а не выброшен
+turns:
+  # Без "разбей на этапы": та же просьба с разбиением уводит слабые модели (GigaChat-2, локальная
+  # 10B) в propose_subtasks, и описание остаётся нетронутым. Здесь проверяется адресация правки.
+  - ask: Расширь и дополни описание этой задачи.
+expect:
+  issues:
+    rootDescription:
+      contains: ['10 МБ']
+  toolsCalled: [propose_new_document]
+  forbidTools: [propose_task]
+  maxRoundsTotal: 4

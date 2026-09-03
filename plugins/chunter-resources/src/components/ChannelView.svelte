@@ -19,6 +19,7 @@
     getCurrentLocation,
     Label,
     location as locationStore,
+    deviceOptionsStore as deviceInfo,
     ModernButton,
     navigate,
     panelSeparators,
@@ -36,6 +37,7 @@
   import DocAside from './chat/DocAside.svelte'
   import chunter from '../plugin'
   import ChannelAside from './chat/ChannelAside.svelte'
+  import ThreadView from './threads/ThreadView.svelte'
   import { isThreadMessage } from '../utils'
 
   export let object: Doc
@@ -49,10 +51,22 @@
 
   let isThreadOpened = false
   let isAsideShown = false
+  let threadId: Ref<ActivityMessage> | undefined = undefined
 
   locationStore.subscribe((newLocation) => {
-    isThreadOpened = newLocation.path[4] != null
+    threadId = newLocation.path[4] as Ref<ActivityMessage> | undefined
+    isThreadOpened = threadId != null
   })
+
+  // A phone has no sidebar to put the thread in, so it takes over this panel instead.
+  $: mobileThread = $deviceInfo.isMobile ? threadId : undefined
+
+  function closeThread (): void {
+    const loc = getCurrentLocation()
+    loc.path.length = 4
+    loc.query = { ...loc.query, message: null }
+    navigate(loc)
+  }
 
   $: _readonly = hierarchy.isDerived(object._class, core.class.Space)
     ? readonly || (object as Space).archived
@@ -106,60 +120,64 @@
 
 <Presence {object} />
 
-<div class="popupPanel">
-  <ChannelHeader
-    _id={object._id}
-    _class={object._class}
-    {object}
-    {withAside}
-    canOpen={isDocChat}
-    allowClose={embedded}
-    {isAsideShown}
-    canOpenInSidebar={true}
-    on:close
-    on:select={handleMessageSelect}
-    on:aside-toggled={() => {
-      isAsideShown = !isAsideShown
-    }}
-  />
+{#if mobileThread !== undefined}
+  <ThreadView _id={mobileThread} withBackButton on:close={closeThread} />
+{:else}
+  <div class="popupPanel">
+    <ChannelHeader
+      _id={object._id}
+      _class={object._class}
+      {object}
+      {withAside}
+      canOpen={isDocChat}
+      allowClose={embedded}
+      {isAsideShown}
+      canOpenInSidebar={true}
+      on:close
+      on:select={handleMessageSelect}
+      on:aside-toggled={() => {
+        isAsideShown = !isAsideShown
+      }}
+    />
 
-  <div class="popupPanel-body" class:asideShown={withAside && isAsideShown}>
-    <div class="popupPanel-body__main">
-      {#key object._id}
-        {#if !_readonly && shouldShowJoinOverlay(object)}
-          <div class="body h-full w-full clear-mins flex-center">
-            <div class="joinOverlay">
-              <div class="an-element__label header">
-                <Label label={chunter.string.JoinChannelHeader} />
+    <div class="popupPanel-body" class:asideShown={withAside && isAsideShown}>
+      <div class="popupPanel-body__main">
+        {#key object._id}
+          {#if !_readonly && shouldShowJoinOverlay(object)}
+            <div class="body h-full w-full clear-mins flex-center">
+              <div class="joinOverlay">
+                <div class="an-element__label header">
+                  <Label label={chunter.string.JoinChannelHeader} />
+                </div>
+                <span class="an-element__label">
+                  <Label label={chunter.string.JoinChannelText} />
+                </span>
+                <span class="mt-4"> </span>
+                <ModernButton label={view.string.Join} kind={'primary'} dataId={'btnJoin'} on:click={join} />
               </div>
-              <span class="an-element__label">
-                <Label label={chunter.string.JoinChannelText} />
-              </span>
-              <span class="mt-4"> </span>
-              <ModernButton label={view.string.Join} kind={'primary'} dataId={'btnJoin'} on:click={join} />
             </div>
-          </div>
-        {:else}
-          <ChannelComponent readonly={_readonly} {object} {autofocus} />
-        {/if}
-      {/key}
-    </div>
-
-    {#if withAside && isAsideShown}
-      <Separator name="aside" float={false} index={0} />
-      <div class="popupPanel-body__aside" class:float={false} class:shown={withAside && isAsideShown}>
-        <Separator name="aside" float index={0} />
-        <div class="antiPanel-wrap__content">
-          {#if hierarchy.isDerived(object._class, chunter.class.Channel)}
-            <ChannelAside object={toChannel(object)} {objectChatPanel} />
           {:else}
-            <DocAside {object} {objectChatPanel} />
+            <ChannelComponent readonly={_readonly} {object} {autofocus} />
           {/if}
-        </div>
+        {/key}
       </div>
-    {/if}
+
+      {#if withAside && isAsideShown}
+        <Separator name="aside" float={false} index={0} />
+        <div class="popupPanel-body__aside" class:float={false} class:shown={withAside && isAsideShown}>
+          <Separator name="aside" float index={0} />
+          <div class="antiPanel-wrap__content">
+            {#if hierarchy.isDerived(object._class, chunter.class.Channel)}
+              <ChannelAside object={toChannel(object)} {objectChatPanel} />
+            {:else}
+              <DocAside {object} {objectChatPanel} />
+            {/if}
+          </div>
+        </div>
+      {/if}
+    </div>
   </div>
-</div>
+{/if}
 
 <style lang="scss">
   .joinOverlay {

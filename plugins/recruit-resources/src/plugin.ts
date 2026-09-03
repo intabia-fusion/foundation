@@ -1,5 +1,6 @@
 //
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -48,6 +49,7 @@ export default mergeIds(recruitId, recruit, {
     CreateApplication: '' as IntlString,
     ApplicationCreateLabel: '' as IntlString,
     VacancyCreateLabel: '' as IntlString,
+    DefaultVacancy: '' as IntlString,
     CompanyCreateLabel: '' as IntlString,
     SelectVacancy: '' as IntlString,
     TalentCreateLabel: '' as IntlString,

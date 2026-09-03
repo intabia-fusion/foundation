@@ -12,6 +12,8 @@
   import { onDestroy, onMount } from 'svelte'
   import { subscribeToIncomingInvites, unsubscribeFromIncomingInvites } from '../invites'
   import { reconnectToCurrentMeeting, reconnectingToMeeting, cancelReconnect } from '../meetings'
+  import { confirmSwitchWorkspace } from '../switchWorkspaceGuard'
+  import { addLeaveWorkspaceGuard } from '@hcengineering/presentation'
   import { lkIsConnecting, lkReconnected, lkSessionConnected } from '../liveKitClient'
   import love from '../plugin'
   import { myConnectingSessionId } from '../stores'
@@ -670,7 +672,10 @@
     })
   })
 
+  const releaseLeaveGuard = addLeaveWorkspaceGuard(confirmSwitchWorkspace)
+
   onDestroy(async () => {
+    releaseLeaveGuard()
     console.log('[WorkbenchExtension.onDestroy] Destroying WorkbenchExtension', {
       lkState: lk.state,
       audioElementsCount: parentElement?.children?.length ?? 0

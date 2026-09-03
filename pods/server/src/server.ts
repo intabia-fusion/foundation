@@ -14,7 +14,14 @@
 // limitations under the License.
 //
 
-import { type BrandingMap, generateId, type MeasureContext, type Tx, type WorkspaceUuid } from '@hcengineering/core'
+import {
+  type BrandingMap,
+  generateId,
+  type MeasureContext,
+  type Ref,
+  type Tx,
+  type WorkspaceUuid
+} from '@hcengineering/core'
 import { buildStorageFromConfig } from '@hcengineering/server-storage'
 
 import { startSessionManager } from '@hcengineering/server'
@@ -31,8 +38,10 @@ import {
 
 import {
   createServerPipeline,
+  matchLastTxLoader,
   registerAdapterFactory,
   registerDestroyFactory,
+  registerLastTxLoader,
   registerServerPlugins,
   registerStringLoaders,
   registerTxAdapterFactory
@@ -41,6 +50,7 @@ import {
   createPostgreeDestroyAdapter,
   createPostgresAdapter,
   createPostgresTxAdapter,
+  loadLastTxCache,
   shutdownPostgres
 } from '@hcengineering/postgres'
 import { LIMITS_PROVIDER_VAR, MEMBERS_VERSION_KEY, PLAN_LIMITS_MAP_KEY } from '@hcengineering/middleware'
@@ -83,6 +93,7 @@ export function start (
 ): { shutdown: () => Promise<void>, sessionManager: SessionManager } {
   registerTxAdapterFactory('postgresql', createPostgresTxAdapter, true)
   registerAdapterFactory('postgresql', createPostgresAdapter, true)
+  registerLastTxLoader('postgresql', loadLastTxCache)
   registerDestroyFactory('postgresql', createPostgreeDestroyAdapter, true)
 
   // Prepare statements are controlled via POSTGRES_OPTIONS (e.g. {"prepare": true}).
@@ -126,6 +137,13 @@ export function start (
       )
       : undefined
 
+  // Seed each workspace's context.lastTx on cold build so a restart with no data change
+  // reconnects clients as Reconnected, not Refresh (full LiveQuery refetch). Empty until loaded = safe.
+  const lastTxCache = new Map<string, Ref<Tx>>()
+  // Feature-detect: backends that registered a loader fill the cache; others skip -> Refresh.
+  const lastTxLoader = matchLastTxLoader(dbUrl)
+  if (lastTxLoader !== undefined) void lastTxLoader(metrics, dbUrl, lastTxCache)
+
   const pipelineFactory = createServerPipeline(
     metrics,
     dbUrl,
@@ -137,7 +155,8 @@ export function start (
       pipelineContextVars: {
         [LIMITS_PROVIDER_VAR]: limitsProvider,
         [PLAN_LIMITS_MAP_KEY]: planLimitsMap,
-        [MEMBERS_VERSION_KEY]: membersVersion
+        [MEMBERS_VERSION_KEY]: membersVersion,
+        lastTxCache
       }
     },
     {}

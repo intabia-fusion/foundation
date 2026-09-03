@@ -38,7 +38,9 @@ export class TemplatePage extends CommonTrackerPage {
   createTemplateButton = (): Locator => this.page.locator('#create-template')
   newTemplateInput = (): Locator => this.page.locator('[placeholder="New\\ template"]')
   proseMirrorEditor = (): Locator => this.page.locator('.ProseMirror')
-  saveTemplateButton = (): Locator => this.page.locator('text=Save template')
+  // The button, not its label span: the span carries pointer-events-none while the button is
+  // disabled, so a click on it waits out the whole test instead of failing.
+  saveTemplateButton = (): Locator => this.page.locator('button:has-text("Save template")')
   editTemplateButton = (): Locator => this.page.locator('text=Edit template')
   newSpaceTypeButton = (): Locator => this.page.locator('#new-space-type')
 
@@ -67,7 +69,7 @@ export class TemplatePage extends CommonTrackerPage {
     }
     if (data.estimation != null) {
       await this.buttonPopupCreateNewTemplateEstimation().click()
-      await this.fillToSelectPopup(this.page, data.estimation)
+      await this.fillEstimationPopup(this.page, data.estimation)
     }
     if (data.component != null) {
       await this.buttonPopupCreateNewTemplateComponent().click()
@@ -123,12 +125,20 @@ export class TemplatePage extends CommonTrackerPage {
     await this.proseMirrorEditor().fill(templateContent)
     await this.proseMirrorEditor().press('Enter')
     await this.proseMirrorEditor().fill('some more value')
-    await this.saveTemplateButton().click()
+    await this.clickSaveTemplate()
+  }
+
+  // Save stays disabled until the editor reports the change, which the collaborative editor does
+  // a tick later than fill() returns.
+  private async clickSaveTemplate (): Promise<void> {
+    const save = this.saveTemplateButton()
+    await expect(save).toBeEnabled({ timeout: 15000 })
+    await save.click()
   }
 
   async editTemplate (newContent: string): Promise<void> {
     await this.editTemplateButton().click()
     await this.proseMirrorEditor().fill(newContent)
-    await this.saveTemplateButton().click()
+    await this.clickSaveTemplate()
   }
 }

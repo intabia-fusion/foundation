@@ -14,12 +14,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Attachment } from '@hcengineering/attachment'
+  import attachment, { Attachment } from '@hcengineering/attachment'
   import { BlobType, WithLookup } from '@hcengineering/core'
   import { ListSelectionProvider } from '@hcengineering/view-resources'
+  import { getClient } from '@hcengineering/presentation'
+  import { Component } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import { AttachmentImageSize } from '../types'
-  import { getType, isAttachment, showAttachmentPreviewPopup } from '../utils'
+  import { getCustomPresenter, getType, isAttachment, showAttachmentPreviewPopup } from '../utils'
   import AttachmentActions from './AttachmentActions.svelte'
   import AttachmentImagePreview from './AttachmentImagePreview.svelte'
   import AttachmentPresenter from './AttachmentPresenter.svelte'
@@ -35,13 +37,19 @@
   export let withActions = true
 
   const dispatch = createEventDispatcher()
+  const hierarchy = getClient().getHierarchy()
 
   let hovered = false
 
   $: type = getType(value.type)
+  // A subclass of Attachment (e.g. AudioTranscribe) may register its own ObjectPresenter mixin;
+  // render that instead of the generic audio player so voice-notes show their transcript.
+  $: customPresenter = isAttachment(value) ? getCustomPresenter(hierarchy, value._class) : undefined
 </script>
 
-{#if type === 'video'}
+{#if customPresenter !== undefined}
+  <Component is={customPresenter} props={{ value }} />
+{:else if type === 'video'}
   <div class="content buttonContainer flex-center" class:hovered>
     <AttachmentVideoPreview {value} preload={videoPreload} />
     {#if withActions}

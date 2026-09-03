@@ -27,8 +27,22 @@ import {
   handlePushAiTranscriptData,
   handleGetAiTranscriptLastData,
   handlePushAiTokensData,
+  handlePushTranscriptUsage,
+  handleGetTranscriptUsage,
   handlePushParticipantSessions,
-  handleGetLargestSpaces
+  handleGetLargestSpaces,
+  handleListProviderPools,
+  handleUpsertProviderPool,
+  handleGetTokenUsage,
+  handleGetWorkspaceBreakdown,
+  handleGetWorkspaceTokenWindows,
+  handleAddAiTokens,
+  handleAddProviderPoolTokens,
+  handleResetPoolUsed,
+  handleResetWorkspaceUsed,
+  handleSetWorkspaceUsed,
+  handleListAiModelRegistry,
+  handleGetPricing
 } from './billing'
 import { Config } from './config'
 import { withAdmin, withOwner, withToken } from './middleware'
@@ -147,6 +161,13 @@ export async function createServer (
   )
   app.get('/api/v1/:workspace/stats', withToken, withOwner, wrapRequest(ctx, 'getStats', handleGetStats))
   app.get(
+    '/api/v1/:workspace/ai/tokens/windows',
+    withToken,
+    withOwner,
+    wrapRequest(ctx, 'getWorkspaceTokenWindows', handleGetWorkspaceTokenWindows)
+  )
+  app.post('/api/v1/:workspace/ai/tokens/add', withToken, withAdmin, wrapRequest(ctx, 'addAiTokens', handleAddAiTokens))
+  app.get(
     '/api/v1/:workspace/spaces/largest',
     withToken,
     withOwner,
@@ -175,6 +196,66 @@ export async function createServer (
   )
 
   app.post('/api/v1/ai/tokens', withToken, withAdmin, wrapRequest(ctx, 'pushAiTokensData', handlePushAiTokensData))
+
+  app.post(
+    '/api/v1/ai/transcript-usage',
+    withToken,
+    withAdmin,
+    wrapRequest(ctx, 'pushTranscriptUsage', handlePushTranscriptUsage)
+  )
+  app.get(
+    '/api/v1/admin/transcript-usage',
+    withToken,
+    withAdmin,
+    wrapRequest(ctx, 'getTranscriptUsage', handleGetTranscriptUsage)
+  )
+
+  // Admin AI billing panel: provider pools + token breakdown across all workspaces.
+  app.get('/api/v1/admin/pools', withToken, withAdmin, wrapRequest(ctx, 'listProviderPools', handleListProviderPools))
+  app.post(
+    '/api/v1/admin/pools',
+    withToken,
+    withAdmin,
+    wrapRequest(ctx, 'upsertProviderPool', handleUpsertProviderPool)
+  )
+  app.post(
+    '/api/v1/admin/pools/add',
+    withToken,
+    withAdmin,
+    wrapRequest(ctx, 'addProviderPoolTokens', handleAddProviderPoolTokens)
+  )
+  app.post('/api/v1/admin/pools/reset', withToken, withAdmin, wrapRequest(ctx, 'resetPoolUsed', handleResetPoolUsed))
+  // Both rewrite the workspace's own usage rows, so they stay off unless a stand opts in.
+  if (config.AllowTestEndpoints) {
+    app.post(
+      '/api/v1/admin/:workspace/reset',
+      withToken,
+      withAdmin,
+      wrapRequest(ctx, 'resetWorkspaceUsed', handleResetWorkspaceUsed)
+    )
+    app.post(
+      '/api/v1/admin/:workspace/set-used',
+      withToken,
+      withAdmin,
+      wrapRequest(ctx, 'setWorkspaceUsed', handleSetWorkspaceUsed)
+    )
+  }
+  app.get(
+    '/api/v1/admin/registry',
+    withToken,
+    withAdmin,
+    wrapRequest(ctx, 'listAiModelRegistry', handleListAiModelRegistry)
+  )
+  // aibot reads global per-model pools (purchased/used) here to enforce upstream limits.
+  app.get('/api/v1/ai/pools', withToken, withAdmin, wrapRequest(ctx, 'listProviderPools', handleListProviderPools))
+  app.get('/api/v1/admin/pricing', withToken, withAdmin, wrapRequest(ctx, 'getPricing', handleGetPricing))
+  app.get('/api/v1/admin/token-usage', withToken, withAdmin, wrapRequest(ctx, 'getTokenUsage', handleGetTokenUsage))
+  app.get(
+    '/api/v1/admin/workspace-breakdown',
+    withToken,
+    withAdmin,
+    wrapRequest(ctx, 'getWorkspaceBreakdown', handleGetWorkspaceBreakdown)
+  )
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'Not Found' })

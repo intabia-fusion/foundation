@@ -1,5 +1,6 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
+import { retryIntervals } from '../retry'
 import { PlanningPage } from '../model/planning/planning-page'
 import { NewToDo } from '../model/planning/types'
 import { PlanningNavigationMenuPage } from '../model/planning/planning-navigation-menu-page'
@@ -13,7 +14,7 @@ test.use({
   storageState: PlatformSetting
 })
 
-const retryOptions = { intervals: [1000, 1500, 2500], timeout: 60000 }
+const retryOptions = { intervals: retryIntervals, timeout: 60000 }
 
 test.describe('Planning ToDo tests', () => {
   let issuesPage: IssuesPage
@@ -121,14 +122,16 @@ test.describe('Planning ToDo tests', () => {
   })
 
   test('Delete a ToDo', async ({ page }) => {
+    // Created here on purpose: the test destroys it, so seeded data would only survive one run.
     const deleteToDo: NewToDo = {
-      title: 'ToDo For delete'
+      title: `ToDo For delete-${generateId()}`
     }
 
     const planningNavigationMenuPage = new PlanningNavigationMenuPage(page)
     await planningNavigationMenuPage.clickOnButtonToDoAll()
 
     const planningPage = new PlanningPage(page)
+    await planningPage.createNewToDo(deleteToDo)
     await planningPage.deleteToDoByName(deleteToDo.title)
     await planningPage.checkToDoNotExist(deleteToDo.title)
   })

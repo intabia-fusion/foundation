@@ -33,7 +33,7 @@ import {
   type TxMiddlewareResult,
   wireShortcuts
 } from '@hcengineering/server-core'
-import { bench, describeBench } from './bench'
+import { bench, describeBench } from '@hcengineering/measurements'
 
 /**
  * Passthrough middleware that doesn't override any pipeline method.

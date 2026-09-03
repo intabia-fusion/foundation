@@ -89,8 +89,11 @@ export async function handlePresenceBatch (
           }
         }
 
-        for (const wsUuid of workspaces) {
-          await onlineUserTxProducer.send(ctx, wsUuid, [{ workspaceUuid: wsUuid, tx, account: user }])
+        // One send, not one per workspace - the payload is identical anyway. The account is
+        // the partition key, so a user's updates stay ordered.
+        const [anyWorkspace] = workspaces
+        if (anyWorkspace !== undefined) {
+          await onlineUserTxProducer.send(ctx, anyWorkspace, [{ tx, account: user }], user)
         }
       }
     }

@@ -1,0 +1,36 @@
+name: rewrite-keeps-mermaid
+mode: thread
+lang: ru
+world:
+  document:
+    title: Регламент выпуска
+    body: |
+      # Регламент выпуска
+
+      Выпуск раз в неделю.
+
+      ```mermaid
+      graph TD; A-->B;
+      ```
+
+      ## Роли
+      Релиз-менеджер отвечает за выпуск.
+requirements:
+  - id: R1
+    text: частота выпуска заменена на раз в две недели
+  - id: R2
+    text: диаграмма mermaid сохранена дословно
+  - id: R3
+    text: раздел про роли не переписан
+turns:
+  - ask: Замени "раз в неделю" на "раз в две недели".
+expect:
+  document:
+    contains:
+      - раз в две недели
+      - 'graph TD; A-->B;'
+      - Релиз-менеджер
+    notContains:
+      - Выпуск раз в неделю
+  toolsCalled: [propose_new_document]
+  maxRoundsTotal: 4

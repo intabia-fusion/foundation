@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -41,6 +42,7 @@ import {
   type PipelineContext,
   type TxMiddlewareResult
 } from '@hcengineering/server-core'
+import { isSystem } from './utils'
 
 // Helper types to require update in validation after Tx types are changed
 type ExplicitUndefined<T> = { [P in keyof Required<T>]: Exclude<T[P], undefined> | Extract<T[P], undefined> }
@@ -65,15 +67,31 @@ export class NormalizeTxMiddleware extends BaseMiddleware implements Middleware 
   }
 
   tx (ctx: MeasureContext<SessionData>, txes: unknown[]): Promise<TxMiddlewareResult> {
+    const isSystemAccount = isSystem(ctx.contextData.account, ctx)
     const parsedTxes = []
     for (const tx of txes) {
       const parsedTx = this.parseTx(tx)
       if (parsedTx === undefined) {
         throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
       }
+      this.sanitizeTxMeta(parsedTx, isSystemAccount)
       parsedTxes.push(parsedTx)
     }
     return this.provideTx(ctx, parsedTxes)
+  }
+
+  private sanitizeTxMeta (tx: Tx, isSystemAccount: boolean): void {
+    if (!isSystemAccount && tx.meta?.silent !== undefined) {
+      delete tx.meta.silent
+    }
+    if (tx._class === core.class.TxApplyIf) {
+      const applyIf = tx as TxApplyIf
+      if (Array.isArray(applyIf.txes)) {
+        for (const childTx of applyIf.txes) {
+          this.sanitizeTxMeta(childTx, isSystemAccount)
+        }
+      }
+    }
   }
 
   private checkMeta (meta: unknown): meta is Record<string, string | number | boolean> | undefined {

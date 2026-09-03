@@ -1,0 +1,25 @@
+{
+  "string": {
+    "AISettings": "AI設定",
+    "TokenLimitReachedMonth": "AIトークンが不足しています。ワークスペース設定（設定 -> サブスクリプション）で追加購入するか、次の期間をお待ちください。",
+    "AIServiceUnavailable": "AIサービスは一時的に利用できません。しばらくしてからもう一度お試しください。",
+    "AIEmptyResponse": "今回は回答を生成できませんでした。質問を言い換えるか、もう一度お試しください。",
+    "AILevel": "AIレベル",
+    "AILevelHint": "このワークスペースの品質レベルの上限",
+    "AILevelCapabilities": "レベルごとの機能",
+    "AILevelCapabilitiesHint": "各レベルでできること。",
+    "AILevelChat": "会話",
+    "AILevelTalk": "相談",
+    "AILevelSummary": "要約",
+    "AILevelTasks": "タスク管理",
+    "Language": "言語",
+    "LanguageHint": "ボット返答のデフォルト言語（例：ja、en）。空白はポッドのデフォルト。",
+    "AssistIssue": "{name}",
+    "AssistIssueApply": "適用",
+    "AssistIssueThreadStart": "タスクの下書き{project, select, undefined {} other {（{project}）}}",
+    "AssistIssueNewContext": "新しいコンテキスト",
+    "AssistIssueApplyAgain": "もう一度適用",
+    "AssistIssueAppliedMark": "適用済み",
+    "ProposedEstimation": "見積: {hours}時間"
+  }
+}

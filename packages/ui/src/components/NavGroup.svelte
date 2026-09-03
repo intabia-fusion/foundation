@@ -32,6 +32,7 @@
     Icon,
     getTreeCollapsed,
     setTreeCollapsed,
+    getCollapsedKey,
     tooltip
   } from '..'
 
@@ -43,6 +44,7 @@
   export let title: string | undefined = undefined
   export let categoryName: string
   export let tools: AnyComponent | undefined = undefined
+  export let defaultOpen: boolean | undefined = undefined
   export let isOpen: boolean = true
   export let isFold: boolean = false
   export let empty: boolean = false
@@ -68,6 +70,9 @@
   $: id = `navGroup-${categoryName}`
   let pressed: boolean = false
 
+  $: isStored = _id ? localStorage.getItem(getCollapsedKey(_id as string, collapsedPrefix)) !== null : false
+  $: isOpen = isStored ? !getTreeCollapsed(_id, collapsedPrefix) : (defaultOpen ?? true)
+
   const handleClick = (e: MouseEvent): void => {
     if (type === 'selectable-header') dispatch('click')
     else if ((!selected || empty) && type === 'nested-selectable') dispatch('click')
@@ -81,6 +86,10 @@
     e.preventDefault()
     if (!empty) {
       isOpen = !isOpen
+      if (_id) {
+        const key = getCollapsedKey(_id as string, collapsedPrefix)
+        !isOpen ? localStorage.setItem(key, 'COLLAPSED') : localStorage.setItem(key, 'EXPANDED')
+      }
       dispatch('toggle', isOpen)
     }
   }
@@ -94,8 +103,7 @@
       pressed = false
     })
   }
-  $: isOpen = !getTreeCollapsed(_id, collapsedPrefix)
-  $: setTreeCollapsed(_id, !isOpen, collapsedPrefix)
+
   $: visibleIcon = folderIcon ? (isOpen && !empty ? IconFolderExpanded : IconFolderCollapsed) : icon
 
   function onHeaderClick (e: MouseEvent): void {
@@ -155,6 +163,7 @@
         <IconDownOutline size={'tiny'} />
       {/if}
     </div>
+    {#if $$slots.afterTitle}<slot name="afterTitle" />{/if}
     <div class="flex-grow" />
     {#if $$slots.extra}<slot name="extra" />{/if}
     {#if tools || $$slots.tools}

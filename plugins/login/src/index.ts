@@ -37,6 +37,7 @@ export const pages = [
   'autoJoin',
   'confirm',
   'confirmationSend',
+  'registered',
   'auth',
   'login-password',
   'changePassword',
@@ -50,6 +51,7 @@ export default plugin(loginId, {
     LastAccount: '' as Metadata<string>,
     LoginEndpoint: '' as Metadata<string>,
     LoginAccount: '' as Metadata<string>,
+    AuthEmail: '' as Metadata<string>,
     DisableSignUp: '' as Metadata<boolean>,
     HideLocalLogin: '' as Metadata<boolean>,
     LoginTheme: '' as Metadata<string>,
@@ -122,7 +124,7 @@ export default plugin(loginId, {
       navigateUrl?: string
     ) => Promise<string>
     >,
-    LeaveWorkspace: '' as Resource<(account: string) => Promise<LoginInfo | null>>,
+    LeaveWorkspace: '' as Resource<(account: string, otpCode?: string) => Promise<LoginInfo | null>>,
     ChangePassword: '' as Resource<(oldPassword: string, password: string) => Promise<void>>,
     SelectWorkspace: '' as Resource<
     (

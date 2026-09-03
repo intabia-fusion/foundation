@@ -23,6 +23,7 @@ import {
   Data,
   Doc,
   Markup,
+  type TxOperations,
   Mixin,
   Ref,
   RelatedDocument,
@@ -49,6 +50,7 @@ import { AnyComponent, ComponentExtensionId, Location, ResolvedLocation } from '
 import { Action, ActionCategory, IconProps } from '@hcengineering/view'
 
 export * from './analytics'
+export * from './duration'
 
 /**
  * @public
@@ -251,6 +253,9 @@ export interface IssueDraft {
     // Child id in template
     childId?: string
   }
+  // Root message of the AI assistant conversation about this draft. Kept in the draft so coming
+  // back to an unfinished issue restores the discussion with it, not just the fields.
+  assistConversation?: Ref<Doc>
 }
 
 /**
@@ -458,6 +463,24 @@ export interface Component extends Doc {
 export const trackerId = 'tracker' as Plugin
 export * from './analytics'
 
+/** Input of the shared issue-creation helper (tracker.function.CreateIssue). */
+export interface NewIssue {
+  title: string
+  description?: Markup
+  priority?: IssuePriority
+  // Effort in hours, as the estimation editor shows it.
+  estimation?: number
+  assignee?: Ref<Person> | null
+  parent?: Issue
+}
+
+/** What the helper returns: enough to link to the created issue. */
+export interface CreatedIssue {
+  _id: Ref<Issue>
+  _class: Ref<Class<Issue>>
+  identifier: string
+}
+
 const pluginState = plugin(trackerId, {
   class: {
     Project: '' as Ref<Class<Project>>,
@@ -473,11 +496,11 @@ const pluginState = plugin(trackerId, {
     TypeEstimation: '' as Ref<Class<Type<number>>>,
     TypeRemainingTime: '' as Ref<Class<Type<number>>>,
     RelatedIssueTarget: '' as Ref<Class<RelatedIssueTarget>>,
-    ProjectTargetPreference: '' as Ref<Class<ProjectTargetPreference>>
+    ProjectTargetPreference: '' as Ref<Class<ProjectTargetPreference>>,
+    IssueTaskType: '' as Ref<Class<Issue>>
   },
   mixin: {
-    ClassicProjectTypeData: '' as Ref<Mixin<Project>>,
-    IssueTypeData: '' as Ref<Mixin<Issue>>
+    ClassicProjectTypeData: '' as Ref<Mixin<Project>>
   },
   ids: {
     NoParent: '' as Ref<Issue>,
@@ -495,6 +518,7 @@ const pluginState = plugin(trackerId, {
     Canceled: '' as Ref<Status>
   },
   component: {
+    SubtaskSection: '' as AnyComponent,
     Tracker: '' as AnyComponent,
     TrackerApp: '' as AnyComponent,
     RelatedIssues: '' as AnyComponent,
@@ -563,7 +587,11 @@ const pluginState = plugin(trackerId, {
 
     // Project icons
     Home: '' as Asset,
-    RedCircle: '' as Asset
+    RedCircle: '' as Asset,
+
+    Priority: '' as Asset,
+    Export: '' as Asset,
+    More: '' as Asset
   },
   category: {
     Other: '' as Ref<TagCategory>,
@@ -602,6 +630,10 @@ const pluginState = plugin(trackerId, {
   },
   resolver: {
     Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>
+  },
+  function: {
+    // Shared issue creation, so other plugins do not depend on tracker-resources (import cycle).
+    CreateIssue: '' as Resource<(client: TxOperations, project: Project, data: NewIssue) => Promise<CreatedIssue>>
   },
   string: {
     TrackerApplication: '' as IntlString,
@@ -662,7 +694,11 @@ const pluginState = plugin(trackerId, {
   extensions: {
     IssueListHeader: '' as ComponentExtensionId,
     EditIssueHeader: '' as ComponentExtensionId,
-    EditIssueTitle: '' as ComponentExtensionId
+    EditIssueTitle: '' as ComponentExtensionId,
+    // Create-issue dialog: the AI assistant. The toggle sits in the header's right corner,
+    // the panel itself slides out beside the dialog.
+    CreateIssueAssist: '' as ComponentExtensionId,
+    CreateIssueHeaderActions: '' as ComponentExtensionId
   },
   taskTypes: {
     Issue: '' as Ref<TaskType>,

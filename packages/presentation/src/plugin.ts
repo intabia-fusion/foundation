@@ -105,6 +105,7 @@ export default plugin(presentationId, {
     Ok: '' as IntlString,
     Save: '' as IntlString,
     Saved: '' as IntlString,
+    Saving: '' as IntlString,
     Download: '' as IntlString,
     DownloadOriginal: '' as IntlString,
     Delete: '' as IntlString,
@@ -158,7 +159,8 @@ export default plugin(presentationId, {
     LineTool: '' as IntlString,
     RectangleTool: '' as IntlString,
     EllipseTool: '' as IntlString,
-    PaletteManagementMenu: '' as IntlString
+    PaletteManagementMenu: '' as IntlString,
+    Draft: '' as IntlString
   },
   extension: {
     FilePreviewExtension: '' as ComponentExtensionId,

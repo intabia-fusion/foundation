@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -20,17 +21,27 @@
 
   import TagsPopup from './TagsPopup.svelte'
   import { getObjectId } from '@hcengineering/view-resources'
+  import { getTagsTargetClass } from '../utils'
 
   export let object: Doc
-  export let targetClass: Ref<Class<Doc>> = object._class
+  export let targetClass: Ref<Class<Doc>> = getTagsTargetClass(object._class)
+  export let draft: boolean = false
+  export let value: Ref<TagElement>[] = []
+  export let onChange: (value: Ref<TagElement>[]) => void = () => {}
 
-  let selected: Ref<TagElement>[] = []
+  let dbSelected: Ref<TagElement>[] = []
   const query = createQuery()
-  $: query.query(tags.class.TagReference, { attachedTo: object._id }, (result) => {
-    selected = result.map(({ tag }) => tag)
-  })
+  $: if (object?._id != null) {
+    query.query(tags.class.TagReference, { attachedTo: object._id }, (result) => {
+      dbSelected = result.map(({ tag }) => tag)
+    })
+  }
+
+  $: selected = draft ? (Array.isArray(value) ? value : dbSelected) : dbSelected
+
   const client = getClient()
   const hierarchy = client.getHierarchy()
+
   async function addRef ({ title, color, _id: tag }: TagElement): Promise<void> {
     // check if tag already attached, could happen if 'add' clicked faster than ui updates
     const containsTag = selected.some((refElement) => refElement === tag)
@@ -39,6 +50,12 @@
     }
 
     selected.push(tag)
+
+    if (draft) {
+      value = [...selected]
+      onChange(value)
+      return
+    }
 
     await client.addCollection(tags.class.TagReference, object.space, object._id, object._class, 'labels', {
       title,
@@ -50,6 +67,13 @@
   }
 
   async function removeTag (tag: TagElement): Promise<void> {
+    if (draft) {
+      selected = selected.filter((t) => t !== tag._id)
+      value = [...selected]
+      onChange(value)
+      return
+    }
+
     const tagRef = await client.findOne(tags.class.TagReference, { tag: tag._id, attachedTo: object._id })
     if (tagRef) {
       await client.remove(tagRef)

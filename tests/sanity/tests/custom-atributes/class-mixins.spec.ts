@@ -5,37 +5,27 @@
 // section), so if that test is un-skipped these two assertions must be
 // dropped.
 
-import { expect, test } from '@playwright/test'
-import { PlatformURI, generateTestData } from '../utils'
-import { ApiEndpoint } from '../API/Api'
-import { LoginPage } from '../model/login-page'
+import { expect, test } from '../fixtures'
+import { createAccountAndWorkspace, generateTestData } from '../utils'
 import { faker } from '@faker-js/faker'
 import { WorkspaceSettingsPage, ButtonType } from '../model/workspace/workspace-settings-page'
 import { UserProfilePage } from '../model/profile/user-profile-page'
 import { ClassMixinsPage } from './class-mixins-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
 
 test.describe('Class mixins tests', () => {
-  let loginPage: LoginPage
   let userProfilePage: UserProfilePage
   let workspaceSettingsPage: WorkspaceSettingsPage
   let classMixinsPage: ClassMixinsPage
-  let api: ApiEndpoint
   let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
 
   test.beforeEach(async ({ page, request }) => {
     data = generateTestData()
-    loginPage = new LoginPage(page)
     userProfilePage = new UserProfilePage(page)
     workspaceSettingsPage = new WorkspaceSettingsPage(page)
     classMixinsPage = new ClassMixinsPage(page)
-    api = new ApiEndpoint(request)
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-    await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    await (await page.goto(`${PlatformURI}`))?.finished()
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
+    // Straight into the workspace from the account token: the login form plus the workspace
+    // picker are three page loads and cost about a second per test.
+    await createAccountAndWorkspace(page, request, data)
   })
 
   test('create mixin on a class and verify it appears', async () => {

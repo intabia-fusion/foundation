@@ -553,9 +553,9 @@ export function TypeRank (pos: 'start' | 'end' = 'end'): TypeRankType {
 }
 
 export function TypePersonId (): Type<PersonId> {
-  return { _class: core.class.TypePersonId, label: core.string.PersonId }
+  return { _class: core.class.TypePersonId, label: core.string.PersonId, icon: core.icon.TypePersonId }
 }
 
 export function TypeAccountUuid (): Type<AccountUuid> {
-  return { _class: core.class.TypeAccountUuid, label: core.string.AccountId }
+  return { _class: core.class.TypeAccountUuid, label: core.string.AccountId, icon: core.icon.TypePersonId }
 }

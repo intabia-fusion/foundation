@@ -1,0 +1,17 @@
+name: split-in-batches
+mode: thread
+lang: ru
+world:
+  issues:
+    - title: Переезд на новый биллинг
+      description: Полный перенос тарифов, подписок, счетов и отчётности на новую схему.
+requirements:
+  - id: R1
+    text: все 20 подзадач доехали до карточки, ничего не потерялось и не обрезалось
+turns:
+  - ask: Разбей задачу на 20 подзадач.
+expect:
+  issues:
+    subtasksOfRoot: 20
+  toolsCalled: [propose_subtasks]
+  maxRoundsTotal: 8

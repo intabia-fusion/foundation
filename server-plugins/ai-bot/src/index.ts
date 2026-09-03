@@ -21,6 +21,7 @@ export const serverAiBotId = 'server-ai-bot' as Plugin
 
 export default plugin(serverAiBotId, {
   trigger: {
-    OnMessageSend: '' as Resource<TriggerFunc>
+    OnMessageSend: '' as Resource<TriggerFunc>,
+    OnAudioTranscribe: '' as Resource<TriggerFunc>
   }
 })

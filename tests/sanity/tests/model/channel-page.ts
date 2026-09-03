@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { CommonPage } from './common-page'
 import { LinkedChannelTypes } from './types'
+import { retry, retryIntervals } from '../retry'
 
 export class ChannelPage extends CommonPage {
   readonly page: Page
@@ -50,21 +51,12 @@ export class ChannelPage extends CommonPage {
 
   readonly addMemberToChannelButton = (userName: string): Locator => this.page.getByText(userName)
   readonly joinChannelButton = (): Locator => this.page.getByRole('button', { name: 'Join' })
-  readonly addEmojiButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id$="AddReactionAction"]').last()
-
   readonly selectEmoji = (emoji: string): Locator => this.page.getByText(emoji)
-  readonly saveMessageButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id$="SaveForLaterAction"]').last()
 
-  readonly pinMessageButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id$="PinMessageAction"]').last()
-
-  readonly replyButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id="activity:action:Reply"]').last()
-
-  readonly openMoreButton = (): Locator =>
-    this.page.locator('.activityMessage-actionPopup > button[data-id="btnMoreActions"]').last()
+  // Action popup exists in DOM for every message and is only visible while that message is hovered,
+  // so it must be scoped to the message instead of picked globally.
+  readonly messageActionButton = (message: string, dataIdSelector: string): Locator =>
+    this.textMessage(message).last().locator(`.activityMessage-actionPopup > button[${dataIdSelector}]`)
 
   readonly messageSaveMarker = (): Locator => this.page.locator('.saveMarker')
   readonly saveMessageTab = (): Locator => this.page.getByRole('button', { name: 'Saved' })
@@ -150,7 +142,7 @@ export class ChannelPage extends CommonPage {
     // Using longer intervals since the popup may need time to load data
     await expect(async () => {
       await expect(mentionLocator).toBeVisible({ timeout: 3000 })
-    }).toPass({ intervals: [100, 200, 500, 1000], timeout: timeoutMs })
+    }).toPass({ intervals: retryIntervals, timeout: timeoutMs })
     await mentionLocator.click()
   }
 
@@ -174,10 +166,15 @@ export class ChannelPage extends CommonPage {
     changed: string,
     autoJoin: boolean = false
   ): Promise<void> {
-    await this.privateOrPublicChangeButton(change, autoJoin).click()
-    await expect(this.privateOrPublicPopupButton(YesNo)).toBeVisible({ timeout: 5000 })
-    await this.privateOrPublicPopupButton(YesNo).click()
-    await expect(this.privateOrPublicChangeButton(changed, autoJoin)).toBeVisible()
+    // The new value lands through a server round trip that can lose the race with the panel
+    // re-render, leaving the old one on the button. Picking the same value again is idempotent.
+    await retry(async () => {
+      if (await this.privateOrPublicChangeButton(changed, autoJoin).isVisible()) return
+      await this.privateOrPublicChangeButton(change, autoJoin).click({ timeout: 5000 })
+      await expect(this.privateOrPublicPopupButton(YesNo)).toBeVisible({ timeout: 5000 })
+      await this.privateOrPublicPopupButton(YesNo).click()
+      await expect(this.privateOrPublicChangeButton(changed, autoJoin)).toBeVisible({ timeout: 5000 })
+    })
   }
 
   async clickDeleteMessageButton (): Promise<void> {
@@ -194,7 +191,18 @@ export class ChannelPage extends CommonPage {
 
   async addMemberToChannelPreview (user: string): Promise<void> {
     await this.addMemberPreview().click()
-    await this.addMemberToChannelButton(user).click()
+    const popup = this.page.locator('.hulyModal-container')
+    const item = popup.getByText(user)
+    // A member who joined the workspace moments ago can be missing from the list the popup
+    // loaded: reopen it so the query is re-issued instead of waiting an empty list out.
+    await expect(async () => {
+      if ((await item.count()) === 0) {
+        await this.page.keyboard.press('Escape')
+        await this.addMemberPreview().click()
+      }
+      await expect(item).toBeVisible({ timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+    await item.click()
     await this.addButtonPreview().click()
     await expect(this.userAdded(user)).toBeVisible()
   }
@@ -208,15 +216,26 @@ export class ChannelPage extends CommonPage {
   }
 
   async clickOpenMoreButton (message: string): Promise<void> {
-    await this.textMessage(message).hover()
-    await this.openMoreButton().click()
+    await this.clickMessageAction(message, 'data-id="btnMoreActions"')
+  }
+
+  // The action popup lives only while the message is hovered, and a re-render drops it.
+  // last(): dozens of specs send 'Test message' here, and the newest is the one just sent.
+  private async clickMessageAction (message: string, dataIdSelector: string): Promise<void> {
+    const button = this.messageActionButton(message, dataIdSelector)
+    await retry(async () => {
+      await this.textMessage(message).last().hover()
+      await expect(button).toBeVisible({ timeout: 2000 })
+      await button.click({ timeout: 5000 })
+    })
   }
 
   async clickEditMessageButton (editedMessage: string): Promise<void> {
     await this.editMessageButton().click()
-    // Wait for the text editor to be focused/ready
+    // Best effort - the result is swallowed and typing works without focus landing here, so a
+    // long timeout only buys waiting.
     await expect(this.inputMessage().locator('div.tiptap'))
-      .toBeFocused({ timeout: 5000 })
+      .toBeFocused({ timeout: 1500 })
       .catch(() => {})
     await this.page.keyboard.type(editedMessage)
   }
@@ -240,32 +259,32 @@ export class ChannelPage extends CommonPage {
   }
 
   async clickChooseChannel (channel: string): Promise<void> {
-    await expect(this.chooseChannel(channel)).toBeVisible()
-    await this.chooseChannel(channel).click()
+    // The navigator re-renders while a chat is being added, and the click then waits out the test
+    // on an element that has already been detached.
+    await retry(async () => {
+      await expect(this.chooseChannel(channel)).toBeVisible({ timeout: 5000 })
+      await this.chooseChannel(channel).click({ timeout: 5000 })
+    })
   }
 
   async addEmoji (textMessage: string, emoji: string): Promise<void> {
-    await this.textMessage(textMessage).hover()
-    await this.addEmojiButton().click()
+    await this.clickMessageAction(textMessage, 'data-id$="AddReactionAction"')
     await this.selectEmoji(emoji).click()
   }
 
   async saveMessage (message: string): Promise<void> {
-    await this.textMessage(message).hover()
-    await this.saveMessageButton().click()
+    await this.clickMessageAction(message, 'data-id$="SaveForLaterAction"')
     await expect(this.messageSaveMarker()).toBeVisible()
   }
 
   async pinMessage (message: string): Promise<void> {
-    await this.textMessage(message).hover()
-    await this.pinMessageButton().click()
+    await this.clickMessageAction(message, 'data-id$="PinMessageAction"')
     await this.pinnedMessageButton().click()
     await expect(this.pinnedMessage(message)).toBeVisible()
   }
 
   async replyMessage (message: string): Promise<void> {
-    await this.textMessage(message).hover()
-    await this.replyButton().click()
+    await this.clickMessageAction(message, 'data-id="activity:action:Reply"')
   }
 
   async sendReply (messageReply: string): Promise<void> {
@@ -276,7 +295,7 @@ export class ChannelPage extends CommonPage {
     // Wait for the message to appear in sidebar with retry
     await expect(async () => {
       await expect(this.textMessageInSidebar(messageReply, true)).toBeVisible({ timeout: 5000 })
-    }).toPass({ intervals: [100, 200, 500], timeout: 15000 })
+    }).toPass({ intervals: retryIntervals, timeout: 15000 })
   }
 
   async closeAndOpenReplyMessage (): Promise<void> {

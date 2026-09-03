@@ -28,7 +28,6 @@
   import DeactivatedHeader from './DeactivatedHeader.svelte'
   import ModernProfilePopup from './ModernProfilePopup.svelte'
   import TimePresenter from './TimePresenter.svelte'
-  import { getPersonTimezone } from './utils'
 
   export let _id: Ref<Employee>
   export let disabled: boolean = false
@@ -39,13 +38,14 @@
   const hierarchy = client.getHierarchy()
 
   let employee: Employee | Person | undefined = undefined
-  let timezone: string | undefined = undefined
   let isEmployee: boolean = false
 
   $: personByRefStore = getPersonByPersonRefStore([_id])
   $: employee = $employeeByIdStore.get(_id) ?? $personByRefStore.get(_id)
   $: isEmployee = $employeeByIdStore.has(_id)
-  $: void loadPersonTimezone(employee)
+  // Read the timezone off the Employee mixin - fetching it via getAccountInfo let any client
+  // pull account data for an arbitrary person (#10874).
+  $: timezone = isEmployee ? (employee as Employee | undefined)?.timezone : undefined
 
   const levelQuery = createQuery()
 
@@ -66,12 +66,6 @@
     const comp = panelComponent?.component ?? view.component.EditDoc
     const loc = await getObjectLinkFragment(hierarchy, employee, {}, comp)
     navigate(loc)
-  }
-
-  async function loadPersonTimezone (person: Employee | Person | undefined): Promise<void> {
-    if (person?.personUuid !== undefined && isEmployee) {
-      timezone = await getPersonTimezone(person?.personUuid as AccountUuid)
-    }
   }
 </script>
 

@@ -40,6 +40,7 @@ function estimatePackageWeight(cwd, srcDir = 'src') {
 
 const { isPhaseCached, markPhaseCompleted, calculatePackageHash } = require('../libs/cache')
 const { getNamedWorkerPool } = require('../libs/workers')
+const { getOptimalWorkerCount } = require('../libs/utils')
 const { success, error, dim } = require('../libs/colors')
 
 /**
@@ -51,7 +52,10 @@ async function runFormatPhase(graph, packageNames, concurrency, options = {}) {
 
   // Format workers retain @typescript-eslint/parser Program per package (unavoidable leak).
   // Cap concurrency + aggressive recycle to keep total memory bounded.
-  const formatConcurrency = Math.max(1, Math.min(concurrency, 6))
+  const plan = getOptimalWorkerCount(concurrency, 'format')
+  const formatConcurrency = process.env.FAST_BUILD_FORMAT_WORKERS
+    ? parseInt(process.env.FAST_BUILD_FORMAT_WORKERS, 10)
+    : plan.workers
 
   const results = {
     successCount: 0,
@@ -68,11 +72,16 @@ async function runFormatPhase(graph, packageNames, concurrency, options = {}) {
   const pool = await getNamedWorkerPool('format', formatConcurrency, join(__dirname, '..', 'format-worker.js'), {
     workerOptions: {
       resourceLimits: {
-        maxOldGenerationSizeMb: 2560,
+        maxOldGenerationSizeMb: parseInt(process.env.FAST_BUILD_FORMAT_HEAP_MB ?? String(plan.heapMB), 10),
         maxYoungGenerationSizeMb: 256
       }
     },
-    recycleAfter: 2
+    // The worker clears the parser's Program cache after each package, so recycling is a
+    // memory backstop rather than the primary mechanism. recycleAfter: 2 respawned a thread
+    // (and re-required eslint/prettier/typescript) roughly 200 times over a full format run.
+    recycleAfter: 25,
+    // Must stay below maxOldGenerationSizeMb, or the worker hits the hard limit first.
+    recycleMemoryMB: Math.floor(plan.heapMB * 0.8)
   })
 
   let completedCount = 0

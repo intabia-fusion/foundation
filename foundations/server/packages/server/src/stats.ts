@@ -5,7 +5,7 @@ import {
   metricsAggregate,
   type MetricsData
 } from '@hcengineering/core'
-import { type SessionManager } from '@hcengineering/server-core'
+import { memoryBaseline, type SessionManager } from '@hcengineering/server-core'
 import os from 'node:os'
 
 /**
@@ -28,6 +28,7 @@ export function getStatistics (ctx: MeasureContext, sessions: SessionManager, ad
   data.health = sessions.checkHealth()
 
   const memU = process.memoryUsage()
+  data.statistics.memoryBaseline = memoryBaseline
   data.statistics.memoryUsed = Math.round(((memU.heapUsed + memU.rss) / 1024 / 1024) * 100) / 100
   data.statistics.memoryTotal = Math.round((memU.heapTotal / 1024 / 1024) * 100) / 100
   data.statistics.memoryRSS = Math.round((memU.rss / 1024 / 1024) * 100) / 100

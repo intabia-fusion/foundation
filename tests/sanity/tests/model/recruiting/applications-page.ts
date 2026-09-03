@@ -81,7 +81,7 @@ export class ApplicationsPage extends CommonRecruitingPage {
       .click()
     await expect(
       this.page.locator('div.hulyHeader-container div.hulyHeader-titleGroup', { hasText: talentName.lastName })
-    ).toBeVisible({ timeout: 1000 })
+    ).toBeVisible()
   }
 
   async checkApplicationState (talentName: TalentName, done: string): Promise<void> {

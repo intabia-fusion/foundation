@@ -30,6 +30,10 @@ inputs:
     description: 'Docker Hub access token for rate limit retry'
     required: false
     default: ''
+  container-prefix:
+    description: 'Compose project prefix of the stand containers (sanity- or qms-)'
+    required: false
+    default: 'sanity-'
 
 runs:
   using: 'composite'
@@ -92,11 +96,79 @@ runs:
         cd ./${{ inputs.test-folder }}
         ./profile-start.sh
 
+    # Container load and service stats around the run; telemetry never fails the job.
+    - name: Start telemetry
+      shell: bash
+      run: |
+        cd ./${{ inputs.test-folder }}/sanity
+        mkdir -p runs/ci
+        T=../../tests/sanity/telemetry
+        node $T/stats.js rate --min 1 --max 10 --threshold 0.001 || true
+        node $T/stats.js wipe || true
+        node $T/docker-sampler.js --out runs/ci/docker.ndjson --filter ${{ inputs.container-prefix }} &
+        echo $! > /tmp/telemetry-sampler.pid
+        node $T/stats.js sample --out runs/ci/stats.ndjson --interval 1000 &
+        echo $! > /tmp/telemetry-stats.pid
+      env:
+        STATS_CONTAINER: ${{ inputs.container-prefix }}stats-1
+
     - name: Run UI tests
       shell: bash
       run: |
         cd ./${{ inputs.test-folder }}/sanity
         node ../../common/scripts/install-run-rushx.js uitest
+
+    - name: Collect telemetry
+      if: always()
+      shell: bash
+      run: |
+        cd ./${{ inputs.test-folder }}/sanity
+        T=../../tests/sanity/telemetry
+        for pid in /tmp/telemetry-sampler.pid /tmp/telemetry-stats.pid; do
+          if [ -f "$pid" ]; then kill -INT "$(cat "$pid")" 2>/dev/null || true; fi
+        done
+        sleep 2
+        node $T/stats.js fetch --out runs/ci/stats.json || true
+        node $T/stats.js rate --min 10 --max 300 --threshold 0.01 || true
+        # Reports stay where they are - they already ship in the playwright-results artifact.
+        node $T/collect-run.js --dir runs/ci --report playwright-report.json \
+          --steps step-report.ndjson --docker runs/ci/docker.ndjson || true
+        node $T/render-report.js --dir runs/ci || true
+      env:
+        STATS_CONTAINER: ${{ inputs.container-prefix }}stats-1
+
+    # Written by the json reporter and step-reporter.ts; only tests/sanity configures both, the
+    # other suites skip the blocks below.
+    - name: Test report summary
+      if: always()
+      shell: bash
+      run: |
+        cd ./${{ inputs.test-folder }}/sanity
+        {
+          echo "## UI tests: ${{ inputs.artifact-name-suffix }}"
+          if [ -f playwright-report.json ]; then
+            echo '<details><summary>What broke</summary>'
+            echo
+            echo '```'
+            node ../../tests/sanity/analyze_failures.js playwright-report.json || true
+            echo '```'
+            echo '</details>'
+          fi
+          if [ -f step-report.ndjson ]; then
+            echo '<details><summary>Where the time went</summary>'
+            echo
+            echo '```'
+            node ../../tests/sanity/analyze_steps.js step-report.ndjson --top 20 || true
+            echo '```'
+            echo '</details>'
+          fi
+          if [ -f runs/ci/run.json ]; then
+            node ../../tests/sanity/telemetry/render-summary.js --dir runs/ci \
+              --title 'Telemetry: ${{ inputs.artifact-name-suffix }}' || true
+            echo
+            echo 'Charts and per-second series: report.html in the telemetry-${{ inputs.artifact-name-suffix }} artifact.'
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Download profile
       if: inputs.enable-profiling == 'true'
@@ -135,7 +207,18 @@ runs:
       uses: actions/upload-artifact@v5
       with:
         name: playwright-results-${{ inputs.artifact-name-suffix }}
-        path: ./${{ inputs.test-folder }}/sanity/playwright-report/
+        path: |
+          ./${{ inputs.test-folder }}/sanity/playwright-report/
+          ./${{ inputs.test-folder }}/sanity/playwright-report.json
+          ./${{ inputs.test-folder }}/sanity/step-report.ndjson
+
+    - name: Upload telemetry
+      if: always()
+      uses: actions/upload-artifact@v5
+      with:
+        name: telemetry-${{ inputs.artifact-name-suffix }}
+        path: ./${{ inputs.test-folder }}/sanity/runs/ci
+        if-no-files-found: ignore
 
     - name: Upload Logs
       if: always()

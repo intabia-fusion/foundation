@@ -15,7 +15,7 @@ import {
   type ServiceStatistics,
   type WorkspaceStatistics
 } from '@hcengineering/server-core'
-import serverToken, { decodeToken } from '@hcengineering/server-token'
+import serverToken, { decodeToken, hasAdminSession, isHumanAdmin, type Token } from '@hcengineering/server-token'
 import cors from '@koa/cors'
 import type { IncomingHttpHeaders } from 'http'
 import Koa from 'koa'
@@ -25,6 +25,19 @@ import { compress as snappyCompress } from 'snappy'
 
 // Services report every 5s (METRICS_UPDATE_INTERVAL) - 20s means 4 missed reports
 const serviceTimeout = 20_000
+
+interface TelemetryPolicy {
+  // Seconds.
+  minInterval: number
+  maxInterval: number
+  threshold: number
+}
+
+// Seconds. Below 1s stats itself becomes the load; an hour is well past "looks dead".
+function clampSeconds (value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback
+  return Math.min(3600, Math.max(1, Math.round(value)))
+}
 
 interface ServiceStatisticsEx extends ServiceStatistics {
   lastUpdate: number // Last updated
@@ -79,6 +92,11 @@ const extractAuthorizationToken = (headers: IncomingHttpHeaders): string | undef
   }
 }
 
+// The CLI reaches stats with a `tool` service token; a human operator needs a fresh `/admin` second
+// factor. Tokens come from the Authorization header only - a query string token ends up in proxy logs.
+const isStatsAdmin = (payload: Token): boolean =>
+  payload.extra?.service === 'tool' || (isHumanAdmin(payload) && hasAdminSession(payload))
+
 /**
  * @public
  */
@@ -96,6 +114,19 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
   setMetadata(serverToken.metadata.Service, 'stats')
 
   const statistics = new Map<string, ServiceStatisticsEx>()
+
+  // Push policy per service, returned on every PUT: tick every min, force a push at max even
+  // when idle, push early when activity moved by more than threshold.
+  const defaultPolicy: TelemetryPolicy = {
+    minInterval: clampSeconds(parseInt(process.env.TELEMETRY_MIN_INTERVAL ?? '10'), 10),
+    maxInterval: clampSeconds(parseInt(process.env.TELEMETRY_MAX_INTERVAL ?? '300'), 300),
+    threshold: parseFloat(process.env.TELEMETRY_THRESHOLD ?? '0.01')
+  }
+  const policies = new Map<string, TelemetryPolicy>()
+  // Services send cumulative trees, so clearing our copy alone is undone by the next push.
+  // The generation travels back on every response; a service that sees a new one resets its own.
+  let resetGeneration = 0
+  const policyFor = (service: string): TelemetryPolicy => policies.get(service) ?? defaultPolicy
 
   const isStale = (v: ServiceStatisticsEx): boolean => Date.now() - v.lastUpdate > serviceTimeout
 
@@ -129,9 +160,9 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
 
   router.get('/api/v1/overview', (req, res) => {
     try {
-      const token = (req.query.token as string) ?? extractAuthorizationToken(req.headers)
+      const token = extractAuthorizationToken(req.headers) ?? ''
       const payload = decodeToken(token)
-      const admin = payload.extra?.admin === 'true'
+      const admin = isStatsAdmin(payload)
       if (!admin) {
         req.res.setHeader('Content-Type', 'application/json')
         const dta: OverviewStatistics = {
@@ -189,9 +220,9 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
 
   router.get('/api/v1/statistics', (req, res) => {
     try {
-      const token = (req.query.token as string) ?? extractAuthorizationToken(req.headers)
+      const token = extractAuthorizationToken(req.headers) ?? ''
       const payload = decodeToken(token)
-      const admin = payload.extra?.admin === 'true'
+      const admin = isStatsAdmin(payload)
       ctx.info('get stats', { admin, service: req.query.name })
       if (admin) {
         const json = statistics.get((req.query.name as string) ?? '')
@@ -219,13 +250,11 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
 
   router.put('/api/v1/statistics', async (req, res) => {
     try {
-      const token = (req.query.token as string) ?? extractAuthorizationToken(req.headers)
+      const token = extractAuthorizationToken(req.headers) ?? ''
       const payload = decodeToken(token)
       const service = payload.extra?.service != null
       const serviceName = (req.query.name as string) ?? ''
       if (service) {
-        ctx.info('put stats', { service: req.query.name, len: req.request.length })
-
         const contentType = req.headers['content-type']
 
         if (contentType === 'application/octet-stream') {
@@ -242,15 +271,8 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
 
           const rawBody = Buffer.concat(chunks)
 
-          ctx.info('put stats processing octet-stream', { rawBodyLength: rawBody.length })
-
           try {
             const deserialized = rpcHandler.readRequest(rawBody, true)
-            ctx.info('put stats deserialized', {
-              method: deserialized.method,
-              paramsCount: deserialized.params?.length
-            })
-
             if (deserialized.method === 'data') {
               statistics.set(serviceName, {
                 ...(deserialized.params?.[0] as ServiceStatistics),
@@ -265,15 +287,15 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
             throw deserializeErr
           }
         } else {
-          ctx.info('put stats processing json', { bodyType: typeof (req.request as any).body })
           statistics.set(serviceName, {
             ...((req.request as any).body as ServiceStatistics),
             lastUpdate: Date.now()
           })
         }
       }
-      req.res.writeHead(200)
-      req.res.end()
+      // Older services ignore the body and keep their built-in interval.
+      req.res.writeHead(200, { 'Content-Type': 'application/json' })
+      req.res.end(JSON.stringify({ ...policyFor(serviceName), reset: resetGeneration }))
     } catch (err: any) {
       console.error(err, req.host, req.headers, req.ip)
       req.res.writeHead(404, {})
@@ -281,11 +303,31 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
     }
   })
 
-  router.get('/api/v1/analytics', (req, res) => {
+  // Idle services skip the payload and ping here instead, so they stay out of the stale sweep.
+  router.put('/api/v1/health', (req, res) => {
     try {
       const token = (req.query.token as string) ?? extractAuthorizationToken(req.headers)
       const payload = decodeToken(token)
-      if (payload.extra?.admin !== 'true') {
+      const serviceName = (req.query.name as string) ?? ''
+      const existing = payload.extra?.service != null ? statistics.get(serviceName) : undefined
+      if (existing !== undefined) {
+        existing.lastUpdate = Date.now()
+      }
+      // `known: false` after a stats restart tells the service to send the full tree again.
+      req.res.writeHead(200, { 'Content-Type': 'application/json' })
+      req.res.end(JSON.stringify({ ...policyFor(serviceName), known: existing !== undefined, reset: resetGeneration }))
+    } catch (err: any) {
+      console.error(err, req.host, req.ip)
+      req.res.writeHead(404, {})
+      req.res.end()
+    }
+  })
+
+  router.get('/api/v1/analytics', (req, res) => {
+    try {
+      const token = extractAuthorizationToken(req.headers) ?? ''
+      const payload = decodeToken(token)
+      if (!isStatsAdmin(payload)) {
         req.res.writeHead(401, {})
         req.res.end()
         return
@@ -395,9 +437,9 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
 
   router.put('/api/v1/manage', async (req, res) => {
     try {
-      const token = req.query.token as string
+      const token = extractAuthorizationToken(req.headers) ?? ''
       const payload = decodeToken(token)
-      if (payload.extra?.admin !== 'true') {
+      if (!isStatsAdmin(payload)) {
         req.res.writeHead(404, {})
         req.res.end()
         return
@@ -408,8 +450,36 @@ export function serveStats (ctx: MeasureContext, onClose?: () => void): void {
       switch (operation) {
         case 'wipe-statistics': {
           statistics.clear()
+          resetGeneration++
           req.res.writeHead(200)
           req.res.end()
+          return
+        }
+        case 'set-rate': {
+          const base = policyFor((req.query.service as string) ?? '')
+          const policy: TelemetryPolicy = {
+            minInterval: clampSeconds(parseInt((req.query.min as string) ?? ''), base.minInterval),
+            maxInterval: clampSeconds(parseInt((req.query.max as string) ?? ''), base.maxInterval),
+            threshold: parseFloat((req.query.threshold as string) ?? '')
+          }
+          if (!Number.isFinite(policy.threshold)) policy.threshold = base.threshold
+          policy.maxInterval = Math.max(policy.minInterval, policy.maxInterval)
+          const service = req.query.service as string
+          if (service === undefined || service === '' || service === '*') {
+            policies.clear()
+            for (const name of statistics.keys()) {
+              policies.set(name, policy)
+            }
+          } else {
+            policies.set(service, policy)
+          }
+          req.res.writeHead(200, { 'Content-Type': 'application/json' })
+          req.res.end(JSON.stringify({ service: service ?? '*', ...policy }))
+          return
+        }
+        case 'get-rates': {
+          req.res.writeHead(200, { 'Content-Type': 'application/json' })
+          req.res.end(JSON.stringify({ default: defaultPolicy, services: Object.fromEntries(policies) }))
           return
         }
       }

@@ -14,13 +14,22 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { reduceCalls, type Class, type Doc, type Ref } from '@hcengineering/core'
+  import core, {
+    reduceCalls,
+    type Class,
+    type Doc,
+    type Ref,
+    getAttributeUpdate,
+    TxProcessor
+  } from '@hcengineering/core'
   import type { AnySvelteComponent, ButtonKind, ButtonSize } from '@hcengineering/ui'
   import { Icon, Label, tooltip } from '@hcengineering/ui'
+  import { isEmptyMarkup } from '@hcengineering/text'
+  import view from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
+
   import { getAttribute, KeyedAttribute, updateAttribute } from '../attributes'
   import { getAttributeEditor, getClient } from '../utils'
-  import view from '@hcengineering/view'
 
   export let key: KeyedAttribute | string
   export let object: Doc | Record<string, any>
@@ -32,6 +41,7 @@
   export let readonly = false
   export let draft = false
   export let identifier: string | undefined = undefined
+  export let props: Record<string, any> = {}
 
   export let kind: ButtonKind = 'link'
   export let size: ButtonSize = 'large'
@@ -57,12 +67,23 @@
     dispatch('update', { key, value })
 
     if (draft) {
-      ;(doc as any)[attributeKey] = value
+      const update = getAttributeUpdate(client, doc, doc._class, { key: attributeKey, attr: attribute }, value)
+      TxProcessor.applyUpdate(doc, update)
     } else {
       void updateAttribute(client, doc, doc._class, { key: attributeKey, attr: attribute }, value, false, {
         objectId: identifier ?? doc._id
       })
     }
+  }
+
+  function handleEditorUpdate (evt: CustomEvent<{ value: any }>): void {
+    const val = evt?.detail?.value
+    onChange(val)
+  }
+
+  function handleEditorChange (evt: CustomEvent): void {
+    const val = evt?.detail
+    onChange(val)
   }
 
   const resolveEditor = reduceCalls(async (_class: Ref<Class<Doc>>, key: KeyedAttribute | string): Promise<void> => {
@@ -80,6 +101,15 @@
 
   $: isReadonly = readonly || (resolved?.attribute.readonly ?? false)
   $: icon = resolved?.attribute?.icon ?? resolved?.attribute?.type?.icon
+  $: value =
+    resolved !== undefined
+      ? getAttribute(client, object, { key: resolved.attributeKey, attr: resolved.attribute })
+      : undefined
+  $: isRequiredAndEmpty =
+    (resolved?.attribute?.required ?? false) &&
+    (resolved?.attribute?.type?._class === core.class.TypeMarkup
+      ? isEmptyMarkup(value)
+      : value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0))
 </script>
 
 {#if resolved}
@@ -87,6 +117,7 @@
   {#if showHeader}
     <span
       class="labelOnPanel"
+      class:required-empty={isRequiredAndEmpty}
       use:tooltip={{
         component: Label,
         props: { label: attribute.automationOnly ? view.string.AutomationOnly : attribute.label }
@@ -96,9 +127,15 @@
         <div class="flex flex-gap-1 items-center">
           <Icon icon={icon ?? view.icon.Setting} size="small" />
           <Label label={attribute.label} />
+          {#if attribute.required}
+            <span class="required-asterisk">*</span>
+          {/if}
         </div>
       {:else}
         <Label label={attribute.label} />
+        {#if attribute.required}
+          <span class="required-asterisk">*</span>
+        {/if}
       {/if}
     </span>
     <div class="flex flex-grow min-w-0">
@@ -117,30 +154,51 @@
         {maxWidth}
         {attribute}
         {attributeKey}
-        value={getAttribute(client, object, { key: attributeKey, attr: attribute })}
+        key={typeof key === 'string' ? { key: attributeKey, attr: attribute } : key}
+        {value}
         space={object.space}
         {onChange}
         {focus}
         {object}
+        {draft}
+        {...props}
+        on:update={handleEditorUpdate}
+        on:change={handleEditorChange}
       />
     </div>
   {:else}
-    <div style="grid-column: 1/3;">
+    <div style="grid-column: 1/3;" class:required-empty={isRequiredAndEmpty}>
       <svelte:component
         this={editor}
         type={attribute?.type}
         {maxWidth}
         {attributeKey}
-        value={getAttribute(client, object, { key: attributeKey, attr: attribute })}
+        key={typeof key === 'string' ? { key: attributeKey, attr: attribute } : key}
+        {value}
         readonly={isReadonly}
         disabled={isReadonly}
         space={object.space}
         {onChange}
         {attribute}
+        {kind}
         {focus}
         {object}
         {size}
+        {draft}
+        {...props}
+        on:update={handleEditorUpdate}
+        on:change={handleEditorChange}
       />
     </div>
   {/if}
 {/if}
+
+<style lang="scss">
+  .labelOnPanel.required-empty {
+    color: var(--theme-error-color, #eb5757) !important;
+  }
+  .required-asterisk {
+    color: var(--theme-error-color, #eb5757);
+    margin-left: 2px;
+  }
+</style>

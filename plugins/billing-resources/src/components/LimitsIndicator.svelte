@@ -14,17 +14,19 @@
 -->
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
-  import { checkWorkspaceLimits, upgradePlan, calculateLimits, checkIsLimited } from '../utils'
+  import { checkWorkspaceLimits, upgradePlan, calculateLimits, checkIsLimited, getBillingClient } from '../utils'
   import { subscriptionStore, resetSubscriptionStore } from '../stores/subscription'
   import { location, PaletteColorIndexes, Progress, tooltip } from '@hcengineering/ui'
-  import { addEventListener, removeEventListener } from '@hcengineering/platform'
+  import { addEventListener, getMetadata, removeEventListener } from '@hcengineering/platform'
   import core, { type Tx, type TxWorkspaceEvent, WorkspaceEvent } from '@hcengineering/core'
-  import { addTxListener, removeTxListener } from '@hcengineering/presentation'
+  import presentation, { addTxListener, removeTxListener } from '@hcengineering/presentation'
   import workbench from '@hcengineering/workbench'
+  import type { WorkspaceTokenWindows } from '@hcengineering/billing-client'
   import UsagePopup from './UsagePopup.svelte'
 
   let pollInterval: any
   let hoverInterval: any
+  let windows: WorkspaceTokenWindows | undefined
 
   const POLL_INTERVAL_MS = 60 * 60 * 1000 // 1 hour in milliseconds
   const HOVER_POLL_INTERVAL_MS = 10 * 1000 // refresh usage every 10s while the cursor stays on the indicator
@@ -42,6 +44,15 @@
   const refreshLimits = async (): Promise<void> => {
     await checkWorkspaceLimits()
     await checkIsLimited()
+    // Endpoint keys by workspace UUID; the URL segment is the slug, so read the resolved UUID.
+    const wsUuid = getMetadata(presentation.metadata.WorkspaceUuid)
+    const client = getBillingClient()
+    if (wsUuid === undefined || client === null) return
+    try {
+      windows = await client.getWorkspaceTokenWindows(wsUuid)
+    } catch (err) {
+      console.error('[LimitsIndicator] token windows fetch failed', err)
+    }
   }
 
   const connectionListener = async (): Promise<void> => {
@@ -67,15 +78,21 @@
 
   // Calculate usage percentages from store data
   $: storageUsed = usageInfo?.usage?.storageBytes ?? 0
-  $: meetingMinutesUsed = usageInfo?.usage?.meetingMinutes ?? 0
   $: limits = calculateLimits(currentPlan, currentPackage, currentSubscription, currentPackageSubscription)
 
-  $: storagePercent = limits != null && limits.storageLimit > 0 ? Math.min(storageUsed / limits.storageLimit, 1) : 0
-  $: meetingPercent =
-    limits != null && limits.meetingMinutesLimit > 0 ? Math.min(meetingMinutesUsed / limits.meetingMinutesLimit, 1) : 0
+  function barColor (used: number, limit: number): PaletteColorIndexes | undefined {
+    if (limit <= 0) return undefined
+    const ratio = used / limit
+    if (ratio >= 1) return PaletteColorIndexes.Firework
+    if (ratio >= 0.75) return PaletteColorIndexes.Sunshine
+    return PaletteColorIndexes.Grass
+  }
 
-  $: storageColor = storagePercent >= 0.9 ? PaletteColorIndexes.Firework : undefined
-  $: meetingColor = meetingPercent >= 0.9 ? PaletteColorIndexes.Firework : undefined
+  $: storageColor = barColor(storageUsed, limits?.storageLimit ?? 0)
+  // Bought tokens are spent first, so the bar counts them in: against the tier limit alone a
+  // workspace with a balance looked exhausted.
+  $: monthTotal = windows === undefined || windows.month.limit === 0 ? 0 : windows.month.limit + windows.balance
+  $: tokenMonthColor = windows !== undefined ? barColor(windows.month.used, monthTotal) : undefined
 
   onMount(() => {
     addEventListener(workbench.event.NotifyConnection, connectionListener)
@@ -134,7 +151,8 @@
       plan: currentPlan,
       tierSub: currentSubscription,
       pkg: currentPackage,
-      pkgSub: currentPackageSubscription
+      pkgSub: currentPackageSubscription,
+      windows
     },
     direction: 'bottom'
   }}
@@ -143,16 +161,10 @@
   on:mouseleave={handleHoverEnd}
 >
   <div class="progress-wrapper">
-    <Progress color={storageColor} value={storageUsed} max={limits?.storageLimit ?? 0} fallback={0} small={true} />
+    <Progress color={storageColor} value={storageUsed} max={limits?.storageLimit ?? 0} fallback={0} />
   </div>
   <div class="progress-wrapper">
-    <Progress
-      color={meetingColor}
-      value={meetingMinutesUsed}
-      max={limits?.meetingMinutesLimit ?? 0}
-      fallback={0}
-      small={true}
-    />
+    <Progress color={tokenMonthColor} value={windows?.month.used ?? 0} max={monthTotal} fallback={0} />
   </div>
 </button>
 

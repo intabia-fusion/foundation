@@ -38,7 +38,7 @@ import { TDoc } from './core'
 export class TDomainStatusPlaceholder extends TDoc {}
 
 @Model(core.class.Status, core.class.Doc, DOMAIN_MODEL)
-@UX(core.string.Status, undefined, undefined, undefined, 'name')
+@UX(core.string.Status, core.icon.Status, undefined, undefined, 'name')
 export class TStatus extends TDoc implements Status {
   // We attach to attribute, so we could distinguish between
   ofAttribute!: Ref<Attribute<Status>>

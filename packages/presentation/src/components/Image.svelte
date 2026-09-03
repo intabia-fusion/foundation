@@ -29,6 +29,7 @@
   export let blurhash: string | undefined = undefined
   export let showLoading: boolean = false
   export let persistent: boolean = true
+  export let tiny: boolean = false
 
   const dispatch = createEventDispatcher()
 
@@ -93,7 +94,7 @@
   }
 </script>
 
-<div class="container relative w-full h-full" use:lazyObserverAction={persistent}>
+<div class="container relative w-full h-full" class:tiny use:lazyObserverAction={persistent}>
   {#if visible}
     {#if !loaded}
       {#if blurhash !== undefined}
@@ -127,6 +128,13 @@
 <style lang="scss">
   .container {
     border-radius: inherit;
+
+    &.tiny {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0;
+    }
   }
   .overlay {
     border-radius: inherit;

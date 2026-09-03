@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI, fillSearch } from '../utils'
 import { TrackerNavigationMenuPage } from '../model/tracker/tracker-navigation-menu-page'
 import { ComponentsPage } from '../model/tracker/components-page'
@@ -50,22 +50,22 @@ test.describe('Tracker component tests', () => {
     await componentsPage.openComponentByName(newComponent.name)
     await componentsDetailsPage.checkComponent(newComponent)
     await componentsDetailsPage.editComponent(editComponent)
-    // Wait for the component changes to be saved before navigating away
-    await expect(async () => {
-      await componentsDetailsPage.checkComponent(editComponent)
-    }).toPass({ intervals: [100, 200, 500], timeout: 10000 })
+    await componentsDetailsPage.checkComponent(editComponent)
     await trackerNavigationMenuPage.openComponentsForProject('Default')
     await componentsPage.openComponentByName(editComponent.name)
     await componentsDetailsPage.checkComponent(editComponent)
   })
 
   test('Delete a component', async () => {
+    // Created here on purpose: the test destroys it, so relying on seeded data would make
+    // every rerun on the same workspace fail.
     const newComponent: NewComponent = {
-      name: 'Delete component test',
+      name: `Delete component test-${generateId()}`,
       description: 'Delete component test description'
     }
 
     await trackerNavigationMenuPage.openComponentsForProject('Default')
+    await componentsPage.createNewComponent(newComponent)
     await componentsPage.openComponentByName(newComponent.name)
     await componentsDetailsPage.checkComponent(newComponent)
     await componentsDetailsPage.deleteComponent()

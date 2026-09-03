@@ -248,6 +248,7 @@ export class TAttribute extends TDoc implements AnyAttribute {
   isCustom?: boolean
   defaultValue?: any
   automationOnly?: boolean
+  required?: boolean
 }
 
 @Model(core.class.Type, core.class.Obj, DOMAIN_MODEL)
@@ -448,6 +449,9 @@ export class TCollaborator extends TAttachedDoc implements Collaborator {
 @MMixin(core.mixin.VersionableClass, core.class.Class)
 export class TVersionableClass extends TClass implements VersionableClass {
   enabled!: boolean
+  excludedProperties?: string[]
+  excludedRelations?: string[] // ${associationId}_${a|b}
+  excludeMixins?: Ref<Mixin<Doc>>[]
 }
 
 @MMixin(core.mixin.TransientTTL, core.class.Class)

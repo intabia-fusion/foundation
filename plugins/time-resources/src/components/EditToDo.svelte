@@ -43,13 +43,25 @@
   const queryClient = createQuery()
   const client = getClient()
 
+  // The query fires on every update to this ToDo - due date, priority, a work slot. Assigning the
+  // server values back unconditionally wipes an edit that has not round-tripped yet, so follow the
+  // server only when it is the server side that changed.
+  let lastTitle: string | undefined
+  let lastDescription: Markup | undefined
+
   $: _id !== undefined &&
     _class !== undefined &&
     queryClient.query<ToDo>(_class, { _id }, async (result) => {
       ;[object] = result
       if (object !== undefined) {
-        title = object.title
-        description = object.description
+        if (object.title !== lastTitle) {
+          lastTitle = object.title
+          title = object.title
+        }
+        if (object.description !== lastDescription) {
+          lastDescription = object.description
+          description = object.description
+        }
       }
     })
 

@@ -35,7 +35,9 @@ import core, {
   type TxUpdateDoc,
   addOperation,
   toFindResult,
-  withContext
+  withContext,
+  type TxCreateDoc,
+  TxProcessor
 } from '@hcengineering/core'
 import { PlatformError, getResource, unknownError } from '@hcengineering/platform'
 import serverCore, {
@@ -334,6 +336,16 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
     }
   }
 
+  private markSilent (derivedTxes: Tx[], silent?: boolean): void {
+    if (silent === true) {
+      for (const t of derivedTxes) {
+        if (t.meta?.silent === undefined) {
+          t.meta = { ...(t.meta ?? {}), silent: true }
+        }
+      }
+    }
+  }
+
   private async processRemove (ctx: MeasureContext<SessionData>, txes: Tx[], findAll: SessionFindAll): Promise<Tx[]> {
     const result: Tx[] = []
 
@@ -346,16 +358,18 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
       if (object === undefined) {
         continue
       }
-      result.push(...(await this.deleteClassCollections(ctx, object._class, rtx.objectId, findAll)))
+      const res: Tx[] = await this.deleteClassCollections(ctx, object._class, rtx.objectId, findAll)
       const _class = this.context.hierarchy.findClass(object._class)
       if (_class !== undefined) {
         const mixins = this.getMixins(object._class, object)
         for (const mixin of mixins) {
-          result.push(...(await this.deleteClassCollections(ctx, mixin, rtx.objectId, findAll, object._class)))
+          res.push(...(await this.deleteClassCollections(ctx, mixin, rtx.objectId, findAll, object._class)))
         }
 
-        result.push(...(await this.deleteRelatedDocuments(ctx, object, findAll)))
+        res.push(...(await this.deleteRelatedDocuments(ctx, object, findAll)))
       }
+      this.markSilent(res, tx.meta?.silent)
+      result.push(...res)
     }
     return result
   }
@@ -456,16 +470,26 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
         const isCreateTx = colTx._class === core.class.TxCreateDoc
         const isDeleteTx = colTx._class === core.class.TxRemoveDoc
         const isUpdateTx = colTx._class === core.class.TxUpdateDoc
+        const res: Tx[] = []
         if (isUpdateTx) {
-          result.push(...(await this.updateCollection(ctx, colTx as TxUpdateDoc<AttachedDoc>, findAll)))
+          res.push(...(await this.updateCollection(ctx, colTx as TxUpdateDoc<AttachedDoc>, findAll)))
         }
 
         if ((isCreateTx || isDeleteTx) && !ctx.contextData.removedMap.has(_id)) {
           // TODO: Why we need attachedTo to be found? It uses attachedTo._class, attachedTo.space only inside
           // We found case for Todos, we could attach a collection with
-          const attachedTo = (await findAll(ctx, _class, { _id }, { limit: 1 }))[0]
+          let attachedTo: Doc | undefined = (await findAll(ctx, _class, { _id }, { limit: 1 }))[0]
+          if (attachedTo == null) {
+            // If the parent doc was created in the same batch, it isn't persisted yet.
+            // Fall back to pending broadcast txes so collection counter updates aren't lost.
+            const createTx = ctx.contextData.broadcast.txes.find(
+              (it) => it._class === core.class.TxCreateDoc && (it as TxCreateDoc<Doc>).objectId === _id
+            )
+            attachedTo = createTx != null ? TxProcessor.createDoc2Doc(createTx as TxCreateDoc<Doc>) : undefined
+          }
+
           if (attachedTo !== undefined) {
-            result.push(
+            res.push(
               this.getCollectionUpdateTx(
                 _id,
                 _class,
@@ -479,6 +503,8 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
             )
           }
         }
+        this.markSilent(res, tx.meta?.silent)
+        result.push(...res)
       }
     }
     return result
@@ -573,6 +599,7 @@ export class TriggersMiddleware extends BaseMiddleware implements Middleware {
         const allTx = allAttached.map(({ _class, space, _id }) =>
           factory.createTxUpdateDoc(_class, space, _id, { space: rtx.operations.space })
         )
+        this.markSilent(allTx, tx.meta?.silent)
         result.push(...allTx)
       }
     }

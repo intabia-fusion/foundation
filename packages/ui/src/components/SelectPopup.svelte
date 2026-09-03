@@ -18,6 +18,7 @@
   import { deviceOptionsStore, resizeObserver } from '..'
   import { createFocusManager } from '../focus'
   import type { SelectPopupValueType } from '../types'
+  import plugin from '../plugin'
   import EditWithIcon from './EditWithIcon.svelte'
   import FocusHandler from './FocusHandler.svelte'
   import Icon from './Icon.svelte'
@@ -72,19 +73,21 @@
     if (key.code === 'ArrowUp') {
       key.stopPropagation()
       key.preventDefault()
-      list.select(selection - 1)
+      list?.select(selection - 1)
       return true
     }
     if (key.code === 'ArrowDown') {
       key.stopPropagation()
       key.preventDefault()
-      list.select(selection + 1)
+      list?.select(selection + 1)
       return true
     }
     if (key.code === 'Enter') {
       key.preventDefault()
       key.stopPropagation()
-      sendSelect(filteredObjects[selection].id)
+      if (filteredObjects[selection]) {
+        sendSelect(filteredObjects[selection].id)
+      }
       return true
     }
     return false
@@ -155,64 +158,82 @@
   {/if}
   <div class="scroll">
     <div class="box">
-      <ListView
-        bind:this={list}
-        count={filteredObjects.length}
-        bind:selection
-        on:changeContent={() => dispatch('changeContent')}
-      >
-        <svelte:fragment slot="item" let:item={itemId}>
-          {@const item = filteredObjects[itemId]}
-          <button
-            class="menu-item withList w-full"
-            on:click={() => {
-              sendSelect(item.id)
-            }}
-            disabled={loading}
-          >
-            <div class="flex-row-center flex-grow" class:pointer-events-none={!componentLink}>
-              {#if item.component}
-                <div class="flex-grow clear-mins"><svelte:component this={item.component} {...item.props} /></div>
-              {:else}
-                {#if item.icon}
-                  <div class="icon mr-2">
-                    <Icon icon={item.icon} iconProps={item.iconProps} fill={item.iconColor ?? 'currentColor'} {size} />
+      {#if filteredObjects.length > 0}
+        <ListView
+          bind:this={list}
+          count={filteredObjects.length}
+          bind:selection
+          on:changeContent={() => dispatch('changeContent')}
+        >
+          <svelte:fragment slot="item" let:item={itemId}>
+            {@const item = filteredObjects[itemId]}
+            <button
+              class="menu-item withList w-full"
+              on:click={() => {
+                sendSelect(item.id)
+              }}
+              disabled={loading}
+            >
+              <div class="flex-row-center flex-grow" class:pointer-events-none={!componentLink}>
+                {#if item.component}
+                  <div class="flex-grow clear-mins"><svelte:component this={item.component} {...item.props} /></div>
+                {:else}
+                  {#if item.icon}
+                    <div class="icon mr-2">
+                      <Icon
+                        icon={item.icon}
+                        iconProps={item.iconProps}
+                        fill={item.iconColor ?? 'currentColor'}
+                        {size}
+                      />
+                    </div>
+                  {/if}
+                  <span class="label overflow-label flex-grow" class:text-base={huge}>
+                    {#if item.label}
+                      <Label label={item.label} />
+                    {:else if item.text}
+                      {item.text}
+                    {/if}
+                  </span>
+                {/if}
+                {#if hasSelected}
+                  <div class="check">
+                    {#if item.isSelected}
+                      <Icon icon={IconCheck} size={'small'} />
+                    {/if}
                   </div>
                 {/if}
-                <span class="label overflow-label flex-grow" class:text-base={huge}>
-                  {#if item.label}
-                    <Label label={item.label} />
-                  {:else if item.text}
-                    {item.text}
-                  {/if}
+                {#if item.id === selected && loading}
+                  <Spinner size={'small'} />
+                {/if}
+              </div>
+            </button>
+          </svelte:fragment>
+          <svelte:fragment slot="category" let:item={row}>
+            {@const obj = filteredObjects[row]}
+            {#if obj.category && ((row === 0 && obj.category.label !== undefined) || obj.category.label !== filteredObjects[row - 1]?.category?.label)}
+              {#if row > 0}<div class="menu-separator" />{/if}
+              <div class="menu-group__header flex-row-center">
+                <span class="overflow-label">
+                  <Label label={obj.category.label} />
                 </span>
-              {/if}
-              {#if hasSelected}
-                <div class="check">
-                  {#if item.isSelected}
-                    <Icon icon={IconCheck} size={'small'} />
-                  {/if}
-                </div>
-              {/if}
-              {#if item.id === selected && loading}
-                <Spinner size={'small'} />
-              {/if}
-            </div>
-          </button>
-        </svelte:fragment>
-        <svelte:fragment slot="category" let:item={row}>
-          {@const obj = filteredObjects[row]}
-          {#if obj.category && ((row === 0 && obj.category.label !== undefined) || obj.category.label !== filteredObjects[row - 1]?.category?.label)}
-            {#if row > 0}<div class="menu-separator" />{/if}
-            <div class="menu-group__header flex-row-center">
-              <span class="overflow-label">
-                <Label label={obj.category.label} />
-              </span>
-            </div>
-          {/if}
-        </svelte:fragment>
-      </ListView>
+              </div>
+            {/if}
+          </svelte:fragment>
+        </ListView>
+      {:else}
+        <div class="empty-placeholder content-trans-color">
+          <Label label={plugin.string.NoResults} />
+        </div>
+      {/if}
     </div>
   </div>
   {#if !embedded}<div class="menu-space" />{/if}
 </div>
+
+<style lang="scss">
+  .empty-placeholder {
+    padding: 0.5rem;
+    text-align: center;
+  }
+</style>

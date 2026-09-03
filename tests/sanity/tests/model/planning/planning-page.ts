@@ -1,8 +1,9 @@
 import { type Locator, type Page, expect } from '@playwright/test'
 import { NewToDo, Slot } from './types'
 import { CalendarPage } from '../calendar-page'
+import { retry, retryIntervals, waitStable } from '../../retry'
 
-const retryOptions = { intervals: [1000, 1500, 2500], timeout: 60000 }
+const retryOptions = { intervals: retryIntervals, timeout: 60000 }
 
 export class PlanningPage extends CalendarPage {
   readonly page: Page
@@ -124,17 +125,31 @@ export class PlanningPage extends CalendarPage {
   }
 
   async dragToCalendar (title: string, column: number, time: string, addHalf: boolean = false): Promise<void> {
-    await this.toDosContainer().getByRole('button', { name: title }).hover()
-
     await expect(async () => {
+      // The target time depends on the hour the run starts at, and later hours sit below the fold.
+      // boundingBox() reports coordinates outside the viewport all the same, so the drop would be
+      // aimed at a point the mouse can never reach.
+      await this.selectTimeCell(time, column).scrollIntoViewIfNeeded()
+      // Hover inside the loop: a failed attempt leaves the pointer on the target cell, so the next
+      // mouse.down() would grab nothing and every retry would repeat the same no-op.
+      await this.toDosContainer().getByRole('button', { name: title }).hover()
       await this.page.mouse.down()
-      const boundingBox = await this.selectTimeCell(time, column).boundingBox()
-      expect(boundingBox).toBeTruthy()
-      if (boundingBox != null) {
-        await this.page.mouse.move(boundingBox.x + 10, boundingBox.y + 10)
-        await this.page.mouse.move(boundingBox.x + 10, boundingBox.y + (addHalf ? 40 : 20))
+      try {
+        const boundingBox = await this.selectTimeCell(time, column).boundingBox()
+        expect(boundingBox).toBeTruthy()
+        if (boundingBox != null) {
+          const x = boundingBox.x + 10
+          // Two jumps can both land before the calendar picks the drag up, and then nothing is
+          // dropped and there is no error for the retry to see. Walk the pointer across.
+          await this.page.mouse.move(x, boundingBox.y + 10, { steps: 10 })
+          await this.page.mouse.move(x, boundingBox.y + (addHalf ? 40 : 20), { steps: 5 })
+        }
+      } finally {
         await this.page.mouse.up()
       }
+      // Nothing else in this helper fails when the drop is lost, and then the retry has no reason
+      // to run at all.
+      await expect(this.eventInSchedule(title)).toBeVisible({ timeout: 5000 })
     }).toPass(retryOptions)
   }
 
@@ -144,17 +159,42 @@ export class PlanningPage extends CalendarPage {
     targetTime: string,
     size: 'top' | 'bottom'
   ): Promise<void> {
-    await this.page
-      .locator(`.calendar-element:has-text("${title}") .calendar-element-${size === 'top' ? 'start' : 'end'}`)
-      .hover()
+    const element = this.page.locator(`.calendar-element:has-text("${title}")`)
+    const border = element.locator(`.calendar-element-${size === 'top' ? 'start' : 'end'}`)
 
     await expect(async () => {
+      // Bring the target hour into view first - see dragToCalendar.
+      await this.selectTimeCell(targetTime, column).scrollIntoViewIfNeeded()
+      const before = await element.boundingBox()
+      // Hover inside the loop: a failed attempt leaves the pointer on the target cell, so the next
+      // mouse.down() would grab nothing and every retry would repeat the same no-op.
+      await border.hover()
       await this.page.mouse.down()
-      const boundingBox = await this.selectTimeCell(targetTime, column).boundingBox()
-      expect(boundingBox).toBeTruthy()
-      if (boundingBox != null) {
-        await this.page.mouse.move(boundingBox.x + 10, size === 'bottom' ? boundingBox.y - 8 : boundingBox.y + 5)
+      try {
+        const boundingBox = await this.selectTimeCell(targetTime, column).boundingBox()
+        expect(boundingBox).toBeTruthy()
+        if (boundingBox != null) {
+          const x = boundingBox.x + 10
+          const y = size === 'bottom' ? boundingBox.y - 8 : boundingBox.y + 5
+          // A single jump can land before the resize handler sees the drag, leaving the border where
+          // it was and no error to retry on. Walk the pointer there and nudge it on arrival.
+          await this.page.mouse.move(x, y, { steps: 10 })
+          await this.page.mouse.move(x, y + 1)
+          await this.page.mouse.move(x, y)
+        }
+      } finally {
         await this.page.mouse.up()
+      }
+      // A resize that changed nothing has to fail here, or the silent no-op only surfaces much
+      // later as a wrong duration.
+      const after = await element.boundingBox()
+      expect(after?.height).not.toBe(before?.height)
+      // Changed is not the same as right: if the grid scrolled between the cell lookup and the
+      // drop, the border lands a row off and the duration comes out wrong with nothing to retry on.
+      const cell = await this.selectTimeCell(targetTime, column).boundingBox()
+      if (cell != null && after != null) {
+        const edge = size === 'bottom' ? after.y + after.height : after.y
+        expect(Math.abs(edge - cell.y)).toBeLessThan(cell.height / 2)
       }
     }).toPass(retryOptions)
   }
@@ -164,15 +204,19 @@ export class PlanningPage extends CalendarPage {
   }
 
   async markDoneInToDos (title: string): Promise<void> {
-    // Retry logic to handle DOM detachment issues and slow loading
-    // First ensure the todo is visible in the list with longer timeout
-    await expect(this.toDoInToDos(title)).toBeVisible({ timeout: 20000 })
+    const toDo = this.toDoInToDos(title)
+    await expect(toDo).toBeVisible({ timeout: 20000 })
+    // The list rebuilds while a todo is being marked, so a click can land on a detached node
+    // and still report success. Retry until the row itself reports isDone.
     await expect(async () => {
-      await this.toDoInToDos(title).scrollIntoViewIfNeeded()
-      await this.toDoInToDos(title).hover()
-      await this.checkboxToDoInToDos(title).hover()
-      await this.checkboxToDoInToDos(title).click()
-    }).toPass({ intervals: [100, 200, 500, 1000], timeout: 20000 })
+      if (!((await toDo.getAttribute('class')) ?? '').includes('isDone')) {
+        await toDo.scrollIntoViewIfNeeded()
+        await toDo.hover()
+        await this.checkboxToDoInToDos(title).hover()
+        await this.checkboxToDoInToDos(title).click()
+      }
+      await expect(toDo).toHaveClass(/isDone/, { timeout: 5000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
   }
 
   async clickButtonCreateAddSlot (): Promise<void> {
@@ -204,11 +248,26 @@ export class PlanningPage extends CalendarPage {
         : this.inputPanelCreateDescription().fill(data.description))
     }
     if (data.duedate != null) {
-      await (popup ? this.buttonPopupCreateDueDate().click() : this.buttonPanelCreateDueDate().click())
-      if (data.duedate === 'today') {
-        await this.clickButtonDatePopupToday()
+      const setDueDate = async (): Promise<void> => {
+        await (popup ? this.buttonPopupCreateDueDate().click() : this.buttonPanelCreateDueDate().click())
+        if (data.duedate === 'today') {
+          await this.clickButtonDatePopupToday()
+        } else {
+          await this.selectMenuItem(this.page, data.duedate as string)
+        }
+      }
+      if (popup || data.duedate !== 'today') {
+        await setDueDate()
       } else {
-        await this.selectMenuItem(this.page, data.duedate)
+        // A click into a still-mounting popup selects nothing and reports success, leaving the
+        // seeded date in place - the test then only passed on a stand a previous run had edited.
+        const now = new Date()
+        const today = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`
+        await expect(async () => {
+          if (((await this.textPanelDueDate().textContent()) ?? '').includes(today)) return
+          await setDueDate()
+          await expect(this.textPanelDueDate()).toContainText(today, { timeout: 3000 })
+        }).toPass({ intervals: retryIntervals, timeout: 30000 })
       }
     }
     if (data.priority != null) {
@@ -232,20 +291,56 @@ export class PlanningPage extends CalendarPage {
     if (data.slots != null) {
       let index = 0
       for (const slot of data.slots) {
-        await (popup
-          ? this.buttonPopupCreateAddSlot().click({ force: true })
-          : this.buttonPanelCreateAddSlot().click({ force: true }))
+        const addSlot = popup ? this.buttonPopupCreateAddSlot() : this.buttonPanelCreateAddSlot()
+        const rows = this.slotRows(popup)
+        const before = await rows.count()
+        // The click is forced, so when it lands on a popup that is still closing - the tag popup
+        // right above is dismissed with Escape - it adds nothing at all and reports success. Then
+        // setTimeSlot waits out the whole test timeout on a row that was never created.
+        await expect(async () => {
+          if ((await rows.count()) === before) {
+            await addSlot.click({ force: true })
+          }
+          await expect(rows).toHaveCount(before + 1, { timeout: 5000 })
+        }).toPass({ intervals: retryIntervals, timeout: 20000 })
         await this.setTimeSlot(index, slot, popup)
         index++
       }
     }
   }
 
+  private slotRows (popup: boolean): Locator {
+    return this.page.locator(
+      popup
+        ? 'div.popup div.horizontalBox div.end div.scroller-container div.box div.flex-between.min-w-full'
+        : 'div.hulyModal-container div.slots-content div.scroller-container div.box div.flex-between.min-w-full'
+    )
+  }
+
+  /**
+   * TimeInputBox decides where a digit lands from its own `startTyping` flag, so a field that was
+   * already touched can swallow the first digit and clamp the hour (23 instead of 15) or push the
+   * second digit into minutes (01). Retype until the field shows what we asked for.
+   */
+  private async typeTime (field: Locator, value: string): Promise<void> {
+    const hours = value.substring(0, 2)
+    const minutes = value.substring(2)
+    const hourDigit = field.locator('span.digit:first-child')
+    const minuteDigit = field.locator('span.digit:last-child')
+
+    await expect(async () => {
+      await hourDigit.focus()
+      await hourDigit.press('Backspace')
+      await hourDigit.pressSequentially(hours, { delay: 100 })
+      await minuteDigit.focus()
+      await minuteDigit.press('Backspace')
+      await minuteDigit.pressSequentially(minutes, { delay: 100 })
+      await expect(field.locator('div.datetime-input')).toHaveText(`${hours} : ${minutes}`, { timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
+  }
+
   public async setTimeSlot (rowNumber: number, slot: Slot, popup: boolean = false): Promise<void> {
-    const p = popup
-      ? 'div.popup div.horizontalBox div.end div.scroller-container div.box div.flex-between.min-w-full'
-      : 'div.hulyModal-container div.slots-content div.scroller-container div.box div.flex-between.min-w-full'
-    const row = this.page.locator(p).nth(rowNumber)
+    const row = this.slotRows(popup).nth(rowNumber)
 
     // dateStart
     await row.locator('div.dateEditor-container:first-child > div.min-w-28:first-child .hulyButton').click()
@@ -283,27 +378,43 @@ export class PlanningPage extends CalendarPage {
         .click()
     }
     // timeStart
-    const hours = slot.timeStart.substring(0, 2)
-    const minutes = slot.timeStart.substring(2, slot.timeStart.length)
-    await row.locator('div.dateEditor-container:nth-child(1) .hulyButton span.digit:first-child').focus()
-    await row
-      .locator('div.dateEditor-container:nth-child(1) .hulyButton span.digit:first-child')
-      .pressSequentially(hours, { delay: 100 })
-    await row.locator('div.dateEditor-container:nth-child(1) .hulyButton span.digit:last-child').focus()
-    await row
-      .locator('div.dateEditor-container:nth-child(1) .hulyButton span.digit:last-child')
-      .pressSequentially(minutes, { delay: 100 })
+    await this.typeTime(row.locator('div.dateEditor-container:nth-child(1) .hulyButton'), slot.timeStart)
 
-    // dateEnd + timeEnd
-    await row.locator('div.dateEditor-container.difference .hulyButton').click()
-    await this.fillSelectDatePopup(slot.dateEnd.day, slot.dateEnd.month, slot.dateEnd.year, slot.timeEnd)
+    // dateEnd + timeEnd. DateEditor opens the date+time popup from the time field only while the
+    // slot fits one day. Once it spans two days that click merely focuses the field and a separate
+    // date button appears, so date and time have to be set one by one.
+    const endContainer = row.locator('div.dateEditor-container.difference')
+    const endShown = endContainer.locator('.hulyButton > div:first-child')
+    const wanted = `${slot.timeEnd.substring(0, 2)} : ${slot.timeEnd.substring(2)}`
+
+    // The typing silently does nothing when it lands on a field that is still settling, and the
+    // slot then keeps its default end - a 07:00-13:30 slot instead of 07:00-08:00.
+    await expect(async () => {
+      if (((await endShown.first().textContent()) ?? '').trim() === wanted) return
+      const endDateButton = endContainer.locator('button.hulyButton')
+      if ((await endDateButton.count()) === 0) {
+        await endContainer.locator('div.hulyButton').click()
+        await this.fillSelectDatePopup(slot.dateEnd.day, slot.dateEnd.month, slot.dateEnd.year, slot.timeEnd)
+      } else {
+        await endDateButton.click()
+        // Picks the day within the month already shown - callers only ever use the current month.
+        // Add month navigation here if a test ever needs an end date outside it.
+        await this.page
+          .locator('div.popup div.calendar button.day')
+          .filter({ has: this.page.locator(`text="${slot.dateEnd.day}"`) })
+          .click()
+        const endDigits = endContainer.locator('div.hulyButton span.digit')
+        await endDigits.first().focus()
+        await endDigits.first().pressSequentially(slot.timeEnd.substring(0, 2), { delay: 100 })
+        await endDigits.last().focus()
+        await endDigits.last().pressSequentially(slot.timeEnd.substring(2), { delay: 100 })
+      }
+      await expect(endShown.first()).toHaveText(wanted, { timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
   }
 
   private async checkTimeSlot (rowNumber: number, slot: Slot, popup: boolean = false): Promise<void> {
-    const p = popup
-      ? 'div.popup div.horizontalBox div.end div.scroller-container div.box div.flex-between.min-w-full'
-      : 'div.hulyModal-container div.slots-content div.scroller-container div.box div.flex-between.min-w-full'
-    const row = this.page.locator(p).nth(rowNumber)
+    const row = this.slotRows(popup).nth(rowNumber)
     // timeStart
     await expect(
       row.locator('div.dateEditor-container:nth-child(1) .hulyButton:last-child div.datetime-input')
@@ -315,7 +426,13 @@ export class PlanningPage extends CalendarPage {
   }
 
   async openToDoByName (toDoName: string): Promise<void> {
-    await this.page.locator(`button.hulyToDoLine-container:has-text("${toDoName}")`).click()
+    const row = this.page.locator(`button.hulyToDoLine-container:has-text("${toDoName}")`).first()
+    // The list re-orders while other workers add slots, so a click can land on a neighbouring row
+    // and every later check then reads a different todo's card.
+    await retry(async () => {
+      await row.click()
+      await expect(this.textPanelToDoTitle()).toHaveValue(toDoName, { timeout: 3000 })
+    })
   }
 
   async checkToDoNotExist (toDoName: string): Promise<void> {
@@ -348,9 +465,10 @@ export class PlanningPage extends CalendarPage {
       await expect(this.textPanelVisible()).toHaveText(data.visible)
     }
     if (data.labels != null) {
-      await this.buttonPanelLabelFirst().click()
-      await this.checkPopupItem(data.labels)
-      await this.buttonPanelLabelFirst().click({ force: true })
+      // The label is rendered in the panel itself. Opening the tag popup to check it went through
+      // `div.hulyHeader-titleGroup > button:nth-child(2)`, and that index shifts once a label is
+      // attached, so the click landed on a different button and the popup never appeared.
+      await expect(this.panel().getByText(data.labels)).toBeVisible()
     }
     if (data.slots != null) {
       let index = 0
@@ -362,12 +480,17 @@ export class PlanningPage extends CalendarPage {
   }
 
   async deleteToDoByName (toDoName: string): Promise<void> {
-    await this.page.locator('button.hulyToDoLine-container div[class$="overflow-label"]', { hasText: toDoName }).hover()
-    await this.page
+    const line = this.page
       .locator('button.hulyToDoLine-container div[class$="overflow-label"]', { hasText: toDoName })
       .locator('xpath=..')
-      .locator('div.hulyToDoLine-statusPriority button.hulyToDoLine-dragbox')
-      .click({ button: 'right' })
+    const dragbox = line.locator('div.hulyToDoLine-statusPriority button.hulyToDoLine-dragbox')
+    // The dragbox is rendered only while the line is hovered, and a list re-render right after the
+    // hover drops it - the click then waits out the whole test timeout on an invisible button.
+    await retry(async () => {
+      await line.hover()
+      await expect(dragbox).toBeVisible({ timeout: 2000 })
+      await dragbox.click({ button: 'right', timeout: 5000 })
+    })
     await this.buttonMenuDelete().click()
     await this.pressYesDeletePopup(this.page)
   }
@@ -399,19 +522,55 @@ export class PlanningPage extends CalendarPage {
   }
 
   async checkToDoExistInCalendar (toDoName: string, count: number): Promise<void> {
-    await expect(
-      this.page.locator('div.calendar-element > div.event-container >> div[class*="label"]', { hasText: toDoName })
-    ).toHaveCount(count)
+    const events = this.page.locator('div.calendar-element > div.event-container >> div[class*="label"]', {
+      hasText: toDoName
+    })
+    // The calendar keeps a stale event after a slot change (UBERF-4273), and one reload is not
+    // always enough under parallel load - reload until the view catches up.
+    await expect(async () => {
+      await expect(events)
+        .toHaveCount(count, { timeout: 7000 })
+        .catch(async (err) => {
+          await this.page.reload()
+          throw err
+        })
+    }).toPass({ intervals: [1000, 2000, 3000], timeout: 45000 })
+  }
+
+  /**
+   * Drops every slot the open card has. These tests assert absolute counts on seeded todos, so a
+   * slot left by a previous run - or by a retry of the same test - makes them pass only once.
+   */
+  public async clearTimeSlots (): Promise<boolean> {
+    const rows = this.slotRows(false)
+    // count() does not wait, and a card that just opened reports zero slots.
+    let left = await waitStable(async () => await rows.count(), { stableFor: 300, interval: 100, timeout: 10000 })
+    const had = left > 0
+    while (left > 0) {
+      await this.deleteTimeSlot(0)
+      left--
+    }
+    await expect(rows).toHaveCount(0)
+    return had
   }
 
   public async deleteTimeSlot (rowNumber: number): Promise<void> {
-    const row = this.page
-      .locator(
-        'div.hulyModal-container div.slots-content div.scroller-container div.box div.flex-between.min-w-full button[data-id="btnDelete"]'
-      )
-      .nth(rowNumber)
-    await row.click()
+    const rows = this.page.locator(
+      'div.hulyModal-container div.slots-content div.scroller-container div.box div.flex-between.min-w-full'
+    )
+    // count() does not wait: read before the slots render it returns 0, and the check below then
+    // waits out its timeout on a count of -1 that can never arrive.
+    const before = await waitStable(async () => await rows.count(), {
+      stableFor: 300,
+      interval: 100,
+      timeout: 10000
+    })
+    expect(before).toBeGreaterThan(rowNumber)
+    await rows.nth(rowNumber).locator('button[data-id="btnDelete"]').click()
     await this.pressYesDeletePopup(this.page)
+    // The confirmation closes before the removal round trip lands, and the caller closes the card
+    // right after - a slot that never went away would only surface later, in the calendar.
+    await expect(rows).toHaveCount(before - 1)
   }
 
   public async checkTimeSlotEndDate (rowNumber: number, dateEnd: string): Promise<void> {

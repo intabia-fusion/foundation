@@ -45,6 +45,13 @@ function resolvePluginList(plugins, cwd) {
   return result
 }
 
+function clearParserCaches(cwd) {
+  try {
+    const parser = resolvePluginFromCwd('@typescript-eslint/parser', cwd)
+    if (parser && typeof parser.clearCaches === 'function') parser.clearCaches()
+  } catch { /* parser layout differs across versions; recycling still bounds memory */ }
+}
+
 function collectSourceFiles(dir, result = []) {
   if (!existsSync(dir)) return result
   for (const entry of readdirSync(dir)) {
@@ -161,6 +168,11 @@ async function formatPackage(cwd, options = {}) {
   if (typeof prettier.clearConfigCache === 'function') {
     prettier.clearConfigCache()
   }
+
+  // @typescript-eslint/parser keeps every Program it built in a module-level cache.
+  // Dropping it here frees the same memory a worker respawn did, without paying for
+  // a new thread plus a fresh require of eslint/prettier/typescript on every 2nd package.
+  clearParserCaches(cwd)
 
   return {
     success: errorCount === 0 && errors.length === 0,

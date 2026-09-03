@@ -38,6 +38,7 @@ import core, {
   type Space,
   systemAccountUuid,
   type Tx,
+  type TxApplyIf,
   type TxCreateDoc,
   type TxCUD,
   TxProcessor,
@@ -53,6 +54,7 @@ import {
   type ServerFindOptions,
   type TxMiddlewareResult
 } from '@hcengineering/server-core'
+import platform, { PlatformError, Severity, Status } from '@hcengineering/platform'
 import contact from '@hcengineering/contact'
 import { isOwner, isSystem } from './utils'
 
@@ -70,6 +72,9 @@ interface SpaceInfo {
 /**
  * @public
  */
+
+const guestRoles = new Set<AccountRole>([AccountRole.Guest, AccountRole.DocGuest, AccountRole.ReadOnlyGuest])
+
 export class SpaceSecurityMiddleware extends BaseMiddleware implements Middleware {
   private readonly spacesMap = new Map<Ref<Space>, SpaceInfo>()
   private readonly systemSpaces = new Set<Ref<Space>>()
@@ -95,6 +100,17 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
     next: Middleware | undefined
   ): Promise<SpaceSecurityMiddleware> {
     return new SpaceSecurityMiddleware(context, next)
+  }
+
+  /**
+   * Write-side counterpart of addSecurity's read predicate (postgres/storage.ts addSecurity):
+   * member of the space, or the space is public/system.
+   */
+  canWriteSpace (space: Ref<Space>, account: AccountUuid): boolean {
+    if (space === core.space.Space || this.systemSpaces.has(space)) return true
+    const info = this.spacesMap.get(space)
+    if (info === undefined) return false
+    return !info.private || info.members.has(account)
   }
 
   private addSpace (
@@ -561,8 +577,31 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
     }
   }
 
+  /** Same bypasses addSecurity uses for reads. Owner is not one of them: it only skips the filter for the Space domain. */
+  // Callers must have awaited init(): both tx() and handleBroadcast() do.
+  private checkWriteAccess (ctx: MeasureContext<SessionData>, cudTx: TxCUD<Doc>): void {
+    if (cudTx.space === core.space.DerivedTx) return
+    const account = ctx.contextData.account
+    if (account.uuid === systemAccountUuid || account.role === AccountRole.Admin) return
+    // Guests are judged by GuestPermissionsMiddleware, which knows the collaborator rules addSecurity
+    // mirrors for reads; membership alone would cut off collaborators who are not space members.
+    if (guestRoles.has(account.role)) return
+    if (!this.canWriteSpace(cudTx.objectSpace, account.uuid)) {
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    }
+  }
+
   private async processTx (ctx: MeasureContext<SessionData>, tx: Tx): Promise<void> {
     const h = this.context.hierarchy
+    // ApplyTxMiddleware unwraps these downstream, so the inner txes never come back through here.
+    if (tx._class === core.class.TxApplyIf) {
+      const processed: Set<Ref<Tx>> | undefined = ctx.contextData.contextCache.get('processed')
+      for (const t of (tx as TxApplyIf).txes) {
+        processed?.add(t._id)
+        await this.processTx(ctx, t)
+      }
+      return
+    }
     if (TxProcessor.isExtendsCUD(tx._class)) {
       const cudTx = tx as TxCUD<Doc>
       const isSpace = h.isDerived(cudTx.objectClass, core.class.Space)
@@ -570,6 +609,7 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
         await this.checkSpacePermissions(ctx, cudTx as TxCUD<Space>)
         await this.handleTx(ctx, cudTx as TxCUD<Space>)
       } else {
+        this.checkWriteAccess(ctx, cudTx)
         await this.handeCollaborator(ctx, cudTx as TxCUD<Collaborator>)
       }
     }
@@ -587,6 +627,7 @@ export class SpaceSecurityMiddleware extends BaseMiddleware implements Middlewar
   }
 
   override async handleBroadcast (ctx: MeasureContext<SessionData>): Promise<void> {
+    await this.init(ctx)
     const processed: Set<Ref<Tx>> = ctx.contextData.contextCache.get('processed') ?? new Set<Ref<Tx>>()
     ctx.contextData.contextCache.set('processed', processed)
     for (const txd of ctx.contextData.broadcast.txes) {

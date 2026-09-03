@@ -1,8 +1,6 @@
-import { test } from '@playwright/test'
-import { PlatformURI, generateId, generateTestData } from '../utils'
+import { test } from '../fixtures'
+import { createAccountAndWorkspace, generateId, generateTestData } from '../utils'
 import { LeftSideMenuPage } from '../model/left-side-menu-page'
-import { ApiEndpoint } from '../API/Api'
-import { LoginPage } from '../model/login-page'
 import { faker } from '@faker-js/faker'
 import { WorkspaceSettingsPage, ButtonType } from '../model/workspace/workspace-settings-page'
 import { UserProfilePage } from '../model/profile/user-profile-page'
@@ -12,11 +10,9 @@ import { NewCompany } from '../model/recruiting/types'
 import { NavigationMenuPage } from '../model/recruiting/navigation-menu-page'
 import { CompaniesPage } from '../model/recruiting/companies-page'
 import { CompanyDetailsPage } from '../model/recruiting/company-details-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
 
 test.describe.skip('Custom attributes tests', () => {
   let leftSideMenuPage: LeftSideMenuPage
-  let loginPage: LoginPage
   let userProfilePage: UserProfilePage
   let workspaceSettingsPage: WorkspaceSettingsPage
   let customAttributesPage: CustomAttributesPage
@@ -24,13 +20,11 @@ test.describe.skip('Custom attributes tests', () => {
   let navigationMenuPage: NavigationMenuPage
   let companyDetailsPage: CompanyDetailsPage
   let companiesPage: CompaniesPage
-  let api: ApiEndpoint
   let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
 
   test.beforeEach(async ({ page, request }) => {
     data = generateTestData()
     leftSideMenuPage = new LeftSideMenuPage(page)
-    loginPage = new LoginPage(page)
     userProfilePage = new UserProfilePage(page)
     workspaceSettingsPage = new WorkspaceSettingsPage(page)
     customAttributesPage = new CustomAttributesPage(page)
@@ -38,13 +32,9 @@ test.describe.skip('Custom attributes tests', () => {
     navigationMenuPage = new NavigationMenuPage(page)
     companiesPage = new CompaniesPage(page)
     companyDetailsPage = new CompanyDetailsPage(page)
-    api = new ApiEndpoint(request)
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-    await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    await (await page.goto(`${PlatformURI}`))?.finished()
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
+    // Straight into the workspace from the account token: the login form plus the workspace
+    // picker are three page loads and cost about a second per test.
+    await createAccountAndWorkspace(page, request, data)
     // await (await page.goto(`${PlatformURI}/workbench/${data.workspaceName}`))?.finished()
   })
 

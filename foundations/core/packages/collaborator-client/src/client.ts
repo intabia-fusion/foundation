@@ -72,11 +72,25 @@ export interface GetVersionContentResponse {
 }
 
 /** @public */
+export interface CollaboratorClientOptions {
+  silent?: boolean
+}
+
+/** @public */
 export interface CollaboratorClient {
   getMarkup: (document: CollaborativeDoc, source?: Ref<Blob> | null) => Promise<Markup>
-  createMarkup: (document: CollaborativeDoc, markup: Markup) => Promise<MarkupBlobRef>
-  updateMarkup: (document: CollaborativeDoc, markup: Markup) => Promise<void>
-  copyContent: (source: CollaborativeDoc, target: CollaborativeDoc) => Promise<void>
+  createMarkup: (
+    document: CollaborativeDoc,
+    markup: Markup,
+    options?: CollaboratorClientOptions
+  ) => Promise<MarkupBlobRef>
+  updateMarkup: (document: CollaborativeDoc, markup: Markup, options?: CollaboratorClientOptions) => Promise<void>
+  copyContent: (
+    source: CollaborativeDoc,
+    target: CollaborativeDoc,
+    content?: Ref<Blob> | null,
+    options?: CollaboratorClientOptions
+  ) => Promise<void>
   getVersions: (document: CollaborativeDoc) => Promise<DocumentVersion[]>
   getVersionContent: (document: CollaborativeDoc, blobId: MarkupBlobRef) => Promise<Markup>
 }
@@ -94,11 +108,29 @@ class CollaboratorClientImpl implements CollaboratorClient {
     private readonly collaboratorUrl: string
   ) {}
 
-  private async rpc<P, R>(document: CollaborativeDoc, method: string, payload: P): Promise<R> {
+  private async rpc<P, R>(
+    document: CollaborativeDoc,
+    method: string,
+    payload: P,
+    query?: Record<string, string | boolean | number>
+  ): Promise<R> {
     const workspace = this.workspace
     const documentId = encodeDocumentId(workspace, document)
 
-    const url = concatLink(this.collaboratorUrl, `/rpc/${encodeURIComponent(documentId)}`)
+    let path = `/rpc/${encodeURIComponent(documentId)}`
+    if (query !== undefined && Object.keys(query).length > 0) {
+      const searchParams = new URLSearchParams()
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined) {
+          searchParams.append(key, String(value))
+        }
+      }
+      const queryString = searchParams.toString()
+      if (queryString.length > 0) {
+        path += `?${queryString}`
+      }
+    }
+    const url = concatLink(this.collaboratorUrl, path)
 
     const res = await fetch(url, {
       method: 'POST',
@@ -138,15 +170,26 @@ class CollaboratorClientImpl implements CollaboratorClient {
     return res.content[document.objectAttr] ?? ''
   }
 
-  async createMarkup (document: CollaborativeDoc, markup: Markup): Promise<MarkupBlobRef> {
+  async createMarkup (
+    document: CollaborativeDoc,
+    markup: Markup,
+    options?: CollaboratorClientOptions
+  ): Promise<MarkupBlobRef> {
     const content = {
       [document.objectAttr]: markup
     }
 
+    const query = options?.silent === true ? { silent: true } : undefined
+
     const res = await retry(
       3,
       async () => {
-        return await this.rpc<CreateContentRequest, CreateContentResponse>(document, 'createContent', { content })
+        return await this.rpc<CreateContentRequest, CreateContentResponse>(
+          document,
+          'createContent',
+          { content },
+          query
+        )
       },
       50
     )
@@ -154,15 +197,17 @@ class CollaboratorClientImpl implements CollaboratorClient {
     return res.content[document.objectAttr]
   }
 
-  async updateMarkup (document: CollaborativeDoc, markup: Markup): Promise<void> {
+  async updateMarkup (document: CollaborativeDoc, markup: Markup, options?: CollaboratorClientOptions): Promise<void> {
     const content = {
       [document.objectAttr]: markup
     }
 
+    const query = options?.silent === true ? { silent: true } : undefined
+
     await retry(
       3,
       async () => {
-        await this.rpc<UpdateContentRequest, UpdateContentResponse>(document, 'updateContent', { content })
+        await this.rpc<UpdateContentRequest, UpdateContentResponse>(document, 'updateContent', { content }, query)
       },
       50
     )
@@ -194,9 +239,14 @@ class CollaboratorClientImpl implements CollaboratorClient {
     return res.content
   }
 
-  async copyContent (source: CollaborativeDoc, target: CollaborativeDoc, content?: Ref<Blob>): Promise<void> {
+  async copyContent (
+    source: CollaborativeDoc,
+    target: CollaborativeDoc,
+    content?: Ref<Blob> | null,
+    options?: CollaboratorClientOptions
+  ): Promise<void> {
     const markup = await this.getMarkup(source, content)
-    await this.updateMarkup(target, markup)
+    await this.updateMarkup(target, markup, options)
   }
 }
 

@@ -141,6 +141,8 @@
     "@hcengineering/server-tags-resources": "workspace:^0.7.0",
     "@hcengineering/server-task": "workspace:^0.7.0",
     "@hcengineering/server-task-resources": "workspace:^0.7.0",
+    "@hcengineering/server-workflow": "workspace:^0.7.0",
+    "@hcengineering/server-workflow-resources": "workspace:^0.7.0",
     "@hcengineering/server-telegram": "workspace:^0.7.0",
     "@hcengineering/server-telegram-resources": "workspace:^0.7.0",
     "@hcengineering/server-token": "workspace:^0.7.17",

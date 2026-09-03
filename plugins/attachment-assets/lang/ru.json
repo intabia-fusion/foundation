@@ -54,6 +54,8 @@
     "RemovedAttachment": "Удалил(а) вложение",
     "ContentType": "Тип контента",
     "OpenInWindow": "Открыть в окне",
-    "Embeddings": "Вложения"
+    "Embeddings": "Вложения",
+    "Transcribing": "Распознавание...",
+    "TranscriptionFailed": "Не удалось распознать"
   }
 }

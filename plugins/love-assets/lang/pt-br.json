@@ -159,6 +159,9 @@
     "GroupByStatus": "Por status",
     "GroupByDate": "Por data",
     "SpeakingWhileMuted": "Seu microfone está mudo - os outros não te ouvem",
-    "SpeakingWhileMutedAlert": "Avisar quando eu falar com o microfone mudo"
+    "SpeakingWhileMutedAlert": "Avisar quando eu falar com o microfone mudo",
+    "SwitchWorkspaceInMeeting": "Você está em uma reunião",
+    "SwitchWorkspaceLeaveMeeting": "Trocar de espaço de trabalho vai desconectar você da reunião atual.",
+    "SwitchWorkspaceEndsMeeting": "Este é o seu escritório: trocar de espaço de trabalho vai desconectar você e encerrar a reunião para todos."
   }
 }

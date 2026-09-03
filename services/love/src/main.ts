@@ -18,8 +18,19 @@ import {
   type AccountClient
 } from '@hcengineering/account-client'
 import { createOpenTelemetryMetricsContext, SplitLogger } from '@hcengineering/analytics-service'
-import { AccountRole, MeasureContext, newMetrics, systemAccountUuid, WorkspaceUuid } from '@hcengineering/core'
 import {
+  AccountRole,
+  type Doc,
+  MeasureContext,
+  newMetrics,
+  systemAccountUuid,
+  type Tx,
+  type TxCUD,
+  WorkspaceUuid
+} from '@hcengineering/core'
+import {
+  loveId,
+  MeetingStatus,
   parseRoomName,
   ParticipantMetadata,
   queueEvents,
@@ -27,13 +38,21 @@ import {
   QueueMeetingMessage,
   QueueMeetingUpdateMetadataMessage,
   QueueWebhookMeetingMessage,
-  RoomMetadata
+  RoomMetadata,
+  TranscriptionState
 } from '@hcengineering/love'
 import { setMetadata } from '@hcengineering/platform'
 import serverClient from '@hcengineering/server-client'
 
 import { getPlatformQueue } from '@hcengineering/kafka'
-import { initStatisticsContext, QueueTopic, StorageConfig, StorageConfiguration } from '@hcengineering/server-core'
+import {
+  initStatisticsContext,
+  QueueTopic,
+  QueueWorkspaceEvent,
+  type QueueWorkspaceMessage,
+  StorageConfig,
+  StorageConfiguration
+} from '@hcengineering/server-core'
 import { storageConfigFromEnv } from '@hcengineering/server-storage'
 import serverToken, { decodeToken, generateToken } from '@hcengineering/server-token'
 import cors from 'cors'
@@ -54,7 +73,7 @@ import { RecordingProcessor } from './recordings'
 import { WebhookProcessor } from './webhook'
 import { WorkspaceClient } from './workspaceClient'
 import { GuestManager } from './guests'
-import { createToken, decodeMeetingToken, extractToken, getRoomName, parseMetadata } from './utils'
+import { createToken, decodeMeetingToken, extractToken, getRoomName, updateMetadata } from './utils'
 import { setBillingProducer, type BillingMessage } from './queue'
 /**
  * Recursively converts all BigInt values in an object to strings.
@@ -78,6 +97,13 @@ function convertBigIntToString (obj: unknown): unknown {
     return result
   }
   return obj
+}
+
+const ACTIVE_WORKSPACES_SYNC_MS = 5 * 60 * 1000
+
+// Prefix match covers every love class and mixin (loveId === 'love'), including future ones.
+function isLoveTx (tx: Tx): boolean {
+  return (tx as TxCUD<Doc>).objectClass?.startsWith(`${loveId}:`) ?? false
 }
 
 function getAccountClient (token?: string): AccountClient {
@@ -127,7 +153,9 @@ export const main = async (): Promise<void> => {
   app.use(express.json())
 
   const roomClient = new RoomServiceClient(config.LiveKitHost, config.ApiKey, config.ApiSecret)
-  const egressClient = new EgressClient(config.LiveKitHost, config.ApiKey, config.ApiSecret)
+  const egressClient = new EgressClient(config.LiveKitHost, config.ApiKey, config.ApiSecret, {
+    requestTimeout: config.EgressRequestTimeoutSec
+  })
 
   const eventProducer = queue.getProducer<QueueMeetingMessage>(ctx, QueueTopic.LoveQueue)
   const billingProducer = queue.getProducer<BillingMessage>(ctx, QueueTopic.BillingUsage)
@@ -246,6 +274,8 @@ export const main = async (): Promise<void> => {
         return
       }
 
+      // A webhook means the stand is not idle any more - drop the polling back-off.
+      pollingService.wakeUp()
       await eventProducer.send(ctx, roomName.workspace, [queueEvents.webhook(roomName.meetingId, event)])
     } catch (e) {
       ctx.error('Failed to process webhook event', { error: e })
@@ -275,6 +305,13 @@ export const main = async (): Promise<void> => {
       if (accountUuid !== systemAccountUuid) {
         const wsClient = await WorkspaceClient.create(workspaceId, ctx)
         const meetingDoc = await wsClient.findMeetingById(meetingId)
+        // A token for a Finished meeting recreates its LiveKit room, and the client ends up
+        // connected to a room the `meetings` store filters out - no UI state at all.
+        if (meetingDoc?.status === MeetingStatus.Finished) {
+          ctx.warn('Token requested for a finished meeting', { meetingId, account: accountUuid })
+          res.status(409).send({ error: 'Meeting is finished' })
+          return
+        }
         if (meetingDoc !== undefined && meetingDoc.private && !meetingDoc.members.includes(accountUuid)) {
           // Owners bypass private-meeting membership; rechecked here in case the client's self-add races or fails.
           let isWorkspaceOwner = false
@@ -302,22 +339,25 @@ export const main = async (): Promise<void> => {
 
     const _id = req.body._id
     const participantName = req.body.participantName
-    const x = req.body.x ?? -1
-    const y = req.body.y ?? -1
+    // No sentinel: a numeric fallback reaches getFreeRoomPlace as a real seat preference.
+    const x = typeof req.body.x === 'number' ? req.body.x : undefined
+    const y = typeof req.body.y === 'number' ? req.body.y : undefined
     const roomName = getRoomName(workspaceId, meetingId)
 
     const room = await roomClient.listRooms([roomName])
     // TODO: Retry creation
     if (room === undefined || room.length === 0) {
       ctx.info('Creating room', { roomName })
+      const roomMetadata: RoomMetadata = {
+        projectKey: config.LiveKitProject,
+        workspaceId,
+        meetingId
+      }
       try {
         await roomClient.createRoom({
-          metadata: JSON.stringify({
-            projectKey: config.LiveKitProject,
-            workspaceId,
-            meetingId
-          } satisfies RoomMetadata),
-          departureTimeout: 3,
+          metadata: JSON.stringify(roomMetadata),
+          // A page refresh or a short network drop must not read as leaving the meeting.
+          departureTimeout: config.DepartureTimeoutSec,
           name: roomName,
           agents: config.Agents.map((it) => new RoomAgentDispatch({ agentName: it }))
         })
@@ -383,13 +423,19 @@ export const main = async (): Promise<void> => {
         return
       }
 
-      await recordingProcessor.startRecording(
+      const verdict = await recordingProcessor.startRecording(
         roomName,
         workspaceId,
         meetingId,
         wsLoginInfo,
-        req.body.name ?? 'recording'
+        // The client sends `title`; `name` stays for older callers and the sanity tests.
+        req.body.title ?? req.body.name ?? 'recording'
       )
+      if (!verdict.started) {
+        // 409 so the second person to press the button sees the refusal instead of a fake success.
+        res.status(verdict.reason === 'no-room' ? 404 : 409).send({ error: verdict.reason })
+        return
+      }
       res.send()
     } catch (e) {
       console.error(e)
@@ -407,7 +453,11 @@ export const main = async (): Promise<void> => {
     const roomName = getRoomName(workspaceId, meetingId)
 
     try {
-      void recordingProcessor.stopRecording(roomName, workspaceId, meetingId)
+      const verdict = await recordingProcessor.stopRecording(roomName, workspaceId, meetingId)
+      if (!verdict.stopped) {
+        res.status(verdict.reason === 'no-room' ? 404 : 409).send({ error: verdict.reason })
+        return
+      }
       res.send()
     } catch (e) {
       console.error(e)
@@ -443,6 +493,14 @@ export const main = async (): Promise<void> => {
 
       const metadata = language != null ? { transcription, language } : { transcription }
       await eventProducer.send(ctx, workspaceId, [queueEvents.updateMetadata(meetingId, roomName, metadata)])
+
+      // The UI reads this document; without a deployed ai-bot nothing else would flip it.
+      await (
+        await WorkspaceClient.create(workspaceId, ctx)
+      ).updateMeetingTranscriptionState(
+        meetingId,
+        transcription === true ? TranscriptionState.Transcribing : TranscriptionState.Finished
+      )
 
       // Start/stop audio recording alongside transcription
       if (transcription === true) {
@@ -492,23 +550,34 @@ export const main = async (): Promise<void> => {
     roomClient,
     {
       intervalMs: config.PollingIntervalMs,
-      projectKey: config.LiveKitProject
+      projectKey: config.LiveKitProject,
+      ownerRejoinGraceMs: config.OwnerRejoinGraceSec * 1000
     },
-    billingProducer
+    billingProducer,
+    egressClient
   )
   pollingService.start()
 
-  const workspaceConsumer = queue.createConsumer(ctx, QueueTopic.Workspace, 'love-client', async (ctx, msg, queue) => {
-    pollingService.addWorkspaceToCheck(msg.workspace)
-  })
+  const workspaceConsumer = queue.createConsumer<QueueWorkspaceMessage>(
+    ctx,
+    QueueTopic.Workspace,
+    'love-client',
+    async (ctx, msg, queue) => {
+      // Checking back on 'down' reopens the workspace, which closes and re-sends 'down' - endless loop.
+      if (msg.value?.type === QueueWorkspaceEvent.Down) return
+      pollingService.addWorkspaceToCheck(msg.workspace)
+    }
+  )
 
-  const workspaceTxConsumer = queue.createBatchConsumer(
+  const workspaceTxConsumer = queue.createBatchConsumer<Tx>(
     ctx,
     QueueTopic.Tx,
     'love-client',
     async (ctx, msgs, queue) => {
       const workspaces = new Set<WorkspaceUuid>()
       for (const msg of msgs) {
+        // Without the filter any tx in any workspace makes the transactor build a full pipeline.
+        if (!isLoveTx(msg.value)) continue
         workspaces.add(msg.workspace)
       }
       for (const ws of workspaces) {
@@ -517,6 +586,25 @@ export const main = async (): Promise<void> => {
     },
     { batchSize: 500, batchTimeout: 200 }
   )
+
+  // Workspace events only fire on open/close, so a meeting hung before a love restart in an
+  // already-open workspace would never be seen. These workspaces are open anyway - no extra pipelines.
+  const syncActiveWorkspaces = async (): Promise<void> => {
+    try {
+      const token = generateToken(systemAccountUuid, undefined, { service: 'love' })
+      const visitedDays = ACTIVE_WORKSPACES_SYNC_MS / (24 * 60 * 60 * 1000)
+      const list = await getAccountClient(token).listWorkspaces(null, 'active', visitedDays)
+      for (const ws of list) {
+        pollingService.addWorkspaceToCheck(ws.uuid)
+      }
+    } catch (err: any) {
+      ctx.error('[love] failed to list recently visited workspaces', { error: err?.message ?? String(err) })
+    }
+  }
+  void syncActiveWorkspaces()
+  const activeWorkspacesSyncHandle = setInterval(() => {
+    void syncActiveWorkspaces()
+  }, ACTIVE_WORKSPACES_SYNC_MS)
 
   ctx.info('LiveKit polling service started', {
     intervalMs: config.PollingIntervalMs,
@@ -528,6 +616,7 @@ export const main = async (): Promise<void> => {
   })
 
   const shutdown = (): void => {
+    clearInterval(activeWorkspacesSyncHandle)
     void workspaceConsumer.close()
     void workspaceTxConsumer.close()
     void eventConsumer.close()
@@ -576,20 +665,4 @@ const checkRecordAvailable = async (
     s3storageConfig: s3storageConfig?.kind
   })
   return false
-}
-
-async function updateMetadata (
-  ctx: MeasureContext,
-  roomClient: RoomServiceClient,
-  roomName: string,
-  metadata: Partial<RoomMetadata>
-): Promise<void> {
-  const room = (await roomClient.listRooms([roomName]))[0]
-  if (room === undefined) {
-    ctx.warn(`Cannot update metadata: room "${roomName}" does not exist`)
-    return
-  }
-  const currentMetadata = parseMetadata(room.metadata)
-
-  await roomClient.updateRoomMetadata(roomName, JSON.stringify({ ...currentMetadata, ...metadata }))
 }

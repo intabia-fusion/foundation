@@ -111,13 +111,14 @@ export async function start (ctx: MeasureContext, config: Config, storageAdapter
 
   const rpcCtx = ctx.newChild('rpc', {}, { span: false })
 
-  const getContext = async (rawToken: string, token: Token): Promise<Context> => {
+  const getContext = async (rawToken: string, token: Token, silent?: boolean): Promise<Context> => {
     const wsIds = await getWorkspaceIds(rawToken)
 
     return {
       connectionId: generateId(),
       wsIds,
-      clientFactory: simpleClientFactory(token)
+      clientFactory: simpleClientFactory(token),
+      ...(silent === true ? { meta: { silent: true } } : {})
     }
   }
 
@@ -188,7 +189,8 @@ export async function start (ctx: MeasureContext, config: Config, storageAdapter
       return
     }
 
-    const context = await getContext(rawToken, token)
+    const isSilent = req.query.silent === 'true'
+    const context = await getContext(rawToken, token, isSilent)
 
     rpcCtx.info('rpc', { method: request.method, connectionId: context.connectionId, mode: token.extra?.mode ?? '' })
     await rpcCtx.with(

@@ -1,5 +1,6 @@
 //
 // Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 
 // Load sass-quiet FIRST to install stderr filter
@@ -9,6 +10,7 @@ const Dotenv = require('dotenv-webpack')
 const path = require('path')
 const CompressionPlugin = require('compression-webpack-plugin')
 const DefinePlugin = require('webpack').DefinePlugin
+const ContextReplacementPlugin = require('webpack').ContextReplacementPlugin
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const CopyPlugin = require('copy-webpack-plugin')
 
@@ -160,7 +162,13 @@ module.exports = [
     },
     optimization: prod
       ? {
-          minimize: true
+          minimize: true,
+          minimizer: [
+            new EsbuildPlugin({
+              target: 'es2021',
+              minify: true
+            })
+          ]
         }
       : {
           minimize: false,
@@ -348,6 +356,7 @@ module.exports = [
       new DefinePlugin({
         'process.env.CLIENT_TYPE': JSON.stringify(process.env.CLIENT_TYPE)
       }),
+      new ContextReplacementPlugin(/emojibase-data/, /^\.\/(en|ru|de|es|es-mx|fr|it|ja|pt|zh)(\/.*)?\.json$/),
       ...(doValidate ? [new ForkTsCheckerWebpackPlugin()] : [])
     ],
     watchOptions: {

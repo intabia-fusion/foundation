@@ -54,6 +54,8 @@
     "RemovedAttachment": "移除附件",
     "ContentType": "内容类型",
     "OpenInWindow": "在新窗口中打开",
-    "Embeddings": "嵌入"
+    "Embeddings": "嵌入",
+    "Transcribing": "转写中...",
+    "TranscriptionFailed": "转写失败"
   }
 }

@@ -17,7 +17,7 @@
     "_phase:bundle": "rushx bundle",
     "_phase:docker-build": "rushx docker:build",
     "_phase:docker-staging": "rushx docker:staging",
-    "bundle": "node ../../../common/scripts/esbuild.js --keep-names=true",
+    "bundle": "node ../../../common/scripts/esbuild.js --sourcemap=external --keep-names=true",
     "docker:build": "node ../../../common/scripts/run_in_bash.js ../../../common/scripts/docker_build.sh intabiafusion/print",
     "docker:tbuild": "docker build -t intabiafusion/print . --platform=linux/amd64 && ../../../common/scripts/docker_tag_push.sh intabiafusion/print",
     "docker:abuild": "docker build -t intabiafusion/print . --platform=linux/arm64 && ../../../common/scripts/docker_tag_push.sh intabiafusion/print",

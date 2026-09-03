@@ -9,8 +9,8 @@ export REGION_CONFIG=./region-config.yaml
 export ACCOUNT_DB_URL=postgresql://postgres:postgres@localhost:5433/postgres
 export ELASTIC_URL=http://localhost:9201
 export SERVER_SECRET=secret
-# Europe region - pure PostgreSQL
-export DB_URL=postgres://postgres:postgres@localhost:5433/postgres
+# Europe region
+export DB_URL=postgres://postgres:postgres@localhost:5433/region_europe
 
 export REGION_INFO="|America;europe|" # Europe without name will not be available for creation of new workspaces.
 export QUEUE_CONFIG=localhost:19093

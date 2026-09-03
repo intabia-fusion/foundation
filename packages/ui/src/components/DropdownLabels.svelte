@@ -52,7 +52,7 @@
   let opened: boolean = false
 
   $: selectedItem = multiselect
-    ? (items ?? []).filter((p) => selected?.includes(p.id))
+    ? (items ?? []).filter((p) => (Array.isArray(selected) ? selected?.includes(p.id) : selected === p.id))
     : (items ?? []).find((x) => x.id === selected)
   $: if (autoSelect && selected === undefined && items?.[0] !== undefined) {
     selected = multiselect ? [items?.[0]?.id] : items?.[0]?.id

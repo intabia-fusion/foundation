@@ -23,6 +23,7 @@ import receiptTemplates from './templates/receipt'
 import dunningTemplates from './templates/dunning'
 import serviceTemplate from './templates/service'
 import chargeDescriptionTemplates from './templates/charge-description'
+import upcomingTemplates from './templates/upcoming'
 
 const MAIL_TIMEOUT_MS = 10_000
 
@@ -56,10 +57,21 @@ function fill (str: string, params: Record<string, string>): string {
   return str.replace(/\{(\w+)\}/g, (m, key) => params[key] ?? m)
 }
 
-// Localized copy for both email families, kept as data in ./templates/* (bundled by esbuild).
+// Escape user-controlled text before it goes into email HTML.
+function escapeHtml (str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// Localized copy for all email families, kept as data in ./templates/* (bundled by esbuild).
 const RECEIPT = receiptTemplates as Record<Lang, (typeof receiptTemplates)['ru']>
 const DUNNING = dunningTemplates as Record<Lang, (typeof dunningTemplates)['ru']>
 const SERVICE = serviceTemplate
+const UPCOMING = upcomingTemplates as Record<Lang, (typeof upcomingTemplates)['ru']>
 
 // Render a payment-failed email from the dunning template. Markup + retry link stay here; copy is data.
 function buildDunning (reason: PaymentFailedReason, plan: string, url: string, lang: Lang): MailMessage {
@@ -283,7 +295,7 @@ export async function notifyPaymentFailed (
     // Team inbox is Russian-only: resolve the plan label and the reason enum to Russian.
     const planRu = await getPlanLabel(config, sub.plan, sub.type, DEFAULT_LANG)
     const reasonRu = SERVICE.reason[reason]
-    const typeRu = SERVICE.type[sub.type] ?? sub.type
+    const typeRu = SERVICE.type[sub.type as keyof typeof SERVICE.type] ?? sub.type
     const l = SERVICE.labels
     // Decline reason from the last charge, so the team sees why (card code / our-side receipt block).
     const code = sub.providerData?.lastChargeErrorCode as string | undefined
@@ -417,14 +429,14 @@ export async function notifyPaymentSucceeded (
     // Team inbox is Russian-only: resolve the plan label and the kind enum to Russian.
     const planRu = await getPlanLabel(config, sub.plan, sub.type, DEFAULT_LANG)
     const kindRu = SERVICE.kind[kind]
-    const typeRu = SERVICE.type[sub.type] ?? sub.type
+    const typeRu = SERVICE.type[sub.type as keyof typeof SERVICE.type] ?? sub.type
     const l = SERVICE.labels
     const lines = [
       `${l.workspace}: ${workspace}`,
       `${l.plan}: ${planRu} (${typeRu})`,
       `${l.charged}: ${formatAmount(chargedAmount ?? sub.amount)}`,
       // Showing both upgrade delta and the recurring price for the team.
-      ...(chargedAmount !== undefined && chargedAmount !== sub.amount
+      ...(chargedAmount !== undefined && sub.amount != null && chargedAmount !== Number(sub.amount)
         ? [`${l.regularPrice}: ${formatAmount(sub.amount)}`]
         : []),
       `${l.kind}: ${kindRu}`,
@@ -443,6 +455,123 @@ export async function notifyPaymentSucceeded (
         ctx.error('Billing service email error', { to, err: err?.message ?? String(err) })
       }
     }
+  }
+}
+
+/**
+ * Which upcoming-expiry reminder to send, `noticeDays` before the date.
+ * - 'recurrent': a recurrent subscription will be charged for the next period.
+ * - 'trial': the trial period runs out (workspace falls back to the free plan).
+ * - 'oneoff': a one-off paid period runs out, nothing will be charged.
+ * - 'canceled': the user canceled; access is kept until the end of the paid period.
+ */
+export type UpcomingKind = 'recurrent' | 'trial' | 'oneoff' | 'canceled'
+
+interface UpcomingFields {
+  workspace: string // workspace display name, '' when it could not be resolved (hides the row)
+  workspaceUrl: string // link to the workspace, '' when unknown (renders the name as plain text)
+  plan: string // localized plan label
+  amount: string // formatted upcoming charge, e.g. "990.00 ₽"; '' hides the row (trial/oneoff/canceled)
+  dueDate: string // the charge / expiry date, e.g. "21.09.2026"
+  paymentMethod: string // e.g. "Карта •••• 0777"; '' when unknown (hides the row)
+  url: string
+  supportText: string // pre-rendered support contacts block (plain text), '' when none
+  supportHtml: string // pre-rendered support contacts block (html), '' when none
+}
+
+// Render an upcoming-expiry reminder.
+function buildUpcoming (kind: UpcomingKind, family: 'tier' | 'package', f: UpcomingFields, lang: Lang): MailMessage {
+  const t = UPCOMING[lang]
+  const l = t.labels
+  const p = { plan: f.plan, dueDate: f.dueDate }
+  const lead = fill(t.lead[kind][family], p)
+  const leadHtml = fill(t.lead[kind][family], { plan: `<b>${f.plan}</b>`, dueDate: `<b>${f.dueDate}</b>` })
+  const note = kind === 'recurrent' ? t.note.recurrent : t.note[kind][family]
+  // [label, text value, html value?] — html falls back to the escaped text value when absent.
+  type Row = [string, string, string?]
+  // The workspace name is the link text; plain text keeps the URL alongside it, since it cannot click.
+  const workspaceRow: Row[] =
+    f.workspace === ''
+      ? []
+      : [
+          [
+            l.workspace,
+            f.workspaceUrl === '' ? f.workspace : `${f.workspace} (${f.workspaceUrl})`,
+            f.workspaceUrl === ''
+              ? escapeHtml(f.workspace)
+              : `<a href="${escapeHtml(f.workspaceUrl)}">${escapeHtml(f.workspace)}</a>`
+          ]
+        ]
+  const rows: Row[] = [
+    ...workspaceRow,
+    [family === 'package' ? l.package : l.plan, f.plan],
+    ...(f.amount !== '' ? ([[l.amount, f.amount]] as Row[]) : []),
+    [kind === 'recurrent' ? l.dueDate : l.endDate, f.dueDate],
+    ...(f.paymentMethod !== '' ? ([[l.paymentMethod, f.paymentMethod]] as Row[]) : [])
+  ]
+  return {
+    subject: fill(t.subject[kind], p),
+    text:
+      `${lead}\n\n${note}\n\n` +
+      rows.map(([k, v]) => `${k}: ${v}`).join('\n') +
+      `\n\n${t.cta[kind]}: ${f.url}` +
+      f.supportText,
+    html:
+      `<p>${leadHtml}</p>` +
+      `<p>${note}</p>` +
+      '<p>' +
+      rows.map(([k, v, vHtml]) => `${k}: <b>${vHtml ?? escapeHtml(v)}</b>`).join('<br/>') +
+      '</p>' +
+      `<p><a href="${f.url}">${t.cta[kind]}</a></p>` +
+      f.supportHtml
+  }
+}
+
+/**
+ * Send an upcoming-expiry reminder to the subscription owner, `noticeDays` before `dueAt`.
+ * No service copy: a reminder is not an incident.
+ * Best-effort: any failure is logged and swallowed.
+ */
+export async function notifyUpcoming (
+  ctx: MeasureContext,
+  storage: SubscriptionStorage,
+  config: Config,
+  sub: SubscriptionData,
+  kind: UpcomingKind,
+  dueAt: number
+): Promise<void> {
+  if (config.MailUrl === undefined || config.MailFrom === undefined) {
+    ctx.info('Upcoming-expiry email skipped: mail not configured', { subId: sub.id, kind })
+    return
+  }
+
+  try {
+    const { email, locale } = await storage.getAccountContact(sub.accountUuid)
+    if (email === null) {
+      ctx.warn('Upcoming-expiry email skipped: no email for account', { subId: sub.id, account: sub.accountUuid })
+      return
+    }
+    const lang = resolveLang(locale)
+    const planLabel = await getPlanLabel(config, sub.plan, sub.type, lang)
+    const support = buildSupportFooter(config, lang)
+    const ws = await storage.getWorkspaceInfo(sub.workspaceUuid)
+    const fields: UpcomingFields = {
+      workspace: ws?.name ?? '',
+      workspaceUrl: ws !== null ? `${config.FrontUrl.replace(/\/+$/, '')}/workbench/${ws.url}` : '',
+      plan: planLabel,
+      amount: kind === 'recurrent' ? formatAmount(sub.amount) : '',
+      dueDate: formatDate(dueAt, lang),
+      paymentMethod: kind === 'recurrent' ? formatPaymentMethod(sub, lang) : '',
+      url: billingUrl(config),
+      supportText: support.text,
+      supportHtml: support.html
+    }
+    const family = sub.type === 'package' ? 'package' : 'tier'
+    const { subject, text, html } = buildUpcoming(kind, family, fields, lang)
+    await sendMail(config, email, { subject, text, html })
+    ctx.info('Upcoming-expiry email sent', { subId: sub.id, kind, dueAt })
+  } catch (err: any) {
+    ctx.error('Upcoming-expiry email error', { subId: sub.id, kind, err: err?.message ?? String(err) })
   }
 }
 

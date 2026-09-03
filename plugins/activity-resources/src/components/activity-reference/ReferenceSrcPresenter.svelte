@@ -30,10 +30,22 @@
 
   $: showParent = isActivityMessage(value)
 
-  $: isActivityMessage(value) &&
-    client.findOne(value.attachedToClass, { _id: value.attachedTo, space: value.space }).then((res) => {
-      parentObject = res
-    })
+  $: void resolveParent(value)
+
+  // A ThreadMessage hangs off its parent message, not off the channel: one hop lands on that
+  // message (whose card would then be rendered inside the small reference box), so a second hop
+  // reaches the real object. Two is as deep as chunter nests.
+  async function resolveParent (message: Doc | undefined): Promise<void> {
+    if (!isActivityMessage(message)) {
+      parentObject = undefined
+      return
+    }
+    let current: Doc | undefined = message
+    for (let hop = 0; hop < 2 && isActivityMessage(current); hop++) {
+      current = await client.findOne(current.attachedToClass, { _id: current.attachedTo, space: current.space })
+    }
+    parentObject = current
+  }
 </script>
 
 <DocReferencePresenter value={showParent ? parentObject : value} compact={showParent}>

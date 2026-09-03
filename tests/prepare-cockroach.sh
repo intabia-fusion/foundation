@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
-docker compose -p sanity kill
-docker compose -p sanity down --volumes
-docker compose -p sanity up -d --force-recreate --renew-anon-volumes
+COMPOSE_FILES="-f docker-compose.yaml -f docker-compose.cockroach.yaml"
+
+docker compose ${COMPOSE_FILES} -p sanity kill
+docker compose ${COMPOSE_FILES} -p sanity down --volumes --remove-orphans
+docker compose ${COMPOSE_FILES} -p sanity up -d --force-recreate --renew-anon-volumes --remove-orphans
 docker_exit=$?
 if [ ${docker_exit} -eq 0 ]; then
     echo "Container started successfully"

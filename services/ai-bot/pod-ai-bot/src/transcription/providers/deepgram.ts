@@ -1,7 +1,13 @@
 // Copyright © 2025 Andrey Sobolev (haiodo@gmail.com)
 
 import { MeasureContext } from '@hcengineering/core'
-import { TranscriptionOptions, TranscriptionProvider, TranscriptionResult, AudioFormat } from '../types'
+import {
+  AUDIO_FORMAT_INFO,
+  TranscriptionOptions,
+  TranscriptionProvider,
+  TranscriptionResult,
+  AudioFormat
+} from '../types'
 
 /**
  * Deepgram pre-recorded API response structure
@@ -94,11 +100,11 @@ export class DeepgramProvider implements TranscriptionProvider {
    * Get content type and encoding for audio format
    */
   private getFormatInfo (format: AudioFormat): { contentType: string, encoding?: string } {
+    // encoding only for wav; compressed containers Deepgram reads from the header.
     if (format === 'wav') {
       return { contentType: 'audio/wav', encoding: 'linear16' }
     }
-    // OGG Opus is the default format from love-agent
-    return { contentType: 'audio/ogg' }
+    return { contentType: (AUDIO_FORMAT_INFO[format] ?? AUDIO_FORMAT_INFO.ogg).contentType }
   }
 
   async transcribe (audioData: Buffer, options: TranscriptionOptions): Promise<TranscriptionResult> {

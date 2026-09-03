@@ -1,13 +1,10 @@
-import { expect, test } from '@playwright/test'
-import { ApiEndpoint } from '../API/Api'
-import { ChannelPage } from '../model/channel-page'
+import { expect, test } from '../fixtures'
 import { LeftSideMenuPage } from '../model/left-side-menu-page'
-import { LoginPage } from '../model/login-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
+import { ChannelPage } from '../model/channel-page'
 import { SignUpData } from '../model/common-types'
 import {
-  PlatformURI,
   createAccount,
+  createAccountAndWorkspace,
   generateTestData,
   generateUser,
   getInviteLink,
@@ -17,10 +14,7 @@ import {
 test.describe.configure({ mode: 'parallel' })
 
 test.describe('Pulse — typing indicator and document presence', () => {
-  let leftSideMenuPage: LeftSideMenuPage
   let channelPage: ChannelPage
-  let loginPage: LoginPage
-  let api: ApiEndpoint
   let newUser2: SignUpData
   let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
 
@@ -28,16 +22,10 @@ test.describe('Pulse — typing indicator and document presence', () => {
     data = generateTestData()
     newUser2 = generateUser()
 
-    leftSideMenuPage = new LeftSideMenuPage(page)
     channelPage = new ChannelPage(page)
-    loginPage = new LoginPage(page)
-    api = new ApiEndpoint(request)
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-    await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    await (await page.goto(`${PlatformURI}`))?.finished()
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
+    // Straight into the workspace from the account token: the login form plus the workspace
+    // picker are three page loads and cost about a second per test.
+    await createAccountAndWorkspace(page, request, data, 'chunter')
   })
 
   test('Second user sees typing indicator while first user types in general channel', async ({
@@ -53,7 +41,6 @@ test.describe('Pulse — typing indicator and document presence', () => {
     const channelPageSecond = new ChannelPage(page2)
     const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
 
-    await leftSideMenuPage.clickChunter()
     await channelPage.clickChooseChannel('general')
 
     await leftSideMenuPageSecond.clickChunter()
@@ -77,7 +64,6 @@ test.describe('Pulse — typing indicator and document presence', () => {
     const linkText = await getInviteLink(page)
     await createAccount(request, newUser2)
 
-    await leftSideMenuPage.clickChunter()
     await channelPage.clickChooseChannel('general')
 
     // Presence avatars on page1 should be empty (only self — filtered out)

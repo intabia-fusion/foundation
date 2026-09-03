@@ -37,7 +37,7 @@ try {
 }
 
 // Path to models-all
-const modelsAllPath = resolve(__dirname, '../../../../../../../models/all')
+const modelsAllPath = resolve(__dirname, '../../../../../../models/all')
 const modelsAllBundlePath = join(modelsAllPath, 'bundle', 'model.json')
 const modelsAllCachePath = join(modelsAllPath, '.fast-build-cache.json')
 
@@ -63,6 +63,7 @@ function getModelHash() {
 }
 
 function getVersion() {
+  if (cachedVersion !== null) return cachedVersion
   try {
     const { execSync } = require('child_process')
     const stdout = execSync('git describe --tags --abbrev=0').toString().trim()
@@ -73,22 +74,25 @@ function getVersion() {
         minor: parseInt(rawVersion[1]),
         patch: parseInt(rawVersion[2])
       }
-      return `${version.major}.${version.minor}.${version.patch}`
+      cachedVersion = `${version.major}.${version.minor}.${version.patch}`
     } else {
-      return '0.7.0'
+      cachedVersion = '0.7.0'
     }
   } catch {
-    return '0.7.0'
+    cachedVersion = '0.7.0'
   }
+  return cachedVersion
 }
 
 function getGitRevisionCached() {
+  if (cachedGitRevision !== null) return cachedGitRevision
   try {
     const { execSync } = require('child_process')
-    return execSync('git describe --all --long').toString().trim()
+    cachedGitRevision = execSync('git describe --all --long').toString().trim()
   } catch {
-    return ''
+    cachedGitRevision = ''
   }
+  return cachedGitRevision
 }
 
 // Check if bundle script uses standard esbuild (common/scripts/esbuild.js or local esbuild.js)

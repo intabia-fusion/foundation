@@ -17,6 +17,7 @@ import { PlatformError, Severity, Status } from '@hcengineering/platform'
 import { type Lookup, type MeasureContext, type ReverseLookups, getObjectValue } from '.'
 import type { Class, Doc, Ref } from './classes'
 
+import { clone } from './clone'
 import core from './component'
 import { type Hierarchy } from './hierarchy'
 import { checkMixinKey, matchQuery, resultSort } from './query'
@@ -34,14 +35,28 @@ import type { Tx, TxCreateDoc, TxMixin, TxRemoveDoc, TxUpdateDoc } from './tx'
 import { TxProcessor } from './tx'
 import { toFindResult } from './utils'
 
+function deepFreeze (value: any): void {
+  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return
+  Object.freeze(value)
+  for (const key of Object.keys(value)) {
+    deepFreeze(value[key])
+  }
+}
+
 /**
  * @public
  */
 export abstract class MemDb extends TxProcessor implements Storage {
   private readonly objectsByClass = new Map<Ref<Class<Doc>>, Map<Ref<Doc>, Doc>>()
-  private readonly objectById = new Map<Ref<Doc>, Doc>()
+  protected readonly objectById = new Map<Ref<Doc>, Doc>()
+  // Documents of the shared parent this db hides (removed or replaced here).
+  private readonly shadowed = new Set<Ref<Doc>>()
 
-  constructor (protected readonly hierarchy: Hierarchy) {
+  /** `parent` is a shared system model; own documents win, the rest is read from it. */
+  constructor (
+    protected readonly hierarchy: Hierarchy,
+    protected readonly parent?: MemDb
+  ) {
     super()
   }
 
@@ -55,6 +70,34 @@ export abstract class MemDb extends TxProcessor implements Storage {
     return result
   }
 
+  /** Own documents of a class plus the parent's, minus anything this db shadows. */
+  private allOfClass (_class: Ref<Class<Doc>>): Doc[] {
+    const own = this.objectsByClass.get(_class)
+    if (this.parent === undefined) {
+      return own === undefined ? [] : Array.from(own.values())
+    }
+    if (own === undefined && this.shadowed.size === 0) {
+      return this.parent.allOfClass(_class)
+    }
+    const result: Doc[] = []
+    for (const doc of this.parent.allOfClass(_class)) {
+      if (!this.shadowed.has(doc._id) && own?.has(doc._id) !== true) {
+        result.push(doc)
+      }
+    }
+    if (own !== undefined) {
+      result.push(...own.values())
+    }
+    return result
+  }
+
+  protected findDoc<T extends Doc>(_id: Ref<T>): T | undefined {
+    const own = this.objectById.get(_id)
+    if (own !== undefined) return own as T
+    if (this.shadowed.has(_id)) return undefined
+    return this.parent?.findDoc(_id)
+  }
+
   private cleanObjectByClass (_class: Ref<Class<Doc>>, _id: Ref<Doc>): void {
     const result = this.objectsByClass.get(_class)
     if (result !== undefined) {
@@ -65,12 +108,12 @@ export abstract class MemDb extends TxProcessor implements Storage {
   private getByIdQuery<T extends Doc>(query: DocumentQuery<T>, _class: Ref<Class<T>>): T[] {
     const result: T[] = []
     if (typeof query._id === 'string') {
-      const obj = this.objectById.get(query._id) as T
+      const obj = this.findDoc(query._id) as T
       if (obj !== undefined && this.hierarchy.isDerived(obj._class, _class)) result.push(obj)
     } else if (query._id?.$in !== undefined) {
       const ids = new Set(query._id.$in)
       for (const id of ids) {
-        const obj = this.objectById.get(id) as T
+        const obj = this.findDoc(id) as T
         if (obj !== undefined && this.hierarchy.isDerived(obj._class, _class)) result.push(obj)
       }
     }
@@ -78,15 +121,15 @@ export abstract class MemDb extends TxProcessor implements Storage {
   }
 
   getObject<T extends Doc>(_id: Ref<T>): T {
-    const doc = this.objectById.get(_id)
+    const doc = this.findDoc(_id)
     if (doc === undefined) {
       throw new PlatformError(new Status(Severity.ERROR, core.status.ObjectNotFound, { _id }))
     }
-    return doc as T
+    return doc
   }
 
   findObject<T extends Doc>(_id: Ref<T>): T | undefined {
-    const doc = this.objectById.get(_id)
+    const doc = this.findDoc(_id)
     return doc as T
   }
 
@@ -103,9 +146,12 @@ export abstract class MemDb extends TxProcessor implements Storage {
       }
       const value = (lookup as any)[key]
       const tkey = checkMixinKey(key, _class, this.hierarchy)
+      const refId = getObjectValue(tkey, doc)
+      if (refId == null) continue
+
       if (Array.isArray(value)) {
         const [_class, nested] = value
-        const objects = await this.findAll(_class, { _id: getObjectValue(tkey, doc) })
+        const objects = await this.findAll(_class, { _id: refId })
         ;(result as any)[key] = objects[0]
         const nestedResult = {}
         const parent = (result as any)[key]
@@ -114,7 +160,7 @@ export abstract class MemDb extends TxProcessor implements Storage {
           $lookup: nestedResult
         })
       } else {
-        const objects = await this.findAll(value, { _id: getObjectValue(tkey, doc) })
+        const objects = await this.findAll(value, { _id: refId })
         ;(result as any)[key] = objects[0]
       }
     }
@@ -192,7 +238,7 @@ export abstract class MemDb extends TxProcessor implements Storage {
     ) {
       result = this.getByIdQuery(query, baseClass)
     } else {
-      result = Array.from(this.getObjectsByClass(baseClass).values())
+      result = this.allOfClass(baseClass)
     }
 
     result = matchQuery(result, query, _class, this.hierarchy, true)
@@ -240,7 +286,7 @@ export abstract class MemDb extends TxProcessor implements Storage {
     ) {
       result = this.getByIdQuery(query, baseClass)
     } else {
-      result = Array.from(this.getObjectsByClass(baseClass).values())
+      result = this.allOfClass(baseClass)
     }
 
     result = matchQuery(result, query, _class, this.hierarchy, true)
@@ -262,20 +308,55 @@ export abstract class MemDb extends TxProcessor implements Storage {
   }
 
   addDoc (doc: Doc): void {
+    this.objectById.set(doc._id, doc)
+    this.indexByClass(doc)
+  }
+
+  /** Deep freeze every document held now: a direct write into a shared one must not leak. */
+  freeze (): void {
+    for (const doc of this.objectById.values()) {
+      deepFreeze(doc)
+    }
+  }
+
+  /** Copy-on-write: a document of the shared parent must be deep copied, never mutated in place. */
+  protected ownDoc<T extends Doc>(_id: Ref<T>): T | undefined {
+    const own = this.objectById.get(_id)
+    if (own !== undefined && !Object.isFrozen(own)) {
+      return own as T
+    }
+    if (own !== undefined && this.parent === undefined) {
+      throw new Error(`frozen shared model must not be modified: ${_id}`)
+    }
+    const doc = own ?? this.findDoc(_id)
+    if (doc === undefined) {
+      return undefined
+    }
+    const copy = clone(doc)
+    this.objectById.set(copy._id, copy)
+    this.shadowed.add(copy._id)
+    for (const _class of this.hierarchy.getAncestors(copy._class)) {
+      this.getObjectsByClass(_class).set(copy._id, copy)
+    }
+    this.hierarchy.replaceDoc(copy)
+    return copy as T
+  }
+
+  protected indexByClass (doc: Doc): void {
     this.hierarchy.getAncestors(doc._class).forEach((_class) => {
       const arr = this.getObjectsByClass(_class)
       arr.set(doc._id, doc)
     })
-
-    this.objectById.set(doc._id, doc)
   }
 
   delDoc (_id: Ref<Doc>): void {
-    const doc = this.objectById.get(_id)
+    const doc = this.findDoc(_id)
     if (doc === undefined) {
       throw new PlatformError(new Status(Severity.ERROR, core.status.ObjectNotFound, { _id }))
     }
     this.objectById.delete(_id)
+    // Hides the parent's copy too - the shared model itself must stay untouched.
+    this.shadowed.add(_id)
     this.hierarchy.getAncestors(doc._class).forEach((_class) => {
       this.cleanObjectByClass(_class, _id)
     })
@@ -325,15 +406,23 @@ export class ModelDb extends MemDb {
     return {}
   }
 
-  addTxes (ctx: MeasureContext, txes: Tx[], clone: boolean): void {
+  addTxes (ctx: MeasureContext, txes: Tx[], doClone: boolean): void {
+    // Materialize first, index by class after: a doc may appear before its own class is created.
+    const created: Doc[] = []
     for (const tx of txes) {
+      // Hierarchy references the created instance instead of deserializing its own copy.
+      let ownDoc: Doc | undefined
       switch (tx._class) {
-        case core.class.TxCreateDoc:
-          this.addDoc(TxProcessor.createDoc2Doc(tx as TxCreateDoc<Doc>, clone))
+        case core.class.TxCreateDoc: {
+          const doc = TxProcessor.createDoc2Doc(tx as TxCreateDoc<Doc>, doClone)
+          this.objectById.set(doc._id, doc)
+          created.push(doc)
+          ownDoc = doc
           break
+        }
         case core.class.TxUpdateDoc: {
           const cud = tx as TxUpdateDoc<Doc>
-          const doc = this.findObject(cud.objectId)
+          const doc = this.ownDoc(cud.objectId)
           if (doc !== undefined) {
             this.updateDoc(cud.objectId, doc, cud)
             TxProcessor.updateDoc2Doc(doc, cud)
@@ -359,7 +448,7 @@ export class ModelDb extends MemDb {
           break
         case core.class.TxMixin: {
           const mix = tx as TxMixin<Doc, Doc>
-          const doc = this.findObject(mix.objectId)
+          const doc = this.ownDoc(mix.objectId)
           if (doc !== undefined) {
             this.updateDoc(mix.objectId, doc, mix)
             TxProcessor.updateMixin4Doc(doc, mix)
@@ -373,12 +462,25 @@ export class ModelDb extends MemDb {
           break
         }
       }
+      try {
+        this.hierarchy.tx(tx, ownDoc)
+      } catch (err: any) {
+        ctx.warn('failed to apply model transaction to hierarchy, skipping', {
+          _id: tx._id,
+          _class: tx._class,
+          err
+        })
+      }
+    }
+    for (const doc of created) {
+      // Skip what a later tx of the same batch removed or replaced.
+      if (this.objectById.get(doc._id) === doc) this.indexByClass(doc)
     }
   }
 
   protected async txUpdateDoc (tx: TxUpdateDoc<Doc>): Promise<TxResult> {
     try {
-      const doc = this.getObject(tx.objectId) as any
+      const doc = this.ownDoc(tx.objectId) as any
       this.updateDoc(tx.objectId, doc, tx)
       TxProcessor.updateDoc2Doc(doc, tx)
       return tx.retrieve === true ? { object: doc } : {}
@@ -395,7 +497,10 @@ export class ModelDb extends MemDb {
 
   // TODO: process ancessor mixins
   protected async txMixin (tx: TxMixin<Doc, Doc>): Promise<TxResult> {
-    const doc = this.getObject(tx.objectId) as any
+    const doc = this.ownDoc(tx.objectId) as any
+    if (doc === undefined) {
+      throw new PlatformError(new Status(Severity.ERROR, core.status.ObjectNotFound, { _id: tx.objectId }))
+    }
     this.updateDoc(tx.objectId, doc, tx)
     TxProcessor.updateMixin4Doc(doc, tx)
     return {}

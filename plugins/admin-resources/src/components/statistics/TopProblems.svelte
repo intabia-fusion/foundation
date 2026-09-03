@@ -69,7 +69,7 @@
     const ctrl = new AbortController()
     inflight = ctrl
     try {
-      const url = `${endpoint}/api/v1/analytics?limit=${limit}&sort=${sort}&source=${source}&token=${token}`
+      const url = `${endpoint}/api/v1/analytics?limit=${limit}&sort=${sort}&source=${source}`
       const data = await fetchStatsJson<AnalyticsResponse>(url, ctrl.signal)
       if (ctrl.signal.aborted) return
       entries = data.entries

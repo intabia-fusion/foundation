@@ -7,7 +7,7 @@ sourceScopes:
 # Scope of the published bundle (what consumers import).
 scope: "@intabia-fusion"
 bundleName: "@intabia-fusion/api"
-version: "1.0.2"
+version: "1.1.0"
 
 # Entry points. Build traverses dependencies + peerDependencies transitively
 # within the sourceScopes. Everything reachable must be either in the bundle
@@ -22,6 +22,7 @@ roots:
   - "@hcengineering/api-client"
   - "@hcengineering/account-client"
   - "@hcengineering/task"
+  - "@hcengineering/workflow"
   - "@hcengineering/core"
   - "@hcengineering/document"
   - "@hcengineering/rank"

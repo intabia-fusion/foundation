@@ -1,5 +1,6 @@
 //
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -35,7 +36,7 @@ import {
 } from '@hcengineering/model'
 import { DOMAIN_ACTIVITY } from '@hcengineering/model-activity'
 import { DOMAIN_SPACE } from '@hcengineering/model-core'
-import { DOMAIN_TASK, migrateDefaultStatusesBase } from '@hcengineering/model-task'
+import { DOMAIN_TASK, migrateDefaultStatusesBase, migrateTaskTypesToClasses } from '@hcengineering/model-task'
 import tags from '@hcengineering/tags'
 import task from '@hcengineering/task'
 import tracker, {
@@ -85,7 +86,6 @@ async function createDefaultProject (tx: TxOperations): Promise<void> {
   //         targetClass: tracker.class.Issue,
   //         statusCategories: baseIssueTaskStatuses.map((it) => it.category),
   //         statusClass: core.class.Status,
-  //         kind: 'both',
   //         allowedAsChildOf: [issueId]
   //       }
   //     ],
@@ -290,7 +290,7 @@ async function migrateDefaultTypeMixins (client: MigrationClient): Promise<void>
   const oldSpaceTypeMixin = `${tracker.ids.ClassingProjectType}:type:mixin`
   const newSpaceTypeMixin = tracker.mixin.ClassicProjectTypeData
   const oldTaskTypeMixin = `${tracker.taskTypes.Issue}:type:mixin`
-  const newTaskTypeMixin = tracker.mixin.IssueTypeData
+  const newTaskTypeMixin = 'tracker:mixin:IssueTypeData' as any
 
   await client.update(
     DOMAIN_MODEL_TX,
@@ -327,6 +327,15 @@ async function migrateDefaultTypeMixins (client: MigrationClient): Promise<void>
         [oldTaskTypeMixin]: newTaskTypeMixin
       }
     }
+  )
+}
+
+async function migrateIssueTaskTypes (client: MigrationClient): Promise<void> {
+  await migrateTaskTypesToClasses(
+    client,
+    tracker.taskTypes.Issue,
+    'tracker:mixin:IssueTypeData' as any,
+    tracker.class.IssueTaskType
   )
 }
 
@@ -454,6 +463,11 @@ export const trackerOperation: MigrateOperation = {
         state: 'childInfo-parentId-v2',
         mode: 'upgrade',
         func: migrateChildInfoParentId
+      },
+      {
+        state: 'migrateTaskTypesToClasses-v8',
+        mode: 'upgrade',
+        func: migrateIssueTaskTypes
       }
     ])
   },

@@ -1,0 +1,42 @@
+# Moves the America region of the ws-tests stand onto CockroachDB.
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.cockroach.yaml -p sanity up -d
+#
+# The base stand keeps every region on the shared postgres (one database per region), which is
+# cheaper to run; this overlay exists to keep the Cockroach path covered.
+services:
+  cockroach:
+    image: cockroachdb/cockroach:v24.1.2
+    command: start-single-node --insecure
+    ports:
+      - '26258:26257'
+    restart: unless-stopped
+
+  workspace:
+    depends_on:
+      cockroach:
+        condition: service_started
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+      - ACCOUNTS_DB_URL=${DB_COCKROACH_URL}
+
+  workspace_europe:
+    depends_on:
+      cockroach:
+        condition: service_started
+    environment:
+      - ACCOUNTS_DB_URL=${DB_COCKROACH_URL}
+
+  transactor:
+    depends_on:
+      cockroach:
+        condition: service_started
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}
+
+  fulltext:
+    depends_on:
+      cockroach:
+        condition: service_started
+    environment:
+      - DB_URL=${DB_COCKROACH_URL}

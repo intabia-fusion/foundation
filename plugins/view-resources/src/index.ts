@@ -104,6 +104,7 @@ import DividerPresenter from './components/list/DividerPresenter.svelte'
 import GrowPresenter from './components/list/GrowPresenter.svelte'
 import ListView from './components/list/ListView.svelte'
 import SortableDocList from './components/list/SortableDocList.svelte'
+import SortableDocListStatic from './components/list/SortableDocListStatic.svelte'
 import SortableList from './components/list/SortableList.svelte'
 import SortableListItem from './components/list/SortableListItem.svelte'
 import MasterDetailBrowser from './components/masterDetail/MasterDetailBrowser.svelte'
@@ -257,6 +258,7 @@ export {
   ObjectIcon,
   ObjectMention,
   SortableDocList,
+  SortableDocListStatic,
   SortableList,
   SortableListItem,
   SpaceHeader,

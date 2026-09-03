@@ -51,7 +51,9 @@ import { retryTxn, type DBClient } from '@hcengineering/postgres-base'
 
 const loadedDomains = new Set<string>()
 
-let loadedTables = new Set<string>()
+// Keyed by url: one process can talk to several databases (regions), and a table present in one is
+// not present in another.
+const loadedTables = new Map<string, Set<string>>()
 
 export const NumericTypes = [
   core.class.TypeNumber,
@@ -72,32 +74,35 @@ export async function createTables (
   }
   const mapped = filtered.map((p) => translateDomain(p))
   const t = platformNow()
-  loadedTables =
-    loadedTables.size === 0
-      ? new Set(
-        (
-          await ctx.with('load-table', {}, () =>
-            client.unsafe(`
-    SELECT table_name 
+  const cached = loadedTables.get(url)
+  const tables =
+    cached ??
+    new Set(
+      (
+        await ctx.with('load-table', {}, () =>
+          client.unsafe(`
+    SELECT table_name
     FROM information_schema.tables
     WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'system')
     AND table_name NOT LIKE 'pg_%'
     AND table_name NOT LIKE 'cluster_%'
     AND table_name NOT LIKE 'kv_%'
     AND table_name NOT LIKE 'node_%'`)
-          )
-        ).map((it) => it.table_name)
-      )
-      : loadedTables
+        )
+      ).map((it) => it.table_name)
+    )
+  if (cached === undefined) {
+    loadedTables.set(url, tables)
+  }
   console.log('load-table', platformNowDiff(t))
 
-  const domainsToLoad = mapped.filter((it) => loadedTables.has(it))
+  const domainsToLoad = mapped.filter((it) => tables.has(it))
   if (domainsToLoad.length > 0) {
     await ctx.with('load-schemas', {}, () => getTableSchema(client, domainsToLoad))
   }
   const domainsToCreate: string[] = []
   for (const domain of mapped) {
-    if (!loadedTables.has(domain)) {
+    if (!tables.has(domain)) {
       domainsToCreate.push(domain)
     } else {
       loadedDomains.add(url + domain)
@@ -108,6 +113,7 @@ export async function createTables (
     await retryTxn(client, async (client) => {
       for (const domain of domainsToCreate) {
         await ctx.with('create-table', {}, () => createTable(client, domain))
+        tables.add(domain)
         loadedDomains.add(url + domain)
       }
     })
@@ -471,42 +477,42 @@ export function filterProjection<T extends Doc> (data: any, projection: Projecti
   return data
 }
 
+// Hot path: called per row of every findAll. Column values go straight into a copy of the
+// jsonb payload, so a row costs one object instead of a rest-copy plus two spreads.
+function assignColumns (doc: DBDoc, target: Record<string, any>, schema: Schema): void {
+  for (const key in doc) {
+    if (key === 'workspaceId' || key === 'data' || key === '%hash%') continue
+    if (key.startsWith('lookup_') || key.startsWith('reverse_lookup_')) continue
+    let value = doc[key]
+    if (value === 'NULL' || value === null) {
+      if (key === 'attachedTo') continue
+      value = null
+    } else {
+      const field = schema[key]
+      if (field !== undefined) {
+        if (field.type === 'bigint' || field.type === 'integer') {
+          value = Number.parseInt(value)
+        } else if (field.type === 'text[]' && typeof value === 'string') {
+          value = decodeArray(value)
+        }
+      }
+    }
+    target[key] = value
+  }
+}
+
 export function parseDocWithProjection<T extends Doc> (
   doc: DBDoc,
   domain: string,
   projection?: Projection<T> | undefined
 ): T {
-  const { workspaceId, data, '%hash%': _hash, ...rest } = doc
-  const schema = getSchema(domain)
-  for (const key in rest) {
-    if (key.startsWith('lookup_') || key.startsWith('reverse_lookup_')) {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete rest[key]
-      continue
-    }
-    if ((rest as any)[key] === 'NULL' || (rest as any)[key] === null) {
-      if (key === 'attachedTo') {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete rest[key]
-      } else {
-        ;(rest as any)[key] = null
-      }
-    } else if (schema[key] !== undefined && (schema[key].type === 'bigint' || schema[key].type === 'integer')) {
-      ;(rest as any)[key] = Number.parseInt((rest as any)[key])
-    } else if (schema[key] !== undefined && schema[key].type === 'text[]' && typeof (rest as any)[key] === 'string') {
-      ;(rest as any)[key] = decodeArray((rest as any)[key])
-    }
-  }
-  let resultData = data
+  // A hash scan selects columns only - no jsonb payload to merge into.
+  const res = { ...doc.data }
   if (projection !== undefined) {
-    resultData = filterProjection(data, projection)
+    filterProjection(res, projection)
   }
-  const res = {
-    ...resultData,
-    ...rest
-  } as any as T
-
-  return res
+  assignColumns(doc, res, getSchema(domain))
+  return res as T
 }
 
 export function toWithLookup<T extends Doc> (doc: T): WithLookup<T> {
@@ -521,36 +527,12 @@ export function toWithLookup<T extends Doc> (doc: T): WithLookup<T> {
 }
 
 export function parseDoc<T extends Doc> (doc: DBDoc, schema: Schema, keepHash: boolean = false): T {
-  const { workspaceId, data, '%hash%': _hash, ...rest } = doc
-  for (const key in rest) {
-    if (key.startsWith('lookup_') || key.startsWith('reverse_lookup_')) {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete rest[key]
-      continue
-    }
-    if ((rest as any)[key] === 'NULL' || (rest as any)[key] === null) {
-      if (key === 'attachedTo') {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete rest[key]
-      } else {
-        ;(rest as any)[key] = null
-      }
-    } else if (schema[key] !== undefined && (schema[key].type === 'bigint' || schema[key].type === 'integer')) {
-      ;(rest as any)[key] = Number.parseInt((rest as any)[key])
-    } else if (schema[key] !== undefined && schema[key].type === 'text[]' && typeof (rest as any)[key] === 'string') {
-      ;(rest as any)[key] = decodeArray((rest as any)[key])
-    }
+  const res = { ...doc.data }
+  assignColumns(doc, res, schema)
+  if (keepHash && doc['%hash%'] !== undefined) {
+    res['%hash%'] = doc['%hash%']
   }
-  const res = {
-    ...data,
-    ...rest
-  } as any as T
-
-  if (keepHash && _hash !== undefined) {
-    ;(res as any)['%hash%'] = _hash
-  }
-
-  return res
+  return res as any as T
 }
 
 export interface DBDoc extends Doc {

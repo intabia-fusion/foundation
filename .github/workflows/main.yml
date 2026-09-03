@@ -79,9 +79,9 @@ jobs:
           path: |
             common/temp
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('**/pnpm-lock.yaml') }}
+            hashFiles('common/config/rush/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
 
       # - name: Cheking model is updated...
       #   run: node common/scripts/check_model_version.js
@@ -256,9 +256,9 @@ jobs:
           path: |
             common/temp
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('**/pnpm-lock.yaml') }}
+            hashFiles('common/config/rush/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
 
       - name: Checking for mis-matching dependencies...
         run: node common/scripts/install-run-rush.js check
@@ -323,9 +323,9 @@ jobs:
           path: |
             common/temp
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('**/pnpm-lock.yaml') }}
+            hashFiles('common/config/rush/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
 
       - name: Checking for mis-matching dependencies...
         run: node common/scripts/install-run-rush.js check
@@ -392,9 +392,9 @@ jobs:
           path: |
             common/temp
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('**/pnpm-lock.yaml') }}
+            hashFiles('common/config/rush/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
 
       - name: Checking for mis-matching dependencies...
         run: node common/scripts/install-run-rush.js check
@@ -434,6 +434,7 @@ jobs:
           prepare-script: ./prepare-qms.sh
           build-package: "@hcengineering/qms-tests-sanity"
           artifact-name-suffix: qms
+          container-prefix: "qms-"
           enable-profiling: "false"
           docker-access-token: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
@@ -459,9 +460,9 @@ jobs:
           path: |
             common/temp
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('**/pnpm-lock.yaml') }}
+            hashFiles('common/config/rush/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
 
       - name: Checking for mis-matching dependencies...
         run: node common/scripts/install-run-rush.js check
@@ -543,9 +544,9 @@ jobs:
           path: |
             common/temp
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('**/pnpm-lock.yaml') }}
+            hashFiles('common/config/rush/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
 
       - name: Installing...
         run: node common/scripts/install-run-rush.js install
@@ -573,7 +574,11 @@ jobs:
           docker builder prune -a -f
         env:
           DOCKER_CLI_HINTS: false
-          DOCKER_EXTRA: --platform=linux/amd64,linux/arm64
+          # arm64 is built under QEMU emulation and dominates this step. Only release tags are
+          # pushed, so non-tag runs validate amd64 only.
+          DOCKER_EXTRA: ${{ (startsWith(github.ref, 'refs/tags/v') ||
+            startsWith(github.ref, 'refs/tags/s')) &&
+            '--platform=linux/amd64,linux/arm64' || '--platform=linux/amd64' }}
           DOCKER_BUILDKIT: 1
           DOCKER_BUILD_CLEANUP: true
           # Bakes the license public key into the release bundles (esbuild define). Absent -> edition
@@ -617,10 +622,10 @@ jobs:
           path: |
             common/temp
           key:
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml')
+            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml')
             }}
           restore-keys: |
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
 
       - name: Installing...
         run: node common/scripts/install-run-rush.js install --purge

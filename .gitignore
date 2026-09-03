@@ -122,3 +122,4 @@ dev/gh-picker/gh-picker
 /dev/prod/.build_cache
 .claude/settings.local.json
 get-model-bundle.js
+tests/sanity/step-report.ndjson

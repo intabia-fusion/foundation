@@ -47,6 +47,7 @@
   highlighted={selected}
   orientation="vertical"
   kind={tab.isPinned ? 'secondary' : 'primary'}
+  italic={tab.isPinned !== true && tab.isKept !== true}
   readonly={tab.readonly}
   {icon}
   iconProps={tab.iconProps}

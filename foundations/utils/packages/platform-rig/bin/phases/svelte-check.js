@@ -8,34 +8,10 @@
 const { performance } = require('perf_hooks')
 const { join } = require('path')
 const { spawn } = require('child_process')
-const crypto = require('crypto')
-
 const { isPhaseCached, markPhaseCompleted } = require('../libs/cache')
 const { success, error, dim } = require('../libs/colors')
-
-/**
- * Calculate composite hash for a package including all transitive dependencies.
- */
-function calculatePackageHashWithDeps(packageName, graph, packageHashes, processed = new Set()) {
-  if (processed.has(packageName)) return ''
-  processed.add(packageName)
-
-  const node = graph.get(packageName)
-  if (!node) return ''
-
-  const baseHash = packageHashes.get(packageName) || ''
-  const parts = [baseHash]
-
-  for (const depName of node.dependencies) {
-    const depHash = calculatePackageHashWithDeps(depName, graph, packageHashes, processed)
-    if (depHash) {
-      parts.push(`${depName}:${depHash}`)
-    }
-  }
-
-  parts.sort()
-  return crypto.createHash('md5').update(parts.join('\n')).digest('hex')
-}
+const { computeTypesHashes, compositeHashFromTypes } = require('../libs/composite-hash')
+const { getOptimalWorkerCount } = require('../libs/utils')
 
 /**
  * Find svelte-check binary — walk up node_modules/.bin from package dir
@@ -53,16 +29,37 @@ function findSvelteCheckBin(cwd) {
 /**
  * Run svelte-check for a single package directly (no rushx overhead)
  */
-function runSvelteCheckForPackage(cwd) {
+function readProcessRssMB(pid) {
+  try {
+    const statm = require('fs').readFileSync(`/proc/${pid}/statm`, 'utf-8').split(' ')
+    // field 2 is resident pages
+    return Math.round(parseInt(statm[1], 10) * 4096 / 1024 / 1024)
+  } catch {
+    return 0
+  }
+}
+
+function runSvelteCheckForPackage(cwd, heapLimitMB) {
   return new Promise((resolve) => {
     const bin = findSvelteCheckBin(cwd)
+    // Sized from the memory budget; must stay above the heaviest package's real need
+    // (~2.9GB measured) or tracker/github/workflow-resources OOM.
+    const heapMB = process.env.FAST_BUILD_SVELTE_HEAP_MB ?? String(heapLimitMB)
+    const nodeOptions = [process.env.NODE_OPTIONS, `--max-old-space-size=${heapMB}`]
+      .filter(Boolean).join(' ')
     const child = spawn(bin, ['--output', 'human'], {
       cwd,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, NODE_OPTIONS: nodeOptions }
     })
 
     let stdout = ''
     let stderr = ''
+    let peakRssMB = 0
+    const rssTimer = setInterval(() => {
+      const mb = readProcessRssMB(child.pid)
+      if (mb > peakRssMB) peakRssMB = mb
+    }, 500)
 
     child.stdout?.on('data', (data) => {
       stdout += data.toString()
@@ -72,49 +69,62 @@ function runSvelteCheckForPackage(cwd) {
     })
 
     child.on('close', (code) => {
+      clearInterval(rssTimer)
       if (code === 0) {
-        resolve({ success: true, output: stdout })
+        resolve({ success: true, output: stdout, peakRssMB })
       } else {
-        resolve({ success: false, output: stdout + '\n' + stderr, error: new Error(`svelte-check failed with exit code ${code}`) })
+        resolve({ success: false, output: stdout + '\n' + stderr, peakRssMB, error: new Error(`svelte-check failed with exit code ${code}`) })
       }
     })
 
     child.on('error', (err) => {
-      resolve({ success: false, error: err })
+      clearInterval(rssTimer)
+      resolve({ success: false, error: err, peakRssMB })
     })
   })
 }
 
 /**
- * Run svelte-check phase for all packages in dependency order.
- * Processes packages in waves — a package is ready only when all its
- * dependencies (that are also in the svelte-check set) have completed.
- * Concurrency capped at 2 — svelte-check is memory-heavy.
+ * Run svelte-check for every package off a shared queue.
+ * Order does not matter — it consumes the types/ validate already emitted.
  */
 async function runSvelteCheckPhase(graph, packageNames, concurrency, options = {}) {
-  const { force = false, packageHashes } = options
+  const { force = false, packageHashes, typesHashes } = options
 
-  const svelteCheckConcurrency = concurrency
+  // svelte-check reads dependencies through their emitted .d.ts, same as lint.
+  const depTypes = typesHashes ?? computeTypesHashes(graph)
+
+  // Each svelte-check is a separate process holding a full TS + svelte language service.
+  // A hardcoded cap either wastes a big machine or OOMs a small one, so size it by memory.
+  const plan = getOptimalWorkerCount(concurrency, 'svelte-check')
+  const svelteCheckConcurrency = process.env.FAST_BUILD_SVELTE_WORKERS
+    ? parseInt(process.env.FAST_BUILD_SVELTE_WORKERS, 10)
+    : plan.workers
+  const heapLimitMB = plan.heapMB
 
   const results = {
     successCount: 0,
     cacheHits: 0,
     total: packageNames.length,
     errors: [],
-    time: 0
+    time: 0,
+    workers: 0,
+    peakChildRssMB: 0
   }
+
+  results.workers = svelteCheckConcurrency
+  results.heapMB = heapLimitMB
 
   const startTime = performance.now()
   let completedCount = 0
   const timings = []
 
-  const pending = new Set(packageNames)
-  const completed = new Set()
-
   async function processPackage(name) {
     const node = graph.get(name)
     const cwd = node.project.fullPath
-    const hash = packageHashes ? calculatePackageHashWithDeps(name, graph, packageHashes) : undefined
+    const hash = packageHashes
+      ? compositeHashFromTypes(name, graph, packageHashes, depTypes, ['svelte.config.js', 'tsconfig.json'])
+      : undefined
 
     if (!force && hash && isPhaseCached(cwd, hash, 'svelte-check', null, [])) {
       completedCount++
@@ -126,11 +136,12 @@ async function runSvelteCheckPhase(graph, packageNames, concurrency, options = {
     }
 
     const taskStart = performance.now()
-    const result = await runSvelteCheckForPackage(cwd)
+    const result = await runSvelteCheckForPackage(cwd, heapLimitMB)
     const pkgTime = Math.round(performance.now() - taskStart)
     completedCount++
 
     timings.push({ package: name, time: pkgTime, failed: !result.success })
+    if (result.peakRssMB > results.peakChildRssMB) results.peakChildRssMB = result.peakRssMB
 
     if (result.success) {
       if (hash) {
@@ -145,43 +156,25 @@ async function runSvelteCheckPhase(graph, packageNames, concurrency, options = {
     }
   }
 
-  // Process in dependency order waves
-  while (completed.size < packageNames.length) {
-    // Find packages ready to check (all deps in the set have completed)
-    const ready = []
-    for (const name of pending) {
-      const node = graph.get(name)
-      const depsCompleted = [...node.dependencies]
-        .filter(d => packageNames.includes(d))
-        .every(d => completed.has(d))
-      if (depsCompleted) {
-        ready.push(name)
-      }
+  // svelte-check only reads the types/ that validate already produced and emits nothing
+  // other packages consume, so dependency waves bought nothing while their chunk barriers
+  // made every package wait for the slowest one in its chunk. A flat queue keeps all
+  // workers busy until the list is empty.
+  const queue = [...packageNames]
+  const runners = Array.from({ length: Math.min(svelteCheckConcurrency, queue.length) }, async () => {
+    for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
+      await processPackage(name)
     }
-
-    if (ready.length === 0) {
-      throw new Error('Circular dependency detected in svelte-check phase')
-    }
-
-    // Process ready packages in chunks limited by concurrency
-    const chunks = []
-    for (let i = 0; i < ready.length; i += svelteCheckConcurrency) {
-      chunks.push(ready.slice(i, i + svelteCheckConcurrency))
-    }
-
-    for (const chunk of chunks) {
-      const promises = chunk.map(async (name) => {
-        await processPackage(name)
-        completed.add(name)
-        pending.delete(name)
-      })
-      await Promise.all(promises)
-    }
-  }
+  })
+  await Promise.all(runners)
 
   results.time = performance.now() - startTime
 
   // Print timing summary
+  if (results.peakChildRssMB > 0) {
+    console.log(`    Peak svelte-check process: ${results.peakChildRssMB}MB (x${svelteCheckConcurrency} concurrent)`)
+  }
+
   if (timings.length > 0) {
     const sorted = timings.sort((a, b) => b.time - a.time)
     const slowCount = Math.min(5, sorted.length)

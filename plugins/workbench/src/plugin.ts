@@ -79,6 +79,8 @@ export const workbenchPlugin = plugin(workbenchId, {
     PlatformTitle: '' as Metadata<string>,
     ExcludedApplications: '' as Metadata<Ref<Application>[]>,
     ExcludedApplicationsForAnonymous: '' as Metadata<string[]>,
+    // Aliases hidden from the app panel until the user first customizes it themselves.
+    DefaultHiddenApplications: '' as Metadata<string[]>,
     DefaultApplication: '' as Metadata<string>,
     DefaultSpace: '' as Metadata<Ref<Space>>,
     DefaultSpecial: '' as Metadata<string>,
@@ -88,10 +90,11 @@ export const workbenchPlugin = plugin(workbenchId, {
   extensions: {
     WorkbenchExtensions: '' as ComponentExtensionId,
     WorkbenchTabExtensions: '' as ComponentExtensionId,
+    WidgetsBarExtensions: '' as ComponentExtensionId,
     SpecialViewAction: '' as ComponentExtensionId
   },
   function: {
-    CreateWidgetTab: '' as Resource<(widget: Widget, tab: WidgetTab, newTab: boolean) => Promise<void>>,
+    CreateWidgetTab: '' as Resource<(widget: Widget, tab: WidgetTab) => Promise<void>>,
     CloseWidgetTab: '' as Resource<(widget: Widget, tab: string) => Promise<void>>,
     CloseWidget: '' as Resource<(widget: Ref<Widget>) => Promise<void>>,
     GetSidebarObject: '' as Resource<() => Partial<Pick<Doc, '_id' | '_class'>>>,

@@ -29,6 +29,8 @@
   import { translateCB } from '@hcengineering/platform'
   import { createQuery, getClient, MessageBox, uiContext } from '@hcengineering/presentation'
   import { WorkspaceSetting } from '@hcengineering/setting'
+
+  import { requestOperationOtpCode } from '../utils'
   import {
     Breadcrumb,
     Button,
@@ -116,7 +118,10 @@
       message: settingsRes.string.DeleteWorkspaceConfirm,
       dangerous: true,
       action: async () => {
-        await accountClient.deleteWorkspace()
+        // Irreversible for every member: a code sent to the owner's email confirms it.
+        const code = await requestOperationOtpCode()
+        if (code === undefined) return
+        await accountClient.deleteWorkspace(code)
         navigate({ path: [loginId] })
       }
     })
@@ -201,7 +206,7 @@
   }
 
   async function changePasswordAgingRules (val: number | undefined): Promise<void> {
-    passwordAgingRule = Math.max(val ?? 1, 1)
+    passwordAgingRule = val !== undefined ? Math.max(val, 1) : undefined
     await accountClient.updatePasswordAgingRule(passwordAgingRule)
   }
 
@@ -249,7 +254,7 @@
         ...Array.from(weekNames.entries()).map((it) => ({ id: it[0].toString(), label: it[1] }))
       ]
       const savedFirstDayOfWeek = localStorage.getItem('firstDayOfWeek') ?? 'system'
-      selected = items[savedFirstDayOfWeek === 'system' ? 0 : $deviceInfo.firstDayOfWeek + 1].id
+      selected = items[savedFirstDayOfWeek === 'system' ? 0 : $deviceInfo.firstDayOfWeek + 1].id.toString()
     }
   )
 

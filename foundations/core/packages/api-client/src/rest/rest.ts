@@ -37,6 +37,7 @@ import {
   type SearchResult,
   SocialIdType,
   type Tx,
+  type TxMeta,
   type TxResult,
   type WithLookup,
   type WorkspaceUuid,
@@ -461,7 +462,8 @@ export class RestClientImpl implements RestClient {
     attributes: Data<T>,
     id?: Ref<T>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): Promise<Ref<T>> {
     return this.v1op('create', {
       _class,
@@ -469,7 +471,8 @@ export class RestClientImpl implements RestClient {
       attributes,
       id,
       modifiedBy,
-      modifiedOn
+      modifiedOn,
+      meta
     })
   }
 
@@ -482,7 +485,8 @@ export class RestClientImpl implements RestClient {
     attributes: AttachedData<P>,
     id?: Ref<P>,
     modifiedOn?: Timestamp,
-    modifiedBy?: PersonId
+    modifiedBy?: PersonId,
+    meta?: TxMeta
   ): Promise<Ref<P>> {
     return this.v1op('addCollection', {
       _class,
@@ -493,7 +497,8 @@ export class RestClientImpl implements RestClient {
       attributes,
       id,
       modifiedBy,
-      modifiedOn
+      modifiedOn,
+      meta
     })
   }
 

@@ -93,7 +93,7 @@
                 top: 'var(--status-bar-height)',
                 bottom: '4.25rem',
                 left: '0',
-                right: '3.5rem',
+                right: '0',
                 width: '',
                 height: 'calc(100dvh - var(--status-bar-height) - var(--app-panel-width))',
                 maxWidth: '100%',

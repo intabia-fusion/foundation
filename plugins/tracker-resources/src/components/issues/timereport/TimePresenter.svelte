@@ -13,43 +13,23 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getEmbeddedLabel, translate } from '@hcengineering/platform'
-  import { floorFractionDigits, themeStore, tooltip } from '@hcengineering/ui'
-  import tracker from '../../../plugin'
-  import { getContext } from 'svelte'
-  import { useShowDaysStore } from '../../../utils'
+  import { getEmbeddedLabel } from '@hcengineering/platform'
+  import { themeStore, tooltip } from '@hcengineering/ui'
+  import { formatDuration, formatDurationCompact } from '@hcengineering/tracker'
 
   export let id: string | undefined = undefined
   export let kind: 'link' | undefined = undefined
   export let value: number
   export let accent: boolean = false
 
-  let label = ''
-
-  $: hours = floorFractionDigits(value, 3)
-
-  $: void getLabel(hours, $themeStore.language, $useShowDaysStore)
-
-  async function getLabel (hours: number, language: string, showDays: boolean): Promise<void> {
-    try {
-      if (showDays) {
-        label = await translate(tracker.string.TimeSpendDays, { value: Math.floor((100 * hours) / 8) / 100 }, language)
-      } else {
-        label = await translate(tracker.string.TimeSpendHours, { value: hours }, language)
-      }
-    } catch {}
-  }
+  // Two units are enough to read at a glance; the tooltip keeps the exact value.
+  $: label = formatDurationCompact(value, $themeStore.language)
+  $: full = formatDuration(value, $themeStore.language)
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<span
-  {id}
-  class:link={kind === 'link'}
-  class:fs-bold={accent}
-  on:click
-  use:tooltip={{ label: getEmbeddedLabel(`${hours}h / ${floorFractionDigits(hours / 8, 3)}d`) }}
->
+<span {id} class:link={kind === 'link'} class:fs-bold={accent} on:click use:tooltip={{ label: getEmbeddedLabel(full) }}>
   {label}
 </span>
 

@@ -183,6 +183,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     expect(q.last()[0]?.rate).toBe(1)
     const callsBefore = serverCalls()
 
+    await new Promise((resolve) => setTimeout(resolve, 5))
     await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 4 } } as any)
     await settle()
 
@@ -190,26 +191,48 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     expect(serverCalls()).toBe(callsBefore)
   })
 
-  it('applies an EQUAL-timestamp $inc-only tx locally without a server call', async () => {
-    const { liveQuery, factory, storage, txFactory, serverCalls } = await getCountingClient()
-    const insideId = await createSpace(factory, false, { rate: 10 })
-    const q = await subscribe<CounterSpace>(liveQuery, core.class.Space, { _id: insideId } as any)
-    const sameTs = q.last()[0].modifiedOn // derived counter txes share the doc's timestamp
+  it('applies an EQUAL-timestamp derived $inc-only tx locally to a tx-created doc without a server call', async () => {
+    const { liveQuery, storage, txFactory, serverCalls } = await getCountingClient()
+    const q = await subscribe<CounterSpace>(liveQuery, core.class.Space, { name: 'counter-space' })
     const callsBefore = serverCalls()
+    const sameTs = Date.now()
 
-    const tx = txFactory.createTxUpdateDoc<CounterSpace>(
+    // 1. Parent creation tx creates doc in LiveQuery
+    const createTx = txFactory.createTxCreateDoc<CounterSpace>(
       core.class.Space,
       core.space.Model,
-      insideId as Ref<CounterSpace>,
+      {
+        name: 'counter-space',
+        description: '',
+        private: false,
+        members: [],
+        archived: false,
+        rate: 10
+      } as any,
+      undefined,
+      sameTs
+    )
+    await storage.tx(createTx)
+    await settle()
+
+    expect(q.last()[0]?.rate).toBe(10)
+    expect(serverCalls()).toBe(callsBefore)
+
+    // 2. Derived $inc tx with equal timestamp arrives
+    const incTx = txFactory.createTxUpdateDoc<CounterSpace>(
+      core.class.Space,
+      core.space.Model,
+      createTx.objectId,
       { $inc: { rate: 5 } } as any,
       false,
       sameTs
     )
-    await storage.tx(tx)
+    await storage.tx(incTx)
     await settle()
 
-    expect(q.last()[0]?.rate).toBe(15) // applied locally
-    expect(serverCalls()).toBe(callsBefore) // no re-fetch
+    // Locally applied from 10 to 15 with 0 server calls!
+    expect(q.last()[0]?.rate).toBe(15)
+    expect(serverCalls()).toBe(callsBefore)
   })
 
   it('re-fetches an EQUAL-timestamp NON-$inc update (cannot apply locally)', async () => {
@@ -261,6 +284,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     const callsBefore = serverCalls()
 
     for (let i = 0; i < 10; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 2))
       await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 2 } } as any)
     }
     await settle()
@@ -275,6 +299,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     const q = await subscribe<CounterSpace>(liveQuery, core.class.Space, { _id: insideId } as any)
     const callsBefore = serverCalls()
 
+    await new Promise((resolve) => setTimeout(resolve, 5))
     await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: -3 } } as any)
     await settle()
 
@@ -289,6 +314,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     expect(q.last()[0]?.rate).toBeUndefined()
     const callsBefore = serverCalls()
 
+    await new Promise((resolve) => setTimeout(resolve, 5))
     await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 7 } } as any)
     await settle()
 
@@ -309,5 +335,131 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     await settle()
 
     expect(q.last().length).toBe(before + 1) // private:false makes it match; $inc rides along
+  })
+})
+
+// An equal-timestamp non-$inc update sends every subscriber through getCurrentDoc, which reads
+// the doc from the per-batch docCache. All subscribers must end up with their own copy: a shared
+// object would take one $inc per subscriber, which is how a collection counter drifts upwards.
+describe('$inc on a doc shared by several queries', () => {
+  async function shared (
+    count: number,
+    extra?: Partial<CounterSpace>
+  ): Promise<{
+      ctx: Awaited<ReturnType<typeof getCountingClient>>
+      id: Ref<CounterSpace>
+      qs: Array<{ last: () => CounterSpace[] }>
+    }> {
+    const ctx = await getCountingClient()
+    const id = (await createSpace(ctx.factory, false, {
+      rate: 0,
+      name: 'shared',
+      ...extra
+    } as any)) as Ref<CounterSpace>
+    // Distinct queries that all keep matching, same class and options -> one docCache entry.
+    const variants = [{}, { private: false }, { archived: false }, { members: [] }]
+    const qs: Array<{ last: () => CounterSpace[] }> = []
+    for (let i = 0; i < count; i++) {
+      qs.push(await subscribe<CounterSpace>(ctx.liveQuery, core.class.Space, { name: 'shared', ...variants[i] } as any))
+    }
+    await ctx.storage.tx(
+      ctx.txFactory.createTxUpdateDoc<CounterSpace>(
+        core.class.Space,
+        core.space.Model,
+        id,
+        { description: 'forces getCurrentDoc' } as any,
+        false,
+        qs[0].last()[0].modifiedOn
+      )
+    )
+    await settle()
+    return { ctx, id, qs }
+  }
+
+  it('applies a single $inc once for two subscribers', async () => {
+    const { ctx, id, qs } = await shared(2)
+
+    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } } as any)
+    await settle()
+
+    expect(qs.map((q) => q.last()[0].rate)).toEqual([1, 1])
+  })
+
+  it('does not scale the drift with the number of subscribers', async () => {
+    const { ctx, id, qs } = await shared(3)
+
+    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } } as any)
+    await settle()
+
+    expect(qs.map((q) => q.last()[0].rate)).toEqual([1, 1, 1])
+  })
+
+  it('keeps consecutive $inc txes in sync with the server', async () => {
+    const { ctx, id, qs } = await shared(2)
+
+    for (let i = 0; i < 5; i++) {
+      await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } } as any)
+    }
+    await settle()
+
+    const server = await ctx.storage.findOne<CounterSpace>(core.class.Space, { _id: id })
+    expect(server?.rate).toBe(5)
+    expect(qs.map((q) => q.last()[0].rate)).toEqual([5, 5])
+  })
+
+  it('applies equal-timestamp $inc txes from one batch exactly once', async () => {
+    // Two attachments added by one operation: the server derives two counter txes that
+    // share the parent timestamp, and both arrive in a single tx batch.
+    const { ctx, id, qs } = await shared(2)
+    const ts = qs[0].last()[0].modifiedOn + 1
+    const inc = (): any =>
+      ctx.txFactory.createTxUpdateDoc<CounterSpace>(
+        core.class.Space,
+        core.space.Model,
+        id,
+        { $inc: { rate: 1 } } as any,
+        false,
+        ts
+      )
+
+    await ctx.storage.tx(inc())
+    await ctx.storage.tx(inc())
+    await settle()
+
+    expect(qs.map((q) => q.last()[0].rate)).toEqual([2, 2])
+  })
+
+  it('applies a negative $inc once', async () => {
+    const { ctx, id, qs } = await shared(2, { rate: 3 })
+
+    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: -1 } } as any)
+    await settle()
+
+    expect(qs.map((q) => q.last()[0].rate)).toEqual([2, 2])
+  })
+
+  it('does not double-increment counter when doc was loaded from server DB with equal timestamp', async () => {
+    const { liveQuery, factory, txFactory } = await getCountingClient()
+    const id = await createSpace(factory, false, { rate: 2 })
+    const q = await subscribe<CounterSpace>(liveQuery, core.class.Space, { _id: id } as any)
+    const sameTs = q.last()[0].modifiedOn
+
+    // Server already has rate=2 in DB. Broadcast arrives with two equal-ts $inc: 1 txes.
+    const incTx = (): any =>
+      txFactory.createTxUpdateDoc<CounterSpace>(
+        core.class.Space,
+        core.space.Model,
+        id,
+        { $inc: { rate: 1 } } as any,
+        false,
+        sameTs
+      )
+
+    // Notify LiveQuery of broadcast txes
+    await liveQuery.tx(incTx(), incTx())
+    await settle()
+
+    // Counter must stay 2 (from DB state), not double to 4
+    expect(q.last()[0]?.rate).toBe(2)
   })
 })

@@ -29,6 +29,7 @@ import core, {
   type Space,
   systemAccountUuid,
   toFindResult,
+  type TxCreateDoc,
   TxFactory,
   WorkspaceEvent,
   type BroadcastTargetResult,
@@ -2199,6 +2200,132 @@ describe('SpaceSecurityMiddleware', () => {
       // whatever the adapter returned. If this assertion ever changes, audit
       // every DbAdapter to confirm it applies space security.
       expect(result).toHaveLength(2)
+    })
+  })
+
+  describe('write access into non-space objects', () => {
+    const docTx = (space: string): TxCreateDoc<Doc> =>
+      txFactory.createTxCreateDoc(core.class.Doc, space as Ref<Space>, {} as any, 'doc1' as Ref<Doc>)
+
+    it('rejects a non-member write into a private space', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      const outsider = createAccount('outsider')
+      ctx.contextData = createSessionData(outsider)
+
+      const createTx = docTx('private1')
+
+      await expect(mw.tx(ctx, [createTx])).rejects.toThrow()
+      expect(nextMiddleware.tx).not.toHaveBeenCalled()
+    })
+
+    it('allows a member to write into a private space they belong to', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      const member = createAccount('user1')
+      ctx.contextData = createSessionData(member)
+
+      const createTx = docTx('private1')
+
+      await expect(mw.tx(ctx, [createTx])).resolves.not.toThrow()
+      expect(nextMiddleware.tx).toHaveBeenCalledWith(ctx, [createTx])
+    })
+
+    it('allows a write into a public space regardless of membership', async () => {
+      const mw = await createMiddleware([createSpace('public1', ['user1'], { private: false })])
+
+      const outsider = createAccount('outsider')
+      ctx.contextData = createSessionData(outsider)
+
+      const createTx = docTx('public1')
+
+      await expect(mw.tx(ctx, [createTx])).resolves.not.toThrow()
+    })
+
+    it('allows a trigger-derived tx regardless of membership', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      const outsider = createAccount('outsider')
+      ctx.contextData = createSessionData(outsider)
+
+      const createTx = docTx('private1')
+      ;(createTx as any).space = core.space.DerivedTx
+
+      await expect(mw.tx(ctx, [createTx])).resolves.not.toThrow()
+    })
+
+    it('allows the system account to write into any space', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      const system = createAccount(systemAccountUuid)
+      ctx.contextData = createSessionData(system)
+
+      const createTx = docTx('private1')
+
+      await expect(mw.tx(ctx, [createTx])).resolves.not.toThrow()
+    })
+
+    it('allows AccountRole.Admin to write into any space', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      const admin = createAccount('admin1', AccountRole.Admin)
+      ctx.contextData = createSessionData(admin)
+
+      const createTx = docTx('private1')
+
+      await expect(mw.tx(ctx, [createTx])).resolves.not.toThrow()
+    })
+
+    // addSecurity only lets Owner skip the space filter for the Space domain itself (reading/
+    // listing spaces); for regular documents in other spaces the membership check still applies.
+    it('does NOT exempt AccountRole.Owner from the write-membership check outside the Space domain', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      const owner = createAccount('owner1', AccountRole.Owner)
+      ctx.contextData = createSessionData(owner)
+
+      const createTx = docTx('private1')
+
+      await expect(mw.tx(ctx, [createTx])).rejects.toThrow()
+    })
+
+    it('rejects a non-member write wrapped in TxApplyIf', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      const outsider = createAccount('outsider')
+      ctx.contextData = createSessionData(outsider)
+
+      const createTx = docTx('private1')
+      const applyTx = txFactory.createTxApplyIf(core.space.Tx, undefined, [], [], [createTx], undefined)
+
+      await expect(mw.tx(ctx, [applyTx])).rejects.toThrow()
+      expect(nextMiddleware.tx).not.toHaveBeenCalled()
+    })
+
+    it('allows a member write wrapped in TxApplyIf', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      ctx.contextData = createSessionData(createAccount('user1'))
+
+      const createTx = docTx('private1')
+      const applyTx = txFactory.createTxApplyIf(core.space.Tx, undefined, [], [], [createTx], undefined)
+
+      await expect(mw.tx(ctx, [applyTx])).resolves.not.toThrow()
+      expect(nextMiddleware.tx).toHaveBeenCalledWith(ctx, [applyTx])
+    })
+
+    // Guests reach documents through Collaborator, not membership - GuestPermissionsMiddleware judges
+    // them, so a membership-only check here would cut off QMS reviewers who are not space members.
+    it('leaves guest roles to GuestPermissionsMiddleware', async () => {
+      const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])
+
+      for (const role of [AccountRole.Guest, AccountRole.DocGuest, AccountRole.ReadOnlyGuest]) {
+        ctx.contextData = createSessionData(createAccount('guest1', role))
+
+        const createTx = docTx('private1')
+
+        await expect(mw.tx(ctx, [createTx])).resolves.not.toThrow()
+      }
     })
   })
 })

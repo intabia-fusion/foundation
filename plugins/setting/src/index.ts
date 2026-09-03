@@ -230,6 +230,12 @@ export default plugin(settingId, {
     OfficeSettings: '' as AnyComponent
   },
   string: {
+    ConfirmOperation: '' as IntlString,
+    Confirm: '' as IntlString,
+    OtpCode: '' as IntlString,
+    OtpSent: '' as IntlString,
+    OtpSendFailed: '' as IntlString,
+    SendCode: '' as IntlString,
     Settings: '' as IntlString,
     Setting: '' as IntlString,
     Spaces: '' as IntlString,

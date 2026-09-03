@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../fixtures'
 import { ApplicationsDetailsPage } from '../model/recruiting/applications-details-page'
 import { ApplicationsPage } from '../model/recruiting/applications-page'
 import { NavigationMenuPage } from '../model/recruiting/navigation-menu-page'

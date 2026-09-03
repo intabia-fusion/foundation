@@ -17,9 +17,15 @@ import { MeasureContext, Ref, WorkspaceUuid } from '@hcengineering/core'
 import { Person } from '@hcengineering/contact'
 import { MeetingMinutes, parseRoomName } from '@hcengineering/love'
 import { PlatformQueueProducer } from '@hcengineering/server-core'
-import { RoomServiceClient, ParticipantInfo as LiveKitParticipant, Room } from 'livekit-server-sdk'
+import {
+  EgressClient,
+  type EgressInfo,
+  RoomServiceClient,
+  ParticipantInfo as LiveKitParticipant,
+  Room
+} from 'livekit-server-sdk'
 import { WorkspaceClient } from './workspaceClient'
-import { parseParticipantMetadata } from './utils'
+import { parseMetadata, parseParticipantMetadata, updateMetadata } from './utils'
 import { type BillingMessage } from './queue'
 
 /**
@@ -30,6 +36,8 @@ export interface PollingConfig {
   intervalMs: number
   /** LiveKit project key used in room metadata */
   projectKey: string
+  /** How long an office may stay open after its owner disappeared, so a refresh does not end the meeting. */
+  ownerRejoinGraceMs: number
 }
 
 /** Per-participant meeting-minutes billing progress, tracked to send only the un-sent delta each poll. */
@@ -48,6 +56,8 @@ interface RoomState {
   participants: Map<string, LiveKitParticipant>
   lastUpdated: number
   sentByParticipant: Map<string, ParticipantBillingProgress>
+  /** Office owner of the room; `null` when it is not an office, `undefined` until resolved. */
+  officeOwner?: Ref<Person> | null
 }
 
 /** Periodically polls LiveKit to reconcile room/participant state with the platform database. */
@@ -56,6 +66,14 @@ export class LiveKitPollingService {
   private readonly roomClient: RoomServiceClient
   private readonly config: PollingConfig
   private intervalHandle: NodeJS.Timeout | null = null
+  /** Consecutive polls that found no rooms of ours. */
+  private idleCycles = 0
+  /** Earliest moment an owner grace expires; the next poll is pulled forward to meet it. */
+  private nextGraceDeadline = Number.POSITIVE_INFINITY
+  /** A cycle is in flight - `wakeUp` must not start a second one over the same rooms. */
+  private polling = false
+  private static readonly IDLE_CYCLES_BEFORE_BACKOFF = 3
+  private static readonly IDLE_INTERVAL_MS = 60000
   private isRunning = false
   private readonly roomStates = new Map<string, RoomState>()
 
@@ -64,17 +82,23 @@ export class LiveKitPollingService {
   private readonly knownWorkspaces = new Set<WorkspaceUuid>()
   private readonly lastCleanupTime = new Map<WorkspaceUuid, number>()
   private static readonly CLEANUP_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
+  /** An egress younger than this may simply be between the egress call and the row update. */
+  private static readonly ORPHAN_EGRESS_GRACE_MS = 60_000
 
-  // After this long unreachable, assume LiveKit is down and force-finish meetings so clients aren't stuck.
-  private static readonly LIVEKIT_OUTAGE_MS = 15 * 1000
+  // Draining finishes every meeting of every workspace, so the bar is high: a LiveKit
+  // restart or a network blip must not clear the whole installation.
+  private static readonly LIVEKIT_OUTAGE_MS = 5 * 60 * 1000
+  private static readonly LIVEKIT_OUTAGE_FAILURES = 5
   private livekitFailureSince: number | null = null
+  private livekitFailures = 0
   private livekitDrainedAt: number | null = null
 
   constructor (
     ctx: MeasureContext,
     roomClient: RoomServiceClient,
     config: PollingConfig,
-    private readonly billingProducer?: PlatformQueueProducer<BillingMessage>
+    private readonly billingProducer?: PlatformQueueProducer<BillingMessage>,
+    private readonly egressClient?: EgressClient
   ) {
     this.ctx = ctx
     this.roomClient = roomClient
@@ -115,12 +139,46 @@ export class LiveKitPollingService {
     })
 
     // Run immediately on start
-    void this.poll()
+    void this.runCycle()
+  }
 
-    // Schedule periodic polling
-    this.intervalHandle = setInterval(() => {
-      void this.poll()
-    }, this.config.intervalMs)
+  /** Poll, then schedule the next cycle - the delay depends on whether anything is live. */
+  private async runCycle (): Promise<void> {
+    if (!this.isRunning || this.polling) return
+    this.polling = true
+    try {
+      await this.poll()
+    } finally {
+      this.polling = false
+      this.scheduleNext()
+    }
+  }
+
+  private scheduleNext (): void {
+    if (!this.isRunning) return
+    if (this.intervalHandle !== null) {
+      clearTimeout(this.intervalHandle)
+    }
+    const delay =
+      this.idleCycles >= LiveKitPollingService.IDLE_CYCLES_BEFORE_BACKOFF
+        ? Math.max(this.config.intervalMs, LiveKitPollingService.IDLE_INTERVAL_MS)
+        : this.config.intervalMs
+    // A grace running out between two polls would leave the room open for another whole interval.
+    const wake = Math.max(1000, Math.min(delay, this.nextGraceDeadline - Date.now()))
+    this.nextGraceDeadline = Number.POSITIVE_INFINITY
+    this.intervalHandle = setTimeout(() => {
+      void this.runCycle()
+    }, wake)
+  }
+
+  /** A webhook means the stand is not idle: drop the back-off and poll right away. */
+  wakeUp (): void {
+    if (!this.isRunning) return
+    if (this.idleCycles === 0) return
+    this.idleCycles = 0
+    this.ctx.info('[PollingService] Activity detected, resuming the base interval')
+    // scheduleNext() clears the pending timer; a stray one is absorbed by `polling`.
+    void this.runCycle()
   }
 
   /**
@@ -133,7 +191,7 @@ export class LiveKitPollingService {
 
     this.isRunning = false
     if (this.intervalHandle !== null) {
-      clearInterval(this.intervalHandle)
+      clearTimeout(this.intervalHandle)
       this.intervalHandle = null
     }
     this.ctx.info('[PollingService] Stopped polling service')
@@ -191,6 +249,7 @@ export class LiveKitPollingService {
         if (this.livekitFailureSince !== null) {
           this.ctx.info('[PollingService] LiveKit reachable again')
           this.livekitFailureSince = null
+          this.livekitFailures = 0
           this.livekitDrainedAt = null
         }
       } catch (err: any) {
@@ -198,19 +257,30 @@ export class LiveKitPollingService {
         if (this.livekitFailureSince === null) {
           this.livekitFailureSince = now
         }
+        this.livekitFailures++
         const outageMs = now - this.livekitFailureSince
         this.ctx.error('[PollingService] LiveKit listRooms failed', {
           error: err?.message ?? String(err),
-          outageMs
+          outageMs,
+          failures: this.livekitFailures
         })
+        // Both bars must be cleared: elapsed time alone would fire on two failures spaced
+        // far apart, a failure count alone would fire on a burst inside one second.
+        const outageConfirmed =
+          outageMs >= LiveKitPollingService.LIVEKIT_OUTAGE_MS &&
+          this.livekitFailures >= LiveKitPollingService.LIVEKIT_OUTAGE_FAILURES
         // Drain once per outage so the cleanup is idempotent and doesn't
         // hammer the database every 30s while LiveKit stays down.
-        if (outageMs >= LiveKitPollingService.LIVEKIT_OUTAGE_MS && this.livekitDrainedAt === null) {
+        if (outageConfirmed && this.livekitDrainedAt === null) {
           this.livekitDrainedAt = now
           await this.drainAllActiveMeetings()
         }
         return
       }
+
+      // An empty stand does not need to be polled every few seconds; back off until a
+      // webhook or a room shows up again.
+      this.idleCycles = ourRooms.length === 0 ? this.idleCycles + 1 : 0
 
       // Track every workspace seen, since processRoom() only covers workspaces with a current LiveKit room.
       for (const room of ourRooms) {
@@ -229,6 +299,8 @@ export class LiveKitPollingService {
           })
         }
       }
+
+      await this.stopOrphanEgresses()
 
       // We need to check workspaces added to check for un finished meetings.
       const wtc = Array.from(this.workspacesToCheck)
@@ -306,14 +378,18 @@ export class LiveKitPollingService {
     const sentByParticipant = previousState?.sentByParticipant ?? new Map<string, ParticipantBillingProgress>()
 
     // Update state
-    this.roomStates.set(roomName, {
+    const state: RoomState = {
       roomName,
       workspace,
       meetingId,
       participants: currentParticipants,
       lastUpdated: Date.now(),
-      sentByParticipant
-    })
+      sentByParticipant,
+      officeOwner: previousState?.officeOwner
+    }
+    this.roomStates.set(roomName, state)
+
+    await this.closeRoomIfOwnerGone(room, state, currentParticipants)
 
     // Bill the un-sent meeting-minutes delta for every real (non-agent) participant still in the room.
     await this.trackMeetingMinutesBilling(workspace, roomName, currentParticipants, sentByParticipant)
@@ -324,6 +400,121 @@ export class LiveKitPollingService {
 
     // Also reconcile in-memory cache for detecting joins (backwards compatibility)
     await this.reconcileParticipants(workspace, meetingId, previousParticipants, currentParticipants)
+  }
+
+  // The webhook only stamps `ownerLeftAt`: a refresh arrives as a normal leave, and a delay kept in
+  // one replica's memory would die with it. The stamp lives in LiveKit, so every replica agrees.
+  private async closeRoomIfOwnerGone (
+    room: Room,
+    state: RoomState,
+    present: Map<string, LiveKitParticipant>
+  ): Promise<void> {
+    const ownerLeftAt = parseMetadata(room.metadata).ownerLeftAt
+    if (ownerLeftAt === undefined) return
+
+    if (state.officeOwner === undefined) {
+      state.officeOwner = await this.resolveOfficeOwner(state.workspace, state.meetingId)
+    }
+    // `undefined` - lookup failed, retry next poll; `null` - not an office, the stamp is not ours.
+    const owner = state.officeOwner
+    if (owner == null) return
+
+    // Back in the room - the leave was a refresh after all.
+    if (present.has(owner)) {
+      await updateMetadata(this.ctx, this.roomClient, state.roomName, { ownerLeftAt: undefined })
+      return
+    }
+    // Nobody left to evict; LiveKit drops an empty room on its own.
+    if (present.size === 0) return
+
+    const missingMs = Date.now() - ownerLeftAt
+    if (missingMs < this.config.ownerRejoinGraceMs) {
+      const deadline = ownerLeftAt + this.config.ownerRejoinGraceMs
+      this.nextGraceDeadline = Math.min(this.nextGraceDeadline, deadline)
+      return
+    }
+
+    try {
+      await this.roomClient.deleteRoom(state.roomName)
+      this.ctx.info('[PollingService] Office owner gone past the grace, closed the room', {
+        meetingId: state.meetingId,
+        owner,
+        missingMs
+      })
+      this.roomStates.delete(state.roomName)
+    } catch (err: any) {
+      this.ctx.warn('[PollingService] Failed to close the room after the owner left', {
+        roomName: state.roomName,
+        error: err?.message ?? String(err)
+      })
+    }
+  }
+
+  /**
+   * An egress nobody tracks keeps burning CPU and writing to storage: it happens when the start
+   * call times out after LiveKit already accepted it, so the reservation is dropped on our side.
+   */
+  private async stopOrphanEgresses (): Promise<void> {
+    if (this.egressClient === undefined) return
+    let active: EgressInfo[]
+    try {
+      active = await this.egressClient.listEgress({ active: true })
+    } catch (err: any) {
+      this.ctx.warn('[PollingService] Failed to list active egresses', { error: err?.message ?? String(err) })
+      return
+    }
+
+    const grace = LiveKitPollingService.ORPHAN_EGRESS_GRACE_MS
+    for (const info of active) {
+      const parsed = parseRoomName(info.roomName ?? '')
+      if (parsed === undefined) continue
+      const startedAtMs = Number(info.startedAt) / 1_000_000
+      if (startedAtMs <= 0 || Date.now() - startedAtMs < grace) continue
+
+      // One unreachable workspace must not stop the sweep, and a failed lookup must not read as
+      // "nothing tracks this egress" - that would kill a live recording.
+      try {
+        const wsClient = await WorkspaceClient.create(parsed.workspace, this.ctx)
+        const tracked = await wsClient.findPendingRecordingsByMeeting(parsed.meetingId)
+        // A row still waiting for its egressId belongs to a start that is under way.
+        const claimed = tracked.some(
+          (it) => it.egressId === info.egressId || (it.egressId === undefined && Date.now() - it.startedAt < grace)
+        )
+        if (claimed) continue
+
+        this.ctx.warn('[PollingService] Stopping an egress no PendingRecording tracks', {
+          egressId: info.egressId,
+          roomName: info.roomName,
+          meetingId: parsed.meetingId
+        })
+        await this.egressClient.stopEgress(info.egressId)
+      } catch (err: any) {
+        this.ctx.warn('[PollingService] Failed to reconcile an active egress', {
+          egressId: info.egressId,
+          roomName: info.roomName,
+          error: err?.message ?? String(err)
+        })
+      }
+    }
+  }
+
+  /** `null` when the room is not an office; `undefined` on a lookup failure, so the next poll retries. */
+  private async resolveOfficeOwner (
+    workspace: WorkspaceUuid,
+    meetingId: Ref<MeetingMinutes>
+  ): Promise<Ref<Person> | null | undefined> {
+    try {
+      const wsClient = await WorkspaceClient.create(workspace, this.ctx)
+      const meeting = await wsClient.findMeetingById(meetingId)
+      if (meeting?.roomId == null) return null
+      return (await wsClient.findOfficeOwner(meeting.roomId)) ?? null
+    } catch (err: any) {
+      this.ctx.warn('[PollingService] Failed to resolve the office owner', {
+        meetingId,
+        error: err?.message ?? String(err)
+      })
+      return undefined
+    }
   }
 
   /** Sends the un-sent meeting-minutes delta (in seconds) for each currently-joined participant. */
@@ -398,6 +589,7 @@ export class LiveKitPollingService {
 
       // Build set of identities currently in LiveKit (including agents)
       const liveKitIdentities = new Set(allParticipants.keys())
+      const liveKitSids = new Set([...allParticipants.values()].map((it) => it.sid))
 
       // Find ParticipantInfo entries not present in LiveKit and remove them
       for (const dbParticipant of dbParticipants) {
@@ -409,6 +601,21 @@ export class LiveKitPollingService {
 
           // Skip agents (AI bots) - they are managed by ai-bot service and may reconnect
           if (liveKitParticipant?.kind === 4 || liveKitParticipant?.permission?.agent === true) {
+            continue
+          }
+
+          // A row keyed to a dead sid is a ghost seat: participant_left was lost while
+          // the same person rejoined under a new sid. Agent rows carry sessionId === null.
+          const sid = dbParticipant.sessionId
+          if (sid != null && sid !== '' && !liveKitSids.has(sid)) {
+            this.ctx.info('[PollingService] Removing ParticipantInfo with stale sessionId', {
+              workspace,
+              meetingId,
+              participantInfoId: dbParticipant._id,
+              person: personId,
+              sessionId: sid
+            })
+            await wsClient.removeParticipantInfoById(dbParticipant._id)
             continue
           }
 
@@ -448,65 +655,38 @@ export class LiveKitPollingService {
       // Preload existing ParticipantInfo (by person id and name) to catch a stale in-memory cache.
       const existingParticipantInfos = await wsClient.findParticipantInfosByMeeting(meetingId)
       const existingPersonIds = new Set(existingParticipantInfos.map((it) => String(it.person)))
-      const existingNames = new Set(existingParticipantInfos.map((it) => (it.name ?? '').toString()))
 
-      // Find participants who joined (in current but not in previous)
+      // Driven by the database, not the cache: a workspace-session restart wipes the rows while the
+      // cache still lists everyone, so a cache-based check would never notice the seats are gone.
       for (const [identity, participant] of currentParticipants) {
         if (participant?.kind !== 0) {
           continue // Skip agents
         }
-        if (!previousParticipants.has(identity)) {
-          // If ParticipantInfo already exists in DB (by person id or by recorded name), skip the missed-join handling.
-          const nameStr = participant.name ?? participant.identity ?? ''
-          const alreadyExistsByIdentity = existingPersonIds.has(identity)
-          const alreadyExistsByName = existingNames.has(nameStr)
+        if (existingPersonIds.has(identity)) continue
 
-          if (alreadyExistsByIdentity || alreadyExistsByName) {
-            this.ctx.info('[PollingService] Skipping missed participant_joined (ParticipantInfo exists in DB)', {
-              workspace,
-              meetingId,
-              identity,
-              name: participant.name
-            })
-            continue
-          }
+        this.ctx.info('[PollingService] Detected missed participant_joined', {
+          workspace,
+          meetingId,
+          identity,
+          name: participant.name
+        })
 
-          this.ctx.info('[PollingService] Detected missed participant_joined', {
-            workspace,
+        // Try to resolve person from identity (may be undefined for guest identities)
+        const personRef = await wsClient.findPersonRefById(identity as Ref<Person>)
+
+        // A guest joins under an identity that is not their person ref, so the row can exist anyway.
+        if (personRef != null && existingPersonIds.has(String(personRef))) continue
+
+        if (personRef !== undefined) {
+          // Upsert ParticipantInfo
+          await wsClient.upsertParticipantFromLiveKit(
+            personRef,
+            participant.name ?? participant.identity ?? 'Unknown',
+            null,
             meetingId,
-            identity,
-            name: participant.name
-          })
-
-          // Try to resolve person from identity (may be undefined for guest identities)
-          const personRef = await wsClient.findPersonRefById(identity as Ref<Person>)
-
-          // Double-check: maybe personRef maps to an existing ParticipantInfo even if identity wasn't in existingPersonIds earlier.
-          if (personRef != null && existingPersonIds.has(String(personRef))) {
-            this.ctx.info(
-              '[PollingService] Skipping missed participant_joined (participant resolved to existing PersonRef)',
-              {
-                workspace,
-                meetingId,
-                identity,
-                personRef,
-                name: participant.name
-              }
-            )
-            continue
-          }
-
-          if (personRef !== undefined) {
-            // Upsert ParticipantInfo
-            await wsClient.upsertParticipantFromLiveKit(
-              personRef,
-              participant.name ?? participant.identity ?? 'Unknown',
-              null,
-              meetingId,
-              participant.sid,
-              parseParticipantMetadata(participant.metadata)
-            )
-          }
+            participant.sid,
+            parseParticipantMetadata(participant.metadata)
+          )
         }
       }
 

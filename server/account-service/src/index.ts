@@ -14,19 +14,14 @@ import account, {
   type AccountNotification,
   type CrmNotification,
   parseFreePlanLimits,
-  initRegionConfig
+  initRegionConfig,
+  generateShortId
 } from '@hcengineering/account'
 import accountEn from '@hcengineering/account/lang/en.json'
 import accountRu from '@hcengineering/account/lang/ru.json'
 import { Analytics } from '@hcengineering/analytics'
 import { registerProviders } from '@hcengineering/auth-providers'
-import {
-  metricsAggregate,
-  type Branding,
-  type BrandingMap,
-  type MeasureContext,
-  type WorkspaceUuid
-} from '@hcengineering/core'
+import { metricsAggregate, type Branding, type BrandingMap, type MeasureContext } from '@hcengineering/core'
 import platform, { Severity, Status, addStringsLoader, setMetadata, unknownStatus } from '@hcengineering/platform'
 import serverToken, {
   decodeToken,
@@ -51,9 +46,8 @@ import {
   type QueueOnlineUserTx,
   type QueueWorkspaceMessage,
   type QueuePaymentOperationMessage,
-  workspaceEvents
+  type QueueSubscriptionMessage
 } from '@hcengineering/server-core'
-import { randomBytes } from 'node:crypto'
 
 import { handlePresenceBatch } from './presence'
 export * from './migration/utils'
@@ -133,6 +127,10 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   const fulltextProducer = platformQueue.getProducer<QueueWorkspaceMessage>(measureCtx, QueueTopic.Fulltext)
   setMetadata(accountPlugin.metadata.FulltextQueue, fulltextProducer)
 
+  // Admin-initiated subscription events consumed by pod-payment (free-plan fallback after a cancel)
+  const subscriptionProducer = platformQueue.getProducer<QueueSubscriptionMessage>(measureCtx, QueueTopic.Subscription)
+  setMetadata(accountPlugin.metadata.SubscriptionQueue, subscriptionProducer)
+
   addStringsLoader(accountId, async (lang: string) => {
     switch (lang) {
       case 'en':
@@ -165,6 +163,10 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   setMetadata(account.metadata.ProductName, productName)
   setMetadata(account.metadata.OtpTimeToLiveSec, parseInt(process.env.OTP_TIME_TO_LIVE ?? '60'))
   setMetadata(account.metadata.OtpRetryDelaySec, parseInt(process.env.OTP_RETRY_DELAY ?? '60'))
+  setMetadata(
+    account.metadata.SignUpLinkTimeToLiveSec,
+    parseInt(process.env.SIGNUP_LINK_TIME_TO_LIVE ?? `${7 * 24 * 60 * 60}`)
+  )
   setMetadata(account.metadata.AdminOtpDevCode, process.env.ADMIN_OTP_DEV_CODE)
 
   setMetadata(account.metadata.AllowReadonlyGuests, process.env.ALLOW_READONLY_GUESTS === 'true')
@@ -285,16 +287,6 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
 
   const extractToken = (headers: IncomingHttpHeaders): string | undefined => {
     return extractAuthorizationToken(headers) ?? extractCookieToken(headers.cookie, AUTH_TOKEN_COOKIE)
-  }
-
-  function generateShortId (length = 12): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    const bytes = randomBytes(length)
-    let result = ''
-    for (let i = 0; i < length; i++) {
-      result += chars[bytes[i] % chars.length]
-    }
-    return result
   }
 
   const getRequestMeta = (headers: IncomingHttpHeaders, isServiceRequest: boolean): Meta => {
@@ -458,42 +450,6 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
     ctx.res.end()
   })
 
-  router.put('/api/v1/manage', async (req, res) => {
-    try {
-      const token = (req.query.token as string) ?? extractToken(req.headers)
-      const payload = decodeToken(token)
-      if (payload.extra?.admin !== 'true') {
-        req.res.writeHead(404, {})
-        req.res.end()
-        return
-      }
-
-      const operation = req.query.operation
-
-      switch (operation) {
-        case 'maintenance': {
-          const timeMinutes = parseInt((req.query.timeout as string) ?? '5')
-          const message = (req.request.body as any)?.message
-          // Global event: every transactor consumes the workspace topic in its own group,
-          // the workspace key carries no meaning here
-          const nilWorkspace = '00000000-0000-0000-0000-000000000000' as WorkspaceUuid
-          await workspaceProducer.send(measureCtx, nilWorkspace, [workspaceEvents.maintenance(timeMinutes, message)])
-
-          req.res.writeHead(200)
-          req.res.end()
-          return
-        }
-      }
-
-      req.res.writeHead(404, {})
-      req.res.end()
-    } catch (err: any) {
-      Analytics.handleError(err)
-      req.res.writeHead(404, {})
-      req.res.end()
-    }
-  })
-
   router.post('rpc', '/', async (ctx) => {
     const token = extractToken(ctx.request.headers)
 
@@ -650,17 +606,34 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
     console.log(`server started on port ${ACCOUNT_PORT}`)
   })
 
+  // Without an explicit exit the process outlives SIGTERM: kafka sockets and koa keep-alive
+  // connections hold the event loop, and the pod only dies when the orchestrator SIGKILLs it.
+  let closing = false
   const close = (): void => {
+    if (closing) return
+    closing = true
     onClose?.()
-    void notificationProducer.close()
-    void crmProducer.close()
-    void usersConsumer.close()
-    void paymentOperationConsumer.close()
-    void platformQueue.shutdown()
-    void accountsDb.then(([, closeAccountsDb]) => {
-      closeAccountsDb()
-    })
+    const closed = Promise.allSettled([
+      notificationProducer.close(),
+      crmProducer.close(),
+      subscriptionProducer.close(),
+      usersConsumer.close(),
+      paymentOperationConsumer.close(),
+      platformQueue.shutdown(),
+      accountsDb.then(([, closeAccountsDb]) => {
+        closeAccountsDb()
+      })
+    ])
     server.close()
+    server.closeAllConnections()
+    // Cap the wait so a stuck client cannot keep the pod alive either.
+    const cap = setTimeout(() => {
+      process.exit(0)
+    }, 5000)
+    cap.unref()
+    void closed.then(() => {
+      process.exit(0)
+    })
   }
 
   process.on('uncaughtException', (e) => {

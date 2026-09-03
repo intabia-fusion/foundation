@@ -2,7 +2,9 @@
 # Mac/Windows do not support network_mode: host - use prepare-pg.sh local livekit-server instead.
 services:
   livekit-test:
-    image: livekit/livekit-server:latest
+    # Pinned: a floating tag silently changes the server under the suite between
+    # runs. Bump together with the local brew install (see docs/love.md).
+    image: livekit/livekit-server:v1.13.5
     network_mode: host
     restart: unless-stopped
     volumes:

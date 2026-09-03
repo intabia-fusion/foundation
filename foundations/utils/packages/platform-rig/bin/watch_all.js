@@ -388,7 +388,6 @@ async function main() {
   // Collect packages to watch
   const packagesToWatch = []
   const packagesToValidate = []
-  const packageByPath = new Map()
 
   // Pre-compute --to filter once
   const targetDeps = options.toPackage ? getAllDependencies(graph, options.toPackage) : null
@@ -406,10 +405,6 @@ async function main() {
     if (isTranspilable) {
       packagesToWatch.push(name)
 
-      const srcDir = node.phaseBuild === 'compile transpile tests' ? 'tests' : 'src'
-      const srcPath = join(node.project.fullPath, srcDir)
-      packageByPath.set(srcPath, name)
-      packageByPath.set(node.project.fullPath, name)
     }
 
     // Validate selection mirrors compile_all: any package with phaseValidate.
@@ -541,10 +536,20 @@ async function main() {
 
       const rebuildStart = performance.now()
       try {
-        const result = await runTranspilePhase(graph, orderedPackages, validationWorkers)
+        // Refresh the hashes of the packages whose files actually changed, then hand the
+        // map to transpile. Without it every dependent skipped its cache check and was
+        // rebuilt on every keystroke, and the transpile cache was never written at all.
+        for (const pkg of changedPackages) {
+          const node = graph.get(pkg)
+          if (node?.project?.fullPath) {
+            packageHashes.set(pkg, calculatePackageHash(node.project.fullPath))
+          }
+        }
+
+        const result = await runTranspilePhase(graph, orderedPackages, validationWorkers, { packageHashes })
         const elapsed = Math.round(performance.now() - rebuildStart)
 
-        // Update package hashes for changed packages after transpile
+        // Outputs changed, so their own hashes need refreshing for the validate step below.
         if (result.changedPackages && result.changedPackages.size > 0) {
           for (const pkg of result.changedPackages) {
             const node = graph.get(pkg)

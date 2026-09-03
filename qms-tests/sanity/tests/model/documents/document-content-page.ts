@@ -385,7 +385,14 @@ export class DocumentContentPage extends DocumentCommonPage {
   }
 
   async selectRelease (version: string): Promise<void> {
-    await this.page.getByText('Release', { exact: true }).click()
+    // A hovered tab also renders its title inside the tooltip (`div.tooltip > span.label.l1`),
+    // so a bare text match resolves to two elements and the tooltip eats the click.
+    await this.page.mouse.move(0, 0)
+    // The tab markup keeps a stray whitespace text node next to the label, and a regex
+    // `hasText` is matched without whitespace normalization - hence the \s* padding.
+    const releaseTab = this.page.locator('div.tab', { hasText: /^\s*Release\s*$/ }).first()
+    await expect(releaseTab).toBeVisible()
+    await releaseTab.click()
     if (version === 'Major') {
       await this.page.locator('label[for="major"]').click()
     }
@@ -396,7 +403,7 @@ export class DocumentContentPage extends DocumentCommonPage {
 
   async addReviewersFromTeam (anotherReviewer: boolean = false): Promise<void> {
     await this.page.waitForTimeout(500)
-    await this.page.getByText('Team').click()
+    await this.openTeam.click()
     await this.page.getByText('Add member').nth(1).click()
     if (anotherReviewer) {
       await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).click()
@@ -694,7 +701,7 @@ export class DocumentContentPage extends DocumentCommonPage {
 
   async checkTeamMembersReviewerCoauthorApproverNotExists (): Promise<void> {
     await this.page.waitForTimeout(500)
-    await this.page.getByText('Team').click()
+    await this.openTeam.click()
     await this.page.getByText('Add member').first().click()
     await expect(this.page.getByRole('button', { name: 'AJ Appleseed John' })).not.toBeVisible()
     await this.page.keyboard.press('Escape')

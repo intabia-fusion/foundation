@@ -37,6 +37,7 @@ import core, {
   pickPrimarySocialId,
   platformNow,
   platformNowDiff,
+  RateLimiter,
   readOnlyGuestAccountUuid,
   SocialIdType,
   systemAccount,
@@ -59,7 +60,7 @@ import core, {
   type WorkspaceInfoWithStatus,
   type WorkspaceUuid
 } from '@hcengineering/core'
-import platform, { Severity, Status, UNAUTHORIZED, unknownError } from '@hcengineering/platform'
+import platform, { PlatformError, Severity, Status, UNAUTHORIZED, unknownError } from '@hcengineering/platform'
 import {
   type HelloRequest,
   type HelloResponse,
@@ -87,6 +88,7 @@ import {
   QueueWorkspaceEvent,
   type QueueWorkspaceMessage,
   type QueueWorkspaceMaintenanceMessage,
+  type SendMemo,
   type Session,
   SessionDataImpl,
   type SessionHealth,
@@ -110,6 +112,10 @@ const guestAccount = 'b6996120-416f-49cd-841e-e4a5d2e49c9b'
 const hangRequestTimeoutSeconds = 30
 const hangSessionTimeoutSeconds = 60
 
+// Clamp to >=1: RateLimiter(0) deadlocks (its `size >= rate` gate never opens), NaN uncaps it.
+const parsedColdBuildConcurrency = parseInt(process.env.COLD_BUILD_CONCURRENCY ?? '8', 10)
+const coldBuildConcurrency = Number.isNaN(parsedColdBuildConcurrency) ? 8 : Math.max(1, parsedColdBuildConcurrency)
+
 /**
  * @public
  */
@@ -121,7 +127,14 @@ export interface Timeouts {
 
 export class TSessionManager implements SessionManager {
   readonly transactorId: string
-  private readonly statusPromises = new Map<string, Promise<void>>()
+  // Presence batching: accumulate per-workspace online/offline changes and flush once per
+  // second as a single pipeline tx -> one broadcast fan-out (M sends instead of M^2 in a
+  // reconnect storm). Last write wins within the window, so connect/disconnect flapping
+  // collapses. See docs/stress-test-plan.md.
+  private readonly pendingStatus = new Map<WorkspaceUuid, Map<AccountUuid, { session: Session, online: boolean }>>()
+  private readonly statusFlushTimers = new Map<WorkspaceUuid, any>()
+  private readonly statusFlushing = new Set<WorkspaceUuid>()
+  private readonly statusFlushDelay = parseInt(process.env.STATUS_FLUSH_MS ?? '1000')
   readonly workspaces = new Map<WorkspaceUuid, Workspace>()
   checkInterval: any
 
@@ -146,6 +159,10 @@ export class TSessionManager implements SessionManager {
   hungSessionsFailPercent = parseInt(process.env.HUNG_SESSIONS_FAIL_PERCENT ?? '75')
   hungRequestsFailPercent = parseInt(process.env.HUNG_REQUESTS_PERCENT ?? '50')
   counters = new OneSecondCountersImpl()
+
+  // Cap concurrent cold pipeline builds so a reconnect storm (1000 tenants after a
+  // transactor restart) doesn't saturate the event loop at once.
+  coldBuildLimiter = new RateLimiter(coldBuildConcurrency)
 
   constructor (
     readonly ctx: MeasureContext,
@@ -202,6 +219,9 @@ export class TSessionManager implements SessionManager {
             }
             this.broadcast(ctx, null, msg.workspace, [tx], undefined)
           }
+        } else if (m.type === QueueWorkspaceEvent.ForceClose) {
+          // Operator dropped every session of this workspace; whichever transactor holds it acts.
+          await this.forceClose(msg.workspace)
         } else if (m.type === QueueWorkspaceEvent.Maintenance) {
           // Global maintenance warning from the account service; workspace key is not meaningful here
           const mm = m as QueueWorkspaceMaintenanceMessage
@@ -215,30 +235,38 @@ export class TSessionManager implements SessionManager {
       QueueTopic.OnlineUserTx,
       this.transactorId,
       async (ctx, msg) => {
-        const { workspaceUuid, tx, account } = msg.value
-        const workspace = this.workspaces.get(workspaceUuid)
-        if (workspace == null) return
+        const { tx, account } = msg.value
+        // The message names an account, so sessions are the index - a workspace without one
+        // had nothing to apply anyway.
+        const targets = new Set<WorkspaceUuid>()
+        for (const { session } of this.sessions.values()) {
+          if (session.getUser() === account) {
+            targets.add(session.workspace.uuid)
+          }
+        }
 
-        const session = this.getUserSession(workspaceUuid, account)
-        if (session == null) return
+        for (const workspaceUuid of targets) {
+          const workspace = this.workspaces.get(workspaceUuid)
+          if (workspace == null) continue
 
-        await workspace.with(async (pipeline) => {
-          ctx.contextData = new SessionDataImpl(
-            systemAccount,
-            'online-user-tx',
-            true,
-            { txes: [], targets: {}, queue: [], sessions: {} },
-            workspace.wsId,
-            true,
-            undefined,
-            undefined,
-            pipeline.context.modelDb,
-            new Map(),
-            'transactor'
-          )
-          await pipeline.tx(ctx, [tx])
-          await pipeline.handleBroadcast(ctx)
-        })
+          await workspace.with(async (pipeline) => {
+            ctx.contextData = new SessionDataImpl(
+              systemAccount,
+              'online-user-tx',
+              true,
+              { txes: [], targets: {}, queue: [], sessions: {} },
+              workspace.wsId,
+              true,
+              undefined,
+              undefined,
+              pipeline.context.modelDb,
+              new Map(),
+              'transactor'
+            )
+            await pipeline.tx(ctx, [tx])
+            await pipeline.handleBroadcast(ctx)
+          })
+        }
       }
     )
 
@@ -324,9 +352,10 @@ export class TSessionManager implements SessionManager {
   }
 
   private handleWorkspaceTick (): void {
-    this.ctx.measure('sessions', this.sessions.size, { kind: 'total' }, true)
-
     if (this.ticks % ticksPerSecond === 0) {
+      // A gauge does not need the full 20Hz tick rate.
+      this.ctx.measure('sessions', this.sessions.size, { kind: 'total' }, true)
+
       // Let's update workspace statistics every 10 seconds
       this.sendUserWorkspaceStats()
 
@@ -375,12 +404,14 @@ export class TSessionManager implements SessionManager {
         }
       }
 
-      for (const s of workspace.sessions) {
-        if (this.ticks % (5 * 60 * ticksPerSecond) === workspace.tickHash) {
-          s[1].session.mins5.find = s[1].session.current.find
-          s[1].session.mins5.tx = s[1].session.current.tx
+      // Hoisted out of the session loop: true once every five minutes, yet it made the tick walk
+      // every session of every workspace 20 times a second.
+      if (this.ticks % (5 * 60 * ticksPerSecond) === workspace.tickHash) {
+        for (const s of workspace.sessions.values()) {
+          s.session.mins5.find = s.session.current.find
+          s.session.mins5.tx = s.session.current.tx
 
-          s[1].session.current = { find: 0, tx: 0 }
+          s.session.current = { find: 0, tx: 0 }
         }
       }
 
@@ -817,7 +848,8 @@ export class TSessionManager implements SessionManager {
               versionMinor: workspaceInfo.versionMinor,
               versionPatch: workspaceInfo.versionPatch
             },
-            role: AccountRole.Owner,
+            // Placeholder only: createSession takes the role from account.workspaces, never from here.
+            role: AccountRole.ReadOnlyGuest,
             endpoint: { externalUrl: '', internalUrl: '', region: workspaceInfo.region ?? '' },
             collaboratorEndpoint: { externalUrl: '', internalUrl: '', region: workspaceInfo.region ?? '' },
             progress: workspaceInfo.processingProgress,
@@ -827,7 +859,7 @@ export class TSessionManager implements SessionManager {
           this.workspaceInfoCache.delete(token.workspace)
         }
 
-        if (wsInfo.passwordAgingRule !== undefined && wsInfo.passwordAgingRule > 0) {
+        if (wsInfo.passwordAgingRule != null && wsInfo.passwordAgingRule > 0) {
           const isPasswordAgingOk = await this.checkPasswordAging(ctx, rawToken)
           if (!isPasswordAgingOk) {
             return { error: new Status(Severity.ERROR, platform.status.PasswordExpired, {}), terminate: true }
@@ -876,6 +908,11 @@ export class TSessionManager implements SessionManager {
         // Mark workspace as init completed and we had at least one client.
         if (!workspace.workspaceInitCompleted) {
           workspace.workspaceInitCompleted = true
+        }
+
+        // AI bot uses REST, not hello-time status; mark it online on first request.
+        if (token.extra?.service === 'aibot') {
+          this.queueStatus(workspace.wsId.uuid, session, true)
         }
 
         if (this.timeMinutes > 0) {
@@ -974,6 +1011,8 @@ export class TSessionManager implements SessionManager {
     })
     function send (): void {
       const promises: Promise<void>[] = []
+      // Identical bytes go to every socket that is not owed a refresh - pack and compress once.
+      const memo: SendMemo = new Map()
       for (const session of sessions) {
         try {
           const sock = session.socket
@@ -987,12 +1026,14 @@ export class TSessionManager implements SessionManager {
           // before delivering the current broadcast so client query cache invalidates.
           const pending = sock.takePendingRefresh?.() ?? null
           let outTx = tx
+          let sendMemo: SendMemo | undefined = memo
           if (pending !== null && pending.length > 0) {
             outTx = [buildRefreshTx(pending), ...tx]
+            sendMemo = undefined // this socket gets a different payload
             ctx.measure('broadcast-flushed-refresh', pending.length)
           }
           promises.push(
-            sendResponse(ctx, session.session, sock, { result: outTx }).catch((err) => {
+            sendResponse(ctx, session.session, sock, { result: outTx }, sendMemo).catch((err) => {
               ctx.error('failed to send', err)
             })
           )
@@ -1067,10 +1108,11 @@ export class TSessionManager implements SessionManager {
     const sessions = [...workspace.sessions.values()]
     ctx = ctx.newChild('📭 broadcast', {})
     const send = (): void => {
+      const memo: SendMemo = new Map()
       for (const sessionRef of sessions) {
         const tt = sessionRef.session.getUser()
         if ((target === undefined && !(exclude ?? []).includes(tt)) || (target?.includes(tt) ?? false)) {
-          sessionRef.session.broadcast(ctx, sessionRef.socket, resp)
+          sessionRef.session.broadcast(ctx, sessionRef.socket, resp, memo)
         }
       }
       ctx.end()
@@ -1100,19 +1142,22 @@ export class TSessionManager implements SessionManager {
     }
 
     const factory = async (): Promise<Pipeline> => {
-      const pipeline = await this.counters.withCounter('startWorkspace', 1, () =>
-        this.pipelineFactory(
-          pipelineCtx,
-          workspaceIds,
-          {
-            broadcast: (ctx, tx, targets, exclude) => {
-              this.broadcastAll(ctx, workspaceIds.uuid, tx, targets, exclude)
+      // Only the cold build is gated (see coldBuildLimiter); pipeline ops run unthrottled.
+      const pipeline = await this.coldBuildLimiter.exec(() =>
+        this.counters.withCounter('startWorkspace', 1, () =>
+          this.pipelineFactory(
+            pipelineCtx,
+            workspaceIds,
+            {
+              broadcast: (ctx, tx, targets, exclude) => {
+                this.broadcastAll(ctx, workspaceIds.uuid, tx, targets, exclude)
+              },
+              broadcastSessions: (ctx, sessions) => {
+                this.broadcastSessions(ctx, sessions)
+              }
             },
-            broadcastSessions: (ctx, sessions) => {
-              this.broadcastSessions(ctx, sessions)
-            }
-          },
-          branding
+            branding
+          )
         )
       )
       return pipeline
@@ -1132,66 +1177,86 @@ export class TSessionManager implements SessionManager {
     return workspace
   }
 
-  private async trySetStatus (
-    ctx: MeasureContext,
-    pipeline: Pipeline,
-    session: Session,
-    online: boolean,
-    workspaceId: WorkspaceUuid
-  ): Promise<void> {
-    const current = this.statusPromises.get(session.getUser())
-    if (current !== undefined) {
-      await current
+  private queueStatus (workspaceId: WorkspaceUuid, session: Session, online: boolean): void {
+    const user = session.getUser()
+    if (user === undefined || session.getRawAccount().role === AccountRole.ReadOnlyGuest) return
+    let pending = this.pendingStatus.get(workspaceId)
+    if (pending === undefined) {
+      pending = new Map()
+      this.pendingStatus.set(workspaceId, pending)
     }
-    const promise = this.setStatus(ctx, pipeline, session, online, workspaceId)
-    this.statusPromises.set(session.getUser(), promise)
-    await promise
-    this.statusPromises.delete(session.getUser())
+    pending.set(user, { session, online })
+    this.queueStatusFlush(workspaceId)
   }
 
-  private async setStatus (
-    ctx: MeasureContext,
-    pipeline: Pipeline,
-    session: Session,
-    online: boolean,
-    workspaceId: WorkspaceUuid
-  ): Promise<void> {
+  private queueStatusFlush (workspaceId: WorkspaceUuid): void {
+    if (this.statusFlushTimers.has(workspaceId)) return
+    this.statusFlushTimers.set(
+      workspaceId,
+      setTimeout(() => {
+        this.statusFlushTimers.delete(workspaceId)
+        void this.flushStatus(workspaceId)
+      }, this.statusFlushDelay)
+    )
+  }
+
+  private async flushStatus (workspaceId: WorkspaceUuid): Promise<void> {
+    // Serialize flushes per workspace: an overlapping flush could findAll before the prior
+    // create commits and duplicate a transient UserStatus. Re-arm and bail if one is running.
+    if (this.statusFlushing.has(workspaceId)) {
+      this.queueStatusFlush(workspaceId)
+      return
+    }
+    const pending = this.pendingStatus.get(workspaceId)
+    if (pending === undefined || pending.size === 0) return
+    this.pendingStatus.delete(workspaceId)
+    const workspace = this.workspaces.get(workspaceId)
+    if (workspace === undefined || workspace.maintenance) return
+    this.statusFlushing.add(workspaceId)
+    const entries = [...pending.entries()]
     try {
-      const user = session.getUser()
-      const userRawAccount = session.getRawAccount()
-      if (user === undefined || userRawAccount.role === AccountRole.ReadOnlyGuest) return
-
-      const clientCtx: ClientSessionCtx = {
-        requestId: undefined,
-        pipeline,
-        sendResponse: async () => {
-          // No response
-        },
-        ctx,
-        socialStringsToUsers: this.getActiveSocialStringsToUsersMap(workspaceId, session),
-        sendError: async () => {
-          // Assume no error send
-        },
-        sendPong: () => {}
-      }
-
-      const status = (await session.findAllRaw(clientCtx, core.class.UserStatus, { user }, { limit: 1 }))[0]
-      const txFactory = new TxFactory(userRawAccount.primarySocialId, true)
-      if (status === undefined) {
-        const tx = txFactory.createTxCreateDoc(core.class.UserStatus, core.space.Space, {
-          online,
-          user
+      await workspace.context.with('🧨 status-batch', {}, (ctx) =>
+        workspace.with(async (pipeline) => {
+          ctx.contextData = new SessionDataImpl(
+            systemAccount,
+            'status-batch',
+            true,
+            { txes: [], targets: {}, queue: [], sessions: {} },
+            workspace.wsId,
+            true,
+            undefined,
+            undefined,
+            pipeline.context.modelDb,
+            new Map(),
+            'transactor'
+          )
+          const users = entries.map(([user]) => user)
+          const existing = await pipeline.findAll(ctx, core.class.UserStatus, { user: { $in: users } })
+          const byUser = new Map(existing.map((s) => [s.user, s]))
+          const txes: Tx[] = []
+          for (const [user, { session, online }] of entries) {
+            const txFactory = new TxFactory(session.getRawAccount().primarySocialId, true)
+            const cur = byUser.get(user)
+            if (cur === undefined) {
+              if (online) {
+                txes.push(txFactory.createTxCreateDoc(core.class.UserStatus, core.space.Space, { online, user }))
+              }
+            } else if (cur.online !== online) {
+              txes.push(txFactory.createTxUpdateDoc(cur._class, cur.space, cur._id, { online }))
+            }
+          }
+          if (txes.length === 0) return
+          await pipeline.tx(ctx, txes)
+          await pipeline.handleBroadcast(ctx)
         })
-        await session.tx(clientCtx, tx)
-      } else if (status.online !== online) {
-        const tx = txFactory.createTxUpdateDoc(status._class, status.space, status._id, {
-          online
-        })
-        await session.tx(clientCtx, tx)
-      }
+      )
     } catch (err: any) {
-      ctx.error('failed to set status', { err })
+      this.ctx.error('failed to flush status batch', { err, workspaceId })
       Analytics.handleError(err)
+    } finally {
+      this.statusFlushing.delete(workspaceId)
+      // New changes may have arrived during the flush.
+      if ((this.pendingStatus.get(workspaceId)?.size ?? 0) > 0) this.queueStatusFlush(workspaceId)
     }
   }
 
@@ -1237,16 +1302,13 @@ export class TSessionManager implements SessionManager {
                 if (another === -1 && !workspace.maintenance) {
                   void workspace.with(async (pipeline) => {
                     await pipeline.closeSession(ctx, sessionRef.session.sessionId)
-                    if (user !== guestAccount && user !== systemAccountUuid) {
-                      await this.trySetStatus(
-                        workspace.context.newChild('status', {}),
-                        pipeline,
-                        sessionRef.session,
-                        false,
-                        workspaceUuid
-                      ).catch(() => {})
-                    }
                   })
+                  // Keep the AI bot online while the workspace is up: its REST sessions come and
+                  // go per request, so flipping it offline on session close would blink it out.
+                  const isAiBot = sessionRef.session.token.extra?.service === 'aibot'
+                  if (user !== guestAccount && user !== systemAccountUuid && !isAiBot) {
+                    this.queueStatus(workspaceUuid, sessionRef.session, false)
+                  }
                 }
               }
             }
@@ -1496,6 +1558,18 @@ export class TSessionManager implements SessionManager {
     return this.limitter.checkRateLimit(service.getUser() + (service.token.extra?.service ?? ''))
   }
 
+  private reportRequestError (ctx: MeasureContext, err: any, opts: { method?: string, request?: unknown }): void {
+    if (err instanceof PlatformError && err.status.code !== platform.status.UnknownError) {
+      // Forbidden/Unauthorized etc are business outcomes, not faults: count them, don't log a stack.
+      ctx.measure('request-rejected', 1, { code: err.status.code, method: opts.method })
+      return
+    }
+    Analytics.handleError(err)
+    if (LOGGING_ENABLED) {
+      this.ctx.error('error handle request', { error: err, request: opts.request })
+    }
+  }
+
   async handleRequest<S extends Session>(
     requestCtx: MeasureContext,
     service: S,
@@ -1612,16 +1686,12 @@ export class TSessionManager implements SessionManager {
           })
         )
       } catch (err: any) {
-        Analytics.handleError(err)
-        if (LOGGING_ENABLED) {
-          this.ctx.error('error handle request', { error: err, request })
-        }
+        this.reportRequestError(requestCtx, err, { method: request.method, request })
         await ws.send(
           requestCtx,
           {
             id: request.id,
-            error: unknownError(err),
-            result: JSON.parse(JSON.stringify(err?.stack))
+            error: unknownError(err)
           },
           service.binaryMode,
           service.useCompression
@@ -1683,16 +1753,12 @@ export class TSessionManager implements SessionManager {
           })
         )
       } catch (err: any) {
-        Analytics.handleError(err)
-        if (LOGGING_ENABLED) {
-          this.ctx.error('error handle request', { error: err })
-        }
+        this.reportRequestError(requestCtx, err, { method })
         await ws.send(
           requestCtx,
           {
             id: reqId,
-            error: unknownError(err),
-            result: JSON.parse(JSON.stringify(err?.stack))
+            error: unknownError(err)
           },
           service.binaryMode,
           service.useCompression
@@ -1778,12 +1844,8 @@ export class TSessionManager implements SessionManager {
         await ws.send(ctx, helloResponse, false, false)
       })
       if (account.uuid !== guestAccount && account.uuid !== systemAccountUuid) {
-        void workspace.with(async (pipeline) => {
-          // We do not need to wait for set-status, just return session to client
-          await workspace.context
-            .with('🧨 status', {}, (ctx) => this.trySetStatus(ctx, pipeline, service, true, service.workspace.uuid))
-            .catch(() => {})
-        })
+        // Batched + broadcast once per second (see queueStatus).
+        this.queueStatus(service.workspace.uuid, service, true)
       }
     } catch (err: any) {
       ctx.error('error', { err })

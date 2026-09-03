@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2020 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -28,11 +29,11 @@
     Label,
     ListView,
     resizeObserver,
-    showPanel,
+    closeTooltip,
     Spinner,
     type SelectPopupValueType
   } from '@hcengineering/ui'
-  import { statusStore } from '@hcengineering/view-resources'
+  import { openDoc, openDocFromRef, statusStore } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import { subIssueListProvider, type IssueRef } from '../../../utils'
   import RelatedIssuePresenter from './RelatedIssuePresenter.svelte'
@@ -102,9 +103,16 @@
 
   $: hasSelected = value.some((v) => v.isSelected)
 
+  const client = getClient()
+
   function openIssue (target: Ref<Issue>): void {
-    subIssueListProvider(subIssues, target)
-    showPanel(tracker.component.EditIssue, target, tracker.class.Issue, 'content')
+    closeTooltip()
+    const targetDoc = subIssues.find((it) => it._id === target)
+    if (targetDoc !== undefined) {
+      void openDoc(client.getHierarchy(), targetDoc)
+    } else {
+      void openDocFromRef(tracker.class.Issue, target)
+    }
   }
 
   function sendSelect (id: SelectPopupValueType['id']): void {

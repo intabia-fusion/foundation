@@ -9,7 +9,7 @@ import type {
   WorkspaceInfoWithStatus,
   WorkspaceUuid
 } from '@hcengineering/core'
-import core, { Hierarchy, systemAccountUuid, TxProcessor, versionToString } from '@hcengineering/core'
+import core, { Hierarchy, ModelDb, systemAccountUuid, TxProcessor, versionToString } from '@hcengineering/core'
 import { getAccountClient, getTransactorEndpoint } from '@hcengineering/server-client'
 import {
   createContentAdapter,
@@ -30,9 +30,11 @@ import {
   type StorageAdapter
 } from '@hcengineering/server-core'
 import { type FulltextDBConfiguration } from '@hcengineering/server-indexer'
+import { sharedSystemModel } from '@hcengineering/middleware'
 import { generateToken } from '@hcengineering/server-token'
 import { getWorkspaceClient as getHulylakeClient } from '@hcengineering/hulylake-client'
 
+import { fulltextModelFilter } from './utils'
 import { WorkspaceIndexer } from './workspace'
 
 const closeTimeout = 5 * 60 * 1000
@@ -43,6 +45,7 @@ export class WorkspaceManager {
   restoring = new Set<WorkspaceUuid>()
   wrongVersionAttempts = new Map<WorkspaceUuid, number>()
   sysHierarchy = new Hierarchy()
+  readonly sharedModel: ModelDb | undefined
 
   workspaceConsumer?: ConsumerHandle
 
@@ -67,6 +70,13 @@ export class WorkspaceManager {
   ) {
     for (const tx of model) {
       this.sysHierarchy.tx(tx)
+    }
+    if (sharedSystemModel) {
+      // System model is the same for every indexed workspace, so it is built (and filtered) once.
+      this.sharedModel = new ModelDb(this.sysHierarchy)
+      this.sharedModel.addTxes(this.ctx, fulltextModelFilter(this.sysHierarchy, model), true)
+      // Shared with every indexed workspace: frozen, a stray direct write throws instead of corrupting neighbours.
+      this.sharedModel.freeze()
     }
     this.supportedVersion = TxProcessor.createDoc2Doc(
       model.find(
@@ -162,6 +172,14 @@ export class WorkspaceManager {
     )
 
     this.txDeadLetterProducer = this.opt.queue.getProducer<TxCUD<Doc>>(this.ctx, getDeadletterTopic(QueueTopic.Tx))
+  }
+
+  // Consumers join their groups in background, a brand new group skips anything produced before the
+  // first fetch. Await this before producing into a freshly started indexer.
+  async waitConsumersReady (): Promise<void> {
+    for (const c of [this.workspaceConsumer, this.fulltextConsumer, this.txConsumer]) {
+      await c?.waitReady?.()
+    }
   }
 
   private async processTransactions (msgs: ConsumerMessage<TxCUD<Doc>>[], control: ConsumerControl): Promise<void> {
@@ -376,6 +394,8 @@ export class WorkspaceManager {
       return await WorkspaceIndexer.create(
         ctx,
         this.model,
+        this.sharedModel !== undefined ? this.sysHierarchy : undefined,
+        this.sharedModel,
         {
           uuid: workspace,
           dataId: workspaceInfo.dataId,

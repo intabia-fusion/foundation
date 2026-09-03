@@ -14,16 +14,38 @@
 -->
 <script lang="ts">
   import type { AccountAggregatedInfo, AccountActivityStats } from '@hcengineering/account-client'
+  import { type SocialIdType } from '@hcengineering/core'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import { copyTextToClipboard } from '@hcengineering/presentation'
-  import { Button, Dialog, IconCopy, Label, Loading } from '@hcengineering/ui'
+  import { copyTextToClipboard, isAdminUser, isBillingAdminUser } from '@hcengineering/presentation'
+  import { Button, Dialog, IconCopy, IconStop, Label, Loading } from '@hcengineering/ui'
 
   import adminRes from '../plugin'
-  import { getAccountClient } from '../utils'
+  import { getAccountClient, requestAdminOtpCode } from '../utils'
 
   export let account: AccountAggregatedInfo
 
   const accountClient = getAccountClient()
+
+  const readOnly = isBillingAdminUser() && !isAdminUser()
+
+  let releasing: string | undefined
+  let releaseError: string | undefined
+
+  // Releasing a social id can cut the person's login -> OTP-gated on the server
+  async function releaseSocialId (type: SocialIdType, value: string): Promise<void> {
+    const code = await requestAdminOtpCode()
+    if (code === undefined) return
+    releasing = value
+    releaseError = undefined
+    try {
+      await accountClient.adminReleaseSocialId(account.uuid, type, value, code)
+      account.socialIds = account.socialIds.filter((s) => s.value !== value)
+    } catch (err: any) {
+      releaseError = String(err?.message ?? err)
+    } finally {
+      releasing = undefined
+    }
+  }
 
   const ACTIVITY_WEEKS = 12
 
@@ -78,8 +100,25 @@
       <div class="mr-8 mb-2">
         <div class="fs-title mb-1"><Label label={adminRes.string.SocialIds} /> ({account.socialIds.length})</div>
         {#each account.socialIds as socialId}
-          <div>{socialId.type}: {socialId.value}</div>
+          <div class="flex-row-center">
+            <span>{socialId.type}: {socialId.value}</span>
+            {#if !readOnly}
+              <Button
+                icon={IconStop}
+                size={'small'}
+                kind={'ghost'}
+                disabled={releasing !== undefined}
+                showTooltip={{ label: adminRes.string.ReleaseSocialId }}
+                on:click={() => {
+                  void releaseSocialId(socialId.type, socialId.value)
+                }}
+              />
+            {/if}
+          </div>
         {/each}
+        {#if releaseError !== undefined}
+          <div class="error-color">{releaseError}</div>
+        {/if}
       </div>
     </div>
 

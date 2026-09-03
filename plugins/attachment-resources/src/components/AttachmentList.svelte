@@ -25,6 +25,7 @@
   export let imageSize: AttachmentImageSize | undefined = undefined
   export let videoPreload = false
   export let withActions = true
+  export let removable: boolean = false
 
   let attachmentPopupId = ''
 
@@ -51,6 +52,7 @@
         isSaved={savedAttachmentsIds?.includes(attachment._id) ?? false}
         {imageSize}
         {videoPreload}
+        {removable}
         {listProvider}
         {withActions}
         on:open={(res) => (attachmentPopupId = res.detail)}

@@ -3,6 +3,7 @@
     "CreateFunnel": "Yeni Huni",
     "CreateLead": "Yeni Aday",
     "Funnel": "Huni",
+    "DefaultFunnel": "Varsayılan huni",
     "FunnelName": "Huni adı",
     "Funnels": "Huniler",
     "LeadApplication": "Adaylar (beta)",

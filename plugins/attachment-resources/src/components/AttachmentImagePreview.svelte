@@ -17,54 +17,18 @@
   import type { Attachment } from '@hcengineering/attachment'
   import type { BlobType, WithLookup } from '@hcengineering/core'
   import { Image } from '@hcengineering/presentation'
-  import { Blurhash } from '@hcengineering/ui'
+  import { Blurhash, devicePixelRatioStore } from '@hcengineering/ui'
 
   import BrokenImage from './icons/BrokenImage.svelte'
+  import { calculateAttachmentDimensions } from '../utils'
   import { AttachmentImageSize } from '../types'
-  import { getImageDimensions } from '../utils'
 
   export let value: WithLookup<Attachment> | BlobType
   export let size: AttachmentImageSize = 'auto'
 
-  interface Dimensions {
-    width: number
-    height: number
-    fit: 'cover' | 'contain'
-  }
+  const MIN_IMAGE_REM = 3
 
-  const sizes: Record<AttachmentImageSize, { min: number, max: number }> = {
-    medium: { min: 4, max: 18 },
-    'x-large': { min: 4, max: 25 },
-    auto: { min: 4, max: 25 }
-  }
-
-  const defaultSizes: Record<AttachmentImageSize, { width: number, height: number }> = {
-    medium: { width: 200, height: 200 },
-    'x-large': { width: 300, height: 300 },
-    auto: { width: 300, height: 300 }
-  }
-  let dimensions: Dimensions
-
-  $: dimensions = getDimensions(value, size)
-
-  function getDimensions (value: Attachment | BlobType, size: AttachmentImageSize): Dimensions {
-    const _default = defaultSizes[size] ?? defaultSizes.auto
-    const byDefault = { ..._default, fit: 'contain' } as const
-    if (size === 'auto' || size == null) return byDefault
-
-    const { metadata } = value
-    if (metadata === undefined) return byDefault
-
-    const { min: minSizeRem, max: maxSizeRem } = sizes[size] ?? sizes.auto
-    return getImageDimensions(
-      {
-        width: metadata.thumbnail?.width ?? metadata.originalWidth,
-        height: metadata.thumbnail?.height ?? metadata.originalHeight
-      },
-      { maxWidth: maxSizeRem, minWidth: minSizeRem, maxHeight: maxSizeRem, minHeight: minSizeRem },
-      { ignoreMinHeight: true, forceFit: 'contain' }
-    )
-  }
+  $: dimensions = calculateAttachmentDimensions(value?.metadata, size, $devicePixelRatioStore)
 
   function toStyle (size: 'auto' | number): string {
     return size === 'auto' ? 'auto' : `${size}px`
@@ -76,6 +40,15 @@
   function handleLoadStart (): void {
     loading = true
   }
+
+  function getMinImagePx (): number {
+    if (typeof document === 'undefined') return 50
+    const fontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) ?? 16
+    return MIN_IMAGE_REM * fontSize
+  }
+
+  $: isTinyImage =
+    dimensions.fit === 'contain' && (dimensions.width < getMinImagePx() || dimensions.height < getMinImagePx())
 
   function handleLoad (): void {
     loading = false
@@ -90,7 +63,14 @@
 <div
   class="container"
   class:loading
-  style="max-width: {toStyle(dimensions.width)}; width: 100%; aspect-ratio: {dimensions.width} / {dimensions.height};"
+  class:error
+  class:tiny={isTinyImage}
+  data-id="attachment-image-preview"
+  style="
+   width: {toStyle(dimensions.width)};
+   height: {toStyle(dimensions.height)};
+   max-width: 100%;
+   aspect-ratio: {dimensions.width} / {dimensions.height};"
 >
   {#if error}
     {#if value.metadata?.thumbnail?.blurhash !== undefined}
@@ -109,6 +89,7 @@
       height={dimensions.height}
       blurhash={value.metadata?.thumbnail?.blurhash}
       showLoading={loading}
+      tiny={isTinyImage}
       on:load={handleLoad}
       on:error={handleError}
       on:loadstart={handleLoadStart}
@@ -118,10 +99,22 @@
 
 <style lang="scss">
   .container {
-    display: inline-block;
-    background-color: var(--theme-link-preview-bg-color);
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 3rem;
+    min-height: 3rem;
     border-radius: 0.75rem;
-    overflow: visible;
+    overflow: hidden;
+
+    &.tiny {
+      border: 1px solid var(--theme-divider-color);
+    }
+
+    &.loading,
+    &.error {
+      background-color: var(--theme-link-preview-bg-color);
+    }
 
     .image-overlay {
       position: absolute;

@@ -16,7 +16,7 @@
 import core, { type Class, type Doc, type Ref, toFindResult } from '@hcengineering/core'
 import type { Middleware } from '@hcengineering/server-core'
 import { QueryJoinMiddleware } from '../../queryJoin'
-import { bench, describeBench } from './bench'
+import { bench, describeBench } from '@hcengineering/measurements'
 import { createHarness, makeNextMiddleware } from './harness'
 
 describeBench('QueryJoinMiddleware bench', () => {

@@ -18,7 +18,15 @@
   import { signupStore } from '@hcengineering/analytics-providers'
   import { onMount } from 'svelte'
 
-  import { type BottomAction, doLoginAsGuest, doLoginNavigate, getAccountClient, LoginMethods } from '../index'
+  import {
+    type BottomAction,
+    doLoginAsGuest,
+    doLoginNavigate,
+    getAccountClient,
+    getAccountDisplayName,
+    LoginMethods,
+    restoreSession
+  } from '../index'
   import LoginPasswordForm from './LoginPasswordForm.svelte'
   import LoginOtpForm from './LoginOtpForm.svelte'
   import BottomActionComponent from './BottomAction.svelte'
@@ -58,6 +66,16 @@
       // ignore localStorage errors
     }
   }
+
+  // Landing here with a live session is a dead end otherwise: nothing on the form leads back.
+  let signedInAs: string | undefined
+
+  onMount(async () => {
+    const account = await restoreSession()
+    if (account?.token != null) {
+      signedInAs = getAccountDisplayName(account)
+    }
+  })
 
   onMount(() => {
     signupStore.setSignUpFlow(false)
@@ -132,9 +150,27 @@
 </script>
 
 {#if method === LoginMethods.Otp}
-  <LoginOtpForm {navigateUrl} {signUpDisabled} {email} {caption} {subtitle} {onLogin} on:change={changeMethod} />
+  <LoginOtpForm
+    {navigateUrl}
+    {signUpDisabled}
+    {email}
+    {caption}
+    {subtitle}
+    {onLogin}
+    {signedInAs}
+    on:change={changeMethod}
+  />
 {:else}
-  <LoginPasswordForm {navigateUrl} {signUpDisabled} {email} {caption} {subtitle} {onLogin} on:change={changeMethod} />
+  <LoginPasswordForm
+    {navigateUrl}
+    {signUpDisabled}
+    {email}
+    {caption}
+    {subtitle}
+    {onLogin}
+    {signedInAs}
+    on:change={changeMethod}
+  />
 {/if}
 
 <div class="actions">

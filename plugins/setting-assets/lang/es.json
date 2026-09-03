@@ -208,7 +208,15 @@
     "SelectUsers": "Seleccionar usuarios",
     "ShowInTitle": "Mostrar en el título",
     "SpaceMembersOnly": "Solo miembros del espacio",
-    "Reset": "Reiniciar"
+    "OverrideAttribute": "Sobrescribir atributo",
+    "Required": "Requerido",
+    "Reset": "Reiniciar",
+    "ConfirmOperation": "Confirmar operación",
+    "Confirm": "Confirmar",
+    "OtpCode": "Código",
+    "OtpSent": "Se ha enviado un código a tu correo",
+    "OtpSendFailed": "No se pudo enviar el código",
+    "SendCode": "Enviar código"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

@@ -46,7 +46,10 @@
     const filtredKeys = [...hierarchy.getAllAttributes(_class, to).entries()]
       .filter(
         ([key, value]) =>
-          value.hidden !== true && !ignoreKeys.includes(key) && !isCollectionAttr(hierarchy, { key, attr: value })
+          value.hidden !== true &&
+          !ignoreKeys.includes(key) &&
+          !isCollectionAttr(hierarchy, { key, attr: value }) &&
+          value.type._class !== core.class.TypeMarkup
       )
       .map(([key, attr]) => ({ key, attr }))
 

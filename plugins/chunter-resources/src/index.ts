@@ -56,6 +56,7 @@ import ThreadViewPanel from './components/threads/ThreadViewPanel.svelte'
 import ChatWidget from './components/ChatWidget.svelte'
 import ChatWidgetTab from './components/ChatWidgetTab.svelte'
 import WorkbenchTabExtension from './components/WorkbenchTabExtension.svelte'
+import AIChatButton from './components/AIChatButton.svelte'
 import DirectMessageButton from './components/DirectMessageButton.svelte'
 import EmployeePresenter from './components/ChunterEmployeePresenter.svelte'
 import InlineCommentThread from './components/inline-comment/InlineCommentThread.svelte'
@@ -90,12 +91,15 @@ import {
   canSummarizeMessages,
   DirectLabelProvider,
   forwardMessage,
-  replyToMessage
+  replyToMessage,
+  openDirectForPerson,
+  CommentsApplier
 } from './utils'
 import DeleteMessageConfirmationPopup from './components/DeleteMessageConfirmationPopup.svelte'
 
 export { default as ChannelEmbeddedContent } from './components/ChannelEmbeddedContent.svelte'
 export { default as ChatMessageInput } from './components/chat-message/ChatMessageInput.svelte'
+export { default as ChatMessageInputLite } from './components/chat-message/ChatMessageInputLite.svelte'
 export { default as ChatMessagePopup } from './components/chat-message/ChatMessagePopup.svelte'
 export { default as ChatMessagesPresenter } from './components/chat-message/ChatMessagesPresenter.svelte'
 export { default as Header } from './components/Header.svelte'
@@ -189,6 +193,7 @@ export default async (): Promise<Resources> => ({
     JoinChannelNotificationPresenter,
     ChatWidget,
     ChatWidgetTab,
+    AIChatButton,
     WorkbenchTabExtension,
     DirectMessageButton,
     EmployeePresenter,
@@ -201,6 +206,7 @@ export default async (): Promise<Resources> => ({
     MembersChangedMessage
   },
   function: {
+    CommentsApplier,
     GetDmName: getDmName,
     ChunterBrowserVisible: chunterBrowserVisible,
     GetFragment: getTitle,
@@ -218,6 +224,7 @@ export default async (): Promise<Resources> => ({
     GetMessageLink: getMessageLocation,
     CloseChatWidgetTab: closeChatWidgetTab,
     OpenChannelInSidebar: openChannelInSidebar,
+    OpenDirectForPerson: openDirectForPerson,
     CanTranslateMessage: canTranslateMessage,
     CanSummarizeMessages: canSummarizeMessages,
     OpenThreadInSidebar: openThreadInSidebar,

@@ -5,12 +5,20 @@ import { getServiceAccountClient } from './AccountClient'
 
 let adminClient: AccountClient | undefined
 
+/** Fixed admin OTP code of the test stand (ADMIN_OTP_DEV_CODE). */
+export const DEV_OTP = '000000'
+
+/**
+ * Admin client with an open `/admin` session: every admin RPC refuses a token without a fresh
+ * `mfaAt`, and machine tokens are refused outright, so this logs in as the human admin.
+ */
 async function getAdmin (): Promise<AccountClient> {
   if (adminClient != null) return adminClient
   const unauth = getClientRaw(LocalUrl)
   const loginInfo = await unauth.login(PlatformAdmin, '1234')
-  if (loginInfo == null) throw new Error('Failed to login as admin')
-  adminClient = getClientRaw(LocalUrl, loginInfo.token)
+  if (loginInfo?.token == null) throw new Error('Failed to login as admin')
+  const session = await getClientRaw(LocalUrl, loginInfo.token).verifyAdminSession(DEV_OTP)
+  adminClient = getClientRaw(LocalUrl, session.token)
   return adminClient
 }
 
@@ -30,6 +38,7 @@ export interface PlanLimitsInput {
   tokens?: number
   meetingMinutes?: number
   trialEnd?: number // set with status='trialing' to create a real trial subscription
+  windowMonth?: number // billed-token monthly window (0 = unlimited)
 }
 
 /** Assign an existing account to a workspace with the given role (requires a service token). */
@@ -44,6 +53,7 @@ interface SubscriptionLimits {
   trafficLimitGB: number
   tokenLimit: number
   meetingMinutesLimit: number
+  windowMonthLimit: number
 }
 
 function buildLimits (input: PlanLimitsInput = {}): SubscriptionLimits {
@@ -52,7 +62,8 @@ function buildLimits (input: PlanLimitsInput = {}): SubscriptionLimits {
     storageLimitGB: input.storageGB ?? 0,
     trafficLimitGB: 0,
     tokenLimit: input.tokens ?? 0,
-    meetingMinutesLimit: input.meetingMinutes ?? 0
+    meetingMinutesLimit: input.meetingMinutes ?? 0,
+    windowMonthLimit: input.windowMonth ?? 0
   }
 }
 
@@ -107,6 +118,7 @@ export async function setWorkspacePlanByUuid (
   await waitForTier(workspaceUuid)
   const client = await getAdmin()
   await client.adminCreateSubscription({
+    otpCode: DEV_OTP,
     workspaceUuid,
     plan,
     type: 'tier',
@@ -120,6 +132,7 @@ export async function setWorkspacePlanByUuid (
 export async function addStoragePackage (workspaceUuid: WorkspaceUuid, plan: string, storageGB: number): Promise<void> {
   const client = await getAdmin()
   await client.adminCreateSubscription({
+    otpCode: DEV_OTP,
     workspaceUuid,
     plan,
     type: 'package',
@@ -133,6 +146,7 @@ export async function setWorkspacePlan (urlName: string, plan: string, input: Pl
   const client = await getAdmin()
   const workspaceUuid = await resolveWorkspaceUuid(urlName)
   await client.adminCreateSubscription({
+    otpCode: DEV_OTP,
     workspaceUuid,
     plan,
     type: 'tier',

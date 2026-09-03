@@ -159,6 +159,9 @@
     "GroupByStatus": "按状态",
     "GroupByDate": "按日期",
     "SpeakingWhileMuted": "您已静音 - 其他人听不到您",
-    "SpeakingWhileMutedAlert": "静音时说话提醒我"
+    "SpeakingWhileMutedAlert": "静音时说话提醒我",
+    "SwitchWorkspaceInMeeting": "您正在会议中",
+    "SwitchWorkspaceLeaveMeeting": "切换工作区将断开您与当前会议的连接。",
+    "SwitchWorkspaceEndsMeeting": "这是您的办公室：切换工作区会断开您的连接并为所有人结束会议。"
   }
 }

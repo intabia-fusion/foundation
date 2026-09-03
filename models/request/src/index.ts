@@ -75,7 +75,7 @@ export class TRequest extends TAttachedDoc implements Request {
   @ReadOnly()
     rejected?: Ref<Person>
 
-  @Prop(Collection(chunter.class.ChatMessage), chunter.string.Comments)
+  @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
     comments?: number
 }
 

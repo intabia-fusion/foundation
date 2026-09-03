@@ -13,15 +13,24 @@
 // limitations under the License.
 //
 import { writable } from 'svelte/store'
-import contact, { type SocialIdentity } from '@hcengineering/contact'
+import contact, { getFirstName, type Person, type SocialIdentity } from '@hcengineering/contact'
 import { createQuery, onClient } from '@hcengineering/presentation'
 import { aiBotEmailSocialKey } from '@hcengineering/ai-bot'
 
-export const aiBotSocialIdentityStore = writable<SocialIdentity>()
+// Empty until the query resolves, and empty again if the bot has not been provisioned yet.
+export const aiBotSocialIdentityStore = writable<SocialIdentity | undefined>(undefined)
+/** First name of the bot as the pod created it (FIRST_NAME), for labels that name the assistant. */
+export const aiBotNameStore = writable<string>('')
 const identityQuery = createQuery(true)
+const personQuery = createQuery(true)
 
 onClient(() => {
   identityQuery.query(contact.class.SocialIdentity, { key: aiBotEmailSocialKey }, (res) => {
     aiBotSocialIdentityStore.set(res[0])
+    const person = res[0]?.attachedTo
+    if (person === undefined) return
+    personQuery.query<Person>(contact.class.Person, { _id: person }, (persons) => {
+      aiBotNameStore.set(getFirstName(persons[0]?.name ?? ''))
+    })
   })
 })

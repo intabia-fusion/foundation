@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from './fixtures'
 import { fillSearch, generateId, PlatformSetting, PlatformURI } from './utils'
 import { ContractPage, ButtonAction } from './model/contacts/contract-page'
 

@@ -12,6 +12,7 @@ export class DocumentContentPage extends CommonPage {
   }
 
   readonly buttonDocumentTitle = (): Locator => this.page.locator('div[class*="main-content"] div.title input')
+  readonly buttonOpenInSidebar = (): Locator => this.page.locator('button[data-id="btnOpenInSidebar"]')
   readonly inputContent = (): Locator => this.page.locator('div.textInput div.tiptap')
   readonly selectContent = (): Locator => this.page.locator('div.textInput .select-text')
   readonly inputContentParapraph = (): Locator => this.page.locator('div.textInput div.tiptap > p')
@@ -236,7 +237,16 @@ export class DocumentContentPage extends CommonPage {
     if (shallow) {
       await loc.click({ clickCount: 3 })
     } else {
-      await loc.selectText()
+      // A re-render after a document change drops the DOM selection, and with it the toolbar.
+      // Retry until this exact line is selected - a stale selection is non-empty too.
+      const expected = (await loc.textContent()) ?? text
+      await expect(async () => {
+        // selectText only sets a DOM selection. After a popup (TOC, menu) took focus the editor is
+        // not focused, so ProseMirror ignores it and the toolbar command applies to nothing.
+        await loc.click()
+        await loc.selectText()
+        expect(await this.page.evaluate(() => window.getSelection()?.toString() ?? '')).toEqual(expected)
+      }).toPass({ timeout: 15000 })
     }
   }
 

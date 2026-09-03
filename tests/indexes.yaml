@@ -1,0 +1,367 @@
+version: 1
+generatedAt: '2026-06-01T07:49:02.799Z'
+domains:
+  _configuration:
+    - name: _configuration_pkey
+      definition: CREATE UNIQUE INDEX _configuration_pkey ON public._configuration USING btree ("workspaceId", _id)
+  _migrations:
+    - name: _migrations_pkey
+      definition: CREATE UNIQUE INDEX _migrations_pkey ON public._migrations USING btree ("workspaceId", _id)
+  activity:
+    - name: activity_pkey
+      definition: CREATE UNIQUE INDEX activity_pkey ON public.activity USING btree ("workspaceId", _id)
+    - name: activity_ws_modon_idx
+      definition: CREATE INDEX activity_ws_modon_idx ON public.activity USING btree ("workspaceId", (("modifiedOn")::numeric) DESC)
+    - name: activity_workspaceid_idx
+      definition: CREATE INDEX activity_workspaceid_idx ON public.activity USING btree ("workspaceId", _class, space)
+    - name: activity_workspaceid_idx_class
+      definition: CREATE INDEX activity_workspaceid_idx_class ON public.activity USING btree ("workspaceId", _class)
+    - name: activity_workspaceid_idx_forwardedmessage
+      definition: CREATE INDEX activity_workspaceid_idx_forwardedmessage ON public.activity USING btree ("workspaceId", "forwardedMessage")
+    - name: activity_workspaceid_idx_forwardfromclass
+      definition: CREATE INDEX activity_workspaceid_idx_forwardfromclass ON public.activity USING btree ("workspaceId", "forwardFromClass")
+    - name: activity_workspaceid_idx_forwardfromid
+      definition: CREATE INDEX activity_workspaceid_idx_forwardfromid ON public.activity USING btree ("workspaceId", "forwardFromId")
+    - name: activity_ws_attachedto_class_idx
+      definition: CREATE INDEX activity_ws_attachedto_class_idx ON public.activity USING btree ("workspaceId", "attachedTo", _class)
+    - name: activity_ws_attachedto_space_class_idx
+      definition: CREATE INDEX activity_ws_attachedto_space_class_idx ON public.activity USING btree ("workspaceId", "attachedTo", space, _class)
+    - name: activity_ws_class_space_pinned_idx
+      definition: 'CREATE INDEX activity_ws_class_space_pinned_idx ON public.activity USING btree ("workspaceId", _class, space) WHERE ((data #>> ''{isPinned}''::text[]) = ''true''::text)'
+  attachment:
+    - name: attachment_attachedto_storing_rec_idx
+      definition: CREATE INDEX attachment_attachedto_storing_rec_idx ON public.attachment USING btree ("attachedTo") INCLUDE (_class, space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", data)
+    - name: attachment_pkey
+      definition: CREATE UNIQUE INDEX attachment_pkey ON public.attachment USING btree ("workspaceId", _id)
+  calendar:
+    - name: calendar_pkey
+      definition: CREATE UNIQUE INDEX calendar_pkey ON public.calendar USING btree ("workspaceId", _id)
+  card:
+    - name: card_pkey
+      definition: CREATE UNIQUE INDEX card_pkey ON public.card USING btree ("workspaceId", _id)
+  channel:
+    - name: channel__class_storing_rec_idx
+      definition: CREATE INDEX channel__class_storing_rec_idx ON public.channel USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: channel_attachedto_storing_rec_idx
+      definition: CREATE INDEX channel_attachedto_storing_rec_idx ON public.channel USING btree ("attachedTo") INCLUDE (_class, space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", data)
+    - name: channel_pkey
+      definition: CREATE UNIQUE INDEX channel_pkey ON public.channel USING btree ("workspaceId", _id)
+    - name: channel_workspaceid_attachedto__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX channel_workspaceid_attachedto__class_storing_rec_idx ON public.channel USING btree ("workspaceId", "attachedTo", _class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn",
+        "createdOn", "%hash%", data)
+  chunter:
+    - name: chunter_pkey
+      definition: CREATE UNIQUE INDEX chunter_pkey ON public.chunter USING btree ("workspaceId", _id)
+    - name: chunter_ws_class_user_idx
+      definition: 'CREATE INDEX chunter_ws_class_user_idx ON public.chunter USING btree ("workspaceId", _class, ((data #>> ''{user}''::text[])))'
+  chunter_doc:
+    - name: chunter_doc__class__index
+      definition: CREATE INDEX chunter_doc__class__index ON public.chunter_doc USING btree (_class)
+    - name: chunter_doc_account__index
+      definition: CREATE INDEX chunter_doc_account__index ON public.chunter_doc USING btree (account)
+    - name: chunter_doc_attachedto__index
+      definition: CREATE INDEX chunter_doc_attachedto__index ON public.chunter_doc USING btree ("attachedTo")
+    - name: chunter_doc_attachedtoclass__index
+      definition: CREATE INDEX chunter_doc_attachedtoclass__index ON public.chunter_doc USING btree ("attachedToClass")
+    - name: chunter_doc_hidden__index
+      definition: CREATE INDEX chunter_doc_hidden__index ON public.chunter_doc USING btree (hidden)
+    - name: chunter_doc_pinned__index
+      definition: CREATE INDEX chunter_doc_pinned__index ON public.chunter_doc USING btree (pinned)
+    - name: chunter_doc_pkey
+      definition: CREATE UNIQUE INDEX chunter_doc_pkey ON public.chunter_doc USING btree ("workspaceId", _id)
+    - name: chunter_doc_space__index
+      definition: CREATE INDEX chunter_doc_space__index ON public.chunter_doc USING btree (space)
+    - name: chunter_doc_unique_workspaceid_attachedto_attachedtoclass_accou
+      definition: CREATE UNIQUE INDEX chunter_doc_unique_workspaceid_attachedto_attachedtoclass_accou ON public.chunter_doc USING btree ("workspaceId", "attachedTo", "attachedToClass", account)
+    - name: chunter_doc_ws_account_class_idx
+      definition: CREATE INDEX chunter_doc_ws_account_class_idx ON public.chunter_doc USING btree ("workspaceId", account, "attachedToClass", _class)
+  collaborator:
+    - name: collaborator_pkey
+      definition: CREATE UNIQUE INDEX collaborator_pkey ON public.collaborator USING btree ("workspaceId", _id)
+    - name: collaborator_ws_attachedto_class_idx
+      definition: CREATE INDEX collaborator_ws_attachedto_class_idx ON public.collaborator USING btree ("workspaceId", "attachedTo", _class)
+  contact:
+    - name: contact__class_storing_rec_idx
+      definition: CREATE INDEX contact__class_storing_rec_idx ON public.contact USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: contact_pkey
+      definition: CREATE UNIQUE INDEX contact_pkey ON public.contact USING btree ("workspaceId", _id)
+    - name: contact_space_workspaceid__id__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX contact_space_workspaceid__id__class_storing_rec_idx ON public.contact USING btree (space, "workspaceId", _id, _class) INCLUDE ("modifiedBy", "createdBy", "modifiedOn",
+        "createdOn", "%hash%", "attachedTo", data)
+  document:
+    - name: document__class_storing_rec_idx
+      definition: CREATE INDEX document__class_storing_rec_idx ON public.document USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: document_pkey
+      definition: CREATE UNIQUE INDEX document_pkey ON public.document USING btree ("workspaceId", _id)
+  documents:
+    - name: documents_pkey
+      definition: CREATE UNIQUE INDEX documents_pkey ON public.documents USING btree ("workspaceId", _id)
+  drive:
+    - name: drive_pkey
+      definition: CREATE UNIQUE INDEX drive_pkey ON public.drive USING btree ("workspaceId", _id)
+  emoji:
+    - name: emoji_pkey
+      definition: CREATE UNIQUE INDEX emoji_pkey ON public.emoji USING btree ("workspaceId", _id)
+  event:
+    - name: event_pkey
+      definition: CREATE UNIQUE INDEX event_pkey ON public.event USING btree ("workspaceId", _id)
+    - name: event_ws_attachedto_class_idx
+      definition: CREATE INDEX event_ws_attachedto_class_idx ON public.event USING btree ("workspaceId", "attachedTo", _class)
+  export:
+    - name: export_pkey
+      definition: CREATE UNIQUE INDEX export_pkey ON public.export USING btree ("workspaceId", _id)
+  github:
+    - name: github__class_storing_rec_idx
+      definition: CREATE INDEX github__class_storing_rec_idx ON public.github USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: github_pkey
+      definition: CREATE UNIQUE INDEX github_pkey ON public.github USING btree ("workspaceId", _id)
+  github_comments:
+    - name: github_comments_pkey
+      definition: CREATE UNIQUE INDEX github_comments_pkey ON public.github_comments USING btree ("workspaceId", _id)
+  github_sync:
+    - name: github_sync__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX github_sync__class_storing_rec_idx ON public.github_sync USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "needSync",
+        "externalVersion", repository, url, parent, "objectClass", deleted, data)
+    - name: github_sync_pkey
+      definition: CREATE UNIQUE INDEX github_sync_pkey ON public.github_sync USING btree ("workspaceId", _id)
+    - name: github_sync_repository_storing_rec_idx
+      definition: >-
+        CREATE INDEX github_sync_repository_storing_rec_idx ON public.github_sync USING btree (repository) INCLUDE (_class, space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%",
+        "needSync", "externalVersion", url, parent, "objectClass", deleted, data)
+    - name: github_sync_workspaceid_objectclass_space_externalversion_repos
+      definition: >-
+        CREATE INDEX github_sync_workspaceid_objectclass_space_externalversion_repos ON public.github_sync USING btree ("workspaceId", "objectClass", space, "externalVersion", repository, _class)
+        INCLUDE ("modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "needSync", url, parent, deleted, data)
+    - name: github_sync_workspaceid_parent__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX github_sync_workspaceid_parent__class_storing_rec_idx ON public.github_sync USING btree ("workspaceId", parent, _class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn",
+        "createdOn", "%hash%", "needSync", "externalVersion", repository, url, "objectClass", deleted, data)
+    - name: github_sync_workspaceid_space_objectclass_parent__class_storing
+      definition: >-
+        CREATE INDEX github_sync_workspaceid_space_objectclass_parent__class_storing ON public.github_sync USING btree ("workspaceId", space, "objectClass", parent, _class) INCLUDE ("modifiedBy",
+        "createdBy", "modifiedOn", "createdOn", "%hash%", "needSync", "externalVersion", repository, url, deleted, data)
+    - name: github_sync_workspaceid_space_repository__class_needsync_storin
+      definition: >-
+        CREATE INDEX github_sync_workspaceid_space_repository__class_needsync_storin ON public.github_sync USING btree ("workspaceId", space, repository, _class, "needSync") INCLUDE ("modifiedBy",
+        "createdBy", "modifiedOn", "createdOn", "%hash%", "externalVersion", url, parent, "objectClass", deleted, data)
+    - name: github_sync_workspaceid_space_repository__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX github_sync_workspaceid_space_repository__class_storing_rec_idx ON public.github_sync USING btree ("workspaceId", space, repository, _class) INCLUDE ("modifiedBy", "createdBy",
+        "modifiedOn", "createdOn", "%hash%", "needSync", "externalVersion", url, parent, "objectClass", deleted, data)
+    - name: github_sync_workspaceid_space_url__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX github_sync_workspaceid_space_url__class_storing_rec_idx ON public.github_sync USING btree ("workspaceId", space, url, _class) INCLUDE ("modifiedBy", "createdBy", "modifiedOn",
+        "createdOn", "%hash%", "needSync", "externalVersion", repository, parent, "objectClass", deleted, data)
+    - name: github_sync_workspaceid_url__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX github_sync_workspaceid_url__class_storing_rec_idx ON public.github_sync USING btree ("workspaceId", url, _class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn",
+        "createdOn", "%hash%", "needSync", "externalVersion", repository, parent, "objectClass", deleted, data)
+  github_user:
+    - name: github_user_pkey
+      definition: CREATE UNIQUE INDEX github_user_pkey ON public.github_user USING btree ("workspaceId", _id)
+  gmail:
+    - name: gmail_attachedto_storing_rec_idx
+      definition: CREATE INDEX gmail_attachedto_storing_rec_idx ON public.gmail USING btree ("attachedTo") INCLUDE (_class, space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", data)
+    - name: gmail_pkey
+      definition: CREATE UNIQUE INDEX gmail_pkey ON public.gmail USING btree ("workspaceId", _id)
+  guest:
+    - name: guest_pkey
+      definition: CREATE UNIQUE INDEX guest_pkey ON public.guest USING btree ("workspaceId", _id)
+  hr:
+    - name: hr_pkey
+      definition: CREATE UNIQUE INDEX hr_pkey ON public.hr USING btree ("workspaceId", _id)
+  inventory:
+    - name: inventory_pkey
+      definition: CREATE UNIQUE INDEX inventory_pkey ON public.inventory USING btree ("workspaceId", _id)
+  kanban:
+    - name: kanban_pkey
+      definition: CREATE UNIQUE INDEX kanban_pkey ON public.kanban USING btree ("workspaceId", _id)
+  love:
+    - name: love__class_storing_rec_idx
+      definition: CREATE INDEX love__class_storing_rec_idx ON public.love USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: love_pkey
+      definition: CREATE UNIQUE INDEX love_pkey ON public.love USING btree ("workspaceId", _id)
+  love_pending:
+    - name: love_pending_pkey
+      definition: CREATE UNIQUE INDEX love_pending_pkey ON public.love_pending USING btree ("workspaceId", _id)
+  meeting_minutes:
+    - name: meeting_minutes_pkey
+      definition: CREATE UNIQUE INDEX meeting_minutes_pkey ON public.meeting_minutes USING btree ("workspaceId", _id)
+    - name: meeting_minutes_workspaceid_attachedto__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX meeting_minutes_workspaceid_attachedto__class_storing_rec_idx ON public.meeting_minutes USING btree ("workspaceId", "attachedTo", _class) INCLUDE (space, "modifiedBy",
+        "createdBy", "modifiedOn", "createdOn", "%hash%", data)
+  model_tx:
+    - name: model_tx_pkey
+      definition: CREATE UNIQUE INDEX model_tx_pkey ON public.model_tx USING btree ("workspaceId", _id)
+  notification:
+    - name: notification_pkey
+      definition: CREATE UNIQUE INDEX notification_pkey ON public.notification USING btree ("workspaceId", _id)
+    - name: notification_ws_class_mentionedin_idx
+      definition: 'CREATE INDEX notification_ws_class_mentionedin_idx ON public.notification USING btree ("workspaceId", _class, ((data #>> ''{mentionedIn}''::text[])))'
+    - name: notification_ws_user_class_createdon_idx
+      definition: CREATE INDEX notification_ws_user_class_createdon_idx ON public.notification USING btree ("workspaceId", "user", _class, (("createdOn")::numeric) DESC)
+  notification_dnc:
+    - name: notification_dnc_pkey
+      definition: CREATE UNIQUE INDEX notification_dnc_pkey ON public.notification_dnc USING btree ("workspaceId", _id)
+    - name: notification_dnc_workspaceid_objectid__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX notification_dnc_workspaceid_objectid__class_storing_rec_idx ON public.notification_dnc USING btree ("workspaceId", "objectId", _class) INCLUDE (space, "modifiedBy", "createdBy",
+        "modifiedOn", "createdOn", "%hash%", "objectClass", "user", data)
+    - name: notification_dnc_workspaceid_user__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX notification_dnc_workspaceid_user__class_storing_rec_idx ON public.notification_dnc USING btree ("workspaceId", "user", _class) INCLUDE (space, "modifiedBy", "createdBy",
+        "modifiedOn", "createdOn", "%hash%", "objectId", "objectClass", data)
+  notification_read_state:
+    - name: notification_read_state__class__index
+      definition: CREATE INDEX notification_read_state__class__index ON public.notification_read_state USING btree (_class)
+    - name: notification_read_state_attachedto__index
+      definition: CREATE INDEX notification_read_state_attachedto__index ON public.notification_read_state USING btree ("attachedTo")
+    - name: notification_read_state_attachedtoclass__index
+      definition: CREATE INDEX notification_read_state_attachedtoclass__index ON public.notification_read_state USING btree ("attachedToClass")
+    - name: notification_read_state_pkey
+      definition: CREATE UNIQUE INDEX notification_read_state_pkey ON public.notification_read_state USING btree ("workspaceId", _id)
+    - name: notification_read_state_space__index
+      definition: CREATE INDEX notification_read_state_space__index ON public.notification_read_state USING btree (space)
+    - name: notification_read_state_unique_workspaceid_attachedto_attachedt
+      definition: CREATE UNIQUE INDEX notification_read_state_unique_workspaceid_attachedto_attachedt ON public.notification_read_state USING btree ("workspaceId", "attachedTo", "attachedToClass")
+    - name: notification_read_state_ws_attachedto_class_idx
+      definition: CREATE INDEX notification_read_state_ws_attachedto_class_idx ON public.notification_read_state USING btree ("workspaceId", "attachedTo", _class)
+  notification_user:
+    - name: notification_user_pkey
+      definition: CREATE UNIQUE INDEX notification_user_pkey ON public.notification_user USING btree ("workspaceId", _id)
+  poll:
+    - name: poll_pkey
+      definition: CREATE UNIQUE INDEX poll_pkey ON public.poll USING btree ("workspaceId", _id)
+  preference:
+    - name: preference__class_storing_rec_idx
+      definition: CREATE INDEX preference__class_storing_rec_idx ON public.preference USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: preference_createdby_storing_rec_idx
+      definition: CREATE INDEX preference_createdby_storing_rec_idx ON public.preference USING btree ("createdBy") INCLUDE (_class, space, "modifiedBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: preference_pkey
+      definition: CREATE UNIQUE INDEX preference_pkey ON public.preference USING btree ("workspaceId", _id)
+  process:
+    - name: process_pkey
+      definition: CREATE UNIQUE INDEX process_pkey ON public.process USING btree ("workspaceId", _id)
+  process_log:
+    - name: process_log_pkey
+      definition: CREATE UNIQUE INDEX process_log_pkey ON public.process_log USING btree ("workspaceId", _id)
+  questions:
+    - name: questions_pkey
+      definition: CREATE UNIQUE INDEX questions_pkey ON public.questions USING btree ("workspaceId", _id)
+  rating_person:
+    - name: rating_person_pkey
+      definition: CREATE UNIQUE INDEX rating_person_pkey ON public.rating_person USING btree ("workspaceId", _id)
+    - name: rating_person_ws_class_accountid_idx
+      definition: 'CREATE INDEX rating_person_ws_class_accountid_idx ON public.rating_person USING btree ("workspaceId", _class, ((data #>> ''{accountId}''::text[])))'
+  rating_reaction:
+    - name: rating_reaction_pkey
+      definition: CREATE UNIQUE INDEX rating_reaction_pkey ON public.rating_reaction USING btree ("workspaceId", _id)
+  reaction:
+    - name: reaction__class_storing_rec_idx
+      definition: CREATE INDEX reaction__class_storing_rec_idx ON public.reaction USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: reaction_attachedto_storing_rec_idx
+      definition: CREATE INDEX reaction_attachedto_storing_rec_idx ON public.reaction USING btree ("attachedTo") INCLUDE (_class, space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", data)
+    - name: reaction_pkey
+      definition: CREATE UNIQUE INDEX reaction_pkey ON public.reaction USING btree ("workspaceId", _id)
+  recruit:
+    - name: recruit_pkey
+      definition: CREATE UNIQUE INDEX recruit_pkey ON public.recruit USING btree ("workspaceId", _id)
+  relation:
+    - name: relation_pkey
+      definition: CREATE UNIQUE INDEX relation_pkey ON public.relation USING btree ("workspaceId", _id)
+  request:
+    - name: request_pkey
+      definition: CREATE UNIQUE INDEX request_pkey ON public.request USING btree ("workspaceId", _id)
+  role:
+    - name: role_pkey
+      definition: CREATE UNIQUE INDEX role_pkey ON public.role USING btree ("workspaceId", _id)
+  sequence:
+    - name: sequence_pkey
+      definition: CREATE UNIQUE INDEX sequence_pkey ON public.sequence USING btree ("workspaceId", _id)
+  setting:
+    - name: setting__class_storing_rec_idx
+      definition: CREATE INDEX setting__class_storing_rec_idx ON public.setting USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: setting_pkey
+      definition: CREATE UNIQUE INDEX setting_pkey ON public.setting USING btree ("workspaceId", _id)
+  space:
+    - name: space_pkey
+      definition: CREATE UNIQUE INDEX space_pkey ON public.space USING btree ("workspaceId", _id)
+    - name: space_unique_workspaceid_referenceid__index
+      definition: CREATE UNIQUE INDEX space_unique_workspaceid_referenceid__index ON public.space USING btree ("workspaceId", "referenceId") WHERE ("referenceId" IS NOT NULL)
+    - name: space_ws_class_idx
+      definition: CREATE INDEX space_ws_class_idx ON public.space USING btree ("workspaceId", _class)
+    - name: space_ws_class_roomid_idx
+      definition: 'CREATE INDEX space_ws_class_roomid_idx ON public.space USING btree ("workspaceId", _class, ((data #>> ''{roomId}''::text[])))'
+    - name: space_ws_account_idx
+      definition: 'CREATE INDEX space_ws_account_idx ON public.space USING btree ("workspaceId", ((data #>> ''{account}''::text[])))'
+    - name: space_ws_status_idx
+      definition: 'CREATE INDEX space_ws_status_idx ON public.space USING btree ("workspaceId", ((data #>> ''{status}''::text[])))'
+  status:
+    - name: status_pkey
+      definition: CREATE UNIQUE INDEX status_pkey ON public.status USING btree ("workspaceId", _id)
+  survey:
+    - name: survey_pkey
+      definition: CREATE UNIQUE INDEX survey_pkey ON public.survey USING btree ("workspaceId", _id)
+  tags:
+    - name: tags_pkey
+      definition: CREATE UNIQUE INDEX tags_pkey ON public.tags USING btree ("workspaceId", _id)
+    - name: tags_workspaceid__class_space_storing_rec_idx
+      definition: >-
+        CREATE INDEX tags_workspaceid__class_space_storing_rec_idx ON public.tags USING btree ("workspaceId", _class, space) INCLUDE ("modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%",
+        "attachedTo", data)
+    - name: tags_workspaceid_attachedto__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX tags_workspaceid_attachedto__class_storing_rec_idx ON public.tags USING btree ("workspaceId", "attachedTo", _class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn",
+        "createdOn", "%hash%", data)
+  task:
+    - name: task_pkey
+      definition: CREATE UNIQUE INDEX task_pkey ON public.task USING btree ("workspaceId", _id)
+    - name: task_workspaceid__class_space_storing_rec_idx
+      definition: CREATE INDEX task_workspaceid__class_space_storing_rec_idx ON public.task USING btree ("workspaceId", _class, space) INCLUDE ("modifiedOn")
+    - name: task_ws_modon_idx
+      definition: CREATE INDEX task_ws_modon_idx ON public.task USING btree ("workspaceId", (("modifiedOn")::numeric) DESC)
+  telegram:
+    - name: telegram_pkey
+      definition: CREATE UNIQUE INDEX telegram_pkey ON public.telegram USING btree ("workspaceId", _id)
+  templates:
+    - name: templates_pkey
+      definition: CREATE UNIQUE INDEX templates_pkey ON public.templates USING btree ("workspaceId", _id)
+  test_management:
+    - name: test_management_pkey
+      definition: CREATE UNIQUE INDEX test_management_pkey ON public.test_management USING btree ("workspaceId", _id)
+  time:
+    - name: time_pkey
+      definition: CREATE UNIQUE INDEX time_pkey ON public."time" USING btree ("workspaceId", _id)
+  tracker:
+    - name: tracker__class_storing_rec_idx
+      definition: CREATE INDEX tracker__class_storing_rec_idx ON public.tracker USING btree (_class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn", "createdOn", "%hash%", "attachedTo", data)
+    - name: tracker_pkey
+      definition: CREATE UNIQUE INDEX tracker_pkey ON public.tracker USING btree ("workspaceId", _id)
+  training:
+    - name: training_pkey
+      definition: CREATE UNIQUE INDEX training_pkey ON public.training USING btree ("workspaceId", _id)
+  tx:
+    - name: tx_pkey
+      definition: CREATE UNIQUE INDEX tx_pkey ON public.tx USING btree ("workspaceId", _id)
+    - name: tx_ws_class_modifiedon_idx
+      definition: CREATE INDEX tx_ws_class_modifiedon_idx ON public.tx USING btree ("workspaceId", _class, (("modifiedOn")::numeric) DESC)
+    - name: tx_ws_modon_idx
+      definition: CREATE INDEX tx_ws_modon_idx ON public.tx USING btree ("workspaceId", (("modifiedOn")::numeric) DESC)
+    - name: tx_ws_objectid_class_idx
+      definition: CREATE INDEX tx_ws_objectid_class_idx ON public.tx USING btree ("workspaceId", "objectId", _class)
+  user_mention:
+    - name: user_mention_pkey
+      definition: CREATE UNIQUE INDEX user_mention_pkey ON public.user_mention USING btree ("workspaceId", _id)
+    - name: user_mention_ws_attachedto_class_idx
+      definition: CREATE INDEX user_mention_ws_attachedto_class_idx ON public.user_mention USING btree ("workspaceId", "attachedTo", _class)
+  view:
+    - name: view_pkey
+      definition: CREATE UNIQUE INDEX view_pkey ON public.view USING btree ("workspaceId", _id)
+    - name: view_workspaceid_attachedto__class_storing_rec_idx
+      definition: >-
+        CREATE INDEX view_workspaceid_attachedto__class_storing_rec_idx ON public.view USING btree ("workspaceId", "attachedTo", _class) INCLUDE (space, "modifiedBy", "createdBy", "modifiedOn",
+        "createdOn", "%hash%", data)

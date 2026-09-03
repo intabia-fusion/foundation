@@ -1,31 +1,25 @@
 <script lang="ts">
-  import type { TransactorEndpointInfo } from '@hcengineering/account-client'
-  import { groupByArray, systemAccountUuid, type PersonInfo, type PersonUuid } from '@hcengineering/core'
+  import { groupByArray, systemAccountUuid, type PersonInfo, type PersonUuid, WorkspaceUuid } from '@hcengineering/core'
   import { getEmbeddedLabel, getMetadata } from '@hcengineering/platform'
   import presentation, { isAdminUser, type OverviewStatistics } from '@hcengineering/presentation'
   import { Button, CheckBox, ticker, Expandable } from '@hcengineering/ui'
   import { FixedColumn } from '@hcengineering/view-resources'
 
-  import { getAccountClient, listWorkspacesPaged } from '../../utils'
+  import { adminFetch, getAccountClient, listWorkspacesPaged, requestAdminOtpCode } from '../../utils'
 
-  const token: string = getMetadata(presentation.metadata.Token) ?? ''
   const endpoint = getMetadata(presentation.metadata.StatsUrl)
 
-  // Force-close must hit the transactor holding the workspace; we don't know which one,
-  // so broadcast to all - others ignore the unknown wsId.
-  let transactors: TransactorEndpointInfo[] = []
-  if (isAdminUser()) {
-    void getAccountClient()
-      .getTransactorEndpoints()
-      .then((eps) => {
-        transactors = eps
-      })
-  }
+  // One audited RPC: account queues the event and whichever transactor holds the workspace acts.
+  // The panel no longer fans the call out to every transactor from the browser.
   function forceClose (wsId: string): void {
-    for (const t of transactors) {
-      const url = t.external.replace(/^ws/, 'http').replace(/\/$/, '')
-      void fetch(url + `/api/v1/manage?token=${token}&operation=force-close&wsId=${wsId}`, { method: 'PUT' })
-    }
+    void requestAdminOtpCode().then(async (code) => {
+      if (code === undefined) return
+      try {
+        await getAccountClient().adminForceCloseWorkspace(wsId as WorkspaceUuid, code)
+      } catch (err) {
+        console.error('Failed to force close the workspace:', err)
+      }
+    })
   }
 
   // Resolve session userIds to person name/email, cached across refreshes
@@ -72,7 +66,7 @@
   })
 
   async function fetchStats (time: number): Promise<void> {
-    await fetch(endpoint + `/api/v1/overview?token=${token}`, {})
+    await adminFetch(endpoint + '/api/v1/overview')
       .then(async (json) => {
         data = await json.json()
       })
@@ -166,7 +160,7 @@
                         <span class="content-dark-color">[{wsServices.join(', ')}]</span>
                       {/if}
                     </div>
-                    {#if isAdminUser() && transactors.length > 0}
+                    {#if isAdminUser()}
                       <Button
                         label={getEmbeddedLabel('Force close')}
                         size={'small'}

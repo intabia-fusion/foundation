@@ -19,7 +19,9 @@
     "format": "format tests",
     "ci": "playwright install --with-deps chromium",
     "test": "",
-    "uitest": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts",
+    "uitest": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts --grep-invert @llm",
+    "uitest:telemetry": "telemetry/run.sh",
+    "run-uitests": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts --grep @llm",
     "staging-uitest": "cross-env PLATFORM_URI=https://front.hc.engineering/ playwright test -c ./tests/playwright.config.ts --grep @staging",
     "dev-uitest": "cross-env PLATFORM_URI=http://localhost:8080 PLATFORM_TRANSACTOR=ws://localhost:3332 WORKSPACE_REGION=cockroach DEV_URL=http://localhost:8080/account playwright test -c ./tests/playwright.config.ts",
     "debug": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts --debug --headed",
@@ -41,9 +43,9 @@
     "eslint-config-standard-with-typescript": "^40.0.0",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "@playwright/test": "^1.48.2",
-    "allure-playwright": "^3.0.6",
-    "allure-js-commons": "^3.0.6",
+    "@playwright/test": "^1.62.1",
+    "allure-playwright": "^3.10.2",
+    "allure-js-commons": "^3.10.2",
     "@faker-js/faker": "^8.4.1"
   },
   "dependencies": {
@@ -58,6 +60,7 @@
     "@hcengineering/love": "workspace:^0.7.0",
     "@hcengineering/tracker": "workspace:^0.7.0",
     "@hcengineering/task": "workspace:^0.7.0",
-    "@hcengineering/rank": "workspace:^0.7.17"
+    "@hcengineering/rank": "workspace:^0.7.17",
+    "pdf-parse": "~2.4.5"
   }
 }

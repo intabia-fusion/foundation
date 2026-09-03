@@ -22,6 +22,14 @@ function toLen (val: string, sep: string, len: number): string {
   }
   return val
 }
+/** Splits a comma separated option into trimmed names; an empty option yields no names. */
+function names (value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((it) => it.trim())
+    .filter((it) => it !== '')
+}
+
 export async function changeConfiguration (
   workspaceId: WorkspaceUuid,
   transactorUrl: string,
@@ -37,31 +45,22 @@ export async function changeConfiguration (
         console.log(toLen(c.pluginId, '-', 20), c.enabled, c.hidden === true ? '(hidden)' : '')
       }
     }
-    const enable = (cmd.enable ?? '').trim().split(',')
-    console.log('enable', enable)
     const ops = new TxFactory(core.account.ConfigUser)
-    if (enable.length > 0) {
-      const p = config.filter((it) => enable.includes(it.pluginId) || enable.includes('*'))
-      for (const pp of p) {
-        if (!pp.enabled) {
-          console.log('Enabling', pp.pluginId)
-          await connection.tx(
-            ops.createTxUpdateDoc(core.class.PluginConfiguration, core.space.Model, pp._id, { enabled: true })
-          )
-        }
-      }
-    }
 
-    if ((cmd.disable ?? '').trim() !== '') {
-      const p = config.find((it) => it.pluginId === (cmd.disable ?? '').trim())
-      if (p !== undefined) {
+    const setEnabled = async (selected: string[], enabled: boolean): Promise<void> => {
+      if (selected.length === 0) return
+      const all = selected.includes('*')
+      for (const pp of config.filter((it) => all || selected.includes(it.pluginId))) {
+        if (pp.enabled === enabled) continue
+        console.log(enabled ? 'Enabling' : 'Disabling', pp.pluginId)
         await connection.tx(
-          ops.createTxUpdateDoc(core.class.PluginConfiguration, core.space.Model, p._id, { enabled: false })
+          ops.createTxUpdateDoc(core.class.PluginConfiguration, core.space.Model, pp._id, { enabled })
         )
       }
     }
-  } catch (err: any) {
-    console.trace(err)
+
+    await setEnabled(names(cmd.enable), true)
+    await setEnabled(names(cmd.disable), false)
   } finally {
     await connection.close()
   }

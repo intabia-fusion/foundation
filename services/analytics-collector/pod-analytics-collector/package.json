@@ -17,7 +17,7 @@
     "_phase:bundle": "rushx bundle",
     "_phase:docker-build": "rushx docker:build",
     "_phase:docker-staging": "rushx docker:staging",
-    "bundle": "node ../../../common/scripts/esbuild.js --external=*.node --external=snappy",
+    "bundle": "node ../../../common/scripts/esbuild.js --sourcemap=external --external=*.node --external=snappy",
     "docker:build": "node ../../../common/scripts/run_in_bash.js ../../../common/scripts/docker_build.sh intabiafusion/analytics-collector",
     "docker:staging": "node ../../../common/scripts/run_in_bash.js ../../../common/scripts/docker_tag.sh intabiafusion/analytics-collector staging",
     "docker:push": "node ../../../common/scripts/run_in_bash.js ../../../common/scripts/docker_tag.sh intabiafusion/analytics-collector",

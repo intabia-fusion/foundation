@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -18,8 +19,8 @@
   import task, { getStates } from '@hcengineering/task'
   import { typeStore } from '@hcengineering/task-resources'
   import { Issue, Project } from '@hcengineering/tracker'
-  import { Button, ButtonKind, ButtonSize, ProgressCircle, SelectPopup, showPanel } from '@hcengineering/ui'
-  import { statusStore } from '@hcengineering/view-resources'
+  import { Button, ButtonKind, ButtonSize, ProgressCircle, SelectPopup, closeTooltip } from '@hcengineering/ui'
+  import { openDoc, openDocFromRef, statusStore } from '@hcengineering/view-resources'
   import tracker from '../../../plugin'
   import { listIssueStatusOrder } from '../../../utils'
   import IssueStatusIcon from '../IssueStatusIcon.svelte'
@@ -96,23 +97,28 @@
   }
   $: hasSubIssues = (subIssues?.length ?? 0) > 0
 
+  const client = getClient()
+
   function openIssue (target: Ref<Issue>): void {
+    closeTooltip()
     if (target !== value._id) {
-      showPanel(tracker.component.EditIssue, target, value._class, 'content')
+      const targetDoc = subIssues.find((it) => it._id === target)
+      if (targetDoc !== undefined) {
+        void openDoc(client.getHierarchy(), targetDoc)
+      } else {
+        void openDocFromRef(value._class, target)
+      }
     }
   }
 
-  $: {
-    subIssues.sort((a, b) => {
-      const aStatus = $statusStore.byId.get(a.status)
-      const bStatus = $statusStore.byId.get(b.status)
-      const res =
-        listIssueStatusOrder.indexOf(aStatus?.category ?? task.statusCategory.UnStarted) -
-        listIssueStatusOrder.indexOf(bStatus?.category ?? task.statusCategory.UnStarted)
-      return res
-    })
-    _subIssues = subIssues
-  }
+  $: _subIssues = [...subIssues].sort((a, b) => {
+    const aStatus = $statusStore.byId.get(a.status)
+    const bStatus = $statusStore.byId.get(b.status)
+    const res =
+      listIssueStatusOrder.indexOf(aStatus?.category ?? task.statusCategory.UnStarted) -
+      listIssueStatusOrder.indexOf(bStatus?.category ?? task.statusCategory.UnStarted)
+    return res
+  })
 
   $: subIssuesValue = _subIssues.map((iss) => {
     const text = `${iss.identifier} ${iss.title}`

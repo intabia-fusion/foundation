@@ -1,5 +1,20 @@
+<!--
+// Copyright © 2023 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+-->
 <script lang="ts">
-  import { AnyAttribute, Class, Doc, IdMap, Ref, toIdMap } from '@hcengineering/core'
+  import { AnyAttribute, Class, Doc, getCurrentAccount, IdMap, Ref, toIdMap } from '@hcengineering/core'
   import { IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tags, { TagReference, TagsEvents, TagElement } from '@hcengineering/tags'
@@ -7,6 +22,7 @@
   import { getObjectId } from '@hcengineering/view-resources'
   import { Analytics } from '@hcengineering/analytics'
 
+  import { getTagsTargetClass } from '../utils'
   import TagReferencePresenter from './TagReferencePresenter.svelte'
   import TagsEditorPopup from './TagsEditorPopup.svelte'
   import TagIcon from './icons/TagIcon.svelte'
@@ -18,31 +34,126 @@
   // AttributeBarEditor passes the attribute as `attribute`; scope tags by the attribute's
   // owning class (e.g. lead.mixin.Customer) so mixin labels are shared, not the doc class.
   export let attribute: AnyAttribute | undefined = undefined
-  export let targetClass: Ref<Class<Doc>> = (attr ?? attribute)?.attributeOf ?? object._class
+  export let targetClass: Ref<Class<Doc>> = (attr ?? attribute)?.attributeOf ?? getTagsTargetClass(object._class)
+  export let draft: boolean = false
+  export let value: any[] | undefined = undefined
+  export let onChange: (value: any[]) => void = () => {}
 
-  let items: TagReference[] = []
+  let dbItems: TagReference[] = []
   let elements: IdMap<TagElement> = new Map()
+
   const query = createQuery()
   const tagElements = createQuery()
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  $: query.query(tags.class.TagReference, { attachedTo: object._id }, (result) => {
-    items = result
-  })
-
-  $: tagElements.query(tags.class.TagElement, { _id: { $in: items.map((it) => it.tag) } }, (result) => {
-    elements = toIdMap(result)
-  })
-  async function tagsHandler (evt: MouseEvent): Promise<void> {
-    if (readonly) return
-    showPopup(TagsEditorPopup, { object, targetClass }, getEventPopupPositionElement(evt), undefined, undefined, {
-      refId: 'TagsPopup',
-      category: 'popup',
-      overlay: true
+  $: if (object?._id != null) {
+    query.query(tags.class.TagReference, { attachedTo: object._id }, (result) => {
+      dbItems = result
     })
   }
+
+  function getTagId (item: any): Ref<TagElement> {
+    if (typeof item === 'string') return item as Ref<TagElement>
+    if (typeof item === 'object' && item != null && 'tag' in item) return item.tag
+    if (typeof item === 'object' && item != null && '_id' in item) return item._id
+    return item
+  }
+
+  $: dbTagIds = dbItems.map((it) => it.tag)
+  $: rawDraftItems = Array.isArray(value) ? value : dbItems
+  $: draftTagIds = rawDraftItems.map(getTagId)
+  $: tagIds = draft ? draftTagIds : dbTagIds
+
+  $: tagElements.query(tags.class.TagElement, { _id: { $in: tagIds } }, (result) => {
+    elements = toIdMap(result)
+  })
+
+  $: if (draft && tagIds.length > 0) {
+    const missing = tagIds.filter((id) => id != null && !elements.has(id))
+    if (missing.length > 0) {
+      void client.findAll(tags.class.TagElement, { _id: { $in: missing } }).then((res) => {
+        for (const el of res) {
+          elements.set(el._id, el)
+        }
+        elements = new Map(elements)
+      })
+    }
+  }
+
+  $: items = draft
+    ? rawDraftItems.map((valItem) => {
+      const tagId = getTagId(valItem)
+      const dbItem = dbItems.find((it) => it.tag === tagId)
+      if (dbItem !== undefined) return dbItem
+
+      if (typeof valItem === 'object' && valItem != null && 'title' in valItem && valItem.title) {
+        return {
+          _id: tagId as any,
+          tag: tagId,
+          title: valItem.title,
+          color: valItem.color ?? 0,
+          attachedTo: object._id,
+          attachedToClass: object._class,
+          collection: 'labels',
+          modifiedOn: Date.now(),
+          modifiedBy: getCurrentAccount().primarySocialId,
+          space: object.space,
+          _class: tags.class.TagReference
+        }
+      }
+
+      const element = elements.get(tagId)
+      return {
+        _id: tagId as any,
+        tag: tagId,
+        title: element?.title ?? '',
+        color: element?.color ?? 0,
+        attachedTo: object._id,
+        attachedToClass: object._class,
+        collection: 'labels',
+        modifiedOn: Date.now(),
+        modifiedBy: getCurrentAccount().primarySocialId,
+        space: object.space,
+        _class: tags.class.TagReference
+      }
+    })
+    : dbItems
+
+  function handleTagChange (newTagIds: Ref<TagElement>[]): void {
+    value = newTagIds
+    onChange(value)
+  }
+
+  async function tagsHandler (evt: MouseEvent): Promise<void> {
+    if (readonly) return
+    showPopup(
+      TagsEditorPopup,
+      {
+        object,
+        targetClass,
+        draft,
+        value: tagIds,
+        onChange: handleTagChange
+      },
+      getEventPopupPositionElement(evt),
+      undefined,
+      undefined,
+      {
+        refId: 'TagsPopup',
+        category: 'popup',
+        overlay: true
+      }
+    )
+  }
+
   async function removeTag (tag: TagReference): Promise<void> {
+    if (readonly) return
+    if (draft) {
+      const next = tagIds.filter((id) => id !== tag.tag)
+      handleTagChange(next)
+      return
+    }
     if (tag !== undefined) {
       await client.remove(tag)
       const id = await getObjectId(object, hierarchy)

@@ -3,7 +3,9 @@ import { getTransactorEndpoint } from '@hcengineering/server-client'
 import { generateToken } from '@hcengineering/server-token'
 
 export function getToolToken (workspace?: WorkspaceUuid): string {
-  return generateToken(systemAccountUuid, workspace, { service: 'tool', admin: 'true' })
+  // No admin flag: account gates the tool by `service`, and selectWorkspace already grants the
+  // system account Admin role. `admin: 'true'` is minted on human login only.
+  return generateToken(systemAccountUuid, workspace, { service: 'tool' })
 }
 
 export async function getWorkspaceTransactorEndpoint (
@@ -25,8 +27,9 @@ export async function sendTransactorEvent (
 
   try {
     console.info('send transactor event', operation, 'to', serverEndpoint)
-    await fetch(serverEndpoint + `/api/v1/manage?token=${token}&operation=${operation}`, {
-      method: 'PUT'
+    await fetch(serverEndpoint + `/api/v1/manage?operation=${operation}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` }
     })
   } catch (err: any) {
     // Ignore error if transactor is not yet ready

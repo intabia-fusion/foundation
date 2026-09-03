@@ -15,7 +15,14 @@
 import { WebhookProcessor } from '../webhook'
 import { WorkspaceClient } from '../workspaceClient'
 import { MeasureContext, Ref, WorkspaceUuid } from '@hcengineering/core'
-import { MeetingMinutes, MeetingStatus, ParsedRoomName, Room } from '@hcengineering/love'
+import {
+  MeetingMinutes,
+  MeetingStatus,
+  ParsedRoomName,
+  QueueMeetingEvent,
+  RecordingState,
+  Room
+} from '@hcengineering/love'
 import { Person } from '@hcengineering/contact'
 import { WebhookEvent } from 'livekit-server-sdk'
 
@@ -69,7 +76,11 @@ describe('WebhookProcessor - Meeting Lifecycle', () => {
       finishMeeting: jest.fn(),
       addActivityToMeeting: jest.fn(),
       findPersonRefById: jest.fn(),
-      getPersonIdByPersonRef: jest.fn()
+      getPersonIdByPersonRef: jest.fn(),
+      findOfficeOwner: jest.fn(),
+      findPendingRecordingByEgressId: jest.fn(),
+      removePendingRecording: jest.fn(),
+      updateMeetingRecordingState: jest.fn()
     } as unknown as jest.Mocked<WorkspaceClient>
 
     // Mock WorkspaceClient.create to return mockWsClient
@@ -115,6 +126,39 @@ describe('WebhookProcessor - Meeting Lifecycle', () => {
       await processor.processEvent(event as WebhookEvent, roomName)
 
       expect(mockEventProducer.send).toHaveBeenCalled()
+    })
+  })
+
+  describe('egress_ended event', () => {
+    // Same shape the other suites use: plain mocks, so eslint sees no unbound method reference.
+    const ws = (): Record<string, jest.Mock> => mockWsClient as unknown as Record<string, jest.Mock>
+
+    function endedEvent (): WebhookEvent {
+      return {
+        event: 'egress_ended',
+        egressInfo: { egressId: 'EG_1', fileResults: [] }
+      } as unknown as WebhookEvent
+    }
+
+    it('keeps the recording flag when the audio egress ends (defect: audio end stops the video button)', async () => {
+      mockWsClient.findMeetingById.mockResolvedValue(createMockMeeting() as MeetingMinutes)
+      ws().findPendingRecordingByEgressId.mockResolvedValue({ _id: 'rec-audio', format: 'audio' })
+
+      await processor.processEvent(endedEvent(), createMockRoomName())
+
+      // The video egress is still writing; clearing the flag leaves the button red while
+      // every press routes to /startRecord.
+      expect(ws().updateMeetingRecordingState).not.toHaveBeenCalled()
+      expect(ws().removePendingRecording).toHaveBeenCalled()
+    })
+
+    it('clears the recording flag when the video egress ends', async () => {
+      mockWsClient.findMeetingById.mockResolvedValue(createMockMeeting() as MeetingMinutes)
+      ws().findPendingRecordingByEgressId.mockResolvedValue({ _id: 'rec-video', format: 'video' })
+
+      await processor.processEvent(endedEvent(), createMockRoomName())
+
+      expect(ws().updateMeetingRecordingState).toHaveBeenCalledWith(expect.anything(), RecordingState.Finished)
     })
   })
 
@@ -171,6 +215,60 @@ describe('WebhookProcessor - Meeting Lifecycle', () => {
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockWsClient.removeParticipantFromLiveKit).toHaveBeenCalled()
+    })
+
+    it('publishes a leave event distinct from personJoined (defect: participant_left publishes personJoined)', async () => {
+      const meeting = createMockMeeting()
+      mockWsClient.findMeetingById.mockResolvedValue(meeting as MeetingMinutes)
+      mockWsClient.findPersonRefById.mockResolvedValue('person-1' as Ref<Person>)
+      mockWsClient.findOfficeOwner.mockResolvedValue(undefined)
+
+      const event: Partial<WebhookEvent> = {
+        event: 'participant_left',
+        room: {
+          name: 'workspace-1_meeting-1',
+          sid: 'room-sid-1'
+        } as any,
+        participant: {
+          identity: 'person-1',
+          name: 'Test User',
+          sid: 'participant-sid-1',
+          kind: 0
+        } as any
+      }
+      const roomName = createMockRoomName()
+
+      await processor.processEvent(event as WebhookEvent, roomName)
+
+      const sentMessages = mockEventProducer.send.mock.calls.flatMap((call: any[]) => call[2])
+      const personEvents = sentMessages.filter(
+        (m: any) => m.type === QueueMeetingEvent.personJoined || m.type === QueueMeetingEvent.personLeft
+      )
+      expect(personEvents).toHaveLength(1)
+      expect(personEvents[0].type).toBe(QueueMeetingEvent.personLeft)
+    })
+  })
+
+  describe('office owner leaves', () => {
+    it('stamps ownerLeftAt instead of closing the room, so a refresh survives', async () => {
+      mockWsClient.findMeetingById.mockResolvedValue(createMockMeeting() as MeetingMinutes)
+      mockWsClient.findPersonRefById.mockResolvedValue('person-1' as Ref<Person>)
+      mockWsClient.findOfficeOwner.mockResolvedValue('person-1' as Ref<Person>)
+      mockRoomClient.deleteRoom = jest.fn()
+      mockRoomClient.listRooms = jest.fn().mockResolvedValue([{ name: 'workspace-1_meeting-1', metadata: '{}' }])
+      mockRoomClient.updateRoomMetadata = jest.fn()
+
+      const event: Partial<WebhookEvent> = {
+        event: 'participant_left',
+        room: { name: 'workspace-1_meeting-1', sid: 'room-sid-1' } as any,
+        participant: { identity: 'person-1', name: 'Owner', sid: 'participant-sid-1', kind: 0 } as any
+      }
+
+      await processor.processEvent(event as WebhookEvent, createMockRoomName())
+
+      expect(mockRoomClient.deleteRoom).not.toHaveBeenCalled()
+      const [, written] = mockRoomClient.updateRoomMetadata.mock.calls[0]
+      expect(JSON.parse(written).ownerLeftAt).toEqual(expect.any(Number))
     })
   })
 

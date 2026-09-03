@@ -228,7 +228,9 @@
     "OtpCode": "コード",
     "OtpSent": "メールにコードを送信しました",
     "OtpSendFailed": "コードを送信できませんでした",
-    "SendCode": "コードを送信"
+    "SendCode": "コードを送信",
+    "SeatLimitReached": "空き席がありません",
+    "SeatLimitReachedDescription": "ワークスペースはプランの席数上限に達しています。この役割を割り当てるには、席を空けるかプランをアップグレードしてください。"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

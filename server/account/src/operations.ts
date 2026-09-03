@@ -88,7 +88,8 @@ import {
   createWorkspaceRecord,
   doJoinByInvite,
   doMergePersons,
-  assertSeatAvailableOnJoin,
+  assertSeatAvailable,
+  getSeatsAvailable,
   doReleaseSocialId,
   EndpointKind,
   generatePassword,
@@ -690,6 +691,9 @@ export async function createInvite (
     verifyAllowedServices(['schedule'], extra)
   }
 
+  // No point handing out a link that will be rejected at join time.
+  await assertSeatAvailable(ctx, db, workspace.uuid, role)
+
   ctx.info('Creating invite', { workspace, workspaceName: workspace.name, email, emailMask, limit, autoJoin })
 
   return await db.invite.insertOne({
@@ -988,6 +992,9 @@ export async function resendInvite (
   const callerRole = await db.getWorkspaceRole(account, workspace.uuid)
   verifyAllowedRole(callerRole, role, extra)
 
+  // Refreshing an existing invite skips createInvite, so the seat cap has to be checked here too.
+  await assertSeatAvailable(ctx, db, workspace.uuid, role)
+
   const expHours = 48
   const newExp = Date.now() + expHours * 60 * 60 * 1000
 
@@ -1143,6 +1150,24 @@ export async function joinByInvite (
   return await doJoinByInvite(ctx, db, branding, token, accountUuid, workspace, invite)
 }
 
+/** Free seats left on the workspace plan; `available: true` when the plan is unlimited. */
+export async function getWorkspaceSeats (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string
+): Promise<{ available: boolean, seatsLeft?: number }> {
+  const { workspace: workspaceUuid } = decodeTokenVerbose(ctx, token)
+
+  if (workspaceUuid == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
+  }
+
+  const seatsLeft = await getSeatsAvailable(db, workspaceUuid)
+
+  return seatsLeft === undefined ? { available: true } : { available: seatsLeft > 0, seatsLeft }
+}
+
 /**
  * Public method to get invite information without authentication.
  * Returns workspace name and invite details for the join page.
@@ -1171,9 +1196,12 @@ export async function getInviteInfo (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid }))
   }
 
+  const seatsLeft = await getSeatsAvailable(db, workspace.uuid)
+
   return {
     workspace: workspace.uuid,
-    name: workspace.name
+    name: workspace.name,
+    seatsAvailable: seatsLeft === undefined || seatsLeft > 0
   }
 }
 
@@ -1257,7 +1285,7 @@ export async function checkAutoJoin (
       const targetRole = await getWorkspaceRole(db, targetAccount.uuid, workspace.uuid)
 
       if (targetRole == null) {
-        await assertSeatAvailableOnJoin(ctx, db, workspace.uuid, invite.role)
+        await assertSeatAvailable(ctx, db, workspace.uuid, invite.role)
         await db.assignWorkspace(targetAccount.uuid, workspace.uuid, invite.role)
         await publishMembersChanged(ctx, workspace.uuid)
       } else if (getRolePower(targetRole) < getRolePower(invite.role)) {
@@ -1940,7 +1968,7 @@ export async function getLoginInfoByToken (
 
       // Create an automatic account and assign it to the grant workspace
       await signUpByGrant(ctx, db, branding, accountUuid, grant, params)
-      await assertSeatAvailableOnJoin(ctx, db, workspaceUuid, grant.role)
+      await assertSeatAvailable(ctx, db, workspaceUuid, grant.role)
       await db.assignWorkspace(accountUuid, workspaceUuid, grant.role)
       await publishMembersChanged(ctx, workspaceUuid)
     } else {
@@ -1952,7 +1980,7 @@ export async function getLoginInfoByToken (
         // Existing automatic account, check workspace assignment and consider it signed in
         const existingRole = await db.getWorkspaceRole(accountUuid, workspaceUuid)
         if (existingRole == null) {
-          await assertSeatAvailableOnJoin(ctx, db, workspaceUuid, grant.role)
+          await assertSeatAvailable(ctx, db, workspaceUuid, grant.role)
           await db.assignWorkspace(accountUuid, workspaceUuid, grant.role)
           await publishMembersChanged(ctx, workspaceUuid)
         } else if (getRolePower(existingRole) < getRolePower(grant.role)) {
@@ -3224,6 +3252,7 @@ export type AccountMethods =
   | 'checkJoin'
   | 'checkAutoJoin'
   | 'getInviteInfo'
+  | 'getWorkspaceSeats'
   | 'signUpJoin'
   | 'confirm'
   | 'changePassword'
@@ -3303,6 +3332,7 @@ export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMe
     checkJoin: wrap(checkJoin),
     checkAutoJoin: wrap(checkAutoJoin),
     getInviteInfo: wrap(getInviteInfo),
+    getWorkspaceSeats: wrap(getWorkspaceSeats),
     signUpJoin: wrap(signUpJoin),
     confirm: wrap(confirm),
     changePassword: wrap(changePassword),

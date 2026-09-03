@@ -228,7 +228,9 @@
     "OtpCode": "Code",
     "OtpSent": "Ein Code wurde an Ihre E-Mail-Adresse gesendet",
     "OtpSendFailed": "Code konnte nicht gesendet werden",
-    "SendCode": "Code senden"
+    "SendCode": "Code senden",
+    "SeatLimitReached": "Keine freien Plätze",
+    "SeatLimitReachedDescription": "Der Arbeitsbereich hat das Platzlimit des Tarifs erreicht. Geben Sie einen Platz frei oder erweitern Sie den Tarif, um diese Rolle zuzuweisen."
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

@@ -228,7 +228,9 @@
     "OtpCode": "Code",
     "OtpSent": "A code has been sent to your email",
     "OtpSendFailed": "Failed to send the code",
-    "SendCode": "Send code"
+    "SendCode": "Send code",
+    "SeatLimitReached": "No free seats",
+    "SeatLimitReachedDescription": "The workspace has reached its plan seat limit. Free a seat or upgrade the plan to assign this role."
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

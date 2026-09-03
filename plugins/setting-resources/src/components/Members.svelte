@@ -16,13 +16,22 @@
   import contact, { Employee, formatName } from '@hcengineering/contact'
   import { EmployeePresenter } from '@hcengineering/contact-resources'
   import { Account, AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
-  import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Breadcrumb, DropdownIntlItem, DropdownLabelsIntl, Header, Scroller, SearchInput } from '@hcengineering/ui'
+  import { MessageBox, createQuery, getClient } from '@hcengineering/presentation'
+  import {
+    Breadcrumb,
+    DropdownIntlItem,
+    DropdownLabelsIntl,
+    Header,
+    Scroller,
+    SearchInput,
+    showPopup
+  } from '@hcengineering/ui'
   import { onMount } from 'svelte'
 
   import setting from '../plugin'
   import { getAccountClient } from '../utils'
   import { Analytics } from '@hcengineering/analytics'
+  import platform, { PlatformError } from '@hcengineering/platform'
 
   const query = createQuery()
   const currentAccount = getCurrentAccount()
@@ -72,6 +81,17 @@
         await client.update(employee, { role: employeeRole })
       }
     } catch (e: any) {
+      if (e instanceof PlatformError && e.status.code === platform.status.PlanLimitExceeded) {
+        // Promoting a guest takes a seat, so a full plan refuses it server side.
+        showPopup(MessageBox, {
+          label: setting.string.SeatLimitReached,
+          message: setting.string.SeatLimitReachedDescription,
+          canSubmit: false
+        })
+        // Force the dropdown back to the role the server still has.
+        workspaceMembers = { ...workspaceMembers }
+        return
+      }
       Analytics.handleError(e)
     }
   }

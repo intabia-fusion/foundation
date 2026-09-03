@@ -21,7 +21,7 @@
     "HaveWorkspace": "Hai già uno spazio di lavoro?",
     "LastName": "Cognome",
     "FirstName": "Nome",
-    "Join": "Unisciti",
+    "Join": "Unisciti a",
     "Email": "Email",
     "Password": "Password",
     "PhoneNumber": "Numero di telefono",
@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "Crea il tuo spazio di lavoro, oppure chiedi al proprietario di uno esistente un link di accesso.",
     "CheckingLink": "Verifica del link...",
     "InvalidLink": "Questo collegamento non è più valido",
-    "ConfirmationFailed": "Non è stato possibile completare la registrazione"
+    "ConfirmationFailed": "Non è stato possibile completare la registrazione",
+    "NoFreeSeats": "Nessun posto libero",
+    "NoFreeSeatsDescription": "Questo spazio di lavoro ha raggiunto il limite di posti del piano. Contatta l'amministratore dello spazio di lavoro.",
+    "NoFreeSeatsForInvite": "Il piano non ha più posti liberi, non è possibile creare un nuovo link di invito."
   }
 }

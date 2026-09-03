@@ -228,7 +228,9 @@
     "OtpCode": "Kod",
     "OtpSent": "E-postanıza bir kod gönderildi",
     "OtpSendFailed": "Kod gönderilemedi",
-    "SendCode": "Kod gönder"
+    "SendCode": "Kod gönder",
+    "SeatLimitReached": "Boş koltuk yok",
+    "SeatLimitReachedDescription": "Çalışma alanı plan koltuk limitine ulaştı. Bu rolü atamak için bir koltuk boşaltın veya planı yükseltin."
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

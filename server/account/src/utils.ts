@@ -1226,7 +1226,14 @@ export async function updateWorkspaceRole (
     }
   }
 
+  // Promoting a seatless member (e.g. Guest -> User) takes a seat, so it must respect the plan cap.
+  if (SEATLESS_ROLES.includes(currentRole)) {
+    await assertSeatAvailable(ctx, db, workspace, targetRole)
+  }
+
   await db.updateWorkspaceRole(targetAccount, workspace, targetRole)
+  // Guests are seatless, so a role change shifts the seat count - refresh the usage snapshot now.
+  await publishMembersChanged(ctx, workspace)
 }
 
 /**
@@ -1681,28 +1688,36 @@ function grantsPlan (sub: Pick<Subscription, 'status' | 'trialEnd'>): boolean {
 }
 
 /**
- * Best-effort join-time seat cap: reject a new member when the paid plan's usersLimit is already
- * filled. ponytail: best-effort — concurrent accepts can overshoot by 1-2 (no atomic count); the
- * transactor SeatLimitsMiddleware read-only enforcement is the real backstop for over-limit members.
+ * Free seats left on the paid plan, or `undefined` when the plan is unlimited / free-fallback
+ * (no cap at all). Counts ws_members only - pending invites are deliberately not reserved.
  */
-export async function assertSeatAvailableOnJoin (
-  ctx: MeasureContext,
-  db: AccountDB,
-  workspace: WorkspaceUuid,
-  joiningRole: AccountRole
-): Promise<void> {
-  if (SEATLESS_ROLES.includes(joiningRole)) return
+export async function getSeatsAvailable (db: AccountDB, workspace: WorkspaceUuid): Promise<number | undefined> {
   const tier = (await db.subscription.find({ workspaceUuid: workspace })).find(
     (s) => s.type === SubscriptionType.Tier && grantsPlan(s)
   )
   const usersLimit = tier?.limits?.usersLimit ?? 0
-  if (usersLimit === 0) return // unlimited or free-fallback: no join-time cap
+  if (usersLimit === 0) return undefined
   const members = await getSeatMembers(db, workspace)
   const seatsUsed = members.filter((m) => !SEATLESS_ROLES.includes(m.role)).length
-  if (seatsUsed >= usersLimit) {
-    ctx.info('join rejected: seat limit reached', { workspace, usersLimit, seatsUsed })
-    throw new PlatformError(new Status(Severity.ERROR, platform.status.PlanLimitExceeded, {}))
-  }
+  return Math.max(0, usersLimit - seatsUsed)
+}
+
+/**
+ * Seat cap for a role about to occupy a seat.
+ * The transactor SeatLimitsMiddleware read-only enforcement is the real backstop for over-limit members.
+ */
+export async function assertSeatAvailable (
+  ctx: MeasureContext,
+  db: AccountDB,
+  workspace: WorkspaceUuid,
+  role: AccountRole
+): Promise<void> {
+  if (SEATLESS_ROLES.includes(role)) return
+  const seatsLeft = await getSeatsAvailable(db, workspace)
+  if (seatsLeft === undefined || seatsLeft > 0) return
+
+  ctx.info('seat limit reached', { workspace, role })
+  throw new PlatformError(new Status(Severity.ERROR, platform.status.PlanLimitExceeded, {}))
 }
 
 /** Signal that workspace membership changed so seat-count consumers (transactor/billing) refresh now. */
@@ -1735,7 +1750,7 @@ export async function doJoinByInvite (
     // TODO: should we re-join kicked users? How are they marked as inactive?
     if (role == null) {
       // Join-time seat cap: reject before assign so an over-limit member never enters ws_members.
-      await assertSeatAvailableOnJoin(ctx, db, workspace.uuid, invite.role)
+      await assertSeatAvailable(ctx, db, workspace.uuid, invite.role)
       await db.assignWorkspace(account, workspace.uuid, invite.role)
       await publishMembersChanged(ctx, workspace.uuid)
     } else if (getRolePower(role) < getRolePower(invite.role)) {

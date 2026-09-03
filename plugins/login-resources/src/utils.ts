@@ -728,8 +728,9 @@ export async function sendInvite (email: string, role: AccountRole): Promise<voi
   try {
     await getAccountClient().sendInvite(email, role)
   } catch (e) {
-    console.log('Failed to send invite', email, role)
-    console.error(e)
+    console.error('Failed to send invite', email, role, e)
+    // A refusal (e.g. the plan seat limit) must reach the caller so it can be shown.
+    if (e instanceof PlatformError) throw e
   }
 }
 
@@ -737,8 +738,8 @@ export async function resendInvite (email: string, role: AccountRole): Promise<v
   try {
     await getAccountClient().resendInvite(email, role)
   } catch (e) {
-    console.log('Failed to resend invite', email, role)
-    console.error(e)
+    console.error('Failed to resend invite', email, role, e)
+    if (e instanceof PlatformError) throw e
   }
 }
 

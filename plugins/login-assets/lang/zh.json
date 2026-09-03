@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "创建您自己的工作区，或向现有工作区的所有者索取访问链接。",
     "CheckingLink": "正在检查链接...",
     "InvalidLink": "此链接已失效",
-    "ConfirmationFailed": "无法完成注册"
+    "ConfirmationFailed": "无法完成注册",
+    "NoFreeSeats": "没有空闲席位",
+    "NoFreeSeatsDescription": "该工作区已达到套餐席位上限。请联系工作区管理员。",
+    "NoFreeSeatsForInvite": "套餐已无空闲席位，无法创建新的邀请链接。"
   }
 }

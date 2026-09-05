@@ -111,7 +111,7 @@ test.describe('Team Planner tests', () => {
     const page2 = _page2.page
     await (await page2.goto(`${PlatformURI}/workbench/sanity-ws/time`))?.finished()
 
-    await test.step('Second user books a plain, project-less tomorrow slot in Planner', async () => {
+    await test.step('Second user books a plain, project-less slot for today in Planner', async () => {
       const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
       const planningPageSecond = new PlanningPage(page2)
       const planningNavigationMenuPageSecond = new PlanningNavigationMenuPage(page2)
@@ -136,8 +136,8 @@ test.describe('Team Planner tests', () => {
       await teamPage.checkTeamPageIsOpened()
       await teamPage.openTeamOccupancy()
 
-      await expect(teamPage.busyBlock('Tomorrow')).toBeVisible()
-      await expect(teamPage.getItemByText('Tomorrow', busyTitle)).not.toBeVisible()
+      await expect(teamPage.busyBlock('Today')).toBeVisible()
+      await expect(teamPage.getItemByText('Today', busyTitle)).not.toBeVisible()
     })
   })
 

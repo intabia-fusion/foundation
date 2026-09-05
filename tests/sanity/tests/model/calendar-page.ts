@@ -94,8 +94,7 @@ export class CalendarPage extends CommonPage {
   // fixed hour may already hold an event - the click would then open it instead of creating one.
   // Clicking for real (rather than probing first) keeps the check and the click atomic.
   // Same shape as DayCalendar's getTimeFormat: 0am..11am, 12pm, 1pm..11pm.
-  private readonly hourLabel = (hour: number): string =>
-    `${hour > 12 ? hour - 12 : hour}${hour < 12 ? 'am' : 'pm'}`
+  private readonly hourLabel = (hour: number): string => `${hour > 12 ? hour - 12 : hour}${hour < 12 ? 'am' : 'pm'}`
 
   // Scanning starts at midnight rather than "now": other specs book the current hour and the
   // ones right after it, so the early morning is nearly always free and the scan ends at once.
@@ -113,7 +112,11 @@ export class CalendarPage extends CommonPage {
       }
       // The click can land on a sliver of a cell that is mostly covered and open nothing, so the
       // create popup is the only proof the hour was really free.
-      if (await this.createEventPopup().isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (
+        await this.createEventPopup()
+          .isVisible({ timeout: 2000 })
+          .catch(() => false)
+      ) {
         return time
       }
       await this.page.keyboard.press('Escape')

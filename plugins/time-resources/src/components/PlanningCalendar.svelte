@@ -336,6 +336,7 @@
         icon={IconChevronLeft}
         kind={'secondary'}
         size={'small'}
+        dataId={'btnPrev'}
         on:click={() => {
           inc(-1)
         }}
@@ -358,6 +359,7 @@
         icon={IconChevronRight}
         kind={'secondary'}
         size={'small'}
+        dataId={'btnNext'}
         on:click={() => {
           inc(1)
         }}

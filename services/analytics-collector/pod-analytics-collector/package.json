@@ -66,6 +66,6 @@
     "express": "^4.21.2",
     "maxmind": "^4.3.6",
     "@hcengineering/rpc": "workspace:^0.7.17",
-    "snappy": "^7.4.2"
+    "snappy": "7.3.3"
   }
 }

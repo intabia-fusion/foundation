@@ -28,6 +28,14 @@
     "tar-stream": {
       "maxVersion": "3.1.9",
       "reason": "3.2 добавил собственные .d.ts поверх @types/tar-stream: они опираются на streamx без типов, Pack теряет Readable API (pipe) - ломает server/backup"
+    },
+    "sanitize-html": {
+      "maxVersion": "2.17.5",
+      "reason": "2.17.6+ тянет htmlparser2 ^12 (ESM-only) - jest 29 не умеет require(ESM), падают тесты mail-common/gmail. 2.17.5 сидит на htmlparser2 ^10 (dual)"
+    },
+    "snappy": {
+      "maxVersion": "7.3.3",
+      "reason": "7.4.x: main.js делает require('./stream-polyfill.mjs') - в Node 24 ок, в jest 29 SyntaxError"
     }
   }
 }

@@ -27,7 +27,7 @@ const fs = require('fs')
 const path = require('path')
 
 const DEPS_DIR = path.join(process.cwd(), 'combined_dependencies')
-// packages capped at an exact version must not be written with ^: the range would let the cap slip
+// packages capped at an exact version are written without a range prefix
 const PINNED_EXACT = new Set(
   Object.entries(
     (() => {
@@ -93,7 +93,8 @@ for (const file of files) {
     for (const field of FIELDS) {
       const cur = json[field]?.[name]
       if (cur === undefined || cur.startsWith('workspace:')) continue
-      const prefix = PINNED_EXACT.has(name) ? '~' : /^[\^~]/.exec(cur)?.[0] ?? '^'
+      // a capped package is written exact: even ~ would let a later patch cross the cap
+      const prefix = PINNED_EXACT.has(name) ? '' : /^[\^~]/.exec(cur)?.[0] ?? '^'
       const next = `${prefix}${version}`
       if (cur === next) continue
       // Text replace keeps original formatting intact

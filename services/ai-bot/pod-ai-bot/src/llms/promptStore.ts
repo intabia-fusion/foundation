@@ -76,7 +76,12 @@ export function loadPromptTemplates (filePath?: string): PromptTemplates {
   if (!fs.existsSync(resolved)) {
     throw new Error(`Prompts file not found: ${resolved}. Set PROMPTS_PATH or provide prompts.yaml.`)
   }
-  const raw = yaml.load(fs.readFileSync(resolved, 'utf8'))
+  let raw: unknown
+  try {
+    raw = yaml.load(fs.readFileSync(resolved, 'utf8'))
+  } catch (err) {
+    throw new Error(`Prompts file is empty or invalid: ${resolved}`)
+  }
   if (raw === null || typeof raw !== 'object') {
     throw new Error(`Prompts file is empty or invalid: ${resolved}`)
   }

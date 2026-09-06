@@ -76,7 +76,12 @@ function validatePlanConfig (path: string): void {
   if (!existsSync(path)) {
     throw Error(`Plan config file not found: ${path}`)
   }
-  const parsed = yaml.load(readFileSync(path, 'utf-8')) as any
+  let parsed: any
+  try {
+    parsed = yaml.load(readFileSync(path, 'utf-8'))
+  } catch (err) {
+    throw Error(`Plan config file is empty or invalid YAML: ${path}`)
+  }
   const noWindow = Object.entries<any>(parsed?.plans ?? {})
     .filter(([, plan]) => plan?.windowMonthLimit == null)
     .map(([name]) => name)

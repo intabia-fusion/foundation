@@ -260,7 +260,12 @@ export interface SlowSqlOptions {
 
 function loadIndexes (file: string): IndexesFile {
   if (!existsSync(file)) throw new Error(`indexes file not found: ${file}`)
-  const parsed = yaml.load(readFileSync(file, 'utf8')) as IndexesFile | undefined
+  let parsed: IndexesFile | undefined
+  try {
+    parsed = yaml.load(readFileSync(file, 'utf8')) as IndexesFile | undefined
+  } catch (err) {
+    throw new Error(`invalid indexes file: ${file}`)
+  }
   if (parsed?.domains == null) throw new Error(`invalid indexes file: ${file}`)
   return parsed
 }

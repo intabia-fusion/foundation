@@ -54,7 +54,12 @@ export function loadRegionConfig (): RegionConfig {
   const configPath = process.env.REGION_CONFIG
   if (configPath !== undefined && configPath.length > 0) {
     const content = readFileSync(configPath, 'utf-8')
-    const config = yaml.load(content)
+    let config: unknown
+    try {
+      config = yaml.load(content)
+    } catch (err) {
+      throw new Error(`REGION_CONFIG file '${configPath}' is empty or invalid YAML`)
+    }
     return validateRegionConfig(config, `REGION_CONFIG file '${configPath}'`)
   }
 

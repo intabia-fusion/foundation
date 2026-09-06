@@ -490,7 +490,15 @@ excludeLinksFromLockfile: false
 
 # pnpm 10 blocks postinstall by default; these need it.
 onlyBuiltDependencies:
+  # every platform variant: the postinstall is `chmod u+x ffmpeg`, needed wherever it lands
   - '@ffmpeg-installer/darwin-arm64'
+  - '@ffmpeg-installer/darwin-x64'
+  - '@ffmpeg-installer/linux-arm'
+  - '@ffmpeg-installer/linux-arm64'
+  - '@ffmpeg-installer/linux-ia32'
+  - '@ffmpeg-installer/linux-x64'
+  - '@ffmpeg-installer/win32-ia32'
+  - '@ffmpeg-installer/win32-x64'
   - '@livekit/local-inference'
   - '@parcel/watcher'
   - bufferutil

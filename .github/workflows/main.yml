@@ -90,11 +90,8 @@ jobs:
       - name: Model version from git tags
         run: pnpm model-version
 
-      - name: Bundle...
+      - name: Building and bundling...
         run: pnpm bundle
-
-      - name: Validate...
-        run: pnpm build
 
       - name: Build @intabia-fusion/api bundle
         run: |
@@ -532,7 +529,7 @@ jobs:
         run: |
           echo Pushing release of tag ${{ github.ref }}
           echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
-          pnpm docker:push -v
+          pnpm docker:push
 
   dist-build:
     # if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
@@ -572,7 +569,7 @@ jobs:
             ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Installing...
-        run: pnpm install --frozen-lockfile --purge
+        run: pnpm install --frozen-lockfile
       - name: Model version from git tags
         run: pnpm model-version
       - name: Package

@@ -47,26 +47,6 @@ function collectFiles(source) {
   return result
 }
 
-function collectFileStats(source, result) {
-  if (!existsSync(source)) {
-    return
-  }
-  const files = readdirSync(source)
-  for (const f of files) {
-    const sourceFile = join(source, f)
-    const stat = lstatSync(sourceFile)
-    if (stat.isDirectory()) {
-      collectFileStats(sourceFile, result)
-    } else {
-      const ext = basename(sourceFile)
-      if (!ext.endsWith('.ts') && !ext.endsWith('.js') && !ext.endsWith('.svelte')) {
-        continue
-      }
-      result[sourceFile] = stat.mtime.getTime()
-    }
-  }
-}
-
 /**
  * Collect JSON files recursively from a directory
  */
@@ -105,42 +85,6 @@ function copyJsonFiles(srcDir, outDir, cwd) {
     }
     copyFileSync(jsonFile, destFile)
   }
-}
-
-/**
- * Transpile TypeScript/JavaScript files using esbuild
- * @param {string[]} filesToTranspile - Array of file paths to transpile
- * @param {object} options - Options object
- * @param {string} [options.srcDir='src'] - Source directory for JSON assets
- * @param {string} [options.cwd] - Working directory (defaults to process.cwd())
- * @param {string} [options.outDir='lib'] - Output directory
- */
-async function performESBuild(filesToTranspile, options = {}) {
-  const {
-    srcDir = 'src',
-    cwd = process.cwd(),
-    outDir = 'lib'
-  } = options
-
-  if (filesToTranspile.length === 0) {
-    return
-  }
-
-  // Copy JSON files manually (esbuild-plugin-copy doesn't work well with absWorkingDir)
-  copyJsonFiles(srcDir, outDir, cwd)
-
-  await esbuild.build({
-    entryPoints: filesToTranspile,
-    bundle: false,
-    minify: false,
-    outdir: outDir,
-    keepNames: true,
-    sourcemap: 'linked',
-    allowOverwrite: true,
-    format: 'cjs',
-    color: true,
-    absWorkingDir: cwd
-  })
 }
 
 async function performESBuildWithSvelte(filesToTranspile, options = {}) {
@@ -312,17 +256,11 @@ if (require.main === module) {
       console.log('Building UI package with Svelte support...')
       const st = performance.now()
       const filesToTranspile = collectFiles(join(process.cwd(), 'src'))
-      const before = {}
-      const after = {}
-      collectFileStats('lib', before)
-      collectFileStats('types', before)
 
       performESBuildWithSvelte(filesToTranspile, { cwd: process.cwd() })
         .then(() => generateSvelteTypes({ cwd: process.cwd() }))
         .then(() => {
           console.log('UI build time:', Math.round((performance.now() - st) * 100) / 100, 'ms')
-          collectFileStats('lib', after)
-          collectFileStats('types', after)
         })
         .catch((err) => {
           console.error('UI build failed:', err)
@@ -353,8 +291,6 @@ if (require.main === module) {
 // Export functions for use by other modules
 module.exports = {
   collectFiles,
-  collectFileStats,
-  performESBuild,
   performESBuildWithSvelte,
   generateSvelteTypes,
   tscCompile,

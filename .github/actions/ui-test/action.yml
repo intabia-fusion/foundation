@@ -77,16 +77,16 @@ runs:
       if: inputs.run-api-tests == 'true'
       shell: bash
       run: |
-        cd ./${{ inputs.test-folder }}/api-tests
         pnpm build --to @hcengineering/api-tests
+        cd ./${{ inputs.test-folder }}/api-tests
         pnpm run api-test --verbose
 
     - name: Run backup tests
       if: inputs.run-backup-tests == 'true'
       shell: bash
       run: |
-        cd ./${{ inputs.test-folder }}/backup-tests
         pnpm build --to @hcengineering/backup-tests
+        cd ./${{ inputs.test-folder }}/backup-tests
         pnpm run backup-test --verbose
 
     - name: Start profiling

@@ -208,7 +208,7 @@ services:
 
 ```bash
 # Install dependencies
-rush install
+pnpm install --frozen-lockfile
 
 # Build the distribution server
 cd desktop-package

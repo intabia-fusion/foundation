@@ -7,10 +7,10 @@ Two variants, first use a local build and use an already build version.
 ### A local build
 
 ```bash
-rush update
-rush build
-rush bundle
-rush docker:build
+pnpm install
+pnpm build
+pnpm bundle
+pnpm docker:build
 ./prepare.sh
 ```
 
@@ -35,9 +35,9 @@ To purge content of sanity workspace following command could be used.
 ## Prepare local dev environment
 
 ```bash
-rush update
-rush build
-rush bundle
+pnpm install
+pnpm build
+pnpm bundle
 ./create-local.sh
 ```
 

@@ -33,13 +33,13 @@ run_one () {
   WS_SLOW_CLIENT_DROP="$drop" ./prepare-pg.sh >/tmp/prep-${label}.log 2>&1
   popd >/dev/null
   pushd "$API_DIR" >/dev/null
-  BENCH_LABEL="$label" rushx api-test --testPathPattern broadcast.benchmark | tee "$OUT_DIR/run-${label}.log"
+  BENCH_LABEL="$label" pnpm run api-test --testPathPattern broadcast.benchmark | tee "$OUT_DIR/run-${label}.log"
   popd >/dev/null
 }
 
-echo "==> Rebuilding docker images (rush fast-build:docker)"
+echo "==> Rebuilding docker images (pnpm docker)"
 pushd "$ROOT" >/dev/null
-rush fast-build:docker >/tmp/bench-docker-build.log 2>&1
+pnpm docker >/tmp/bench-docker-build.log 2>&1
 popd >/dev/null
 
 run_one "drop-off" 0

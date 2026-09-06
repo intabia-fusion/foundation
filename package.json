@@ -21,6 +21,7 @@
     "docker": "./common/scripts/docker-fast.sh",
     "format": "./common/scripts/fast-format.sh",
     "check-versions": "node ./common/scripts/check-versions.js",
+    "check-layers": "node ./common/scripts/check-layers.js",
     "model-version": "node ./common/scripts/show_version.js",
     "show-model": "pnpm --filter @hcengineering/model-all run show-model",
     "docker:staging": "pnpm -r run docker:staging",

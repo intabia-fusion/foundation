@@ -634,7 +634,7 @@ BENCH_INVITE_FLOW=1 BENCH_INVITE_ITERATIONS=200 BENCH_INVITE_PARALLEL=20 \
 # 1. Docker-стек (Postgres, MinIO, Elastic) + пользователи и workspace
 cd tests && ./prepare-pg.sh
 
-# 2. Front/server на порту 8083 (docker-compose или rush dev)
+# 2. Front/server на порту 8083 (docker-compose или the dev-server)
 
 # 3. LiveKit (обязателен для join/leave тестов)
 cd dev && ./run_livekit.sh     # порт 7880, webhook http://127.0.0.1:8098/webhook

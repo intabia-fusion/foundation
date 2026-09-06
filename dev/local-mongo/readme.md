@@ -16,5 +16,5 @@ A docker configuration to use local installation of mongo db.
 ./start.sh # Will start a local mongo database
 ./stop.sh # Will stop a local mongo dabase
 
-rush docker:local # Will up all necessary containers and point them into local mongo database
+pnpm docker:local # Will up all necessary containers and point them into local mongo database
 ```

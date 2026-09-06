@@ -302,3 +302,18 @@ Lockfile при этом не меняется.
 lockfile - `eslint-plugin-import` начинает резолвиться с `@typescript-eslint/parser` в
 peer-цепочке. Это не связано со strict, это `--fix-lockfile` дочищает недоспецифицированные
 peer-связи. Откачено, при желании - отдельным коммитом.
+
+### esbuild после миграции
+
+Транспиляция через esbuild ушла у 459 пакетов из 460. `performESBuild` (плоская транспиляция
+`.ts` -> `lib/*.js`) осталась без вызывающих и удалена вместе с `collectFileStats`, который
+набивал два объекта `before`/`after`, никем не читаемых. `compile.js`: 445 -> 298 строк.
+
+esbuild остался в двух ролях:
+- **бандлер** для 44 подов (`--bundle=true`, externals, single-file) - tsc так не умеет;
+- **компилятор `.svelte`** ровно для одного пакета, `foundations/utils/packages/ui-test`
+  (`compile ui-esbuild` -> `performESBuildWithSvelte` + `generateSvelteTypes`).
+
+`ui-test` от никого не зависим и выглядит сиротой, но удалять его нельзя: это прототип
+предкомпиляции svelte в пакеты вместо webpack. План -
+`foundation-tasks/docs/infra/2026-09-07-101-svelte-precompile-packages.md`.

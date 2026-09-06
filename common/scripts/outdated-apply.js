@@ -20,7 +20,7 @@
 //   node common/scripts/outdated-apply.js <package> <version> [--dry]
 //   node common/scripts/outdated-apply.js [--category ui] [--bump patch] [--except pkg1,pkg2] [--dry]
 // --category selects dependencies of that category (see UPGRADE.md), but bumps them
-// everywhere: rush check requires a single version per dependency across the repo.
+// everywhere: pnpm check-versions requires a single version per dependency across the repo.
 // Writes combined_dependencies/verify.sh with the check commands for touched packages.
 
 const fs = require('fs')

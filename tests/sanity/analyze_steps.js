@@ -16,7 +16,7 @@ const top = Number(args[args.indexOf('--top') + 1]) || 25
 const FILE = args.find((a) => a.endsWith('.ndjson')) ?? 'step-report.ndjson'
 
 if (!fs.existsSync(FILE)) {
-  console.error(`no ${FILE} - run the tests first (rushx uitest)`)
+  console.error(`no ${FILE} - run the tests first (pnpm run uitest)`)
   process.exit(1)
 }
 

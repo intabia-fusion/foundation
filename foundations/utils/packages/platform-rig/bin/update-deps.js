@@ -227,8 +227,8 @@ Examples:
   update-hcengineering-deps
 
 After updating:
-  1. Run 'rush update' to update lockfiles
-  2. Run 'rush build' to verify builds
+  1. Run 'pnpm install' to update the lockfile
+  2. Run 'pnpm build' to verify builds
   3. Test your changes
 `)
     return
@@ -275,8 +275,8 @@ After updating:
     } else {
       console.log(`\n✅ Updated ${totalUpdates} dependency version(s)`)
       console.log('\n💡 Next steps:')
-      console.log('   1. Run: rush update')
-      console.log('   2. Run: rush build')
+      console.log('   1. Run: pnpm install')
+      console.log('   2. Run: pnpm build')
       console.log('   3. Test your changes')
     }
   }

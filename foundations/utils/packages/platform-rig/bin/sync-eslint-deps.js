@@ -177,7 +177,7 @@ function main() {
     console.log(`   Skipped: ${skippedCount} package(s) (already up-to-date)`)
 
     if (updatedCount > 0) {
-      console.log('\n💡 Don\'t forget to run "rush update" to install the updated dependencies')
+      console.log('\n💡 Don\'t forget to run "pnpm install" to install the updated dependencies')
     }
   } catch (error) {
     console.error(`\n❌ Error: ${error.message}`)

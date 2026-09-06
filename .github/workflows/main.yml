@@ -81,6 +81,9 @@ jobs:
       - name: Checking for mis-matching dependencies...
         run: node common/scripts/check-versions.js
 
+      - name: Checking layer boundaries...
+        run: node common/scripts/check-layers.js
+
       - name: Installing...
         run: pnpm install --frozen-lockfile
 
@@ -143,6 +146,9 @@ jobs:
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
+
       - name: Checking svelte sources...
         run: pnpm svelte-check
   formatting:
@@ -167,6 +173,9 @@ jobs:
           path: ${{ env.CacheFolders}}
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
+
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
 
       - name: Formatting...
         run: pnpm format --branch ${{
@@ -220,6 +229,9 @@ jobs:
               exit 1
             fi
           fi
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
+
       - name: Testing...
         run: pnpm test --verbose
         env:

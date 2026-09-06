@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -25,7 +26,12 @@ import {
 import { type MigrateOperation } from '@hcengineering/model'
 import { setMetadata } from '@hcengineering/platform'
 import serverClientPlugin from '@hcengineering/server-client'
-import { QueueTopic, type PlatformQueue, type QueueWorkspaceMessage } from '@hcengineering/server-core'
+import {
+  QueueTopic,
+  type PlatformQueue,
+  type QueueWorkspaceMessage,
+  type QueueWorkspaceWakeupMessage
+} from '@hcengineering/server-core'
 import serverNotification from '@hcengineering/server-notification'
 import { createStorageFromConfig, storageConfigFromEnv } from '@hcengineering/server-storage'
 import serverToken from '@hcengineering/server-token'
@@ -108,6 +114,7 @@ export function serveWorkspaceAccount (
   }
 
   const waitTimeout = parseInt(process.env.WAIT_TIMEOUT ?? '5000')
+  const maxWaitTimeout = parseInt(process.env.WAIT_MAX_TIMEOUT ?? '60000')
 
   setMetadata(serverToken.metadata.Secret, serverSecret)
   setMetadata(serverToken.metadata.Service, 'workspace')
@@ -145,6 +152,26 @@ export function serveWorkspaceAccount (
     accountDbUrl
   )
 
+  // Wakeup pings from account arrive in this pod's regional topic. Each pod consumes with its own
+  // group id (broadcast): the first free worker takes the job via getPendingWorkspace, the rest go
+  // back to sleep. Ensure the topic exists before subscribing: with broker auto-create disabled a
+  // consumer subscribed to a missing topic does not pick it up after someone else creates it.
+  void queue
+    .createTopic(QueueTopic.WorkspaceWakeup, 1)
+    .catch((err) => {
+      measureCtx.error('failed to ensure wakeup topic', { err })
+    })
+    .then(() => {
+      queue.createConsumer<QueueWorkspaceWakeupMessage>(
+        measureCtx.newChild('wakeup-consumer', {}, { span: false }),
+        QueueTopic.WorkspaceWakeup,
+        `workspace-wakeup-${worker.id}`,
+        async (_ctx, _msg) => {
+          worker.wakeup()
+        }
+      )
+    })
+
   void worker
     .start(
       measureCtx,
@@ -156,6 +183,7 @@ export function serveWorkspaceAccount (
         console: false,
         logs: 'upgrade-logs',
         waitTimeout,
+        maxWaitTimeout,
         backup
       },
       () => canceled

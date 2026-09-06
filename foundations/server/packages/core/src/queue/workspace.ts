@@ -72,6 +72,11 @@ export interface QueueWorkspaceMaintenanceMessage extends QueueWorkspaceMessage 
   timeoutMinutes: number
   message?: string
 }
+// Region is in the payload because kafka topic names are prefixed with the queue instance's own
+// region, not the target one; consumers filter by region themselves.
+export interface QueueWorkspaceWakeupMessage {
+  region: string
+}
 
 /** A one-time catalog purchase was paid & activated; the owning pod interprets `effect`. */
 export interface QueueWorkspacePurchaseMessage extends QueueWorkspaceMessage {

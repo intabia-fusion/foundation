@@ -85,6 +85,23 @@ export const main = async (): Promise<void> => {
 
   // The queue is REQUIRED: provider events are durable through it and pod-payment is the single writer.
   const queue = getPlatformQueue('payment')
+
+  // Payment is global, but workspace lifecycle events live in regional topics: consume them from
+  // every region known to account.
+  const token = generateToken(systemAccountUuid, undefined, { service: 'payment' })
+  let regions: string[] = []
+  while (true) {
+    try {
+      regions = (await getAccountClient(config.AccountsUrl, token).getRegionInfo()).map((it) => it.region)
+      if (regions.length === 0) {
+        regions = ['']
+      }
+      break
+    } catch (err) {
+      console.error('failed to fetch region list from account, retrying', err)
+      await new Promise((resolve) => setTimeout(resolve, 5000))
+    }
+  }
   const producer = queue.getProducer<QueueSubscriptionMessage>(metricsContext, QueueTopic.Subscription)
   const publish: SubscriptionPublisher = async (ctx, data, trigger, canceled) => {
     const msg =
@@ -163,7 +180,7 @@ export const main = async (): Promise<void> => {
           await ensureInitialSubscription(msg.workspace)
         }
       },
-      { batchSize: 20, batchTimeout: 500 }
+      { batchSize: 20, batchTimeout: 500, regions }
     )
     // 2) Provider subscription events (stripe/polar/tbank webhook+reconcile+scheduler). This is the
     // SINGLE writer to the account DB for async provider events: bake limits + upsert via persistSubscription.

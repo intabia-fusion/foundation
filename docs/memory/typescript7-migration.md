@@ -190,9 +190,115 @@ maxWorkers: 8` вместо `maxWorkers: 6` от старого V8-пула. Н�
 | `rush build --parallelism 16` | **124s** | 218% |
 
 Восьмикратная разница - не в компиляторе. Rush на каждый пакет поднимает отдельный
-`rushx _phase:build`: шелл, node, свой раннер операций, хэширование и копирование в build cache.
+`pnpm run _phase:build`: шелл, node, свой раннер операций, хэширование и копирование в build cache.
 Сам rush показывает 1.4-5.7s на пакет там, где tsc отрабатывает за 0.1-0.4s. CPU при этом 218%:
 операции упираются в однопоточный старт node, а не в компиляцию.
 
 Ускорить фазовый движок нечем - это его устройство. Ещё один довод к этапу 2: в CI он и так
 не используется.
+
+## Этап 2: Rush убран (2026-09-07)
+
+Репозиторий на чистых pnpm-workspaces. `rush.json`, `common/config/rush/`,
+`common/scripts/install-run-rush*.js` и `install-run.js` удалены.
+
+### Конфигурация
+- `pnpm-workspace.yaml` - явный список 470 путей, не глобы: в репозитории есть каталоги с
+  package.json, которые в воркспейс не входят (`foundations/net/*`, `dev/doc-import-tool`,
+  `foundations/hulylake` - последний был закомментирован в rush.json).
+- `pnpm-lock.yaml` перенесён в корень из `common/config/rush/`. Правки: ключи импортеров
+  `  ../../X:` -> `  X:` и `  ../scripts:` -> `  common/scripts:`, удалена строка
+  `pnpmfileChecksum:`, путь патча -> `common/pnpm-patches/kafkajs@2.2.4.patch`.
+  Цели `link:` не трогались - они относительны папке импортера.
+- Корневой `package.json` - все глобальные команды rush перенесены в scripts
+  (`fast-build*`, `docker:*`, `model-version`, `check-versions`, ...).
+- `onlyBuiltDependencies` обязателен: pnpm 10 блокирует postinstall по умолчанию.
+
+`pnpm install --frozen-lockfile` принял lockfile без переразрешения: 471 проект, 66s
+(первый раз, с догрузкой в глобальный store), 11s повторно.
+
+### pnpm run -> pnpm run
+160 вызовов в 49 package.json. `pnpm run X` = `pnpm run X`, семантика та же.
+Внутри пакета, который вызывает корневую команду, - `pnpm -w bundle` (было `rush fast-build:bundle`)
+(`dev/tool`, `dev/import-tool`).
+
+### Список проектов - единый источник
+`platform-rig/bin/libs/workspace.js`: `listWorkspaceProjects()` парсит `pnpm-workspace.yaml`
+(поддерживает и глобы через `fs.globSync`), `findWorkspaceRoot()` ищет корень.
+На него переведены: `libs/graph.js`, `libs/cache.js`, `update-deps.js`, `sync-eslint-deps.js`,
+`bump-changes-from-tag.js`, `common/scripts/{check-versions,bump,safe-publish,sync-versions}.js`,
+`dev/api/scripts/build-bundle.js`, `common/scripts/{each-diff,format-show,svelte-check-show}.sh`.
+Раньше каждый из них дёргал `rush list --json` подпроцессом.
+
+### CI
+`pnpm/action-setup@v4` перед `actions/setup-node` с `cache: 'pnpm'`; ручной кэш `common/temp`
+(наследие rush) убран. `rush check` и `check-versions.js` схлопнуты в один шаг.
+
+### Замеры после
+| | |
+|---|---|
+| `pnpm install --frozen-lockfile` (тёплый store) | 11s |
+| `pnpm build` чистая, 460 пакетов | 16.6s |
+| повтор из кэша | 0.47s |
+| было `rush build` (фазовый движок) | 124s |
+
+### Остатки
+`common/temp/` (старый rush-install и его 3.5GB store) больше ни на что не ссылается -
+можно удалить вручную. Вложенные подрепозитории `foundations/{core,net,server,utils}/common/`
+имеют собственные rush-конфиги и не тронуты.
+
+### Итоговые имена команд (2026-09-07)
+
+Префикс `fast-build` убран - альтернативного «медленного» пути больше нет.
+
+| было | стало |
+|---|---|
+| `rush fast-build` | `pnpm build` |
+| `rush fast-build:lint` | `pnpm build:lint` |
+| `rush fast-build:test` | `pnpm test` |
+| `rush fast-build:bundle` | `pnpm bundle` |
+| `rush fast-build:package` | `pnpm package` |
+| `rush fast-build:docker` | `pnpm docker` |
+| `rush fast-build:docker-build` | `pnpm docker:build` |
+| `rush fast-build:svelte-check` | `pnpm svelte-check` |
+| `rush fast-build:watch` | `pnpm build:watch` |
+| `rush fast-build:check` | `pnpm build:check` |
+| `rush fast-build:format` | `pnpm format:all` |
+| `rush fast-format` | `pnpm format` |
+| `rush update` | `pnpm install` |
+| `rush check` | `pnpm check-versions` |
+| `pnpm run X` (в пакете) | `pnpm run X` |
+
+`common/scripts/docker.sh` удалён: он шёл через фазовый движок rush и повторял список `--to`
+из `docker-fast.sh`, при этом отстал от него на два пода (`pod-tbank-subscriptions`,
+`pod-db-migrator`). Имя `docker` освободилось и отдано быстрому пути (`docker-fast.sh`);
+`docker:build` остался как «все пакеты с docker-фазой».
+
+`docker-server` / `docker-love` оставлены - это узкие подмножества через `compile-all`,
+не наследие rush.
+
+### strictPeerDependencies
+
+В rush было `strictPeerDependencies: false`, я перенёс это как есть - это был порт, не решение.
+Проверка принудительной перерезолюцией дала 24 нарушения, все `missing peer`, ни одного
+`unmet` (конфликта версий):
+
+```
+16  @emnapi/core@^1.7.1                        wasm-варианты sharp
+ 2  electron-builder-squirrel-windows@25.1.8
+ 2  @rspack/core@0.x  + 1  @rspack/core@^1.0.0
+ 2  @types/dom-mediacapture-record@^1
+ 1  @types/dom-mediacapture-transform@^0.1.9   livekit
+```
+
+Все - опциональные peer'ы, которых в репозитории никто не тянет. Включено
+`strictPeerDependencies: true` + `peerDependencyRules.ignoreMissing` на эти шесть.
+Lockfile при этом не меняется.
+
+Нюанс: при `--frozen-lockfile` pnpm пропускает резолюцию, поэтому в CI strict не срабатывает.
+Он ловит проблему в момент добавления или бампа зависимости локально - там, где нужно.
+
+Отдельная находка: `pnpm install --lockfile-only --fix-lockfile` переписывает 4065 строк
+lockfile - `eslint-plugin-import` начинает резолвиться с `@typescript-eslint/parser` в
+peer-цепочке. Это не связано со strict, это `--fix-lockfile` дочищает недоспецифицированные
+peer-связи. Откачено, при желании - отдельным коммитом.

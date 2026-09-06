@@ -29,4 +29,4 @@ A deterministic variant exists if the 1-turn yield ever proves too thin: widen `
 
 `foundations/core/packages/query/jest.config.js` has no `moduleNameMapper`, so tests run against
 the **built** `foundations/core/packages/core/lib`, not `src`. Editing core sources without
-`rushx build` changes nothing (stack traces still point at `core/src/*.ts` via source maps).
+`pnpm run build` changes nothing (stack traces still point at `core/src/*.ts` via source maps).

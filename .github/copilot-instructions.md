@@ -24,22 +24,22 @@ Respond to user using Russian language, all comments should be in English.
 ## Rush Commands
 
 ```bash
-rush install         # Install deps
-rush build           # Build all
-rush build --to PKG  # Build specific
-rush add -p PKG      # Add dependency
+pnpm install --frozen-lockfile   # Install deps
+pnpm build                       # Build all
+pnpm build --to PKG              # Build specific
+pnpm --filter PKG add DEP        # Add dependency
 ```
 
 ## Docker Build Workflow
 
 **IMPORTANT**: After making changes to service code (in `services/`, `pods/`, etc.), you must rebuild Docker images:
 
-**Note**: If you're running the UI via `rush dev` (dev-server), you don't need to restart the `front` Docker container. Changes will be picked up automatically by the dev server.
+**Note**: If you're running the UI via the dev-server, you don't need to restart the `front` Docker container. Changes will be picked up automatically by the dev server.
 
 ```bash
 # Build Docker images for specific service
-rush docker:build --to @hcengineering/pod-ai-bot
-rush docker:build --to @hcengineering/love-agent
+pnpm docker:build --to @hcengineering/pod-ai-bot
+pnpm docker:build --to @hcengineering/love-agent
 
 # Restart Docker containers to use new images
 docker compose -f dev/docker-compose.yaml restart aibot
@@ -48,10 +48,10 @@ docker compose -f dev/docker-compose.yaml restart love-agent
 
 **Workflow for service changes:**
 1. Make code changes to service
-2. Run `rush build --to <package>` (builds TypeScript)
-3. Never Run `rushx format` in the package directory (format & lint) - MAY CAUSE FILE CORRUPTIONS. Lets user do it.
+2. Run `pnpm build --to <package>` (builds TypeScript)
+3. Never Run `pnpm run format` in the package directory (format & lint) - MAY CAUSE FILE CORRUPTIONS. Lets user do it.
 4. Run `diagnostics` to check for errors
-5. Run `rush docker:build --to <package>` (builds Docker image)
+5. Run `pnpm docker:build --to <package>` (builds Docker image)
 6. Restart the Docker container
 
 Example for ai-bot service:
@@ -60,19 +60,19 @@ Example for ai-bot service:
 cd services/ai-bot/pod-ai-bot
 diagnostics path: "services/ai-bot/pod-ai-bot/src/workspace/love.ts"
 cd ../../..
-rush docker:build --to @hcengineering/pod-ai-bot
+pnpm docker:build --to @hcengineering/pod-ai-bot
 docker compose -f dev/docker-compose.yaml restart aibot
 ```
 
 ## Error Checking
 
-**IMPORTANT**: Use `diagnostics` tool to check for TypeScript/Svelte errors, NOT `rush build`:
+**IMPORTANT**: Use `diagnostics` tool to check for TypeScript/Svelte errors, NOT `pnpm build`:
 
 - ✅ `diagnostics()` - Check all files for errors/warnings (fast, uses language server)
 - ✅ `diagnostics({ path: "plugins/tracker-resources/src/utils.ts" })` - Check specific file
-- ❌ `rush build` - Don't use for error checking (runs full transpilation, slower)
+- ❌ `pnpm build` - Don't use for error checking (runs a full compile, slower)
 
-`rush build` performs transpilation which may succeed even with type errors. Always use `diagnostics` to verify code correctness.
+`pnpm build` compiles and type checks in one pass; `diagnostics` is still faster for a quick check.
 
 ### Validation in Modified Projects
 
@@ -81,21 +81,17 @@ After making changes, always validate the affected packages to ensure diagnostic
 ```bash
 # Navigate to each modified package and run:
 cd <modified-package-directory>
-rushx build
-rushx _phase:validate
+pnpm run build
 
 # Examples:
 cd plugins/love-resources
-rushx build
-rushx _phase:validate
+pnpm run build
 
 cd models/love
-rushx build
-rushx _phase:validate
+pnpm run build
 
 cd server-plugins/love-resources
-rushx build
-rushx _phase:validate
+pnpm run build
 ```
 
 This ensures that the language server has the correct build artifacts and validation passes for the specific packages you modified.
@@ -111,7 +107,7 @@ This ensures code style consistency and catches linting errors before commit.
 **NEVER run formatting commands in parallel or concurrently.** The formatter can corrupt or completely erase file contents when run simultaneously on multiple packages.
 
 Rules:
-- ❌ **DO NOT** run `rushx format` commands
+- ❌ **DO NOT** run `pnpm run format` commands
 - ❌ **DO NOT** use `--force` flag with formatting - it can cause content loss
 - ✅ **DO** run formatting sequentially, one package at a time
 - ✅ **DO** verify file contents after formatting with `git diff` or `git status`
@@ -174,7 +170,7 @@ console.log('[ComponentName.methodName] Description', {
 ❌ Mixed concerns
 ❌ Circular deps
 ❌ Ignoring TS errors
-❌ Using `rush build` to check for errors
+❌ Using `pnpm build` to check for errors
 ❌ Running formatting in parallel (causes content loss!)
 ❌ Using `--force` flag with formatter
 

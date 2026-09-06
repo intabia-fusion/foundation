@@ -278,8 +278,7 @@ function tscCompile(options = {}) {
     mkdirSync(buildDir, { recursive: true })
   }
 
-  // tsBuildInfoFile is passed explicitly: a relative path inside a rig profile would
-  // resolve into the shared rig folder and collide across packages.
+  // Passed explicitly: a relative path in a rig profile resolves into the shared rig folder.
   const args = ['-p', 'tsconfig.json', '--tsBuildInfoFile', join('.build', 'build.tsbuildinfo')]
   if (emitDeclarationOnly) {
     args.push('--emitDeclarationOnly')

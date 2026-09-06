@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # This is an example Git hook for use with Rush.  To enable this hook, rename this file
-# to "commit-msg" and then run "rush install", which will copy it from common/git-hooks
+# to "commit-msg" and copy it into .git/hooks manually.
 # to the .git/hooks folder.
 #
 # TO LEARN MORE ABOUT GIT HOOKS

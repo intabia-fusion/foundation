@@ -14,7 +14,7 @@
     "_phase:build": "compile build",
     "_phase:test": "jest --passWithNoTests --silent --forceExit",
     "_phase:format": "format src",
-    "_phase:bundle": "rushx bundle",
+    "_phase:bundle": "pnpm run bundle",
     "bundle": "node ../../common/scripts/esbuild.js --entry=src/main.ts --keep-names=true --external=snappy --sourcemap=external"
   },
   "devDependencies": {

@@ -78,12 +78,11 @@ function parseArgs(args) {
     }
   }
 
-  // Read Rush custom parameters from environment variables
   if (!toPackage) {
-    toPackage = process.env.RUSH_TO || process.env.TO || null
+    toPackage = process.env.TO || null
   }
   if (!verbose) {
-    verbose = process.env.RUSH_VERBOSE === '1' || process.env.VERBOSE === '1'
+    verbose = process.env.VERBOSE === '1'
   }
 
   return { parallel, verbose, doValidate, doLint, force, toPackage, rootDir, debounceMs }
@@ -94,7 +93,7 @@ function printUsage() {
 Usage: watch_all <rootDir> [options]
 
 Arguments:
-  rootDir                Root directory of the Rush monorepo
+  rootDir                Root directory of the monorepo
 
 Options:
   --parallel, -p <n>     Number of parallel workers (default: auto)
@@ -107,7 +106,7 @@ Options:
   --help, -h             Show this help message
 
 Description:
-  Watches all Rush packages for file changes and triggers incremental
+  Watches all workspace packages for file changes and triggers incremental
   rebuilds using esbuild. Only changed packages and their dependents
   are rebuilt.
 
@@ -222,8 +221,8 @@ async function main() {
 
   const rootDir = resolve(options.rootDir)
 
-  if (!existsSync(join(rootDir, 'rush.json'))) {
-    console.error(`Error: rush.json not found in ${rootDir}`)
+  if (!existsSync(join(rootDir, 'pnpm-workspace.yaml'))) {
+    console.error(`Error: pnpm-workspace.yaml not found in ${rootDir}`)
     process.exit(1)
   }
 

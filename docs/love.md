@@ -578,7 +578,7 @@ workspace/meetingId, содержащими `_`, unicode или произвол
 глотает ошибки `WorkspaceClient.create` и логирует через `ctx.error`, никогда
 не бросая - проверяйте вызов `ctx.error`, а не reject.
 
-Запуск: `cd services/love && npx jest` (или `rushx test`, `rushx test --coverage`).
+Запуск: `cd services/love && npx jest` (или `pnpm run test`, `pnpm run test --coverage`).
 
 ### 11.4 Integration: `ws-tests/api-tests/src/__tests__/`
 
@@ -588,10 +588,10 @@ workspace/meetingId, содержащими `_`, unicode или произвол
 | `love-invite-flow.benchmark.test.ts` | 200 итераций x parallel=20 без потерянных tx |
 
 ```bash
-cd ws-tests/api-tests && rushx api-test --testPathPattern=love-invite-flow
+cd ws-tests/api-tests && pnpm run api-test --testPathPattern=love-invite-flow
 
 BENCH_INVITE_FLOW=1 BENCH_INVITE_ITERATIONS=200 BENCH_INVITE_PARALLEL=20 \
-  rushx api-test --testPathPattern=love-invite-flow.benchmark
+  pnpm run api-test --testPathPattern=love-invite-flow.benchmark
 ```
 
 ### 11.5 Sanity Playwright: `tests/sanity/tests/love/`
@@ -643,22 +643,22 @@ cd dev && ./run_livekit.sh     # порт 7880, webhook http://127.0.0.1:8098/we
 
 # 4. Тесты
 cd tests/sanity
-rushx ci                                          # установка браузера, первый раз
-rushx uitest tests/love/meetings.all.spec.ts --reporter=list --retries=0 --workers=1
-rushx uitest tests/love/meetings.all.spec.ts -g "knocker auto-joins" --reporter=list --retries=0
-rushx debug tests/love/meetings.all.spec.ts       # headed
+pnpm run ci                                          # установка браузера, первый раз
+pnpm run uitest tests/love/meetings.all.spec.ts --reporter=list --retries=0 --workers=1
+pnpm run uitest tests/love/meetings.all.spec.ts -g "knocker auto-joins" --reporter=list --retries=0
+pnpm run debug tests/love/meetings.all.spec.ts       # headed
 
 # Ручной тест: сносит сессию общего meetings-ws, поэтому в обычный прогон не входит
-LOVE_MANUAL_TESTS=true rushx uitest tests/love/meetings.all.spec.ts -g "workspace session restart" --workers=1
+LOVE_MANUAL_TESTS=true pnpm run uitest tests/love/meetings.all.spec.ts -g "workspace session restart" --workers=1
 ```
 
-`rushx uitest` оборачивает `playwright test` нужным env (`LOCAL_URL`, `DEV_URL`)
+`pnpm run uitest` оборачивает `playwright test` нужным env (`LOCAL_URL`, `DEV_URL`)
 и конфигом - всегда предпочтительнее голого `npx playwright`.
 `--reporter=list --retries=0` обязательны для dev-прогонов: html-репортер
 поднимает локальный сервер и блокирует терминал (выглядит как зависание),
 а ретраи по умолчанию тратят минуты на перезапуск настоящего падения.
 
-Перед прогоном после изменений кода: `rush fast-build:docker`, затем
+Перед прогоном после изменений кода: `pnpm docker`, затем
 `cd tests && ./prepare-pg.sh` (пересоздавать стенд целиком, не рестартить
 один контейнер).
 

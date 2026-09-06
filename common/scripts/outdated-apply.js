@@ -118,11 +118,11 @@ for (const file of files) {
 console.log(`${dry ? '[dry] ' : ''}${changed} package.json files ${dry ? 'would change' : 'updated'}`)
 
 if (touchedNames.length > 0) {
-  // fast-build takes one --to with a comma-separated list: rush forwards only the last --to flag
+  // build takes one --to with a comma-separated list
   const to = `--to ${touchedNames.join(',')}`
-  const verify = ['#!/usr/bin/env bash', 'set -e', 'rush update', `rush fast-build:lint ${to}`, ''].join('\n')
+  const verify = ['#!/usr/bin/env bash', 'set -e', 'pnpm install', `pnpm build:lint ${to}`, ''].join('\n')
   if (!dry) fs.writeFileSync(path.join(DEPS_DIR, 'verify.sh'), verify)
   console.log(`\ncheck (${touchedNames.length} workspace packages)${dry ? '' : ', also written to combined_dependencies/verify.sh'}:`)
-  console.log('  rush update')
-  console.log(`  rush fast-build:lint ${to}`)
+  console.log('  pnpm install')
+  console.log(`  pnpm build:lint ${to}`)
 }

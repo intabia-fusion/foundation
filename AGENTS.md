@@ -1,6 +1,6 @@
 # Foundation Platform
 
-TypeScript/Svelte 4 monorepo. Rush.js (pnpm), Node 24 (`.nvmrc`; rush.json accepts >=20 <25), Webpack 5, Electron, Jest.
+TypeScript/Svelte 4 monorepo. pnpm workspaces, Node 24 (`.nvmrc`; engines accept >=20 <25), Webpack 5, Electron, Jest.
 
 ## Repository Structure
 
@@ -31,22 +31,26 @@ overlaps an existing one gets a bullet in "Выбор между похожим�
 
 ## Build & Validation
 
-Use `rush fast-build:*`. All accept `--to PKG` to scope to a package + dependencies.
+Use `pnpm build:*` from the repo root. All accept `--to PKG` to scope to a package + dependencies.
 
 Type checking is **part of the build**: one native `tsc` (TypeScript 7) pass per package emits
-`lib/` and `types/` together. There is no separate validate phase; `fast-build:validate` and
-`rush validate` are kept as aliases of the build.
+`lib/` and `types/` together. There is no separate validate phase.
 
 ```bash
-rush update                       # Install/update deps
-rush fast-build                   # Compile + typecheck (JS + .d.ts)
-rush fast-build:bundle            # Compile + bundle
-rush fast-build:package           # Compile + bundle + package
-rush fast-build:docker-build      # Compile + bundle + docker build
-rush svelte-check                 # Compile + svelte-check
-rush fast-build:watch             # Watch + rebuild
-rush add -p PKG                   # Add dependency
+pnpm install --frozen-lockfile    # Install deps
+pnpm build                        # Compile + typecheck (JS + .d.ts)
+pnpm bundle                       # Compile + bundle
+pnpm package                      # Compile + bundle + package
+pnpm docker                       # Compile + bundle + docker build (local stand pods)
+pnpm docker:build                 # Same, every package with a docker phase
+pnpm svelte-check                 # Compile + svelte-check
+pnpm build:watch                  # Watch + rebuild
+pnpm --filter PKG add DEP         # Add dependency to a package
 ```
+
+The workspace is plain pnpm: projects are listed in `pnpm-workspace.yaml`, the lockfile is
+`pnpm-lock.yaml` at the root. Rush is gone; `rush`/`rushx` no longer exist.
+`pnpm check-versions` replaces `rush check`.
 
 Flags: `--to PKG`, `--list`, `-v/--verbose`, `--force` (disable cache).
 
@@ -54,37 +58,37 @@ Flags: `--to PKG`, `--list`, `-v/--verbose`, `--force` (disable cache).
 
 ```bash
 # Strict: compile + typecheck + eslint. Default check.
-rush fast-build:lint --to @hcengineering/<pkg>
+pnpm build:lint --to @hcengineering/<pkg>
 
 # Lighter: compile + typecheck only.
-rush fast-build --to @hcengineering/<pkg>
+pnpm build --to @hcengineering/<pkg>
 ```
 
-`fast-build:lint` is a superset of `fast-build`. Cache is content-hashed; add `--force` to bypass.
+`build:lint` is a superset of `build`. Cache is content-hashed; add `--force` to bypass.
 
 Per-package direct (fastest inside one package):
 
 ```bash
 cd <package-dir>
-rushx build
+pnpm run build
 ```
 
-Not every package defines `lint`. On "command not defined", use `rushx build` or `rush fast-build:lint --to <pkg>`.
+Not every package defines `lint`. On "command not defined", use `pnpm run build` or `pnpm build:lint --to <pkg>`.
 
 Do NOT:
-- Run `rush fast-build` without `--to` for error checking (hits unrelated broken packages).
-- Run `rushx format` (user handles it).
+- Run `pnpm build` without `--to` for error checking (hits unrelated broken packages).
+- Run `pnpm run format` (user handles it).
 
 ### Docker Workflow
 
 Changes under `services/` or `pods/` require Docker rebuild:
 
 ```bash
-rush fast-build:docker-build --to @hcengineering/pod-ai-bot
+pnpm docker:build --to @hcengineering/pod-ai-bot
 docker compose -f dev/docker-compose.yaml up -d aibot --force-recreate
 ```
 
-UI via `rush dev` auto-picks changes, no container restart needed.
+UI via `pnpm build:watch` auto-picks changes, no container restart needed.
 
 ## Changelog
 
@@ -160,24 +164,24 @@ Keep existing copyright lines, add `Intabia Fusion` line if missing.
 
 ## Sanity tests (Playwright)
 
-Run from `tests/sanity/`. Stand must be up at `localhost:8083`. Always use `rushx uitest` - it
+Run from `tests/sanity/`. Stand must be up at `localhost:8083`. Always use `pnpm run uitest` - it
 wires `LOCAL_URL`, `DEV_URL` and the config.
 
 ```bash
 cd tests/sanity
 
-rushx uitest                                   # full suite
-rushx uitest -g "<title>"                      # one test
-rushx uitest tests/tracker/kanban.spec.ts      # one file
-rushx uitest --workers=1                       # serial; sanity tests share workspace state
+pnpm run uitest                                   # full suite
+pnpm run uitest -g "<title>"                      # one test
+pnpm run uitest tests/tracker/kanban.spec.ts      # one file
+pnpm run uitest --workers=1                       # serial; sanity tests share workspace state
 ```
 
 Flags:
 - `--workers=1` - serial. Use for love/meeting tests, they share workspace state.
 - `-g "<name>"` or append `:LINE` to the spec path to run a single test.
-- Extra playwright flags pass through `rushx uitest` unchanged.
+- Extra playwright flags pass through `pnpm run uitest` unchanged.
 
-Do not run bare `npx playwright test` - without `rushx uitest`'s env wiring and
+Do not run bare `npx playwright test` - without `pnpm run uitest`'s env wiring and
 `-c ./tests/playwright.config.ts` neither dotenv nor `storageState` load, and every test fails on
 login with `BadRequest`.
 

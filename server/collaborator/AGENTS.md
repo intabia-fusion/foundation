@@ -108,13 +108,13 @@ const mockDocumentId = {
 ```bash
 # Run all tests
 cd server/collaborator
-rushx test
+pnpm run test
 
 # Run specific test file
-rushx test -- src/__tests__/config.test.ts
+pnpm run test -- src/__tests__/config.test.ts
 
 # Run with coverage
-rushx test -- --coverage
+pnpm run test -- --coverage
 ```
 
 ## Coverage Goals

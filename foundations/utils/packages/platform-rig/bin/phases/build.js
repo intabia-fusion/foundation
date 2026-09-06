@@ -104,12 +104,10 @@ async function runBuildPhase (graph, packageNames, concurrency, options = {}) {
     const outputDirs = isUi ? ['types'] : ['lib', 'types']
     const pkgStart = performance.now()
 
-    // A dependency is visible here only through its .d.ts, so own sources plus
-    // dependency types is the real input - not the dependency's sources.
+    // A dependency is visible only through its .d.ts, so that is the input, not its sources.
     const packageHash = compositeHashFromTypes(name, graph, packageHashes, typesHashes, ['tsconfig.json'])
 
-    // outputHash must cover the same dirs markPhaseCompleted hashes, or nothing ever
-    // hits the cache. typesHash is what dependents key on and covers types/ only.
+    // Must hash the same dirs as markPhaseCompleted, or the cache never hits.
     const outputHash = calculateOutputHashForDirs(packagePath, outputDirs)
     const typesHash = isUi ? outputHash : calculateOutputHashForDirs(packagePath, ['types'])
     if (typesHash) typesHashes.set(name, typesHash)
@@ -146,8 +144,7 @@ async function runBuildPhase (graph, packageNames, concurrency, options = {}) {
   console.log(`\n=== Phase: Building ${packageNames.length} packages ===`)
   console.log(`    Using ${concurrency} workers`)
 
-  // Ready-queue rather than dependency "waves": a package starts the moment its own
-  // dependencies are done, instead of waiting for the slowest package of its generation.
+  // Ready-queue, not waves: a package starts as soon as its own dependencies are done.
   const ready = packageNames.filter((n) => state.get(n).remaining === 0)
   let running = 0
   let done = 0

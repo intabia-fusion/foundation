@@ -94,22 +94,10 @@ function main () {
 
   console.log('bump version ...', version)
 
-  const output = execSync('node common/scripts/install-run-rush.js list -p --json', { encoding: 'utf-8', cwd: repoRoot })
-  const lines = output.split('\n')
-  let jsonStart = -1
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith('{')) {
-      jsonStart = i
-      break
-    }
-  }
-  if (jsonStart === -1) {
-    console.error('Could not find JSON output from rush list')
-    process.exit(1)
-  }
-  const config = JSON.parse(lines.slice(jsonStart).join('\n'))
+  const projects = require(repoRoot + '/foundations/utils/packages/platform-rig/bin/libs/workspace')
+    .listWorkspaceProjects(repoRoot)
 
-  fillPackages(config)
+  fillPackages({ projects })
 
   const packageNames = Object.keys(packages)
   for (const packageName of packageNames) {

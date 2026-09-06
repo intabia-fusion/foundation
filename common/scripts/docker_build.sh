@@ -11,7 +11,7 @@ fi
 
 echo "Building version: $version"
 
-# Optional extra tag: DOCKER_TAG=mytag rush fast-build:docker -> image:mytag
+# Optional extra tag: DOCKER_TAG=mytag pnpm docker -> image:mytag
 tags=(-t "$1" -t "$1:$version")
 if [ -n "$DOCKER_TAG" ]; then
   tags+=(-t "$1:$DOCKER_TAG")

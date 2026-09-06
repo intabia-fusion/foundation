@@ -62,13 +62,13 @@ Receives incoming emails from mail transfer agents.
 rush update
 
 # Build
-rushx build
+pnpm run build
 
 # Run tests
-rushx test
+pnpm run test
 
 # Start development server
-rushx run-local
+pnpm run run-local
 
 ```
 

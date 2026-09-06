@@ -97,29 +97,14 @@ function parseArgs(args) {
     }
   }
 
-  // Read Rush custom parameters from environment variables
-  // Check RUSH_INVOKED_ARGS for multiple --to flags (Rush passes all args here)
-  if (!toPackage && process.env.RUSH_INVOKED_ARGS) {
-    const rushArgs = process.env.RUSH_INVOKED_ARGS.split(' ')
-    const toPackages = []
-    for (let i = 0; i < rushArgs.length; i++) {
-      if (rushArgs[i] === '--to' && i + 1 < rushArgs.length) {
-        toPackages.push(rushArgs[i + 1])
-        i++
-      }
-    }
-    if (toPackages.length > 0) {
-      toPackage = toPackages.join(',')
-    }
-  }
   if (!toPackage) {
-    toPackage = process.env.RUSH_TO || process.env.TO || null
+    toPackage = process.env.TO || null
   }
   if (!list) {
-    list = process.env.RUSH_LIST === '1' || process.env.LIST === '1'
+    list = process.env.LIST === '1'
   }
   if (!verbose) {
-    verbose = process.env.RUSH_VERBOSE === '1' || process.env.VERBOSE === '1'
+    verbose = process.env.VERBOSE === '1'
   }
 
   return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers }
@@ -130,7 +115,7 @@ function printUsage() {
 Usage: compile-all <rootDir> [options]
 
 Arguments:
-  rootDir              Root directory of the Rush monorepo (where rush.json is located)
+  rootDir              Root directory of the monorepo (where pnpm-workspace.yaml is located)
 
 Options:
   --parallel, -p <n>   Run compilation in parallel with n workers (default: 4, or 8 on systems with >64GB RAM)
@@ -138,26 +123,23 @@ Options:
                        Parallel compilation respects dependency order (builds in waves)
   --force-workers      Force exact worker count, ignore memory limits (use with caution!)
   --verbose, -v        Show detailed output for each package
-  --validate           Also run TypeScript validation for packages with "_phase:validate"
-  --test               Run tests for packages with "_phase:test" (implies --validate)
-  --lint               Run ESLint check (no fix) after validation (implies --validate); for packages with "_phase:format"
-  --format             Run format phase only (no transpile/validate) for packages with "_phase:format"
+  --validate           Accepted for compatibility: type checking is part of the build
+  --test               Run tests for packages with "_phase:test"
+  --lint               Run ESLint check (no fix) after the build; for packages with "_phase:format"
+  --format             Run the format phase only, for packages with "_phase:format"
   --force, -f          Disable all caching (forces full rebuild, revalidation)
   --bundle             Run bundle phase for packages with "_phase:bundle"
   --docker-build       Run docker-build phase (implies --bundle)
-  --svelte-check       Run svelte-check for packages with "_phase:svelte-check" (implies --validate)
+  --svelte-check       Run svelte-check for packages with "_phase:svelte-check"
   --list, -l           Only print the list of packages in compilation order (no actual compilation)
   --to <package>       Only compile the specified package and its dependencies
   --help, -h           Show this help message
 
 Description:
-  This script compiles all Rush packages that have "_phase:build": "compile transpile src"
+  This script compiles all workspace packages that have a "_phase:build" script
   in their package.json scripts section. Packages are compiled in dependency order.
 
-  When --validate is specified, also runs TypeScript validation for packages that have
-  "_phase:validate": "compile validate" in their scripts.
-
-  When --lint is specified (implies --validate), also runs ESLint check (no fix) for
+  When --lint is specified, also runs ESLint check (no fix) for
   packages that have "_phase:format" defined.
 
   When --format is specified, runs only the format phase for packages with "_phase:format".
@@ -168,7 +150,7 @@ Description:
   When --docker-build is specified, runs bundle first, then docker-build for packages
   with "_phase:docker-build".
 
-  When --svelte-check is specified (implies --validate), runs svelte-check for packages
+  When --svelte-check is specified, runs svelte-check for packages
   with "_phase:svelte-check" defined.
 
   When --to is specified, only the specified package and all its dependencies will be compiled.
@@ -580,11 +562,11 @@ async function compileAll(rootDir, options = {}) {
 
   // Packages whose phase script this tool cannot run used to disappear without a word.
   if (selection.unknown.length > 0) {
-    console.warn(`\n${warn(`Warning: ${selection.unknown.length} unrecognised phase script(s), these packages are NOT built by fast-build:`)}`)
+    console.warn(`\n${warn(`Warning: ${selection.unknown.length} unrecognised phase script(s), these packages are NOT built:`)}`)
     for (const u of selection.unknown) {
       console.warn(`  ${u.package} — _phase:${u.phase}: ${dim(u.script)}`)
     }
-    console.warn(`  Run them with ${bold('rushx')} directly, or express them as a supported phase script.`)
+    console.warn(`  Run them with ${bold('pnpm run')} inside the package, or express them as a supported phase script.`)
   }
 
   if (list) {
@@ -784,8 +766,8 @@ async function main() {
 
   const rootDir = resolve(options.rootDir)
 
-  if (!existsSync(join(rootDir, 'rush.json'))) {
-    console.error(`Error: rush.json not found in ${rootDir}`)
+  if (!existsSync(join(rootDir, 'pnpm-workspace.yaml'))) {
+    console.error(`Error: pnpm-workspace.yaml not found in ${rootDir}`)
     process.exit(1)
   }
 

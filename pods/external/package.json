@@ -4,7 +4,7 @@
   "author": "Anticrm Platform Contributors",
   "license": "EPL-2.0",
   "scripts": {
-    "_phase:docker-build": "rushx docker:build",
+    "_phase:docker-build": "pnpm run docker:build",
     "docker:build": "sh bin/build.sh",
     "docker:push": "sh bin/push.sh",
     "format": "true"

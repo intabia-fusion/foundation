@@ -44,7 +44,7 @@ Workflow ограничивает переходы задачи между ст�
 
 ```
 cd ws-tests/api-tests
-rushx api-test -- workflow          # только workflow-тесты
+pnpm run api-test -- workflow          # только workflow-тесты
 ```
 
 Переопределяется через переменные окружения: `API_TESTS_URL` (по умолчанию `http://localhost:8083`),
@@ -57,7 +57,7 @@ rushx api-test -- workflow          # только workflow-тесты
 
 ```
 cd tests/sanity
-rushx uitest -- tests/workflow      # или dev-uitest против локального dev-стенда
+pnpm run uitest -- tests/workflow      # или dev-uitest против локального dev-стенда
 ```
 
 Оба сьюта - `test.describe.configure({ mode: 'serial' })`: одна страница и один

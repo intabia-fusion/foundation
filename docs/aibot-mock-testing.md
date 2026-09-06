@@ -157,18 +157,18 @@ call:edit_issue_draft {"title":"Идемпотентная обработка в
 ```bash
 cd tests && ./prepare-pg
 cd sanity
-rushx uitest -g 'ai-bot scenarios' --reporter=list --workers=1
+pnpm run uitest -g 'ai-bot scenarios' --reporter=list --workers=1
 ```
 
 Отдельные новые проверки:
 
 ```bash
-rushx uitest -g 'task proposal card folds and unfolds' --reporter=list
-rushx uitest -g 'a long proposed document is cropped behind show more' --reporter=list
-rushx uitest -g 'AI level cards switch the workspace level' --reporter=list
+pnpm run uitest -g 'task proposal card folds and unfolds' --reporter=list
+pnpm run uitest -g 'a long proposed document is cropped behind show more' --reporter=list
+pnpm run uitest -g 'AI level cards switch the workspace level' --reporter=list
 ```
 
-После правок в `plugins/*` стенд надо пересобрать - `rush fast-build:docker` + `cd tests && ./prepare-pg`,
+После правок в `plugins/*` стенд надо пересобрать - `pnpm docker` + `cd tests && ./prepare-pg`,
 иначе Playwright гоняет старый бандл.
 
 ## data-id для тестов

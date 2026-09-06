@@ -53,23 +53,23 @@ To purge content of sanity workspace following command could be used.
 
 ```bash
 cd ./sanity
-rushx uitest # for docker setup
-rushx dev-uitest # for dev setup
+pnpm run uitest # for docker setup
+pnpm run dev-uitest # for dev setup
 ```
 
 ## Debugging UI tests
 
 ```bash
 cd ./sanity
-rushx debug -g test-name # for docker setup
-rushx dev-debug -g test-name # for local setup
+pnpm run debug -g test-name # for docker setup
+pnpm run dev-debug -g test-name # for local setup
 ```
 
 ## Capturing new testing scenarios
 
 ```bash
-rushx codegen # for docker setup
-rushx dev-codegen # for local setup
+pnpm run codegen # for docker setup
+pnpm run dev-codegen # for local setup
 ```
 
 ## AI bot tests
@@ -81,7 +81,7 @@ Two levels are configured in `tests/config-aibot.yaml`:
 - **`middle`** — a real local model via the `aibot_client_llm` clisr worker. Only the `@llm`
   suite uses it; without a model server the level simply has no worker.
 
-Base tests need nothing extra — they are part of `rushx uitest`.
+Base tests need nothing extra — they are part of `pnpm run uitest`.
 
 ### Real-LLM suite (@llm)
 
@@ -93,8 +93,8 @@ Base tests need nothing extra — they are part of `rushx uitest`.
 
 ```bash
 cd tests/sanity
-rushx run-uitests                 # whole @llm suite
-rushx run-uitests -g 'factual'    # single test
+pnpm run run-uitests                 # whole @llm suite
+pnpm run run-uitests -g 'factual'    # single test
 ```
 
 Tests switch the workspace to `middle` through the ai-bot API (`POST /levels/workspace`,

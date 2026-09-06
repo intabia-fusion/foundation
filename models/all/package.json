@@ -14,7 +14,7 @@
     "_phase:build": "compile build",
     "_phase:format": "format src",
     "show-model": "node ./bundle/bundle.js",
-    "_phase:bundle": "rushx bundle",
+    "_phase:bundle": "pnpm run bundle",
     "bundle": "node ../../common/scripts/esbuild.js --keep-names=true --bundle=true --entry=src/show.ts --define=MODEL_VERSION --define=VERSION --define=GIT_REVISION && node ./bundle/bundle.js > ./bundle/model.json",
     "_phase:test": "jest --passWithNoTests --silent --forceExit",
     "test": "jest --passWithNoTests --silent --forceExit"

@@ -1,2 +1,2 @@
-sh ./scripts/presetup-rush.sh
+sh ./scripts/presetup-pnpm.sh
 sh ./scripts/build.sh

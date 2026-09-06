@@ -33,7 +33,7 @@ const { xxh64 } = require('@node-rs/xxhash')
 const CACHE_VERSION = 2
 
 /**
- * Find repository root by looking for rush.json
+ * Find repository root by looking for pnpm-workspace.yaml
  * Walks up from the given directory until found
  */
 function findRepoRoot(startPath) {
@@ -41,7 +41,7 @@ function findRepoRoot(startPath) {
   const root = process.platform === 'win32' ? '/' : '/'
   
   while (current !== root) {
-    if (fs.existsSync(join(current, 'rush.json'))) {
+    if (fs.existsSync(join(current, 'pnpm-workspace.yaml'))) {
       return current
     }
     const parent = join(current, '..')

@@ -32,11 +32,11 @@
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",
-    "@tsconfig/node16": "^1.0.4",
+    "@tsconfig/node16": "^16.1.9",
     "@types/cors": "^2.8.12",
     "@types/express": "^4.17.13",
     "@types/express-fileupload": "^1.1.7",
-    "@types/node": "^22.18.1",
+    "@types/node": "^24.13.3",
     "@types/ws": "^8.5.12",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
@@ -53,9 +53,9 @@
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "@types/morgan": "~1.9.9",
+    "@types/morgan": "~1.9.10",
     "@types/on-headers": "^1.0.2",
-    "@types/uuid": "^8.3.1"
+    "@types/uuid": "^11.0.0"
   },
   "dependencies": {
     "@hcengineering/analytics": "workspace:^0.7.17",
@@ -68,17 +68,17 @@
     "@hcengineering/platform": "workspace:^0.7.19",
     "@hcengineering/account-client": "workspace:^0.7.21",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-fileupload": "^1.5.1",
-    "postgres": "^3.4.7",
-    "@aws-sdk/client-s3": "^3.738.0",
-    "@aws-sdk/s3-request-presigner": "^3.738.0",
-    "@aws-sdk/lib-storage": "^3.738.0",
-    "@smithy/node-http-handler": "^4.0.2",
-    "morgan": "^1.10.0",
-    "on-headers": "^1.0.2",
+    "postgres": "^3.4.9",
+    "@aws-sdk/client-s3": "^3.1127.0",
+    "@aws-sdk/s3-request-presigner": "^3.1127.0",
+    "@aws-sdk/lib-storage": "^3.1127.0",
+    "@smithy/node-http-handler": "^4.12.1",
+    "morgan": "^1.12.0",
+    "on-headers": "^1.1.0",
     "lru-cache": "^11.1.0",
-    "uuid": "^8.3.2"
+    "uuid": "^11.1.1"
   }
 }

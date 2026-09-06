@@ -16,7 +16,7 @@
   import { getCurrentWorkspaceUuid, getClient, createQuery } from '@hcengineering/presentation'
   import { Button, Expandable, Loading, Scroller } from '@hcengineering/ui'
   import view from '@hcengineering/view'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
   import { getBillingClient } from '../utils'
   import type { LargestSpaceInfo } from '@hcengineering/billing-client'
   import LargestFiles from './LargestFiles.svelte'

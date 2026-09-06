@@ -120,7 +120,7 @@ export async function createTables (
   }
 }
 
-async function getTableSchema (client: postgres.Sql, domains: string[]): Promise<void> {
+async function getTableSchema (client: postgres.Sql | postgres.TransactionSql, domains: string[]): Promise<void> {
   const res = await client.unsafe(`SELECT column_name::name, data_type::text, is_nullable::text, table_name::name
             FROM information_schema.columns
             WHERE table_name IN (${domains.map((it) => `'${it}'`).join(', ')}) and table_schema = 'public'::name  
@@ -160,7 +160,7 @@ function parseDataType (type: string): DataType {
   return 'text'
 }
 
-async function createTable (client: postgres.Sql, domain: string): Promise<void> {
+async function createTable (client: postgres.Sql | postgres.TransactionSql, domain: string): Promise<void> {
   const schema = getSchema(domain)
   const indexes = customIndexes[domain]
 

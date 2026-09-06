@@ -25,7 +25,7 @@
     "cross-env": "~7.0.3",
     "typescript": "^5.9.3",
     "electron": "^40.0.0",
-    "@types/node": "^22.18.1",
+    "@types/node": "^24.13.3",
     "electron-builder": "^25.1.8",
     "@electron/notarize": "^2.3.2",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
@@ -39,8 +39,8 @@
   },
   "dependencies": {
     "electron-squirrel-startup": "~1.0.0",
-    "dotenv": "^16.4.5",
-    "js-yaml": "^4.1.0"
+    "dotenv": "^16.6.1",
+    "js-yaml": "^5.4.1"
   },
   "homepage": "https://platform.intabia.ru",
   "productName": "Platform Desktop",

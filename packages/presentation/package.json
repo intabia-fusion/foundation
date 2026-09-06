@@ -39,7 +39,7 @@
     "jest-environment-jsdom": "^30.2.0",
     "svelte-eslint-parser": "^0.33.1",
     "@types/png-chunks-extract": "^1.0.2",
-    "@types/uuid": "^8.3.1"
+    "@types/uuid": "^11.0.0"
   },
   "dependencies": {
     "@hcengineering/analytics": "workspace:^0.7.17",
@@ -60,10 +60,10 @@
     "@hcengineering/retry": "workspace:^0.7.17",
     "@hcengineering/hulylake-client": "workspace:^0.7.17",
     "@hcengineering/storage-client": "workspace:^0.7.17",
-    "fast-equals": "^5.2.2",
+    "fast-equals": "^6.0.3",
     "png-chunks-extract": "^1.0.0",
     "svelte": "^4.2.20",
-    "uuid": "^8.3.2",
+    "uuid": "^11.1.1",
     "yjs": "^13.6.27"
   },
   "repository": "https://github.com/hcengineering/platform",

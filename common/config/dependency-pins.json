@@ -1,0 +1,41 @@
+{
+  "$comment": "Dependencies deliberately held back. outdated.js caps the suggested version at the given major; outdated-apply.js never bumps past it.",
+  "pins": {
+    "fast-copy": {
+      "maxMajor": 3,
+      "reason": "v4 на 9-23% медленнее v3 (счётчик maxDepth), бенч 2026-09-05"
+    },
+    "svelte": {
+      "maxMajor": 4,
+      "reason": "v5 = runes/mount API, отдельная миграция"
+    },
+    "uuid": {
+      "maxMajor": 11,
+      "reason": "12+ ESM-only, репо на CJS"
+    },
+    "intl-messageformat": {
+      "maxMajor": 10,
+      "reason": "11 ESM-only"
+    },
+    "lru-cache": {
+      "maxVersion": "11.1.0",
+      "reason": "11.5.2: get(hit) 0.86x, get(miss) 0.52x против 11.1.0 (бенч 2026-09-05)"
+    },
+    "dotenv": {
+      "maxMajor": 16,
+      "reason": "17 по умолчанию печатает 'injecting env' в stdout; нужен quiet во всех 33 точках config()"
+    },
+    "tar-stream": {
+      "maxVersion": "3.1.9",
+      "reason": "3.2 добавил собственные .d.ts поверх @types/tar-stream: они опираются на streamx без типов, Pack теряет Readable API (pipe) - ломает server/backup"
+    },
+    "sanitize-html": {
+      "maxVersion": "2.17.5",
+      "reason": "2.17.6+ тянет htmlparser2 ^12 (ESM-only) - jest 29 не умеет require(ESM), падают тесты mail-common/gmail. 2.17.5 сидит на htmlparser2 ^10 (dual)"
+    },
+    "snappy": {
+      "maxVersion": "7.3.3",
+      "reason": "7.4.x: main.js делает require('./stream-polyfill.mjs') - в Node 24 ок, в jest 29 SyntaxError"
+    }
+  }
+}

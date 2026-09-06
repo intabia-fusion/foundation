@@ -41,7 +41,7 @@
     "eslint-plugin-svelte": "^2.35.1"
   },
   "dependencies": {
-    "intl-messageformat": "^10.7.14"
+    "intl-messageformat": "^10.7.18"
   },
   "repository": "https://github.com/hcengineering/huly.core",
   "publishConfig": {

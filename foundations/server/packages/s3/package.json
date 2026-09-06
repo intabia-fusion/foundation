@@ -28,7 +28,7 @@
     "eslint-config-standard-with-typescript": "^40.0.0",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "@types/node": "^22.18.1",
+    "@types/node": "^24.13.3",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",
     "@types/jest": "^29.5.5",
@@ -39,10 +39,10 @@
     "@hcengineering/platform": "workspace:^0.7.19",
     "@hcengineering/server-core": "workspace:^0.7.18",
     "@hcengineering/storage": "workspace:^0.7.17",
-    "@aws-sdk/client-s3": "^3.738.0",
-    "@aws-sdk/s3-request-presigner": "^3.738.0",
-    "@aws-sdk/lib-storage": "^3.738.0",
-    "@smithy/node-http-handler": "^4.0.2"
+    "@aws-sdk/client-s3": "^3.1127.0",
+    "@aws-sdk/s3-request-presigner": "^3.1127.0",
+    "@aws-sdk/lib-storage": "^3.1127.0",
+    "@smithy/node-http-handler": "^4.12.1"
   },
   "repository": "https://github.com/hcengineering/huly.server",
   "publishConfig": {

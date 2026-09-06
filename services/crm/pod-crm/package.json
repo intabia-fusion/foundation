@@ -30,11 +30,11 @@
     "_phase:validate": "compile validate"
   },
   "devDependencies": {
-    "@tsconfig/node16": "^1.0.4",
+    "@tsconfig/node16": "^16.1.9",
     "@types/cors": "^2.8.12",
     "@types/express": "^4.17.13",
     "@types/express-rate-limit": "^6.0.0",
-    "@types/node": "^22.18.1",
+    "@types/node": "^24.13.3",
     "@types/on-headers": "^1.0.2",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@hcengineering/platform-rig": "workspace:^0.7.19",
@@ -63,9 +63,9 @@
     "@hcengineering/server-core": "workspace:^0.7.18",
     "@hcengineering/server-token": "workspace:^0.7.17",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-rate-limit": "^7.4.0",
-    "on-headers": "^1.0.2"
+    "on-headers": "^1.1.0"
   }
 }

@@ -16,7 +16,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 
 const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY
 const wrap = (code: string) => (s: string) => (useColor ? `\u001b[${code}m${s}\u001b[0m` : s)
@@ -260,7 +260,12 @@ export interface SlowSqlOptions {
 
 function loadIndexes (file: string): IndexesFile {
   if (!existsSync(file)) throw new Error(`indexes file not found: ${file}`)
-  const parsed = yaml.load(readFileSync(file, 'utf8')) as IndexesFile | undefined
+  let parsed: IndexesFile | undefined
+  try {
+    parsed = yaml.load(readFileSync(file, 'utf8')) as IndexesFile | undefined
+  } catch (err) {
+    throw new Error(`invalid indexes file: ${file}`)
+  }
   if (parsed?.domains == null) throw new Error(`invalid indexes file: ${file}`)
   return parsed
 }

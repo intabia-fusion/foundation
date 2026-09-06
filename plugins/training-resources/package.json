@@ -56,8 +56,8 @@
     "@hcengineering/questions": "workspace:^0.7.0",
     "@hcengineering/questions-resources": "workspace:^0.7.0",
     "@hcengineering/training": "workspace:^0.7.0",
-    "fast-equals": "^5.2.2",
-    "lexorank": "~1.0.4",
+    "fast-equals": "^6.0.3",
+    "lexorank": "~1.0.5",
     "svelte": "^4.2.20"
   }
 }

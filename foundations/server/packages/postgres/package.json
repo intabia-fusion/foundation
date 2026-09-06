@@ -31,11 +31,11 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",
     "@types/jest": "^29.5.5",
-    "@types/node": "^22.18.1",
+    "@types/node": "^24.13.3",
     "eslint-plugin-svelte": "^2.35.1"
   },
   "dependencies": {
-    "postgres": "^3.4.7",
+    "postgres": "^3.4.9",
     "@hcengineering/core": "workspace:^0.7.24",
     "@hcengineering/platform": "workspace:^0.7.19",
     "@hcengineering/server-core": "workspace:^0.7.18",

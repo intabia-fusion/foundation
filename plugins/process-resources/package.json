@@ -62,6 +62,6 @@
     "@hcengineering/login": "workspace:^0.7.0",
     "@hcengineering/account-client": "workspace:^0.7.21",
     "svelte": "^4.2.20",
-    "fast-equals": "^5.2.2"
+    "fast-equals": "^6.0.3"
   }
 }

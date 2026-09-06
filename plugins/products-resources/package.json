@@ -55,6 +55,6 @@
     "@hcengineering/tags": "workspace:^0.7.0",
     "@hcengineering/contact-resources": "workspace:^0.7.0",
     "@hcengineering/notification": "workspace:^0.7.0",
-    "fast-equals": "^5.2.2"
+    "fast-equals": "^6.0.3"
   }
 }

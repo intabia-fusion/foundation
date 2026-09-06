@@ -48,7 +48,7 @@ import { startActiveSubscriptionReconciliation } from './reconciliation'
 import { startTrialExpiry } from './trialExpiry'
 import { backfillWindowLimits } from './windowBackfill'
 import { getAccountClient, hasGrantingTier, computePlanPrice, validateSeatQuantity, MAX_SEATS_FALLBACK } from './utils'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 import { existsSync, readFileSync } from 'fs'
 
 const KEEP_ALIVE_TIMEOUT = 5 // seconds

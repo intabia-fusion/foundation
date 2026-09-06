@@ -28,7 +28,7 @@
   } from '@hcengineering/presentation'
   import { Component, Label, Spinner } from '@hcengineering/ui'
   import WebIcon from './icons/Web.svelte'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
   import { createEventDispatcher, onMount } from 'svelte'
   import { getResource } from '@hcengineering/platform'
   import { Readable } from 'svelte/store'

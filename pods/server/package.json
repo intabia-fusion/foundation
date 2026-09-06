@@ -34,7 +34,7 @@
   "devDependencies": {
     "cross-env": "~7.0.3",
     "@hcengineering/platform-rig": "workspace:^0.7.19",
-    "@types/node": "^22.18.1",
+    "@types/node": "^24.13.3",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-promise": "^6.1.1",
@@ -54,7 +54,7 @@
     "@hcengineering/model-all": "workspace:^0.7.0",
     "snappyjs": "^0.7.0",
     "@types/body-parser": "~1.19.2",
-    "@types/morgan": "~1.9.9",
+    "@types/morgan": "~1.9.10",
     "@types/cors": "^2.8.12",
     "@types/express": "^4.17.13"
   },
@@ -89,14 +89,14 @@
     "@hcengineering/server-token": "workspace:^0.7.17",
     "@hcengineering/tracker": "workspace:^0.7.0",
     "body-parser": "^1.20.3",
-    "bufferutil": "^4.0.8",
+    "bufferutil": "^4.1.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "morgan": "^1.10.0",
-    "msgpackr": "^1.11.2",
-    "msgpackr-extract": "^3.0.3",
-    "snappy": "^7.2.2",
-    "utf-8-validate": "^6.0.4",
-    "ws": "^8.18.2"
+    "morgan": "^1.12.0",
+    "msgpackr": "^2.1.0",
+    "msgpackr-extract": "^3.0.4",
+    "snappy": "7.3.3",
+    "utf-8-validate": "^6.0.6",
+    "ws": "^8.21.3"
   }
 }

@@ -16,7 +16,11 @@ runs:
         sudo rm -rf /usr/lib/google-cloud-sdk &
         sudo rm -rf /opt/ghc &
         sudo rm -rf "/usr/local/share/boost" &
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY" &
+        # Keep the toolcache node: setup-node installs there, and jobs call free-disk-space
+        # again after it, so wiping the whole tree drops them back to the image's Node 22.
+        if [ -n "$AGENT_TOOLSDIRECTORY" ] && [ -d "$AGENT_TOOLSDIRECTORY" ]; then
+          sudo find "$AGENT_TOOLSDIRECTORY" -mindepth 1 -maxdepth 1 ! -name node -exec rm -rf {} + &
+        fi
         wait
         echo "Disk space after cleanup:"
         df -h

@@ -77,7 +77,7 @@
     "@hcengineering/card": "workspace:^0.7.0",
     "@hcengineering/preference": "workspace:^0.7.0",
     "@hcengineering/account-client": "workspace:^0.7.21",
-    "fast-equals": "^5.2.2",
+    "fast-equals": "^6.0.3",
     "svelte": "^4.2.20"
   }
 }

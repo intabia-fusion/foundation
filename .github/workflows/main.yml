@@ -633,6 +633,10 @@ jobs:
         run: node common/scripts/install-run-rush.js model-version
       - name: Package
         run: node common/scripts/install-run-rush.js fast-build:package --to desktop -v
+      - name: Test desktop update system
+        run: |
+          cd desktop-package
+          node ../common/scripts/install-run-rushx.js test
       - name: Bump package JSON version
         run: |
           cd desktop-package
@@ -671,6 +675,10 @@ jobs:
           node ../common/scripts/install-run-rushx.js dist --windows --x64
           node ../common/scripts/install-run-rushx.js dist-signed --macos --x64 --arm64
           # ./scripts/copy-publish-artifacts.sh ${{ env.PublishTempFolder}}
+      - name: Verify update manifests
+        run: |
+          cd desktop-package
+          node scripts/verify-manifests.js deploy latest
       # - name: Publish distribution assets and version
       #   uses: ryand56/r2-upload-action@latest
       #   with:

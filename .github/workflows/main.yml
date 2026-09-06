@@ -670,6 +670,11 @@ jobs:
           APPLE_ID_APP_PASS: ${{ secrets.APPLE_ID_APP_PASS }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
+          # electron-builder 26 collects production deps by shelling out to the package
+          # manager named in desktop-package/package.json. Rush installs pnpm here and
+          # never puts it on PATH, so without this it fails with `spawn pnpm ENOENT`.
+          export PATH="$GITHUB_WORKSPACE/common/temp/pnpm-local/node_modules/.bin:$PATH"
+          pnpm --version
           cd desktop-package
           node ../common/scripts/install-run-rushx.js dist --linux --x64
           node ../common/scripts/install-run-rushx.js dist --windows --x64

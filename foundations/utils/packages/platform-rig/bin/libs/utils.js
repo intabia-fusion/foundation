@@ -289,6 +289,11 @@ function getDefaultWorkerCount() {
  *    buys nothing: uncapped validate peaked at 9.2GB and ran no faster than a 2GB cap.
  */
 const PHASE_MEMORY = {
+  // Native tsc is a Go process, not a V8 isolate: peak RSS is ~160MB for a small package and
+  // ~420MB for the heaviest one here, and one process already burns ~5 cores on its own.
+  // Measured on 16 cores: 1 worker 36.2s, 2 21.3s, 3 16.8s, 4 14.0s, 8 14.0s, 16 14.6s,
+  // 32 15.7s - flat from 4 to 12, worse above. Hence cpuPerWorker rather than one per CPU.
+  tsc: { minHeapMB: 512, heapMB: 512, cpuPerWorker: 4, minWorkers: 2, maxWorkers: 8 },
   typescript: { minHeapMB: 1536, heapMB: 2048, maxWorkers: 6 },
   'svelte-check': { minHeapMB: 3072, heapMB: 3072 },
   format: { minHeapMB: 1280, heapMB: 1536 },
@@ -324,7 +329,12 @@ function getOptimalWorkerCount(requestedWorkers, taskType = 'default', overrides
   const requested = Number.isFinite(envWorkers) && envWorkers > 0 ? envWorkers : requestedWorkers
 
   const byMemory = Math.max(1, Math.floor(budgetMB / spec.minHeapMB))
-  const byCpu = Math.min(requested, cpuCount, spec.maxWorkers ?? cpuCount)
+  // A phase whose worker is itself multi-threaded gets one worker per `cpuPerWorker` cores;
+  // running one per core only adds contention.
+  const cpuCapacity = spec.cpuPerWorker
+    ? Math.max(spec.minWorkers ?? 1, Math.floor(cpuCount / spec.cpuPerWorker))
+    : cpuCount
+  const byCpu = Math.min(requested, cpuCapacity, spec.maxWorkers ?? cpuCount)
   const workers = Math.max(1, Math.min(byCpu, byMemory))
 
   // Split the budget across the workers we settled on. Never hand out more than the

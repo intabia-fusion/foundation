@@ -428,14 +428,15 @@ async function runBuildPipeline(packagesToBundle, packagesToPackage, packagesToD
 
 // Per-phase timing plus what the run was allowed to use. Printed on every build so a CI
 // log carries the numbers needed to tell "slow" from "starved" without a rerun.
-function printResourceSummary(phaseStats, validationPlan, buildPlan) {
+function printResourceSummary(phaseStats, validationPlan, buildPlan, tscPlan) {
   const { peakMB, source } = getPeakMemoryMB()
 
   console.log(`\n=== Resources ===`)
   console.log(`  CPUs usable        : ${validationPlan.cpuCount}`)
   console.log(`  Memory available   : ${validationPlan.availableMemoryMB} MB`)
   console.log(`  Memory budget (85%): ${validationPlan.budgetMB} MB`)
-  console.log(`  Build/lint pool    : ${validationPlan.workers} workers x ${validationPlan.heapMB} MB heap ` +
+  console.log(`  tsc pool           : ${tscPlan.workers} processes`)
+  console.log(`  Lint/format pool   : ${validationPlan.workers} workers x ${validationPlan.heapMB} MB heap ` +
     `= ${validationPlan.workers * validationPlan.heapMB} MB`)
   console.log(`  Bundle pool        : ${buildPlan.workers} workers`)
   if (peakMB != null) {
@@ -503,15 +504,17 @@ async function compileAll(rootDir, options = {}) {
   // Size every pool against the memory this process may actually use (cgroup limit in a
   // container, MemAvailable otherwise) rather than the host's total RAM.
   const validationPlan = getOptimalWorkerCount(parallel, 'typescript')
+  const tscPlan = getOptimalWorkerCount(parallel, 'tsc')
   const buildPlan = getOptimalWorkerCount(parallel, 'bundle')
   const validationWorkers = forceWorkers ? parallel : validationPlan.workers
+  const tscWorkers = forceWorkers ? parallel : tscPlan.workers
   const buildWorkers = forceWorkers ? parallel : buildPlan.workers
 
   // Start CPU tracking
   const cpuTracker = new CpuTracker(100)
   cpuTracker.start()
 
-  console.log(`Building with ${validationWorkers} build workers, ${buildWorkers} bundle workers...`)
+  console.log(`Building with ${tscWorkers} tsc workers, ${validationWorkers} lint/format workers, ${buildWorkers} bundle workers...`)
   console.log(`  Memory: ${validationPlan.availableMemoryMB}MB available, ${validationPlan.budgetMB}MB budget, ` +
     `${validationPlan.cpuCount} usable CPU(s); worker heap ${validationPlan.heapMB}MB/worker`)
   if (validationPlan.belowSafeHeap) {
@@ -646,7 +649,7 @@ async function compileAll(rootDir, options = {}) {
   }
 
   // Single build phase: one tsc pass per package emits JS and .d.ts together.
-  const buildPhaseResults = await runBuildPhase(graph, packagesToBuild, validationWorkers, {
+  const buildPhaseResults = await runBuildPhase(graph, packagesToBuild, tscWorkers, {
     force: forcePrerequisites,
     packageHashes
   })
@@ -746,12 +749,12 @@ async function compileAll(rootDir, options = {}) {
 
   const totalTime = performance.now() - startTime
 
-  recordPhase('build', buildPhaseResults, validationWorkers, null)
+  recordPhase('build', buildPhaseResults, tscWorkers, null)
 
   console.log(`\n=== Summary ===`)
   console.log(`Total time: ${Math.round(totalTime)}ms`)
   console.log(`CPU usage: avg ${cpuStats.avg}%, peak ${cpuStats.peak}%`)
-  printResourceSummary(phaseStats, validationPlan, buildPlan)
+  printResourceSummary(phaseStats, validationPlan, buildPlan, tscPlan)
 
   if (allErrors.length > 0) {
     printErrorSummary(allErrors)

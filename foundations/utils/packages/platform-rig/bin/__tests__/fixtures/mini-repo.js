@@ -27,12 +27,13 @@ function tsconfig (extraCompilerOptions = {}) {
     compilerOptions: {
       target: 'ES2021',
       module: 'CommonJS',
-      moduleResolution: 'node',
+      moduleResolution: 'bundler',
       strict: true,
       declaration: true,
       esModuleInterop: true,
       skipLibCheck: true,
       outDir: 'lib',
+      declarationDir: 'types',
       rootDir: 'src',
       ...extraCompilerOptions
     },
@@ -62,7 +63,7 @@ function createMiniRepo (packages) {
       main: 'lib/index.js',
       types: 'types/index.d.ts',
       dependencies: deps,
-      scripts: spec.scripts ?? { '_phase:build': 'compile transpile src', '_phase:validate': 'compile validate' },
+      scripts: spec.scripts ?? { '_phase:build': 'compile build' },
       ...spec.extraPkgJson
     }, null, 2))
 

@@ -117,7 +117,6 @@ async function getPackageInfoAsync(packageJsonPath) {
     return {
       dependencies: [],
       phaseBuild: null,
-      phaseValidate: null,
       phaseTest: null,
       phaseBundle: null,
       phasePackage: null,
@@ -133,7 +132,6 @@ async function getPackageInfoAsync(packageJsonPath) {
 
 function parsePackageJson(packageJson) {
   const phaseBuild = packageJson.scripts?.['_phase:build']
-  const phaseValidate = packageJson.scripts?.['_phase:validate']
   const phaseTest = packageJson.scripts?.['_phase:test']
   const phaseBundle = packageJson.scripts?.['_phase:bundle']
   const phasePackage = packageJson.scripts?.['_phase:package']
@@ -160,7 +158,6 @@ function parsePackageJson(packageJson) {
   return {
     dependencies,
     phaseBuild,
-    phaseValidate,
     phaseTest,
     phaseBundle,
     phasePackage,
@@ -196,7 +193,6 @@ async function buildDependencyGraph(rootDir, verbose) {
     const {
       dependencies,
       phaseBuild,
-      phaseValidate,
       phaseTest,
       phaseBundle,
       phasePackage,
@@ -213,7 +209,6 @@ async function buildDependencyGraph(rootDir, verbose) {
       dependencies: new Set(dependencies),
       dependents: new Set(),
       phaseBuild,
-      phaseValidate,
       phaseTest,
       phaseBundle,
       phasePackage,
@@ -293,10 +288,7 @@ function topologicalSortWaves(graph, filterFn) {
     for (const name of filteredNames) {
       if (!processed.has(name) && inDegree.get(name) === 0) {
         const node = graph.get(name)
-        wave.push({
-          ...node.project,
-          phaseValidate: node.phaseValidate
-        })
+        wave.push({ ...node.project })
       }
     }
 

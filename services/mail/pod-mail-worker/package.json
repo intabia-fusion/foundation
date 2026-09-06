@@ -25,10 +25,9 @@
     "run-bundle": "rushx bundle --to @hcengineering/pod-mail-worker && cross-env NODE_ENV=production node --inspect bundle/bundle.js",
     "run-local": "ts-node src/index.ts",
     "format": "format src",
-    "_phase:build": "compile transpile src",
+    "_phase:build": "compile build",
     "_phase:test": "jest --passWithNoTests --silent",
-    "_phase:format": "format src",
-    "_phase:validate": "compile validate"
+    "_phase:format": "format src"
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",

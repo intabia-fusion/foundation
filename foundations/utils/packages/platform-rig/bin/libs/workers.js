@@ -207,35 +207,15 @@ class GenericWorkerPool {
       }
 
       this.callbacks.set(task.id, (result) => {
-        if (task.type === 'validate') {
-          if (result.success) {
-            wrappedResolve({
-              success: true,
-              skipped: result.skipped || false,
-              fromCache: result.fromCache || false,
-              typesHash: result.typesHash,
-              syncResult: result.syncResult,
-              cacheStats: result.cacheStats
-            })
-          } else {
-            wrappedResolve({ success: false, error: new Error(result.error) })
-          }
+        if (result.success) {
+          wrappedResolve(result)
         } else {
-          if (result.success) {
-            wrappedResolve(result)
-          } else {
-            wrappedResolve({ ...result, error: result.error instanceof Error ? result.error : new Error(result.error || 'Unknown error') })
-          }
+          wrappedResolve({ ...result, error: result.error instanceof Error ? result.error : new Error(result.error || 'Unknown error') })
         }
       })
 
       worker.postMessage(task)
     }
-  }
-
-  validate(cwd, options = {}) {
-    const { srcDir = 'src' } = options
-    return this.runTask('validate', cwd, { srcDir })
   }
 
   runTask(type, cwd, options = {}) {
@@ -269,19 +249,6 @@ class GenericWorkerPool {
   }
 }
 
-// Alias for backwards compatibility
-const ValidateWorkerPool = GenericWorkerPool
-
-// A terminated pool must never be handed out again — its workers are gone and
-// every task submitted to it would hang.
-async function getWorkerPool(size, poolOptions = {}) {
-  if (!workerPool || workerPool.terminated) {
-    workerPool = new GenericWorkerPool(size, join(__dirname, '..', 'validate-worker.js'), poolOptions)
-    await workerPool.init()
-  }
-  return workerPool
-}
-
 async function getNamedWorkerPool(name, size, workerPath, poolOptions = {}) {
   let pool = namedPools.get(name)
   if (!pool || pool.terminated) {
@@ -313,8 +280,6 @@ async function terminateWorkerPool() {
 
 module.exports = {
   GenericWorkerPool,
-  ValidateWorkerPool,
-  getWorkerPool,
   getNamedWorkerPool,
   terminateNamedWorkerPool,
   terminateWorkerPool

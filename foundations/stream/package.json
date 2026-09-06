@@ -25,8 +25,7 @@
     "test": "echo done",
     "_phase:build": "echo done",
     "_phase:test": "echo done",
-    "_phase:format": "echo done",
-    "_phase:validate": "echo done"
+    "_phase:format": "echo done"
   },
   "devDependencies": {},
   "dependencies": {}

@@ -24,10 +24,9 @@
     "format": "format src",
     "run-local": "cross-env MINIO_ACCESS_KEY=minioadmin MINIO_SECRET_KEY=minioadmin MINIO_ENDPOINT=localhost SERVER_SECRET='secret' ACCOUNTS_URL=http://localhost:3000 UPLOAD_URL=/files MODEL_VERSION=$(node ../../common/scripts/show_version.js) VERSION=$(node ../../common/scripts/show_tag.js) PUBLIC_DIR='.' ts-node ./src/__start.ts",
     "test": "jest --passWithNoTests --silent --forceExit",
-    "_phase:build": "compile transpile src",
+    "_phase:build": "compile build",
     "_phase:test": "jest --passWithNoTests --silent --forceExit",
-    "_phase:format": "format src",
-    "_phase:validate": "compile validate"
+    "_phase:format": "format src"
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",

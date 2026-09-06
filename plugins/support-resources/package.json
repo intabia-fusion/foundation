@@ -9,9 +9,8 @@
     "build:docs": "api-extractor run --local",
     "format": "format src",
     "build:watch": "compile ui",
-    "_phase:build": "compile ui",
-    "_phase:format": "format src",
-    "_phase:validate": "compile validate"
+    "_phase:build": "compile build-ui",
+    "_phase:format": "format src"
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",

@@ -21,57 +21,12 @@ const { performance } = require('perf_hooks')
 
 const { buildDependencyGraph, getAllDependencies } = require('./libs/graph')
 const { getDefaultWorkerCount, getOptimalWorkerCount } = require('./libs/utils')
-const { runTranspilePhase } = require('./phases/transpile')
+const { runBuildPhase } = require('./phases/build')
 const { runLintPhase } = require('./phases/lint')
-const { getWorkerPool, terminateWorkerPool } = require('./libs/workers')
-const { calculatePackageHash, isPhaseCached, markPhaseCompleted, calculateOutputHashForDirs } = require('./libs/cache')
+const { BUILD_SCRIPTS } = require('./libs/phase-select')
+const { calculatePackageHash } = require('./libs/cache')
 const { success, error, warn, info, dim, bold, colorizeErrorMessage } = require('./libs/colors')
 
-/**
- * Calculate package hash including all dependencies (transitive)
- * This ensures that when a dependency changes, dependent packages are rebuilt
- */
-function calculatePackageHashWithDeps(packageName, graph, packageHashes, processed = new Set(), depTypesHashes = null) {
-  // Prevent circular dependencies
-  if (processed.has(packageName)) {
-    return ''
-  }
-  processed.add(packageName)
-
-  const node = graph.get(packageName)
-  if (!node) {
-    return ''
-  }
-
-  // Get base hash of this package
-  const baseHash = packageHashes.get(packageName) || ''
-  const parts = [baseHash]
-
-  // Add hashes of all dependencies
-  for (const depName of node.dependencies) {
-    const depHash = calculatePackageHashWithDeps(depName, graph, packageHashes, processed, depTypesHashes)
-    if (depHash) {
-      parts.push(`${depName}:${depHash}`)
-    }
-    if (depTypesHashes) {
-      const t = depTypesHashes.get(depName)
-      if (t) {
-        parts.push(`${depName}:types:${t}`)
-      }
-    }
-  }
-
-  // Sort to ensure consistent hash
-  parts.sort()
-
-  // Combine into final hash
-  const crypto = require('crypto')
-  return crypto.createHash('md5').update(parts.join('\n')).digest('hex')
-}
-
-/**
- * Parse command line arguments
- */
 function parseArgs(args) {
   let parallel = getDefaultWorkerCount()
   let verbose = false
@@ -255,114 +210,6 @@ function buildReverseDependencyMap(graph, packageNames) {
   return transitiveDependents
 }
 
-/**
- * Run validation directly using worker pool (no TaskQueue dependency)
- */
-async function runValidation(pool, graph, packageNames, packageHashes, force = false, packageTypesHashes = new Map()) {
-  const validateStart = performance.now()
-  let successCount = 0
-  let cacheHits = 0
-  let errorCount = 0
-  let completedCount = 0
-
-  const pending = new Set(packageNames)
-  const completed = new Set()
-
-  while (completed.size < packageNames.length) {
-    const ready = []
-
-    for (const name of pending) {
-      const node = graph.get(name)
-      if (!node) continue
-
-      const depsCompleted = [...node.dependencies]
-        .filter(d => packageNames.includes(d))
-        .every(d => completed.has(d))
-
-      if (depsCompleted) {
-        ready.push(name)
-      }
-    }
-
-    if (ready.length === 0) {
-      throw new Error('Circular dependency detected in validation phase')
-    }
-
-    const promises = ready.map(async (packageName) => {
-      const node = graph.get(packageName)
-      const srcDir = node.phaseBuild === 'compile transpile tests' ? 'tests' : 'src'
-
-      // Calculate hash including all deps + their types hashes
-      const packageHash = calculatePackageHashWithDeps(packageName, graph, packageHashes, new Set(), packageTypesHashes)
-
-      // Check if validation is cached (isPhaseCached verifies output existence + hash)
-      const outputDirs = ['types']
-
-      if (!force && packageHash && isPhaseCached(node.project.fullPath, packageHash, 'validate', null, outputDirs)) {
-        // Get typesHash from unified cache helper for dependents
-        const typesHash = calculateOutputHashForDirs(node.project.fullPath, ['types'])
-        if (typesHash) {
-          packageTypesHashes.set(packageName, typesHash)
-        }
-
-        completedCount++
-        successCount++
-        cacheHits++
-        console.log(`    ${success('V')} ${dim(completedCount + '/' + packageNames.length)} ${packageName} ${success('validated')} (cached)`)
-        
-        completed.add(packageName)
-        pending.delete(packageName)
-        return
-      }
-
-      try {
-        const result = await pool.validate(node.project.fullPath, { srcDir })
-
-        completedCount++
-        if (result.success) {
-          successCount++
-          console.log(`    ${success('V')} ${dim(completedCount + '/' + packageNames.length)} ${packageName} ${success('validated')}`)
-
-          const typesHash = calculateOutputHashForDirs(node.project.fullPath, ['types'])
-          if (typesHash) {
-            packageTypesHashes.set(packageName, typesHash)
-          }
-
-          // Mark validate phase as completed in unified cache
-          if (packageHash) {
-            markPhaseCompleted(node.project.fullPath, packageHash, 'validate', null, outputDirs)
-          }
-        } else {
-          errorCount++
-          const errMsg = result.error ? (result.error.message || String(result.error)) : 'unknown'
-          const { colored } = colorizeErrorMessage(errMsg.split('\n')[0])
-          console.error(`    ${error('V')} ${dim(completedCount + '/' + packageNames.length)} ${packageName} ${error('FAILED')}`)
-          console.error(`      ${colored}`)
-        }
-      } catch (err) {
-        completedCount++
-        errorCount++
-        const { colored } = colorizeErrorMessage(err.message.split('\n')[0])
-        console.error(`    ${error('V')} ${dim(completedCount + '/' + packageNames.length)} ${packageName} ${error('ERROR')}`)
-        console.error(`      ${colored}`)
-      }
-
-      completed.add(packageName)
-      pending.delete(packageName)
-    })
-
-    await Promise.all(promises)
-  }
-
-  const elapsed = Math.round(performance.now() - validateStart)
-  console.log(`\nValidated: ${successCount}/${packageNames.length} in ${elapsed}ms${cacheHits > 0 ? ` (${cacheHits} from cache)` : ''}`)
-  if (errorCount > 0) {
-    console.log(`  ${error(errorCount + ' validation error(s)')}`)
-  }
-
-  return { successCount, errorCount, cacheHits }
-}
-
 async function main() {
   const args = process.argv.slice(2)
   const options = parseArgs(args)
@@ -387,7 +234,6 @@ async function main() {
 
   // Collect packages to watch
   const packagesToWatch = []
-  const packagesToValidate = []
 
   // Pre-compute --to filter once
   const targetDeps = options.toPackage ? getAllDependencies(graph, options.toPackage) : null
@@ -397,20 +243,8 @@ async function main() {
   for (const [name, node] of graph) {
     if (!passesToFilter(name)) continue
 
-    const isTranspilable =
-      node.phaseBuild === 'compile transpile src' ||
-      node.phaseBuild === 'compile transpile tests' ||
-      node.phaseBuild === 'compile ui-esbuild'
-
-    if (isTranspilable) {
+    if (BUILD_SCRIPTS.has(node.phaseBuild)) {
       packagesToWatch.push(name)
-
-    }
-
-    // Validate selection mirrors compile_all: any package with phaseValidate.
-    // ui/ui-esbuild packages have phaseBuild='compile ui' but still need validation.
-    if (options.doValidate && node.phaseValidate === 'compile validate') {
-      packagesToValidate.push(name)
     }
   }
 
@@ -418,30 +252,12 @@ async function main() {
   const reverseDeps = buildReverseDependencyMap(graph, packagesToWatch)
 
   console.log(`\nWatching ${info(packagesToWatch.length + ' packages')} for changes...`)
-  if (options.doValidate) {
-    console.log(`Validation enabled for ${info(packagesToValidate.length + ' packages')}`)
-  }
-
-  // Initialize validation worker pool if needed
-  let validationPool = null
-  if (options.doValidate && packagesToValidate.length > 0) {
-    console.log(`Initializing validation worker pool (${validationWorkers} workers)...`)
-    validationPool = await getWorkerPool(validationWorkers)
-  }
-
-  // Track validation state across rebuilds
-  const validatedPackages = new Set()
-
-  // Persistent types-hash map shared between initial validation and rebuild
-  // checks. Must match what markPhaseCompleted wrote, or cache always misses.
-  const packageTypesHashes = new Map()
 
 
   // Initial full build
   console.log(`\n${bold('=== Initial build ===')}`)
 
   // Calculate package hashes for ALL packages in graph (not just packagesToWatch)
-  // This is needed because calculatePackageHashWithDeps needs dependency hashes
   let packageHashes = new Map()
   for (const [name, node] of graph) {
     if (node.project && node.project.fullPath) {
@@ -450,34 +266,20 @@ async function main() {
   }
 
   const initialStart = performance.now()
-  const transpileResult = await runTranspilePhase(graph, packagesToWatch, validationWorkers, { force: options.force, packageHashes })
-  console.log(`Initial transpile: ${transpileResult.successCount}/${transpileResult.total} in ${Math.round(performance.now() - initialStart)}ms`)
+  const buildResult = await runBuildPhase(graph, packagesToWatch, validationWorkers, { force: options.force, packageHashes })
+  console.log(`Initial build: ${buildResult.successCount}/${buildResult.total} in ${Math.round(performance.now() - initialStart)}ms`)
 
-  if (transpileResult.errors.length > 0) {
+  if (buildResult.errors.length > 0) {
     console.error('Initial build errors:')
-    for (const err of transpileResult.errors) {
+    for (const err of buildResult.errors) {
       const { colored } = colorizeErrorMessage(err.error.message)
       console.error(`  ${err.package}: ${colored}`)
     }
   }
 
-  // Run initial validation
-  let initialValidateResult = null
-  if (validationPool && packagesToValidate.length > 0) {
-    console.log(`\n${bold('=== Initial validation (' + packagesToValidate.length + ' packages) ===')}`)
-    initialValidateResult = await runValidation(validationPool, graph, packagesToValidate, packageHashes, options.force, packageTypesHashes)
-
-    // Track successfully validated packages
-    if (initialValidateResult.errorCount === 0) {
-      for (const pkg of packagesToValidate) {
-        validatedPackages.add(pkg)
-      }
-    }
-  }
-
-  // Run initial lint after successful validation (only when --lint flag is passed)
-  if (options.doLint && packagesToValidate.length > 0 && initialValidateResult && initialValidateResult.errorCount === 0) {
-    const packagesToLint = packagesToValidate.filter(name => graph.get(name)?.phaseFormat)
+  // Run initial lint after a clean build (only when --lint flag is passed)
+  if (options.doLint && buildResult.errors.length === 0) {
+    const packagesToLint = packagesToWatch.filter((name) => graph.get(name)?.phaseFormat)
     if (packagesToLint.length > 0) {
       console.log(`\n${bold('=== Initial lint (' + packagesToLint.length + ' packages) ===')}`)
       const lintResult = await runLintPhase(graph, packagesToLint, validationWorkers, { force: options.force, packageHashes })
@@ -546,16 +348,14 @@ async function main() {
           }
         }
 
-        const result = await runTranspilePhase(graph, orderedPackages, validationWorkers, { packageHashes })
+        const result = await runBuildPhase(graph, orderedPackages, validationWorkers, { packageHashes })
         const elapsed = Math.round(performance.now() - rebuildStart)
 
-        // Outputs changed, so their own hashes need refreshing for the validate step below.
-        if (result.changedPackages && result.changedPackages.size > 0) {
-          for (const pkg of result.changedPackages) {
-            const node = graph.get(pkg)
-            if (node && node.project && node.project.fullPath) {
-              packageHashes.set(pkg, calculatePackageHash(node.project.fullPath))
-            }
+        // Outputs changed, so their own hashes need refreshing for later rebuilds.
+        for (const pkg of result.changedPackages) {
+          const node = graph.get(pkg)
+          if (node?.project?.fullPath) {
+            packageHashes.set(pkg, calculatePackageHash(node.project.fullPath))
           }
         }
 
@@ -566,72 +366,23 @@ async function main() {
           }
           console.log(`Rebuild completed with ${error('errors')} in ${elapsed}ms`)
         } else {
-          const rebuilt = result.successCount - result.skippedCount
-          console.log(`Rebuilt ${success(rebuilt + ' package(s)')} in ${elapsed}ms`)
-        }
+          console.log(`Rebuilt ${success(result.successCount - result.cacheHits + ' package(s)')} in ${elapsed}ms`)
 
-        // Run validation on rebuilt packages
-        if (result.errors.length === 0 && validationPool) {
-          // Determine which packages need validation:
-          // 1. Packages that were rebuilt AND need validation
-          // 2. Packages whose dependencies were rebuilt (need re-validation)
-          const pkgsToValidate = new Set()
-
-          for (const pkg of orderedPackages) {
-            if (packagesToValidate.includes(pkg)) {
-              // Check if this package or any of its dependencies changed.
-              // Must include types-hashes — markPhaseCompleted stored that
-              // composite hash; omitting it guarantees a cache miss.
-              const hashWithDeps = calculatePackageHashWithDeps(pkg, graph, packageHashes, new Set(), packageTypesHashes)
-
-              // We need to validate if:
-              // 1. Package was not yet validated in this session
-              // 2. The hash (including dependencies) changed from what's in cache
-              const node = graph.get(pkg)
-              const outputDirs = ['types']
-              const outputsExist = outputDirs.every(d => existsSync(join(node.project.fullPath, d)))
-              const isInCache = !options.force && hashWithDeps && outputsExist && 
-                isPhaseCached(node.project.fullPath, hashWithDeps, 'validate', null, outputDirs)
-
-              if (!validatedPackages.has(pkg) || !isInCache) {
-                pkgsToValidate.add(pkg)
-              }
-            }
-          }
-
-          if (pkgsToValidate.size > 0) {
-            const validateList = [...pkgsToValidate].map(p => p.replace(/@hcengineering\//g, '')).join(', ')
-            console.log(`Validating ${info(pkgsToValidate.size + ' package(s)')}: ${info(validateList)}`)
-
-            const validateResult = await runValidation(validationPool, graph, [...pkgsToValidate], packageHashes, options.force, packageTypesHashes)
-
-            // Track successfully validated packages
-            if (validateResult.errorCount === 0) {
-              for (const pkg of pkgsToValidate) {
-                validatedPackages.add(pkg)
-              }
-              console.log(success(`  All validations passed`))
-
-              // Run lint on validated packages (only when --lint flag is passed)
-              if (options.doLint) {
-                const pkgsToLint = [...pkgsToValidate].filter(name => graph.get(name)?.phaseFormat)
-                if (pkgsToLint.length > 0) {
-                  const lintList = pkgsToLint.map(p => p.replace(/@hcengineering\//g, '')).join(', ')
-                  console.log(`Linting ${info(pkgsToLint.length + ' package(s)')}: ${info(lintList)}`)
-                  try {
-                    const lintResult = await runLintPhase(graph, pkgsToLint, validationWorkers, { force: options.force, packageHashes })
-                    if (lintResult.errors.length === 0) {
-                      console.log(success(`  All lints passed`))
-                    } else {
-                      console.error(error(`  ${lintResult.errors.length} lint error(s)`))
-                    }
-                  } catch (err) {
-                    console.error(error(`  Lint failed: ${err.message}`))
-                  }
+          if (options.doLint) {
+            const pkgsToLint = orderedPackages.filter((name) => graph.get(name)?.phaseFormat)
+            if (pkgsToLint.length > 0) {
+              const lintList = pkgsToLint.map((p) => p.replace(/@hcengineering\//g, '')).join(', ')
+              console.log(`Linting ${info(pkgsToLint.length + ' package(s)')}: ${info(lintList)}`)
+              try {
+                const lintResult = await runLintPhase(graph, pkgsToLint, validationWorkers, { force: options.force, packageHashes })
+                if (lintResult.errors.length === 0) {
+                  console.log(success('  All lints passed'))
+                } else {
+                  console.error(error(`  ${lintResult.errors.length} lint error(s)`))
                 }
+              } catch (err) {
+                console.error(error(`  Lint failed: ${err.message}`))
               }
-            } else {
-              console.error(error(`  ${validateResult.errorCount} validation(s) failed`))
             }
           }
         }
@@ -653,8 +404,10 @@ async function main() {
 
   for (const packageName of packagesToWatch) {
     const node = graph.get(packageName)
-    const srcDir = node.phaseBuild === 'compile transpile tests' ? 'tests' : 'src'
-    const srcPath = join(node.project.fullPath, srcDir)
+    // Test-only packages keep sources in tests/ instead of src/.
+    const srcPath = existsSync(join(node.project.fullPath, 'src'))
+      ? join(node.project.fullPath, 'src')
+      : join(node.project.fullPath, 'tests')
 
     if (!existsSync(srcPath)) continue
 
@@ -692,14 +445,6 @@ async function main() {
       clearTimeout(rebuildTimer)
       rebuildTimer = null
     }
-    // Terminate worker pool
-    if (validationPool) {
-      try {
-        await terminateWorkerPool()
-      } catch {
-        // Ignore
-      }
-    }
   }
 
   process.on('SIGINT', () => {
@@ -716,11 +461,6 @@ async function main() {
       clearTimeout(rebuildTimer)
       rebuildTimer = null
     }
-    // Terminate worker pool (best effort, don't wait)
-    if (validationPool) {
-      terminateWorkerPool().catch(() => {})
-    }
-    
     // Exit immediately - shell will show prompt
     process.exit(0)
   })

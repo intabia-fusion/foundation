@@ -13,7 +13,6 @@
     "build": "compile",
     "build:watch": "tsc",
     "_phase:package": "rushx package",
-    "_phase:validate": "compile validate",
     "_phase:test": "jest --passWithNoTests --silent --forceExit --detectOpenHandles",
     "package": "rushx bump && cross-env NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4094' node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details && echo 'done' ",
     "webpack": "cross-env NODE_ENV=development node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details --progress -w",

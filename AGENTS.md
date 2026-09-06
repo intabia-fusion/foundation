@@ -33,44 +33,46 @@ overlaps an existing one gets a bullet in "Выбор между похожим�
 
 Use `rush fast-build:*`. All accept `--to PKG` to scope to a package + dependencies.
 
+Type checking is **part of the build**: one native `tsc` (TypeScript 7) pass per package emits
+`lib/` and `types/` together. There is no separate validate phase; `fast-build:validate` and
+`rush validate` are kept as aliases of the build.
+
 ```bash
 rush update                       # Install/update deps
-rush fast-build:validate          # Compile + validate
+rush fast-build                   # Compile + typecheck (JS + .d.ts)
 rush fast-build:bundle            # Compile + bundle
 rush fast-build:package           # Compile + bundle + package
 rush fast-build:docker-build      # Compile + bundle + docker build
-rush svelte-check                 # Compile + validate + svelte-check
-rush fast-build:watch:validate    # Watch + validate
+rush svelte-check                 # Compile + svelte-check
+rush fast-build:watch             # Watch + rebuild
 rush add -p PKG                   # Add dependency
 ```
 
 Flags: `--to PKG`, `--list`, `-v/--verbose`, `--force` (disable cache).
 
-### Scoped validation after edits
+### Scoped check after edits
 
 ```bash
 # Strict: compile + typecheck + eslint. Default check.
 rush fast-build:lint --to @hcengineering/<pkg>
 
 # Lighter: compile + typecheck only.
-rush fast-build:validate --to @hcengineering/<pkg>
+rush fast-build --to @hcengineering/<pkg>
 ```
 
-`fast-build:lint` is a superset of `fast-build:validate`. Cache is content-hashed; add `--force` to bypass.
+`fast-build:lint` is a superset of `fast-build`. Cache is content-hashed; add `--force` to bypass.
 
 Per-package direct (fastest inside one package):
 
 ```bash
 cd <package-dir>
-rushx _phase:validate
 rushx build
 ```
 
-Not every package defines `lint`. On "command not defined", use `rushx _phase:validate` or `rush fast-build:lint --to <pkg>`.
+Not every package defines `lint`. On "command not defined", use `rushx build` or `rush fast-build:lint --to <pkg>`.
 
 Do NOT:
-- Run `rush fast-build:validate` without `--to` (hits unrelated broken packages).
-- Run `rush build` for error checking.
+- Run `rush fast-build` without `--to` for error checking (hits unrelated broken packages).
 - Run `rushx format` (user handles it).
 
 ### Docker Workflow

@@ -16,27 +16,13 @@
       "allowWarningsOnSuccess": false
     },
     {
-      "name": "_phase:validate",
-      "dependencies": {
-        "self": [
-          "_phase:build"
-        ],
-        "upstream": [
-          "_phase:validate",
-          "_phase:build"
-        ]
-      },
-      "ignoreMissingScript": true,
-      "allowWarningsOnSuccess": false
-    },
-    {
       "name": "_phase:test",
       "dependencies": {
         "self": [
           "_phase:build"
         ],
         "upstream": [
-          "_phase:validate"
+          "_phase:build"
         ]
       },
       "ignoreMissingScript": true,
@@ -158,8 +144,7 @@
       "name": "build:watch",
       "summary": "Build and watch",
       "phases": [
-        "_phase:build",
-        "_phase:validate"
+        "_phase:build"
       ],
       "description": "Perform build with tsc and watch for changes with rush",
       "enableParallelism": true,
@@ -168,8 +153,7 @@
       "watchOptions": {
         "alwaysWatch": true,
         "watchPhases": [
-          "_phase:build",
-          "_phase:validate"
+          "_phase:build"
         ]
       }
     },
@@ -204,9 +188,9 @@
       "commandKind": "phased",
       "name": "validate",
       "phases": [
-        "_phase:validate"
+        "_phase:build"
       ],
-      "summary": "validate",
+      "summary": "validate (alias of build: type checking is part of the build phase)",
       "enableParallelism": true,
       "incremental": true
     },
@@ -224,7 +208,7 @@
       "commandKind": "phased",
       "name": "dorevalidate",
       "phases": [
-        "_phase:validate"
+        "_phase:build"
       ],
       "summary": "dorevalidate",
       "enableParallelism": true,
@@ -411,7 +395,7 @@
       "summary": "Clean tsconfig.tsbuildinfo",
       "description": "Clean typescript incremental cache",
       "safeForSimultaneousRushProcesses": true,
-      "shellCommand": "find .|grep tsconfig.tsbuildinfo | xargs rm | pwd"
+      "shellCommand": "find . -name '*.tsbuildinfo' -not -path '*node_modules*' -delete"
     },
     {
       "commandKind": "global",
@@ -419,7 +403,7 @@
       "summary": "Clean Validate cache and to validate again",
       "description": "Clean typescript incremental cache",
       "safeForSimultaneousRushProcesses": true,
-      "shellCommand": "find .|grep tsBuildInfoFile.info | xargs rm | pwd && rush dorevalidate"
+      "shellCommand": "find . -name build.tsbuildinfo -not -path '*node_modules*' -delete && rush dorevalidate"
     },
     {
       "commandKind": "bulk",
@@ -533,8 +517,8 @@
     {
       "commandKind": "global",
       "name": "fast-build",
-      "summary": "Fast compile all packages with esbuild",
-      "description": "Compiles all packages that have '_phase:build': 'compile transpile src' using esbuild directly, bypassing Rush's dependency resolution for faster builds",
+      "summary": "Fast compile all packages with tsc (JS + .d.ts)",
+      "description": "Compiles all packages with a single native tsc pass per package, bypassing Rush's dependency resolution for faster builds",
       "safeForSimultaneousRushProcesses": false,
       "shellCommand": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel"
     },
@@ -542,7 +526,7 @@
       "commandKind": "global",
       "name": "fast-build:validate",
       "summary": "Fast compile and validate all packages",
-      "description": "Compiles and validates all packages that have '_phase:build': 'compile transpile src' using esbuild and TypeScript. Use 'fast-build:lint' to also run ESLint check.",
+      "description": "Alias of fast-build: type checking is part of the build phase. Use 'fast-build:lint' to also run ESLint check.",
       "safeForSimultaneousRushProcesses": false,
       "shellCommand": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --validate"
     },

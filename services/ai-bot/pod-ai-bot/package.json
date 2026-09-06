@@ -27,10 +27,9 @@
     "docker:push": "node ../../../common/scripts/run_in_bash.js ../../../common/scripts/docker_tag.sh intabiafusion/ai-bot",
     "docker:tbuild": "rush fast-build:bundle --to @hcengineering/pod-ai-bot && docker build -t intabiafusion/ai-bot . --platform=linux/amd64 && ../../../common/scripts/docker_tag_push.sh intabiafusion/ai-bot",
     "format": "format src",
-    "_phase:build": "compile transpile src",
+    "_phase:build": "compile build",
     "_phase:test": "jest --passWithNoTests --silent",
-    "_phase:format": "format src",
-    "_phase:validate": "compile validate"
+    "_phase:format": "format src"
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",

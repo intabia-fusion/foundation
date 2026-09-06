@@ -7,9 +7,9 @@
 
 // Phase scripts this tool knows how to run itself. Anything else in a `_phase:*`
 // script is reported through `unknown` rather than silently dropped.
-const BUILD_SCRIPTS = new Set(['compile transpile src', 'compile transpile tests', 'compile ui-esbuild'])
-const NO_BUILD_SCRIPTS = new Set(['compile ui'])
-const VALIDATE_SCRIPTS = new Set(['compile validate'])
+// `compile build` emits JS + .d.ts, `compile build-ui` only .d.ts (UI packages ship sources),
+// `compile ui-esbuild` is the one svelte package that still needs esbuild.
+const BUILD_SCRIPTS = new Set(['compile build', 'compile build-ui', 'compile ui-esbuild'])
 
 // An explicit opt-out written by hand in package.json.
 const NOOP_SCRIPTS = new Set(['echo done', ''])
@@ -24,13 +24,12 @@ function isNoop (script) {
  * @param {Map<string, object>} graph
  * @param {object} options
  * @param {Set<string>|null} [options.targetPackages] restrict to these packages (--to)
- * @returns {{transpile: string[], validate: string[], test: string[], format: string[],
+ * @returns {{build: string[], test: string[], format: string[],
  *            bundle: string[], package: string[], dockerBuild: string[], svelteCheck: string[],
  *            unknown: Array<{package: string, phase: string, script: string}>}}
  */
 function selectPackagesForPhases (graph, options = {}) {
   const {
-    doValidate = false,
     doTest = false,
     doBundle = false,
     doPackage = false,
@@ -40,8 +39,7 @@ function selectPackagesForPhases (graph, options = {}) {
   } = options
 
   const result = {
-    transpile: [],
-    validate: [],
+    build: [],
     test: [],
     format: [],
     bundle: [],
@@ -55,17 +53,9 @@ function selectPackagesForPhases (graph, options = {}) {
     if (targetPackages && !targetPackages.has(name)) continue
 
     if (BUILD_SCRIPTS.has(node.phaseBuild)) {
-      result.transpile.push(name)
-    } else if (!isNoop(node.phaseBuild) && !NO_BUILD_SCRIPTS.has(node.phaseBuild)) {
+      result.build.push(name)
+    } else if (!isNoop(node.phaseBuild)) {
       result.unknown.push({ package: name, phase: 'build', script: node.phaseBuild })
-    }
-
-    if (doValidate) {
-      if (VALIDATE_SCRIPTS.has(node.phaseValidate)) {
-        result.validate.push(name)
-      } else if (!isNoop(node.phaseValidate)) {
-        result.unknown.push({ package: name, phase: 'validate', script: node.phaseValidate })
-      }
     }
 
     // The remaining phases shell out to the package's own script, so any non-empty
@@ -81,4 +71,4 @@ function selectPackagesForPhases (graph, options = {}) {
   return result
 }
 
-module.exports = { selectPackagesForPhases }
+module.exports = { selectPackagesForPhases, BUILD_SCRIPTS }

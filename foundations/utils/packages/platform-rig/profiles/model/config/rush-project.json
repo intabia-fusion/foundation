@@ -9,34 +9,41 @@
     "types"
   ],
   "disableBuildCacheForProject": false,
-
   "operationSettings": [
     {
       "operationName": "build",
-      "outputFolderNames": ["lib", ".build"],
-      "disableBuildCacheForOperation": true
+      "outputFolderNames": [
+        "lib",
+        "types",
+        ".build"
+      ]
     },
     {
       "operationName": "format",
-      "outputFolderNames": [".rush/temp/.format"]
+      "outputFolderNames": [
+        ".rush/temp/.format"
+      ]
     },
     {
       "operationName": "_phase:build",
-      "outputFolderNames": ["lib", ".build"],
-      "disableBuildCacheForOperation": true
-    },
-    {
-      "operationName": "_phase:validate",
-      "outputFolderNames": ["types", ".validate"]
+      "outputFolderNames": [
+        "lib",
+        "types",
+        ".build"
+      ]
     },
     {
       "operationName": "_phase:bundle",
-      "outputFolderNames": ["bundle"],
+      "outputFolderNames": [
+        "bundle"
+      ],
       "disableBuildCacheForOperation": true
     },
     {
       "operationName": "_phase:test",
-      "outputFolderNames": ["coverage"]
+      "outputFolderNames": [
+        "coverage"
+      ]
     }
   ]
 }

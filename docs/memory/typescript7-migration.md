@@ -263,8 +263,8 @@ maxWorkers: 8` вместо `maxWorkers: 6` от старого V8-пула. Н�
 | `rush fast-build:svelte-check` | `pnpm svelte-check` |
 | `rush fast-build:watch` | `pnpm build:watch` |
 | `rush fast-build:check` | `pnpm build:check` |
-| `rush fast-build:format` | `pnpm format:all` |
-| `rush fast-format` | `pnpm format` |
+| `rush fast-build:format` | `pnpm format` |
+| `rush fast-format` | `pnpm format:branch` |
 | `rush update` | `pnpm install` |
 | `rush check` | `pnpm check-versions` |
 | `pnpm run X` (в пакете) | `pnpm run X` |

@@ -616,9 +616,7 @@ export async function OnCardUpdate (txes: Tx[], control: TriggerControl): Promis
     if (!control.hierarchy.isDerived(cudTx.objectClass, cardPlugin.class.Card)) continue
     const card = await control.findAll(control.ctx, cardPlugin.class.Card, { _id: cudTx.objectId }, { limit: 1 })
     if (card.length === 0) continue
-    const ops = isUpdateTx(cudTx)
-      ? (cudTx as TxUpdateDoc<Card>).operations
-      : (cudTx as TxMixin<Card, Card>).attributes
+    const ops = isUpdateTx(cudTx) ? cudTx.operations : cudTx.attributes
     await putEventToQueue(
       {
         event: [

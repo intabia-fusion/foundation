@@ -175,7 +175,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Formatting...
-        run: pnpm format --branch ${{
+        run: pnpm format:branch --branch ${{
           github.base_ref || 'develop' }}
       - name: Check files formatting
         run: |

@@ -1,6 +1,5 @@
-import { Doc, Tx, TxUpdateDoc } from '@hcengineering/core'
+import core, { Doc, Tx, TxUpdateDoc } from '@hcengineering/core'
 import { SelectedContext } from './types'
-import core from '@hcengineering/core'
 import { parseDSLContext } from './dslContext'
 
 export function parseContext (value: any): SelectedContext | undefined {

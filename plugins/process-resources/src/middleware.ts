@@ -109,8 +109,8 @@ export class ProcessMiddleware extends BasePresentationMiddleware implements Pre
       })
       if (card === undefined) return
       const updated = isUpdateTx(updateTx)
-        ? TxProcessor.updateDoc2Doc<Card>(hierarchy.clone(card), updateTx as TxUpdateDoc<Card>)
-        : TxProcessor.updateMixin4Doc<Card, Card>(hierarchy.clone(card), updateTx as TxMixin<Card, Card>)
+        ? TxProcessor.updateDoc2Doc<Card>(hierarchy.clone(card), updateTx)
+        : TxProcessor.updateMixin4Doc<Card, Card>(hierarchy.clone(card), updateTx)
       for (const execution of executions) {
         const transitions = this.client.getModel().findAllSync(
           process.class.Transition,
@@ -125,9 +125,7 @@ export class ProcessMiddleware extends BasePresentationMiddleware implements Pre
         const inputContext = {
           ...execution.context,
           card: updated,
-          operations: isUpdateTx(updateTx)
-            ? (updateTx as TxUpdateDoc<Card>).operations
-            : (updateTx as TxMixin<Card, Card>).attributes
+          operations: isUpdateTx(updateTx) ? updateTx.operations : updateTx.attributes
         }
         const transition = await pickTransition(this.client, execution, transitions, inputContext)
         if (transition === undefined) continue

@@ -89,7 +89,10 @@ export function defineGetDisplayMedia (): void {
 }
 
 export function defineScreenShare (): void {
-  setCustomCreateScreenTracks(async function electronCreateScreenTracks (this: any, options?: ScreenShareCaptureOptions) {
+  setCustomCreateScreenTracks(async function electronCreateScreenTracks (
+    this: any,
+    options?: ScreenShareCaptureOptions
+  ) {
     const ipcMain = ipcMainExposed()
     const sources = await ipcMain.getScreenSources()
 

@@ -14,7 +14,14 @@
 //
 
 import otpGenerator from 'otp-generator'
-import { Convenience, Message, InputMediaAudio, InputMediaDocument, InputMediaPhoto, InputMediaVideo } from 'telegraf/types'
+import {
+  Convenience,
+  Message,
+  InputMediaAudio,
+  InputMediaDocument,
+  InputMediaPhoto,
+  InputMediaVideo
+} from 'telegraf/types'
 import { Parser } from 'htmlparser2'
 import { Context, Input } from 'telegraf'
 import { TelegramNotificationQueueMessage } from '@hcengineering/server-telegram'

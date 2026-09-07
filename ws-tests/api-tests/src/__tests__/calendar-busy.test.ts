@@ -43,6 +43,7 @@ import calendar, {
   type Calendar,
   type Event,
   type ReccuringEvent,
+  type ReccuringInstance,
   type RecurringRule,
   type Visibility
 } from '@hcengineering/calendar'
@@ -243,6 +244,50 @@ describe('calendar busy slots (api-tests)', () => {
       'events',
       update
     )
+  }
+
+  /** Overriding a single occurrence: the UI copies the master's rules onto the instance, so do we. */
+  async function createRecurringInstance (opts: {
+    master: { eventId: string, date: number, dueDate: number }
+    rules: RecurringRule[]
+    participants: Array<Ref<Person>>
+    originalStartTime: number
+    date: number
+    isCancelled?: boolean
+  }): Promise<{ id: Ref<ReccuringInstance>, eventId: string }> {
+    const id = generateId<ReccuringInstance>()
+    const eventId = generateEventId()
+    const duration = opts.master.dueDate - opts.master.date
+    await user1Rest.addCollection(
+      calendar.class.ReccuringInstance,
+      user1Space._id as unknown as Ref<Space>,
+      calendar.ids.NoAttached,
+      calendar.class.Event,
+      'events',
+      {
+        eventId,
+        calendar: user1Calendar,
+        title: 'overridden occurrence',
+        description: '',
+        date: opts.date,
+        dueDate: opts.date + duration,
+        allDay: false,
+        participants: opts.participants,
+        access: AccessLevel.Owner,
+        user: user1Primary,
+        blockTime: true,
+        rules: opts.rules,
+        exdate: [],
+        rdate: [],
+        recurringEventId: opts.master.eventId,
+        originalStartTime: opts.originalStartTime,
+        isCancelled: opts.isCancelled,
+        timeZone: 'Etc/UTC'
+      },
+      id
+    )
+    createdEventIds.push(id as unknown as Ref<Event>)
+    return { id, eventId }
   }
 
   async function removeEvent (id: Ref<Event>): Promise<void> {
@@ -512,6 +557,106 @@ describe('calendar busy slots (api-tests)', () => {
     const busy = getBusyIntervals(slots, windowFrom, windowTo)
     expect(busy.get(user1Person._id)?.length).toBe(5)
   }, 30000)
+
+  it('an overridden occurrence gets a single-shot slot and is excluded from the master series', async () => {
+    const rules: RecurringRule[] = [{ freq: 'DAILY', count: 5 }]
+    const { eventId, date, dueDate } = await createRecurringEvent({ participants: [user1Person._id], rules })
+    await eventually(async () => {
+      const found = await findSlots(eventId)
+      return found.length === 1 ? found : undefined
+    }, 15000)
+
+    const day = 24 * 60 * 60 * 1000
+    const originalStartTime = date + day
+    const moved = originalStartTime + 3 * 60 * 60 * 1000
+    const instance = await createRecurringInstance({
+      master: { eventId, date, dueDate },
+      rules,
+      participants: [user1Person._id],
+      originalStartTime,
+      date: moved
+    })
+
+    // The instance inherits the master's rules; carrying them into its slot would block the
+    // whole series at the new time.
+    const instanceSlots = await eventually(async () => {
+      const found = await findSlots(instance.eventId)
+      return found.length === 1 && (found[0].rules ?? []).length === 0 ? found : undefined
+    }, 15000)
+    expect(instanceSlots[0].date).toBe(moved)
+
+    const masterSlots = await eventually(async () => {
+      const found = await findSlots(eventId)
+      return found.length === 1 && (found[0].exdate ?? []).includes(originalStartTime) ? found : undefined
+    }, 15000)
+
+    const busy = getBusyIntervals([...masterSlots, ...instanceSlots], date - day, date + 10 * day)
+    const intervals = busy.get(user1Person._id) ?? []
+    // Five occurrences still, but the second one sits at the new time.
+    expect(intervals.length).toBe(5)
+    expect(intervals.some((it) => it.date === originalStartTime)).toBe(false)
+    expect(intervals.some((it) => it.date === moved)).toBe(true)
+  }, 60000)
+
+  it('a cancelled occurrence leaves no slot and frees the time in the master series', async () => {
+    const rules: RecurringRule[] = [{ freq: 'DAILY', count: 5 }]
+    const { eventId, date, dueDate } = await createRecurringEvent({ participants: [user1Person._id], rules })
+    await eventually(async () => {
+      const found = await findSlots(eventId)
+      return found.length === 1 ? found : undefined
+    }, 15000)
+
+    const day = 24 * 60 * 60 * 1000
+    const originalStartTime = date + 2 * day
+    const instance = await createRecurringInstance({
+      master: { eventId, date, dueDate },
+      rules,
+      participants: [user1Person._id],
+      originalStartTime,
+      date: originalStartTime,
+      isCancelled: true
+    })
+
+    const masterSlots = await eventually(async () => {
+      const found = await findSlots(eventId)
+      return found.length === 1 && (found[0].exdate ?? []).includes(originalStartTime) ? found : undefined
+    }, 15000)
+    expect(await findSlots(instance.eventId)).toHaveLength(0)
+
+    const busy = getBusyIntervals(masterSlots, date - day, date + 10 * day)
+    expect(busy.get(user1Person._id)?.length).toBe(4)
+  }, 60000)
+
+  it('removing an override hands the occurrence back to the master series', async () => {
+    const rules: RecurringRule[] = [{ freq: 'DAILY', count: 5 }]
+    const { eventId, date, dueDate } = await createRecurringEvent({ participants: [user1Person._id], rules })
+    await eventually(async () => {
+      const found = await findSlots(eventId)
+      return found.length === 1 ? found : undefined
+    }, 15000)
+
+    const day = 24 * 60 * 60 * 1000
+    const originalStartTime = date + day
+    const instance = await createRecurringInstance({
+      master: { eventId, date, dueDate },
+      rules,
+      participants: [user1Person._id],
+      originalStartTime,
+      date: originalStartTime + 3 * 60 * 60 * 1000
+    })
+    await eventually(async () => {
+      const found = await findSlots(eventId)
+      return (found[0]?.exdate ?? []).includes(originalStartTime) ? found : undefined
+    }, 15000)
+
+    await removeEvent(instance.id as unknown as Ref<Event>)
+
+    await eventually(async () => {
+      const found = await findSlots(eventId)
+      return found.length === 1 && !(found[0].exdate ?? []).includes(originalStartTime) ? found : undefined
+    }, 15000)
+    expect(await findSlots(instance.eventId)).toHaveLength(0)
+  }, 60000)
 
   it('a non-participant cannot read the Event but can read its BusySlot', async () => {
     // user2 is deliberately left out of participants, so the isolation check is real:

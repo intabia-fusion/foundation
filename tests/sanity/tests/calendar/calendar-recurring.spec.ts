@@ -64,4 +64,57 @@ test.describe('Calendar recurring events', () => {
       await expect(calendarPage2.eventInCalendarWidget(title)).toBeVisible({ timeout: 15000 })
     })
   })
+
+  test('Cancelling one occurrence of a series frees that time for the other participants', async ({
+    page,
+    browser
+  }) => {
+    const title = `Recurring occupancy ${generateId()}`
+
+    using _page2 = await getSecondPage(browser)
+    const page2 = _page2.page
+    const calendarPage2 = await openCalendarWidget(page2)
+    let hour: string = ''
+
+    await test.step('Second account starts a daily series tomorrow', async () => {
+      // The series starts on the day the check happens: an hour free there for the second
+      // account is free of everything but this series, so "no longer busy" means exactly that.
+      await calendarPage2.navigateWidgetForward()
+      hour = await calendarPage2.clickFreeCellInWidget()
+      await calendarPage2.inputEventTitle().fill(title)
+      await calendarPage2.setRecurringDaily()
+      await calendarPage2.buttonCreateEventSubmit().click()
+      await expect(calendarPage2.eventInCalendarWidget(title)).toBeVisible()
+    })
+
+    // The series is read through its BusySlot here: the first account is not a participant,
+    // so it never sees the Event itself - only the busy mark in the participants list.
+    const calendarPage = await openCalendarWidget(page)
+    await calendarPage.navigateWidgetForward()
+
+    await test.step('Tomorrow the series marks the second account busy', async () => {
+      await calendarPage.clickCellAtTime(hour)
+      await calendarPage.addEventParticipant(SECOND_USER_LAST_NAME)
+      await expect(calendarPage.participantBusyMark(SECOND_USER_LAST_NAME)).toBeVisible({ timeout: 15000 })
+      await calendarPage.closeCreateEventPopup()
+    })
+
+    await test.step('Second account cancels tomorrow occurrence only', async () => {
+      await calendarPage2.deleteOccurrenceInWidget(title)
+    })
+
+    await test.step('The cancelled hour is free again, the rest of the series is not touched', async () => {
+      await calendarPage.clickCellAtTime(hour)
+      await calendarPage.addEventParticipant(SECOND_USER_LAST_NAME)
+      await expect(calendarPage.participantBusyMark(SECOND_USER_LAST_NAME)).toBeHidden({ timeout: 15000 })
+      await calendarPage.closeCreateEventPopup()
+
+      // The next day still carries the second occurrence.
+      await calendarPage.navigateWidgetForward()
+      await calendarPage.clickCellAtTime(hour)
+      await calendarPage.addEventParticipant(SECOND_USER_LAST_NAME)
+      await expect(calendarPage.participantBusyMark(SECOND_USER_LAST_NAME)).toBeVisible({ timeout: 15000 })
+      await calendarPage.closeCreateEventPopup()
+    })
+  })
 })

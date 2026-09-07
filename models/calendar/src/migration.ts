@@ -43,6 +43,7 @@ import core, {
   type Ref,
   SocialIdType,
   type Space,
+  type Timestamp,
   toIdMap,
   type TxUpdateDoc
 } from '@hcengineering/core'
@@ -583,7 +584,32 @@ async function updateCalendarUser (client: MigrationClient): Promise<void> {
   }
 }
 
+// Dates a series gave away to overrides: the slot has no notion of an instance, so the master
+// must exclude them explicitly, and the override itself must not carry the series rules.
+async function overriddenDates (client: MigrationClient): Promise<Map<string, Timestamp[]>> {
+  const res = new Map<string, Timestamp[]>()
+  const iterator = await client.traverse<ReccuringInstance>(DOMAIN_EVENT, {
+    _class: calendar.class.ReccuringInstance,
+    access: AccessLevel.Owner
+  })
+  try {
+    while (true) {
+      const docs = await iterator.next(500)
+      if (docs === null || docs.length === 0) break
+      for (const doc of docs) {
+        const dates = res.get(doc.recurringEventId) ?? []
+        dates.push(doc.originalStartTime)
+        res.set(doc.recurringEventId, dates)
+      }
+    }
+  } finally {
+    await iterator.close()
+  }
+  return res
+}
+
 async function fillBusySlots (client: MigrationClient): Promise<void> {
+  const overrides = await overriddenDates(client)
   const iterator = await client.traverse<Event>(DOMAIN_EVENT, {
     _class: { $in: client.hierarchy.getDescendants(calendar.class.Event) },
     blockTime: true,
@@ -606,6 +632,10 @@ async function fillBusySlots (client: MigrationClient): Promise<void> {
       for (const event of docs) {
         if ((event as ReccuringInstance).isCancelled === true) continue
         const rec = event as ReccuringEvent
+        const single = (event as ReccuringInstance).recurringEventId !== undefined
+        const exdate = single
+          ? undefined
+          : Array.from(new Set([...(rec.exdate ?? []), ...(overrides.get(event.eventId) ?? [])]))
         for (const person of event.participants as Ref<Person>[]) {
           const key = `${person}:${event.eventId}`
           if (known.has(key)) continue
@@ -622,9 +652,9 @@ async function fillBusySlots (client: MigrationClient): Promise<void> {
             dueDate: event.dueDate,
             allDay: event.allDay,
             timeZone: event.timeZone,
-            rules: rec.rules,
-            exdate: rec.exdate,
-            rdate: rec.rdate
+            rules: single ? undefined : rec.rules,
+            exdate,
+            rdate: single ? undefined : rec.rdate
           })
         }
       }

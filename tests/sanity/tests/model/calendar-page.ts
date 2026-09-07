@@ -189,6 +189,39 @@ export class CalendarPage extends CommonPage {
     await this.buttonRepeatSave().click()
   }
 
+  // calendar.action.DeleteRecEvent overrides the generic Delete for a ReccuringInstance and opens
+  // UpdateRecInstancePopup, whose dropdown defaults to "This event" - exactly the override case.
+  private readonly recInstancePopup = (): Locator => this.page.locator('div.popup div.msgbox-container')
+
+  async deleteOccurrenceInWidget (title: string): Promise<void> {
+    await this.eventInCalendarWidget(title).first().click({ button: 'right' })
+    await this.selectPopupApMenuItem('Delete').click()
+    await expect(this.recInstancePopup()).toBeVisible()
+    await this.recInstancePopup().getByRole('button', { name: 'Ok' }).click()
+    await expect(this.eventInCalendarWidget(title)).toHaveCount(0)
+  }
+
+  // The participants dropdown stays open for multi-select and covers the popup, so Escape goes
+  // to it first; the create popup itself only closes through its own cross.
+  async closeCreateEventPopup (): Promise<void> {
+    await this.page.keyboard.press('Escape')
+    if (await this.createEventPopup().isVisible()) {
+      await this.createEventPopup().locator('button#card-close').click()
+    }
+    await expect(this.createEventPopup()).toBeHidden()
+    // The overlay outlives a half-closed popup and swallows every following click.
+    await expect(this.page.locator('div.modal-overlay')).toHaveCount(0)
+  }
+
+  // Opens the create-event popup on a known hour instead of scanning for a free one - the hour
+  // is dictated by the colleague's event the test is checking against.
+  async clickCellAtTime (time: string): Promise<void> {
+    const cell = this.emptyCellAtTime(time)
+    await cell.scrollIntoViewIfNeeded()
+    await cell.click()
+    await expect(this.createEventPopup()).toBeVisible()
+  }
+
   // EventParticipantItem.svelte marks a participant already booked for the event's own time
   // with .busy-mark.busy; free participants get the same mark without the modifier.
   participantsRow = (name: string): Locator => this.createEventPopup().locator('div.antiOption', { hasText: name })

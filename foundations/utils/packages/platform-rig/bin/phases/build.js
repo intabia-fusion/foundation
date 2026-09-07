@@ -120,6 +120,14 @@ async function runBuildPhase (graph, packageNames, concurrency, options = {}) {
       return
     }
 
+    // tsc's own incremental state does not notice that outputs were deleted, so --force
+    // has to drop it too or nothing is re-emitted.
+    if (force) {
+      try {
+        require('fs').rmSync(join(packagePath, '.build', 'build.tsbuildinfo'), { force: true })
+      } catch {}
+    }
+
     const result = isEsbuild
       ? await runEsbuildPackage(packagePath).then(() => ({ success: true }), (err) => ({ success: false, error: err }))
       : await runTsc(packagePath, isUi)

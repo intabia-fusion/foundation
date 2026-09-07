@@ -3,9 +3,9 @@
 ## Running platform inside docker compose
 
 ```bash
-rush build
-rush bundle
-rush docker:build
+pnpm build
+pnpm bundle
+pnpm docker:build
 docker compose up -d --force-recreate
 ```
 

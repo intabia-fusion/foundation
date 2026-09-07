@@ -12,10 +12,9 @@
   "scripts": {
     "build": "compile",
     "build:watch": "tsc",
-    "_phase:package": "rushx package",
-    "_phase:validate": "compile validate",
+    "_phase:package": "pnpm run package",
     "_phase:test": "jest --passWithNoTests --silent --forceExit --detectOpenHandles",
-    "package": "rushx bump && cross-env NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4094' node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details && echo 'done' ",
+    "package": "pnpm run bump && cross-env NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4094' node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details && echo 'done' ",
     "webpack": "cross-env NODE_ENV=development node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details --progress -w",
     "devp": "cross-env NODE_ENV=production CLIENT_TYPE=dev node ../common/scripts/set_model_and_version_env.js webpack --progress -w",
     "dev": "cross-env NODE_ENV=development node ../common/scripts/set_model_and_version_env.js webpack --progress -w",

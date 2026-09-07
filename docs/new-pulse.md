@@ -112,7 +112,7 @@ Register in `rush.json` and `models/all/src/index.ts`.
 7. Run `diagnostics`, verify build.
 8. Memory note in `docs/memory/pulse.md`.
 
-Single PR. `rushx format` is user's responsibility.
+Single PR. `pnpm run format` is user's responsibility.
 
 ---
 

@@ -169,7 +169,7 @@ async function runDockerBuildPhase(graph, packageNames, concurrency, options = {
       console.log(`    [docker-build] Starting ${packageName}...`)
 
       // Pass packageHash to docker build for labeling
-      const child = spawn('rushx', ['docker:build'], {
+      const child = spawn('pnpm', ['run', 'docker:build'], {
         cwd,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, PACKAGE_HASH: packageHash || '' }

@@ -18,7 +18,6 @@ function makeGraph (spec) {
       dependencies: new Set(node.deps ?? []),
       dependents: new Set(),
       phaseBuild: node.phaseBuild,
-      phaseValidate: node.phaseValidate,
       phaseBundle: node.phaseBundle,
       phasePackage: node.phasePackage,
       phaseDockerBuild: node.phaseDockerBuild,
@@ -30,54 +29,35 @@ function makeGraph (spec) {
   return graph
 }
 
-const ALL = { doValidate: true, doTest: true, doBundle: true, doPackage: true, doDockerBuild: true, doSvelteCheck: true }
+const ALL = { doTest: true, doBundle: true, doPackage: true, doDockerBuild: true, doSvelteCheck: true }
 
 describe('selectPackagesForPhases', () => {
   test('picks up the three known build scripts', () => {
     const graph = makeGraph({
-      src: { phaseBuild: 'compile transpile src' },
-      tests: { phaseBuild: 'compile transpile tests' },
+      src: { phaseBuild: 'compile build' },
+      ui: { phaseBuild: 'compile build-ui' },
       uiEsbuild: { phaseBuild: 'compile ui-esbuild' }
     })
     const sel = selectPackagesForPhases(graph, ALL)
-    assert.deepEqual(sel.transpile.sort(), ['src', 'tests', 'uiEsbuild'])
-  })
-
-  test('"compile ui" has nothing to transpile and is not an unknown script', () => {
-    const graph = makeGraph({ ui: { phaseBuild: 'compile ui', phaseValidate: 'compile validate' } })
-    const sel = selectPackagesForPhases(graph, ALL)
-    assert.deepEqual(sel.transpile, [])
-    assert.deepEqual(sel.validate, ['ui'])
+    assert.deepEqual(sel.build.sort(), ['src', 'ui', 'uiEsbuild'])
     assert.deepEqual(sel.unknown, [])
   })
 
-  // Regression: `services/ai-bot/love-agent` ("wasm && node esbuild.config.js") and
-  // `dev/prod` ("rm -rf ./types && compile validate") were dropped by a strict string
-  // comparison — never transpiled, never validated, and never reported.
+  // Regression: `services/ai-bot/love-agent` ("wasm && node esbuild.config.js") was dropped
+  // by a strict string comparison — never built and never reported.
   test('reports an unrecognised build script instead of dropping it silently', () => {
     const graph = makeGraph({ wasmPkg: { phaseBuild: 'wasm && node esbuild.config.js' } })
     const sel = selectPackagesForPhases(graph, ALL)
-    assert.deepEqual(sel.transpile, [])
+    assert.deepEqual(sel.build, [])
     assert.deepEqual(sel.unknown, [{ package: 'wasmPkg', phase: 'build', script: 'wasm && node esbuild.config.js' }])
-  })
-
-  test('reports an unrecognised validate script instead of dropping it silently', () => {
-    const graph = makeGraph({
-      devProd: { phaseBuild: 'compile transpile src', phaseValidate: 'rm -rf ./types && compile validate' }
-    })
-    const sel = selectPackagesForPhases(graph, ALL)
-    assert.deepEqual(sel.validate, [])
-    assert.deepEqual(sel.unknown, [
-      { package: 'devProd', phase: 'validate', script: 'rm -rf ./types && compile validate' }
-    ])
   })
 
   test('"echo done" is an explicit no-op, not an unknown script', () => {
     const graph = makeGraph({
-      noop: { phaseBuild: 'compile transpile src', phaseValidate: 'echo done', phaseBundle: 'echo done' }
+      noop: { phaseBuild: 'echo done', phaseBundle: 'echo done' }
     })
     const sel = selectPackagesForPhases(graph, ALL)
-    assert.deepEqual(sel.validate, [])
+    assert.deepEqual(sel.build, [])
     assert.deepEqual(sel.bundle, [])
     assert.deepEqual(sel.unknown, [])
   })
@@ -85,16 +65,14 @@ describe('selectPackagesForPhases', () => {
   test('phases are skipped unless their flag is set', () => {
     const graph = makeGraph({
       a: {
-        phaseBuild: 'compile transpile src',
-        phaseValidate: 'compile validate',
+        phaseBuild: 'compile build',
         phaseTest: 'jest --passWithNoTests',
         phaseBundle: 'node esbuild.js',
         phaseSvelteCheck: 'do-svelte-check'
       }
     })
     const sel = selectPackagesForPhases(graph, {})
-    assert.deepEqual(sel.transpile, ['a'])
-    assert.deepEqual(sel.validate, [])
+    assert.deepEqual(sel.build, ['a'])
     assert.deepEqual(sel.test, [])
     assert.deepEqual(sel.bundle, [])
     assert.deepEqual(sel.svelteCheck, [])
@@ -102,15 +80,15 @@ describe('selectPackagesForPhases', () => {
 
   test('honours the --to target set', () => {
     const graph = makeGraph({
-      a: { phaseBuild: 'compile transpile src' },
-      b: { phaseBuild: 'compile transpile src' }
+      a: { phaseBuild: 'compile build' },
+      b: { phaseBuild: 'compile build' }
     })
     const sel = selectPackagesForPhases(graph, { ...ALL, targetPackages: new Set(['a']) })
-    assert.deepEqual(sel.transpile, ['a'])
+    assert.deepEqual(sel.build, ['a'])
   })
 
-  test('format is collected regardless of the validate flag', () => {
-    const graph = makeGraph({ a: { phaseBuild: 'compile transpile src', phaseFormat: 'format src' } })
+  test('format is always collected', () => {
+    const graph = makeGraph({ a: { phaseBuild: 'compile build', phaseFormat: 'format src' } })
     assert.deepEqual(selectPackagesForPhases(graph, {}).format, ['a'])
   })
 })

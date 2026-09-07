@@ -580,7 +580,7 @@ services:
     restart: unless-stopped
 
   # clisr worker serving the `pro` level from a local model on the host. Starts always but
-  # idles unless a model server is up; only the @llm suite (rushx run-uitests) uses it.
+  # idles unless a model server is up; only the @llm suite (pnpm run run-uitests) uses it.
   aibot_client_llm:
     image: intabiafusion/ai-bot
     pull_policy: never

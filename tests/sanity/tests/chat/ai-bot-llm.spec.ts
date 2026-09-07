@@ -9,7 +9,7 @@ import { SelectWorkspacePage } from '../model/select-workspace-page'
 import { PlatformURI, generateTestData } from '../utils'
 
 // Real-LLM suite (@llm): the `middle` level is served by the aibot_client_llm worker against a
-// local model on the host. Run via `rushx run-uitests`; setup in tests/readme.md.
+// local model on the host. Run via `pnpm run run-uitests`; setup in tests/readme.md.
 
 test.describe.configure({ mode: 'serial' })
 

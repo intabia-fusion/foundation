@@ -77,7 +77,7 @@ go build -o front-benchmark main.go
 if [ "$BUILD" = true ]; then
   echo "Building bundle..."
   cd "$FRONT_DIR"
-  rushx bundle
+  pnpm run bundle
 
   echo "Building Docker images..."
   docker build --build-arg BUILD_ID=bench-node -t "$NODE_IMAGE" -f Dockerfile . &

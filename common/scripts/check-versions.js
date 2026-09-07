@@ -4,7 +4,7 @@
  * This script validates that all @hcengineering packages use the same versions
  * across all dependencies (including devDependencies).
  * 
- * This is similar to `rush check` but also checks for transitive dependencies
+ * Also checks transitive dependencies in the lockfile.
  * and only validates @hcengineering packages.
  * 
  * The script will fail with exit code 1 if any version mismatches are found.
@@ -17,21 +17,20 @@ const execSync = require('child_process').execSync
 const SCOPE = '@hcengineering'
 
 /**
- * Find the repository root by looking for rush.json
+ * Find the repository root by looking for pnpm-workspace.yaml
  * @returns {string} Path to repository root
  */
 function findRepoRoot() {
   let currentDir = __dirname
   
   while (currentDir !== '/') {
-    const rushJsonPath = path.join(currentDir, 'rush.json')
-    if (fs.existsSync(rushJsonPath)) {
+    if (fs.existsSync(path.join(currentDir, 'pnpm-workspace.yaml'))) {
       return currentDir
     }
     currentDir = path.dirname(currentDir)
   }
   
-  throw new Error('Could not find repository root (rush.json not found)')
+  throw new Error('Could not find repository root (pnpm-workspace.yaml not found)')
 }
 
 /**
@@ -41,7 +40,7 @@ function findRepoRoot() {
  */
 function parseLockfile() {
   const repoRoot = findRepoRoot()
-  const lockfilePath = path.join(repoRoot, 'common/config/rush/pnpm-lock.yaml')
+  const lockfilePath = path.join(repoRoot, 'pnpm-lock.yaml')
   
   if (!fs.existsSync(lockfilePath)) {
     console.warn('⚠️  pnpm-lock.yaml not found, skipping lockfile validation')
@@ -134,38 +133,17 @@ function parseLockfile() {
 }
 
 /**
- * Get all projects from rush
+ * Get all workspace projects
  * @returns {Array} List of projects with name, version, and path
  */
 function getProjects() {
-  console.log('📦 Loading Rush projects...')
+  console.log('📦 Loading workspace projects...')
   try {
     const repoRoot = findRepoRoot()
-    const output = execSync('node common/scripts/install-run-rush.js list -p --json', {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: repoRoot
-    })
-    
-    // Parse the JSON output (skip any warnings/logs before the JSON)
-    const lines = output.split('\n')
-    let jsonStart = -1
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].trim().startsWith('{')) {
-        jsonStart = i
-        break
-      }
-    }
-    
-    if (jsonStart === -1) {
-      throw new Error('Could not find JSON output from rush list')
-    }
-    
-    const jsonOutput = lines.slice(jsonStart).join('\n')
-    const config = JSON.parse(jsonOutput)
-    return config.projects
+    return require(repoRoot + '/foundations/utils/packages/platform-rig/bin/libs/workspace')
+      .listWorkspaceProjects(repoRoot)
   } catch (error) {
-    console.error('❌ Error loading Rush projects:', error.message)
+    console.error('❌ Error loading workspace projects:', error.message)
     process.exit(1)
   }
 }
@@ -399,7 +377,7 @@ function displayLockfileMismatches(mismatches) {
 function main() {
   console.log('🚀 Checking @hcengineering dependency versions...\n')
   
-  // Get all projects from rush
+  // Get all workspace projects
   const projects = getProjects()
   
   // Build dependency map from package.json files
@@ -442,8 +420,8 @@ function main() {
     
     console.log('To fix these issues:')
     console.log('  1. Update package.json files to use consistent versions')
-    console.log('  2. Run: rush update')
-    console.log('  3. Run: rush rebuild')
+    console.log('  2. Run: pnpm install')
+    console.log('  3. Run: pnpm build --force')
     console.log('  4. Run this script again to verify')
     console.log()
     process.exit(1)

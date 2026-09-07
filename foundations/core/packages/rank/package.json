@@ -14,8 +14,7 @@
   "author": "Anticrm Platform Contributors",
   "license": "EPL-2.0",
   "scripts": {
-    "_phase:build": "compile transpile src",
-    "_phase:validate": "compile validate",
+    "_phase:build": "compile build",
     "_phase:test": "jest --passWithNoTests --silent --coverage",
     "_phase:format": "format src",
     "build": "compile",

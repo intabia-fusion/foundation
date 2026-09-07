@@ -15,12 +15,6 @@
 
 // TypeScript setup for Jest test environment
 
-declare global {
-  interface Window {
-    getComputedStyle: (element: Element, pseudoElt?: string | null) => CSSStyleDeclaration
-  }
-}
-
 // Mock getComputedStyle
 Object.defineProperty(window, 'getComputedStyle', {
   value: (): Partial<CSSStyleDeclaration> => ({

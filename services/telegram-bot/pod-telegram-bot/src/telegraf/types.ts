@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import { Message, Update } from 'telegraf/typings/core/types/typegram'
+import { Message, Update } from 'telegraf/types'
 import { Context, Scenes } from 'telegraf'
 
 export type ReplyMessage = Update.New &

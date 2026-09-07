@@ -82,9 +82,9 @@ ignore store, общие с TUI.
 
 1. сравнить каждый севший коммит с оригиналом (numstat по файлам) - ловит
    потерянные строки;
-2. `cd <pkg> && rushx svelte-check` в каждом затронутом svelte-пакете - ловит
+2. `cd <pkg> && pnpm run svelte-check` в каждом затронутом svelte-пакете - ловит
    подменённые (шаблон ссылается на переменную, которой в скрипте нет). Ни
-   eslint, ни tsc это не видят. `rush svelte-check` вывод глотает, гонять
+   eslint, ни tsc это не видят. `pnpm svelte-check` вывод глотает, гонять
    только в самом пакете.
 
 См. `docs/memory/upstream-sync.md`.

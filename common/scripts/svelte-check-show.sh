@@ -1,6 +1,6 @@
 #!/bin/sh
 
-roots=$(rush list -p --json | grep "path" | cut -f 2 -d ':' | cut -f 2 -d '"')
+roots=$(node -e 'console.log(require("./foundations/utils/packages/platform-rig/bin/libs/workspace").listWorkspaceProjects().map(p=>p.path).join("\n"))')
 files="svelte-check.log svelte-check-err.log"
 for file in $roots; do
   for check in $files; do

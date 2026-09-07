@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import { BotCommand } from 'telegraf/typings/core/types/typegram'
+import { BotCommand } from 'telegraf/types'
 import { translate } from '@hcengineering/platform'
 import telegram from '@hcengineering/telegram'
 import { Context, Telegraf } from 'telegraf'

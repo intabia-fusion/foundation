@@ -289,6 +289,11 @@ function getDefaultWorkerCount() {
  *    buys nothing: uncapped validate peaked at 9.2GB and ran no faster than a 2GB cap.
  */
 const PHASE_MEMORY = {
+  // Native tsc is a Go process, not a V8 isolate: ~420MB peak, and wall time keeps improving
+  // with more processes even when every core is busy. Measured 460 packages: on 16 cores
+  // 4 -> 14.0s, 8 -> 14.0s, 16 -> 14.6s; on 4 cores 2 -> 42.5s, 4 -> 22.4s, 8 -> 19.2s.
+  // Hence a fixed count capped only by memory, not by CPU count.
+  tsc: { minHeapMB: 512, heapMB: 512, workers: 8 },
   typescript: { minHeapMB: 1536, heapMB: 2048, maxWorkers: 6 },
   'svelte-check': { minHeapMB: 3072, heapMB: 3072 },
   format: { minHeapMB: 1280, heapMB: 1536 },
@@ -324,7 +329,9 @@ function getOptimalWorkerCount(requestedWorkers, taskType = 'default', overrides
   const requested = Number.isFinite(envWorkers) && envWorkers > 0 ? envWorkers : requestedWorkers
 
   const byMemory = Math.max(1, Math.floor(budgetMB / spec.minHeapMB))
-  const byCpu = Math.min(requested, cpuCount, spec.maxWorkers ?? cpuCount)
+  // `spec.workers` is a fixed count for phases whose worker is itself multi-threaded:
+  // the CPU count says nothing useful there, only memory does. --force-workers still wins.
+  const byCpu = spec.workers ?? Math.min(requested, cpuCount, spec.maxWorkers ?? cpuCount)
   const workers = Math.max(1, Math.min(byCpu, byMemory))
 
   // Split the budget across the workers we settled on. Never hand out more than the

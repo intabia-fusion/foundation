@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
-rush update
-rush fast-build:validate
-rush fast-build:docker
+pnpm install --frozen-lockfile
+pnpm build
+pnpm docker
 ./prepare-pg.sh
 ./tool-pg.sh sync-indexes indexes.yaml --apply
 pushd sanity
-rushx uitest:telemetry --workers 5
+pnpm run uitest:telemetry --workers 5

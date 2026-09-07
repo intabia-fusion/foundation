@@ -1,8 +1,8 @@
 {  
   "compilerOptions": {
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "target": "esnext",
-    "module": "commonjs",
+    "module": "esnext",  // keeps templated import() intact so bundlers can see ../lang/*.json
     "sourceMap": true,
     "declaration": true,
     "rootDir": "./src",

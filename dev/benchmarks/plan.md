@@ -10,7 +10,7 @@ All tests accept `--accountUrl` (or env `HULY_URL`) to target any environment.
 ```
 dev/benchmarks/
   plan.md              # This file
-  package.json         # Standalone package (ts-node, no rush build needed)
+  package.json         # Standalone package (ts-node, no pnpm build needed)
   tsconfig.json
   src/
     config.ts              # CLI args parsing, env vars

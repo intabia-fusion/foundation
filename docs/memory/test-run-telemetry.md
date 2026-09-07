@@ -1,6 +1,6 @@
 # Test run telemetry
 
-Инструменты в `tests/sanity/telemetry/`, запуск - `rushx uitest:telemetry` (обёртка `run.sh`).
+Инструменты в `tests/sanity/telemetry/`, запуск - `pnpm run uitest:telemetry` (обёртка `run.sh`).
 Постановка задачи и статус - `platform-tasks/docs/performance/2026-08-30-001-test-run-telemetry.md`.
 
 ## Клиентские метрики (`client.ws.*`) - как устроен тракт
@@ -26,7 +26,7 @@ Analytics - 5s. Страница в sanity-тесте живёт единицы 
 
 ## Грабли: старый бандл фронта
 
-Front-образ стенда собирается отдельно, и `rush fast-build:docker` спокойно отдаёт бандл из кэша.
+Front-образ стенда собирается отдельно, и `pnpm docker` спокойно отдаёт бандл из кэша.
 Прогон против такого бандла собирает метрики по коду, которого в нём нет - выглядит как «тракт не
 работает», хотя чинить нечего. `run.sh` теперь падает до старта, если в
 `sanity-front0-1:/app/dist/bundle.*.js` нет маркера `__analyticsFlush`. Обходы: `BUNDLE_CHECK=0`,

@@ -143,10 +143,10 @@ sh ./scripts/fast-start.sh
 
 The repository is a [pnpm](https://pnpm.io) workspace.
 
-1. Install pnpm globally:
+1. Activate pnpm. Corepack ships with Node and pins the version from `packageManager`:
 
 ```bash
-npm install -g pnpm
+corepack enable pnpm
 ```
 
 2. Navigate to the repository root and run:
@@ -154,12 +154,6 @@ npm install -g pnpm
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-```
-
-Alternatively, you can just execute:
-
-```bash
-sh ./scripts/presetup-pnpm.sh
 ```
 
 ## Build and run

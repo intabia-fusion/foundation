@@ -2,7 +2,7 @@
   "name": "@hcengineering/foundation",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@10.30.3",
+  "packageManager": "pnpm@12.3.4",
   "engines": {
     "node": ">=24.0.0 <25.0.0"
   },
@@ -42,5 +42,8 @@
     "remove-ts-types": "find . -maxdepth 5 -name types -type d -not -path '*node_modules*' -exec rm -rf {} +",
     "update-deps": "./common/scripts/node_modules/.bin/update-deps",
     "doupdate": "pnpm install --frozen-lockfile"
+  },
+  "dependencies": {
+    "pnpm": "^12.3.4"
   }
 }

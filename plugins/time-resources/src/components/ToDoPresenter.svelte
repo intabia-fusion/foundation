@@ -26,6 +26,7 @@
   export let withoutSpace: boolean = false
   export let withouthWorkItem: boolean = false
   export let showCheck = false
+  export let readonly: boolean = false
 
   function isVisible (value: ToDo): boolean {
     if (value.createdBy !== undefined && getCurrentAccount().socialIds.includes(value.createdBy)) return true
@@ -39,7 +40,7 @@
 
   const me = getCurrentEmployee()
 
-  $: readonly = value.user !== me || updating !== undefined
+  $: checkReadonly = readonly || value.user !== me || updating !== undefined
 
   const client = getClient()
 
@@ -56,7 +57,13 @@
 {#if showCheck}
   <div class="flex-row-center items-start">
     <div class="mt-0-5">
-      <CheckBox {readonly} checked={value.doneOn != null} kind={'positive'} size={'medium'} on:value={markDone} />
+      <CheckBox
+        readonly={checkReadonly}
+        checked={value.doneOn != null}
+        kind={'positive'}
+        size={'medium'}
+        on:value={markDone}
+      />
     </div>
     <div class="ml-2 flex-col">
       <div class="overflow-label flex-no-shrink">

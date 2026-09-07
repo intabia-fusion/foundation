@@ -13,10 +13,9 @@
     "test": "echo 'run api-test' for API-tests",
     "api-test": "jest --passWithNoTests --forceExit",
     "format": "format src",
-    "_phase:build": "compile transpile src",
+    "_phase:build": "compile build",
     "_phase:test": "echo 'run api-test' for API-tests",
-    "_phase:format": "format src",
-    "_phase:validate": "compile validate"
+    "_phase:format": "format src"
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",
@@ -59,7 +58,9 @@
     "@hcengineering/contact": "workspace:^0.7.0",
     "@hcengineering/chunter": "workspace:^0.7.0",
     "@hcengineering/love": "workspace:^0.7.0",
+    "@hcengineering/calendar": "workspace:^0.7.0",
     "@hcengineering/rank": "workspace:^0.7.17",
+    "@hcengineering/time": "workspace:^0.7.0",
     "@hcengineering/workflow": "workspace:^0.7.0",
     "@hcengineering/view": "workspace:^0.7.0"
   }

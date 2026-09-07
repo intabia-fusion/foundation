@@ -12,7 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import calendar, { AccessLevel, Calendar, Event, getPrimaryCalendar } from '@hcengineering/calendar'
+import calendar, {
+  AccessLevel,
+  busySlotData,
+  Calendar,
+  Event,
+  getPrimaryCalendar,
+  ReccuringEvent,
+  ReccuringInstance
+} from '@hcengineering/calendar'
 import contactPlugin, { Employee, Person } from '@hcengineering/contact'
 import core, {
   AccountUuid,
@@ -29,6 +37,7 @@ import core, {
   pickPrimarySocialId,
   Ref,
   systemAccountUuid,
+  Timestamp,
   Tx,
   TxCreateDoc,
   TxCUD,
@@ -39,7 +48,13 @@ import core, {
 } from '@hcengineering/core'
 import { getMetadata } from '@hcengineering/platform'
 import serverCalendar from '@hcengineering/server-calendar'
-import { getAccountBySocialId, getPerson, getSocialIds, getSocialStrings } from '@hcengineering/server-contact'
+import {
+  getAccountBySocialId,
+  getPerson,
+  getPersonSpaces,
+  getSocialIds,
+  getSocialStrings
+} from '@hcengineering/server-contact'
 import { QueueTopic, TriggerControl } from '@hcengineering/server-core'
 import { generateToken } from '@hcengineering/server-token'
 import { Presenter, PresenterControl } from '@hcengineering/server-activity'
@@ -164,16 +179,104 @@ async function OnEvent (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
     const ctx = tx as TxCUD<Event>
     if (ctx._class === core.class.TxCreateDoc) {
       result.push(...(await onEventCreate(ctx as TxCreateDoc<Event>, control)))
+      result.push(...(await syncBusySlot(TxProcessor.createDoc2Doc(ctx as TxCreateDoc<Event>), control)))
     } else if (ctx._class === core.class.TxUpdateDoc) {
       result.push(...(await onEventUpdate(ctx as TxUpdateDoc<Event>, control)))
+      const event = (await control.findAll(control.ctx, calendar.class.Event, { _id: ctx.objectId }, { limit: 1 }))[0]
+      if (event !== undefined) {
+        result.push(...(await syncBusySlot(event, control)))
+      }
     } else if (ctx._class === core.class.TxRemoveDoc) {
       result.push(...(await onRemoveEvent(ctx as TxRemoveDoc<Event>, control)))
+      const removed = control.removedMap.get(ctx.objectId) as Event | undefined
+      if (removed !== undefined) {
+        result.push(...(await removeBusySlot(removed, control)))
+      }
     } else if (ctx._class === core.class.TxMixin) {
       result.push(...(await onEventMixin(ctx as TxMixin<Event, Event>, control)))
     }
   }
 
   return result
+}
+
+// `getAllEvents` drops a master occurrence by matching an instance `originalStartTime`, but the
+// slot carries only rules and `exdate` - so the dates taken over by overrides are excluded here.
+async function masterOverrides (event: ReccuringEvent, control: TriggerControl): Promise<Timestamp[]> {
+  const overrides = await control.findAll(
+    control.ctx,
+    calendar.class.ReccuringInstance,
+    { recurringEventId: event.eventId, access: AccessLevel.Owner },
+    { projection: { originalStartTime: 1 } }
+  )
+  return overrides.map((it) => it.originalStartTime)
+}
+
+// Slots are kept for the master event only: participant copies share its eventId,
+// so the master alone yields one slot per participant.
+async function slotTxes (event: Event, control: TriggerControl): Promise<Tx[]> {
+  const rec = event as ReccuringEvent
+  const single = (event as ReccuringInstance).recurringEventId !== undefined
+  const overrides = !single && rec.rules !== undefined ? await masterOverrides(rec, control) : []
+  const slots = await control.findAll(control.ctx, calendar.class.BusySlot, { eventId: event.eventId })
+  const cancelled = (event as ReccuringInstance).isCancelled === true
+  const persons = event.blockTime && !cancelled ? new Set(event.participants as Ref<Person>[]) : new Set<Ref<Person>>()
+
+  const res: Tx[] = []
+  const seen = new Set<Ref<Person>>()
+  for (const slot of slots) {
+    if (!persons.has(slot.person) || seen.has(slot.person)) {
+      res.push(control.txFactory.createTxRemoveDoc(slot._class, slot.space, slot._id))
+      continue
+    }
+    seen.add(slot.person)
+    const update = getDiffUpdate(slot, busySlotData(event, slot.person, overrides))
+    if (Object.keys(update).length !== 0) {
+      res.push(control.txFactory.createTxUpdateDoc(slot._class, slot.space, slot._id, update))
+    }
+  }
+  for (const person of persons) {
+    if (seen.has(person)) continue
+    res.push(
+      control.txFactory.createTxCreateDoc(
+        calendar.class.BusySlot,
+        calendar.space.Calendar,
+        busySlotData(event, person, overrides)
+      )
+    )
+  }
+  return res
+}
+
+// Appearing, changing or going away, an override moves the occurrence in and out of the master
+// series, so the master slot has to be recomputed alongside the instance's own.
+async function masterSlotTxes (recurringEventId: string | undefined, control: TriggerControl): Promise<Tx[]> {
+  if (recurringEventId === undefined) return []
+  const master = (
+    await control.findAll(
+      control.ctx,
+      calendar.class.ReccuringEvent,
+      { eventId: recurringEventId, access: AccessLevel.Owner },
+      { limit: 1 }
+    )
+  )[0]
+  if (master === undefined) return []
+  return await slotTxes(master, control)
+}
+
+async function syncBusySlot (event: Event, control: TriggerControl): Promise<Tx[]> {
+  if (event.access !== AccessLevel.Owner) return []
+  const res = await slotTxes(event, control)
+  res.push(...(await masterSlotTxes((event as ReccuringInstance).recurringEventId, control)))
+  return res
+}
+
+async function removeBusySlot (event: Event, control: TriggerControl): Promise<Tx[]> {
+  if (event.access !== AccessLevel.Owner) return []
+  const slots = await control.findAll(control.ctx, calendar.class.BusySlot, { eventId: event.eventId })
+  const res: Tx[] = slots.map((slot) => control.txFactory.createTxRemoveDoc(slot._class, slot.space, slot._id))
+  res.push(...(await masterSlotTxes((event as ReccuringInstance).recurringEventId, control)))
+  return res
 }
 
 async function onEventMixin (ctx: TxMixin<Event, Event>, control: TriggerControl): Promise<Tx[]> {
@@ -258,12 +361,16 @@ async function eventForNewParticipants (
   const access = AccessLevel.Reader
   const { _class, space, attachedTo, attachedToClass, collection, ...attr } = event
   const data = attr as any as Data<Event>
+  const personSpaces = await getPersonSpaces(control)
   for (const part of newParticipants) {
     const socialIds = await getSocialIds(control, part)
     if (socialIds.length === 0) continue
     const socialStrings = socialIds.map((si) => si._id)
     if (socialStrings.includes(event.user ?? event.createdBy ?? event.modifiedBy)) continue
 
+    // copy lives in the participant's own PersonSpace, not the original event's space
+    const personSpace = personSpaces.find((s) => s.person === part)
+    if (personSpace === undefined) continue
     const primarySocialString = pickPrimarySocialId(socialIds)._id
     const user = primarySocialString
     const filtered = calendars.filter((c) => c.user === primarySocialString)
@@ -272,7 +379,7 @@ async function eventForNewParticipants (
     const calendar = getPrimaryCalendar(filtered, undefined, acc)
     const innerTx = control.txFactory.createTxCreateDoc(
       _class,
-      space,
+      personSpace._id,
       { ...data, calendar, access, user },
       undefined,
       undefined,
@@ -281,7 +388,7 @@ async function eventForNewParticipants (
     const outerTx = control.txFactory.createTxCollectionCUD(
       attachedToClass,
       attachedTo,
-      space,
+      personSpace._id,
       collection,
       innerTx,
       undefined,
@@ -364,12 +471,16 @@ async function onEventCreate (ctx: TxCreateDoc<Event>, control: TriggerControl):
   const data = attr as any as Data<Event>
   const calendars = await control.findAll(control.ctx, calendar.class.Calendar, { hidden: false })
   const events = await control.findAll(control.ctx, calendar.class.Event, { eventId: event.eventId })
+  const personSpaces = await getPersonSpaces(control)
   const access = AccessLevel.Reader
   for (const part of event.participants) {
     const socialIds = await getSocialIds(control, part as Ref<Person>)
     if (socialIds.length === 0) continue
     const socialStrings = socialIds.map((si) => si._id)
     if (socialStrings.includes(event.user ?? event.createdBy ?? event.modifiedBy)) continue
+    // copy lives in the participant's own PersonSpace, not the original event's space
+    const personSpace = personSpaces.find((s) => s.person === (part as Ref<Person>))
+    if (personSpace === undefined) continue
     const primarySocialString = pickPrimarySocialId(socialIds)._id
     const user = primarySocialString
     const filtered = calendars.filter((c) => c.user === primarySocialString)
@@ -379,7 +490,7 @@ async function onEventCreate (ctx: TxCreateDoc<Event>, control: TriggerControl):
     if (events.find((p) => p.user === user) !== undefined) continue
     const innerTx = control.txFactory.createTxCreateDoc(
       _class,
-      space,
+      personSpace._id,
       { ...data, calendar, access, user },
       undefined,
       undefined,

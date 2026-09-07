@@ -2,7 +2,7 @@ import type { WorkSlot, ToDo } from '@hcengineering/time'
 import type { IntlString } from '@hcengineering/platform'
 import type { Person } from '@hcengineering/contact'
 import type { Event } from '@hcengineering/calendar'
-import type { Ref } from '@hcengineering/core'
+import type { Ref, Timestamp } from '@hcengineering/core'
 import { ToDoPriority } from '@hcengineering/time'
 import time from './plugin'
 
@@ -25,6 +25,10 @@ export interface EventPersonMapping {
   busy: WorkSlotMapping
   busyTotal: number
   busyEvents: Event[]
+  // Coarse busy intervals of other people, from BusySlot - no event content available.
+  busySlots: Array<{ date: Timestamp, dueDate: Timestamp, overlap?: number }>
+  // Intervals of their `public` events - those do carry a title.
+  namedBusy: Array<{ date: Timestamp, dueDate: Timestamp, title: string }>
   events: Array<Event & { overlap?: number }>
   total: number
 }

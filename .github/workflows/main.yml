@@ -47,7 +47,9 @@ env:
     services
     workers
     tests
-    rush.json
+    pnpm-workspace.yaml
+    pnpm-lock.yaml
+    package.json
     .prettierrc
     tools
     workers
@@ -68,41 +70,28 @@ jobs:
           fetch-depth: 0
           filter: tree:0
           submodules: recursive
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('common/config/rush/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
-
+          cache: 'pnpm'
       # - name: Cheking model is updated...
       #   run: node common/scripts/check_model_version.js
 
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
-
-      - name: Checking for mis-matching transitive dependencies...
         run: node common/scripts/check-versions.js
 
+      - name: Checking layer boundaries...
+        run: node common/scripts/check-layers.js
+
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Model version from git tags
-        run: node common/scripts/install-run-rush.js model-version
+        run: pnpm model-version
 
-      - name: Bundle...
-        run: node common/scripts/install-run-rush.js fast-build:bundle
-
-      - name: Validate...
-        run: node common/scripts/install-run-rush.js fast-build:validate
+      - name: Building and bundling...
+        run: pnpm bundle
 
       - name: Build @intabia-fusion/api bundle
         run: |
@@ -139,9 +128,11 @@ jobs:
           filter: tree:0
           submodules: recursive
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
+          cache: 'pnpm'
 
       - name: Cache build results
         uses: actions/cache@v5
@@ -152,8 +143,11 @@ jobs:
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
+
       - name: Checking svelte sources...
-        run: node common/scripts/install-run-rush.js fast-build:svelte-check
+        run: pnpm svelte-check
   formatting:
     needs: build
     runs-on: ubuntu-latest
@@ -163,9 +157,11 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
+          cache: 'pnpm'
       - name: Cache build results
         uses: actions/cache@v5
         env:
@@ -175,8 +171,11 @@ jobs:
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
+
       - name: Formatting...
-        run: node common/scripts/install-run-rush.js fast-format --branch ${{
+        run: pnpm format:branch --branch ${{
           github.base_ref || 'develop' }}
       - name: Check files formatting
         run: |
@@ -196,9 +195,11 @@ jobs:
           fetch-depth: 0
           filter: tree:0
           submodules: recursive
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
+          cache: 'pnpm'
       - name: Cache build results
         uses: actions/cache@v5
         env:
@@ -207,6 +208,9 @@ jobs:
           path: ${{ env.CacheFolders}}
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
+
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
 
       - name: Prepare server (with rate limit retry)
         run: |
@@ -226,7 +230,7 @@ jobs:
             fi
           fi
       - name: Testing...
-        run: node common/scripts/install-run-rush.js fast-build:test --verbose
+        run: pnpm test --verbose
         env:
           DB_URL: "postgresql://root@localhost:26258/defaultdb?sslmode=disable"
           ELASTIC_URL: "http://localhost:9201"
@@ -245,42 +249,29 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('common/config/rush/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
-
+          cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
-
-      - name: Checking for mis-matching transitive dependencies...
         run: node common/scripts/check-versions.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Free space
         uses: ./.github/actions/free-disk-space
       - name: Docker Build (with rate limit retry)
         run: |
           set -o pipefail
-          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker 2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
               echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker
+              pnpm docker
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -312,42 +303,29 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('common/config/rush/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
-
+          cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
-
-      - name: Checking for mis-matching transitive dependencies...
         run: node common/scripts/check-versions.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Free space
         uses: ./.github/actions/free-disk-space
       - name: Docker Build (with rate limit retry)
         run: |
           set -o pipefail
-          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker 2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
               echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker
+              pnpm docker
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -381,42 +359,29 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('common/config/rush/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
-
+          cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
-
-      - name: Checking for mis-matching transitive dependencies...
         run: node common/scripts/check-versions.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Free space
         uses: ./.github/actions/free-disk-space
       - name: Docker Build (with rate limit retry)
         run: |
           set -o pipefail
-          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker 2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
               echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker
+              pnpm docker
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -449,42 +414,29 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('common/config/rush/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
-
+          cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
-
-      - name: Checking for mis-matching transitive dependencies...
         run: node common/scripts/check-versions.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Free space
         uses: ./.github/actions/free-disk-space
       - name: Docker Build (with rate limit retry)
         run: |
           set -o pipefail
-          if node common/scripts/install-run-rush.js fast-build:docker 2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker 2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
               echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker
+              pnpm docker
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -530,41 +482,28 @@ jobs:
                 "containerd-snapshotter": true
               }
             }
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: latest
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-node-platform
-        with:
-          path: |
-            common/temp
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{
-            hashFiles('common/config/rush/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
-
+          cache: 'pnpm'
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Model version from git tags
-        run: node common/scripts/install-run-rush.js model-version
+        run: pnpm model-version
 
       - name: Docker build (with rate limit retry)
         run: |
           set -o pipefail
           docker system prune -a -f
-          if node common/scripts/install-run-rush.js fast-build:docker-build -v  2>&1 | tee /tmp/docker-build.log; then
+          if pnpm docker:build -v  2>&1 | tee /tmp/docker-build.log; then
             echo "Docker build succeeded"
           else
             if grep -qi "rate limit\|too many requests\|toomanyrequests\|429" /tmp/docker-build.log; then
               echo "Rate limit hit, logging in to Docker Hub and retrying..."
               echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
-              node common/scripts/install-run-rush.js fast-build:docker-build -v
+              pnpm docker:build -v
             else
               echo "Docker build failed (not a rate limit issue)"
               cat /tmp/docker-build.log
@@ -590,7 +529,7 @@ jobs:
         run: |
           echo Pushing release of tag ${{ github.ref }}
           echo "${{ secrets.DOCKER_ACCESS_TOKEN }}" | docker login -u intabiafusion --password-stdin
-          node common/scripts/install-run-rush.js docker:push -v
+          pnpm docker:push
 
   dist-build:
     # if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/s') }}
@@ -610,9 +549,11 @@ jobs:
           submodules: recursive
       - name: Free space
         uses: ./.github/actions/free-disk-space
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
+          cache: 'pnpm'
 
       - name: Cache node modules
         uses: actions/cache@v5
@@ -622,25 +563,25 @@ jobs:
           path: |
             common/temp
           key:
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml')
+            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('pnpm-lock.yaml')
             }}
           restore-keys: |
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
+            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install --purge
+        run: pnpm install --frozen-lockfile
       - name: Model version from git tags
-        run: node common/scripts/install-run-rush.js model-version
+        run: pnpm model-version
       - name: Package
-        run: node common/scripts/install-run-rush.js fast-build:package --to desktop -v
+        run: pnpm package --to desktop -v
       - name: Test desktop update system
         run: |
           cd desktop-package
-          node ../common/scripts/install-run-rushx.js test
+          pnpm run test
       - name: Bump package JSON version
         run: |
           cd desktop-package
-          node ../common/scripts/install-run-rushx.js bump
+          pnpm run bump
           cat ./package.json
       - name: Install the Apple certificate and provisioning profile
         env:
@@ -683,9 +624,9 @@ jobs:
           export PATH="$RUSH_PNPM_BIN:$PATH"
           pnpm --version
           cd desktop-package
-          node ../common/scripts/install-run-rushx.js dist --linux --x64
-          node ../common/scripts/install-run-rushx.js dist --windows --x64
-          node ../common/scripts/install-run-rushx.js dist-signed --macos --x64 --arm64
+          pnpm run dist --linux --x64
+          pnpm run dist --windows --x64
+          pnpm run dist-signed --macos --x64 --arm64
           # ./scripts/copy-publish-artifacts.sh ${{ env.PublishTempFolder}}
       - name: Verify update manifests
         run: |
@@ -751,7 +692,7 @@ jobs:
       - name: Build server bundle (macOS only)
         run: |
           cd desktop-package
-          node ../common/scripts/install-run-rushx.js bundle:server
+          pnpm run bundle:server
 
       - name: Upload server bundle
         uses: actions/upload-artifact@v5

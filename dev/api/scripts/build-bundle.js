@@ -15,7 +15,7 @@
 //
 // Build a flat @intabia-fusion/api bundle by:
 //  1. Reading roots from config.yml
-//  2. Traversing dependencies (scope-local) via rush project list
+//  2. Traversing dependencies (scope-local) via the workspace project list
 //  3. Copying src/ of each bundled package to bundle/src/<shortname>/
 //  4. Rewriting imports to use the new subpath exports (@intabia-fusion/api/<shortname>)
 //  5. Emitting bundle/package.json with `exports` map and merged external deps
@@ -73,16 +73,11 @@ function loadConfig() {
   return cfg
 }
 
-function listRushProjects(sourceScopes) {
-  const out = execSync('node common/scripts/install-run-rush.js list -p --json', {
-    cwd: REPO_ROOT,
-    encoding: 'utf8'
-  })
-  const start = out.indexOf('{')
-  if (start < 0) throw new Error('cannot parse rush list output')
-  const parsed = JSON.parse(out.slice(start))
+function listWorkspaceProjectsScoped(sourceScopes) {
+  const projects = require(REPO_ROOT + '/foundations/utils/packages/platform-rig/bin/libs/workspace')
+    .listWorkspaceProjects(REPO_ROOT)
   const map = new Map()
-  for (const p of parsed.projects) {
+  for (const p of projects) {
     if (!p.name || !matchScope(p.name, sourceScopes)) continue
     map.set(p.name, {
       name: p.name,
@@ -151,7 +146,7 @@ function resolveBundleSet(cfg, projects) {
     if (bundle.has(name) || excluded.has(name)) continue
     const proj = projects.get(name)
     if (!proj) {
-      throw new Error(`Root or transitive dep ${name} not found in rush projects`)
+      throw new Error(`Root or transitive dep ${name} not found in workspace projects`)
     }
     if (partial.has(name)) {
       // Partial packages do not propagate their scope deps (they are type-only subsets).
@@ -542,8 +537,8 @@ function emitReadme() {
 
 function main() {
   const cfg = loadConfig()
-  console.log(`Loading rush project list from ${REPO_ROOT}...`)
-  const projects = listRushProjects(cfg.sourceScopes)
+  console.log(`Loading workspace project list from ${REPO_ROOT}...`)
+  const projects = listWorkspaceProjectsScoped(cfg.sourceScopes)
   console.log(`  ${projects.size} [${cfg.sourceScopes.join(', ')}]/* projects`)
 
   const { bundle, partial, excluded } = resolveBundleSet(cfg, projects)

@@ -1,109 +1,7 @@
 const { join } = require('path')
 const { readFileSync, promises: fsPromises, existsSync } = require('fs')
-const { execSync } = require('child_process')
 
-// In-memory cache for rush list result
-let rushListCache = null
-
-/**
- * Get rush list result with caching based on rush.json mtime
- * Uses both in-memory and file-based caching for persistence between runs
- */
-async function getRushList(rootDir, verbose) {
-  const { statSync } = require('fs')
-  const rushJsonPath = join(rootDir, 'rush.json')
-  const pnpmLockPath = join(rootDir, 'common/config/rush/pnpm-lock.yaml')
-  const cacheFilePath = join(rootDir, 'common/temp/.rush-list-cache.json')
-
-  // Get mtime of rush.json and pnpm-lock for cache invalidation
-  let rushJsonMtime = 0
-  let pnpmLockMtime = 0
-  try {
-    rushJsonMtime = statSync(rushJsonPath).mtimeMs
-  } catch {}
-  try {
-    pnpmLockMtime = statSync(pnpmLockPath).mtimeMs
-  } catch {}
-
-  const cacheKey = `${rushJsonMtime}:${pnpmLockMtime}`
-
-  // Check in-memory cache first
-  if (rushListCache && rushListCache.key === cacheKey) {
-    if (verbose) {
-      console.log(`rush list from memory cache (${rushListCache.projects.length} projects)`)
-    }
-    return rushListCache.projects
-  }
-
-  // Check file-based cache
-  try {
-    if (existsSync(cacheFilePath)) {
-      const cacheContent = JSON.parse(readFileSync(cacheFilePath, 'utf-8'))
-      if (cacheContent.key === cacheKey && Array.isArray(cacheContent.projects)) {
-        if (verbose) {
-          console.log(`rush list from file cache (${cacheContent.projects.length} projects)`)
-        }
-        // Store in memory cache too
-        rushListCache = {
-          key: cacheKey,
-          projects: cacheContent.projects
-        }
-        return cacheContent.projects
-      }
-    }
-  } catch {
-    // Cache file corrupted or unreadable, will regenerate
-  }
-
-  // Run rush list --json
-  const { performance } = require('perf_hooks')
-  const rushListStart = performance.now()
-  let rushOutput
-  try {
-    rushOutput = execSync('rush list --json', {
-      cwd: rootDir,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-  } catch (err) {
-    throw new Error(`Failed to run rush list --json: ${err.message}`)
-  }
-
-  if (verbose) {
-    console.log(`rush list completed in ${(performance.now() - rushListStart).toFixed(0)}ms`)
-  }
-
-  // Parse JSON output (skip any non-JSON lines at the beginning)
-  const jsonStart = rushOutput.indexOf('{')
-  if (jsonStart === -1) {
-    throw new Error('Could not find JSON in rush output')
-  }
-
-  const jsonStr = rushOutput.slice(jsonStart)
-  let rushList
-
-  try {
-    rushList = JSON.parse(jsonStr)
-  } catch (err) {
-    throw new Error(`Failed to parse rush list output: ${err.message}`)
-  }
-
-  // Store in memory cache
-  rushListCache = {
-    key: cacheKey,
-    projects: rushList.projects
-  }
-
-  // Store in file cache (async, don't wait)
-  try {
-    const cacheData = JSON.stringify({ key: cacheKey, projects: rushList.projects })
-    require('fs').writeFileSync(cacheFilePath, cacheData, 'utf-8')
-  } catch {
-    // Ignore cache write errors
-  }
-
-  return rushList.projects
-}
+const { listWorkspaceProjects } = require('./workspace')
 
 /**
  * Read package.json and extract dependencies and phase scripts
@@ -117,7 +15,6 @@ async function getPackageInfoAsync(packageJsonPath) {
     return {
       dependencies: [],
       phaseBuild: null,
-      phaseValidate: null,
       phaseTest: null,
       phaseBundle: null,
       phasePackage: null,
@@ -133,7 +30,6 @@ async function getPackageInfoAsync(packageJsonPath) {
 
 function parsePackageJson(packageJson) {
   const phaseBuild = packageJson.scripts?.['_phase:build']
-  const phaseValidate = packageJson.scripts?.['_phase:validate']
   const phaseTest = packageJson.scripts?.['_phase:test']
   const phaseBundle = packageJson.scripts?.['_phase:bundle']
   const phasePackage = packageJson.scripts?.['_phase:package']
@@ -160,7 +56,6 @@ function parsePackageJson(packageJson) {
   return {
     dependencies,
     phaseBuild,
-    phaseValidate,
     phaseTest,
     phaseBundle,
     phasePackage,
@@ -177,7 +72,8 @@ function parsePackageJson(packageJson) {
  * Build dependency graph for all projects
  */
 async function buildDependencyGraph(rootDir, verbose) {
-  const projects = await getRushList(rootDir, verbose)
+  const projects = listWorkspaceProjects(rootDir)
+  if (verbose) console.log(`workspace: ${projects.length} projects`)
   const graph = new Map()
   const projectByName = new Map()
 
@@ -196,7 +92,6 @@ async function buildDependencyGraph(rootDir, verbose) {
     const {
       dependencies,
       phaseBuild,
-      phaseValidate,
       phaseTest,
       phaseBundle,
       phasePackage,
@@ -213,7 +108,6 @@ async function buildDependencyGraph(rootDir, verbose) {
       dependencies: new Set(dependencies),
       dependents: new Set(),
       phaseBuild,
-      phaseValidate,
       phaseTest,
       phaseBundle,
       phasePackage,
@@ -293,10 +187,7 @@ function topologicalSortWaves(graph, filterFn) {
     for (const name of filteredNames) {
       if (!processed.has(name) && inDegree.get(name) === 0) {
         const node = graph.get(name)
-        wave.push({
-          ...node.project,
-          phaseValidate: node.phaseValidate
-        })
+        wave.push({ ...node.project })
       }
     }
 
@@ -324,7 +215,7 @@ function topologicalSortWaves(graph, filterFn) {
 }
 
 module.exports = {
-  getRushList,
+  listWorkspaceProjects,
   buildDependencyGraph,
   getAllDependencies,
   topologicalSortWaves

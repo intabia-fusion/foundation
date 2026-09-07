@@ -5,7 +5,7 @@ branch=${BASE_BRANCH:-develop}
 FILES=$(git diff origin/$branch --name-only --diff-filter=ACMR | sed 's| |\\ |g')
 [ -z "$FILES" ] && exit 0
 
-roots=$(rush list -p --json | grep "path" | cut -f 2 -d ':' | cut -f 2 -d '"')
+roots=$(node -e 'console.log(require("./foundations/utils/packages/platform-rig/bin/libs/workspace").listWorkspaceProjects().map(p=>p.path).join("\n"))')
 
 declare -a changed_roots
 

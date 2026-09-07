@@ -9,4 +9,4 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 export BASE_BRANCH
-./common/scripts/each-diff.sh rushx format --force
+./common/scripts/each-diff.sh pnpm run format --force

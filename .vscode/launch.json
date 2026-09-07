@@ -335,9 +335,9 @@
       "type": "node",
       "request": "launch",
       "name": "Debug Jest tests",
-      "program": "${fileDirname}/../../node_modules/@rushstack/heft/lib/start.js",
+      "program": "${fileDirname}/../../node_modules/jest/bin/jest.js",
       "cwd": "${fileDirname}/../../",
-      "args": ["--debug", "test", "--clean", "--test-path-pattern", "${file}"],
+      "args": ["--runInBand", "--testPathPattern", "${file}"],
       "console": "integratedTerminal",
       "sourceMaps": true,
       "protocol": "inspector"

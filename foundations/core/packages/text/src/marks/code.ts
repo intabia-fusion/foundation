@@ -17,7 +17,7 @@ export const codeOptions: CodeOptions = {
 export const CodeExtension = Code.extend({
   addProseMirrorPlugins () {
     return [
-      ...codemark({ markType: this.editor.schema.marks.code }),
+      ...(codemark({ markType: this.editor.schema.marks.code }) as unknown as Plugin[]),
       new Plugin({
         key: new PluginKey('code-consecutive-backticks'),
         props: {

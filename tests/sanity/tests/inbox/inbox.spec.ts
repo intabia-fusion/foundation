@@ -334,7 +334,7 @@ test.describe('Inbox tests', () => {
 
       await attachScreenshot('Recive_task_and_scheduled-Detail.png', page)
       await issuesDetailsPage.checkIssue({ ...newIssue, status: 'In Progress' })
-      await leftSideMenuPage.clickTeam()
+      await leftSideMenuPage.clickPlanner()
       const teamPage = new TeamPage(page)
       await teamPage.checkTeamPageIsOpened()
       await teamPage.selectTeam('Default')

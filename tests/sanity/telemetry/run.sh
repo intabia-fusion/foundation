@@ -16,7 +16,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
 cd "$ROOT"
 
-# rushx normally puts this on PATH.
+# pnpm run normally puts this on PATH.
 PATH="$ROOT/node_modules/.bin:$PATH"
 export PATH
 

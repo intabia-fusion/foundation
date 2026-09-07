@@ -4,7 +4,7 @@
 #
 # Usage:
 #   docker compose -f docker-compose.yaml -f docker-compose.backup.yaml up -d backup
-#   (or: rush docker:up:backup)
+#   (or: pnpm docker:up:backup)
 #
 services:
   backup:

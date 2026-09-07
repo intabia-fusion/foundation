@@ -2,7 +2,8 @@
   import calendarPlugin from '@hcengineering/calendar'
   import { getCurrentEmployee } from '@hcengineering/contact'
   import { PersonPresenter } from '@hcengineering/contact-resources'
-  import { Chevron, Label } from '@hcengineering/ui'
+  import { DateRangeMode } from '@hcengineering/core'
+  import { Chevron, DatePresenter, Icon, IconArrowRight, Label } from '@hcengineering/ui'
   import { EventPersonMapping } from '../../../types'
   import TimePresenter from '../../presenters/TimePresenter.svelte'
   import { isVisibleMe } from '../utils'
@@ -52,22 +53,58 @@
   <PlanItem item={gitem.busy} {showAssignee} showSlots={expanded} />
 {/if}
 
+<!-- Public events of other people: the slot carries a title, so show it like a normal row. -->
+{#each gitem.namedBusy as slot}
+  <div class="item flex-between items-baseline">
+    <div class="flex-col ml-0-5">
+      <div class="overflow-label flex-no-shrink">{slot.title}</div>
+      {#if expanded}
+        <div class="flex-row-center ml-4 mt-2">
+          <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.date} />
+          <div class="p-1">
+            <Icon icon={IconArrowRight} size={'small'} />
+          </div>
+          <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.dueDate} />
+        </div>
+      {/if}
+    </div>
+    <div class="flex-row-center whitespace-nowrap flex-no-shrink ml-4 no-word-wrap">
+      <TimePresenter value={slot.dueDate - slot.date} />
+    </div>
+  </div>
+{/each}
+
 {#if gitem.busyTotal > 0}
   <div class="item flex-between items-baseline">
-    <div class="flex-col">
+    <div class="flex-col ml-0-5">
       <div class="overflow-label flex-no-shrink">
         <Label label={calendarPlugin.string.Busy} />
-        {#each gitem.busyEvents as event}
-          {#if isVisibleMe(event, mePerson)}
-            <EventItem item={event} showTime={expanded} />
-          {/if}
-        {/each}
       </div>
+      <!-- Anonymized time has no title to show, its intervals are all the detail there is. -->
+      {#if expanded}
+        <div class="flex-col ml-4 mt-2">
+          {#each gitem.busySlots as slot}
+            <div class="flex-row-center">
+              <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.date} />
+              <div class="p-1">
+                <Icon icon={IconArrowRight} size={'small'} />
+              </div>
+              <DatePresenter mode={DateRangeMode.TIMEONLY} value={slot.dueDate} />
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
-    <div class="flex-row-center whitespace-nowra flex-gap-4 flex-no-shrink ml-4">
+    <div class="flex-row-center whitespace-nowrap flex-no-shrink ml-4 no-word-wrap">
       <TimePresenter value={gitem.busyTotal} />
     </div>
   </div>
+  <!-- Events I take part in are shown in full, one row each, not inside the Busy label. -->
+  {#each gitem.busyEvents as event}
+    {#if isVisibleMe(event, mePerson)}
+      <EventItem item={event} showTime={expanded} />
+    {/if}
+  {/each}
 {/if}
 
 <style lang="scss">

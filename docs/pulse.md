@@ -56,12 +56,12 @@ Symptom when missing: console shows `domain not found: pulse:class:DocumentPrese
 
 ## Build / test workflow for pulse
 
-1. Rebuild front image after changing `dev/prod` config: `rush fast-build:docker-build --to @hcengineering/pod-front` (~8s incremental). Model changes also need `--to @hcengineering/pod-server`. Full rebuild: `rush fast-build:docker-build` (~3.5min, 42 images).
+1. Rebuild front image after changing `dev/prod` config: `pnpm docker:build --to @hcengineering/pod-front` (~8s incremental). Model changes also need `--to @hcengineering/pod-server`. Full rebuild: `pnpm docker:build` (~3.5min, 42 images).
 2. Restart sanity env: `cd tests && ./prepare-pg.sh` — includes `--remove-orphans` on both `down` and `up` to clean stale services.
 3. Run Playwright pulse spec without auto-opening HTML report:
    ```
    cd tests/sanity
-   rushx uitest pulse.spec.ts --reporter=list --retries=0
+   pnpm run uitest pulse.spec.ts --reporter=list --retries=0
    ```
    `--reporter=list` stops HTML reporter from holding :9323 and opening a browser tab. `--retries=0` makes a real failure surface immediately instead of re-running 3x.
 4. Spec: `tests/sanity/tests/chat/pulse.spec.ts` — two browser contexts via `getSecondPageByInvite`. Stable selectors added to source:

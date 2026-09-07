@@ -14,7 +14,7 @@
 //
 
 import clientPlugin from '@hcengineering/client'
-import type { ClientFactoryOptions } from '@hcengineering/client/src'
+import type { ClientFactoryOptions } from '@hcengineering/client'
 import core, {
   Client,
   LoadModelResponse,
@@ -141,7 +141,7 @@ export default async () => {
                   reject(new Error(`Connection timeout, and no connection established to ${endpoint}`))
                 }
               }, connectTimeout)
-              newOpt.onConnect = async (event, lastTx, data) => {
+              newOpt.onConnect = async (event: ClientConnectEvent, lastTx: string | undefined, data: any) => {
                 try {
                   await opt?.onConnect?.(event, lastTx, data)
                 } catch (error: any) {

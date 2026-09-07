@@ -34,7 +34,7 @@ done
 
 if [ "$BUILD" = true ]; then
     echo "==> Rebuilding images"
-    (cd .. && rush fast-build:docker)
+    (cd .. && pnpm docker)
 fi
 
 if [ "$PREPARE" = true ]; then
@@ -47,9 +47,9 @@ if [ "$PREPARE" = true ]; then
     # Same steps CI does after the stand is up: the spec files are compiled from the workspace,
     # and playwright needs its browser present.
     echo "==> Building the test package"
-    (cd .. && rush fast-build --to @hcengineering/tests-sanity)
+    (cd .. && pnpm build --to @hcengineering/tests-sanity)
     echo "==> Ensuring playwright browsers"
-    (cd sanity && rushx ci)
+    (cd sanity && pnpm run ci)
 
     echo
     echo "====================================================================="
@@ -63,7 +63,7 @@ if [ "$PREPARE" = true ]; then
 
  1) Run the tests here, in this terminal:
 
-      cd sanity && rushx uitest
+      cd sanity && pnpm run uitest
 
     (run them yourself - a pipe or subshell strips playwright's
      colour and live progress)

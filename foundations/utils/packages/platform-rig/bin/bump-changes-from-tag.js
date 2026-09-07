@@ -2,7 +2,7 @@
 
 /**
  * Script to bump version of ALL Node.js packages by incrementing from previous tag
- * and update dependencies accordingly in a Rush.js monorepo
+ * and update dependencies accordingly in a pnpm workspace
  *
  * Usage: node bump-changes-from-tag.js [git-revision] [major|minor|patch]
  * Example: node bump-changes-from-tag.js                # Auto-detect latest v*.*.* tag, patch bump
@@ -137,32 +137,13 @@ function incrementVersion(version, bumpType) {
   return `${major}.${minor}.${patch}${suffix}`
 }
 
-// Function to get Rush projects from rush.json
-function getRushProjects(rushJsonPath) {
-  try {
-    // Read and strip comments from JSON
-    let content = fs.readFileSync(rushJsonPath, 'utf8')
-    // Remove single line comments that start with //
-    content = content.replace(/^\s*\/\/.*$/gm, '')
-    // Remove multi-line comments /* ... */
-    content = content.replace(/\/\*[\s\S]*?\*\//g, '')
-
-    const rush = JSON.parse(content)
-
-    if (!rush.projects || !Array.isArray(rush.projects)) {
-      printError('No projects found in rush.json')
-      return []
-    }
-
-    return rush.projects.map((project) => ({
-      packageName: project.packageName,
-      projectFolder: project.projectFolder,
-      shouldPublish: project.shouldPublish || false
-    }))
-  } catch (error) {
-    printError(`Error parsing rush.json: ${error.message}`)
-    process.exit(1)
-  }
+// Workspace projects from pnpm-workspace.yaml.
+function getRushProjects() {
+  return require('./libs/workspace').listWorkspaceProjects().map((p) => ({
+    packageName: p.name,
+    projectFolder: p.path,
+    shouldPublish: !p.private
+  }))
 }
 
 // Function to update package.json version
@@ -269,7 +250,6 @@ function main() {
 
   // Get repository root
   const repoRoot = execCommand('git rev-parse --show-toplevel')
-  const rushJsonPath = path.join(repoRoot, 'rush.json')
 
   // Verify we're in a git repository
   if (!repoRoot) {
@@ -277,9 +257,9 @@ function main() {
     process.exit(1)
   }
 
-  // Verify rush.json exists
-  if (!fs.existsSync(rushJsonPath)) {
-    printError(`rush.json not found at ${rushJsonPath}`)
+  const workspacePath = path.join(repoRoot, 'pnpm-workspace.yaml')
+  if (!fs.existsSync(workspacePath)) {
+    printError(`pnpm-workspace.yaml not found at ${workspacePath}`)
     process.exit(1)
   }
 
@@ -294,9 +274,9 @@ function main() {
   printInfo(`Base version from tag: ${baseVersion}`)
   printSuccess(`New version for all packages: ${newVersion}`)
 
-  // Get all Rush projects
-  printInfo('Getting all Rush projects...')
-  const projects = getRushProjects(rushJsonPath)
+  // Get all workspace projects
+  printInfo('Getting all workspace projects...')
+  const projects = getRushProjects()
   printInfo(`Found ${projects.length} package(s) to update`)
 
   // Track updated packages
@@ -370,20 +350,19 @@ function main() {
   console.log()
   printInfo('Next steps:')
   console.log('  1. Review the changes: git diff')
-  console.log('  2. Update lockfile: rush update')
-  console.log('  3. Run tests: rush test')
-  console.log('  4. Build all packages: rush build')
+  console.log('  2. Update lockfile: pnpm install')
+  console.log('  3. Run tests: pnpm test')
+  console.log('  4. Build all packages: pnpm build')
   console.log(`  5. Commit changes: git add . && git commit -m 'Bump all versions to ${newVersion}'`)
   console.log(`  6. Tag the release: git tag v${newVersion} && git push origin v${newVersion}`)
-  console.log('  7. For publishable packages, run: rush publish')
+  console.log('  7. For publishable packages, run: pnpm publish -r')
 
-  // Run rush update to sync lockfile
-  printInfo('Running rush update to sync lockfile...')
+  printInfo('Running pnpm install to sync lockfile...')
   try {
-    execSync('rush update', { stdio: 'inherit', cwd: repoRoot })
+    execSync('pnpm install', { stdio: 'inherit', cwd: repoRoot })
     printSuccess('Done!')
   } catch (error) {
-    printError('Failed to run rush update')
+    printError('Failed to run pnpm install')
     process.exit(1)
   }
 }

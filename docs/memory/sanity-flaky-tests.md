@@ -217,12 +217,12 @@ Use `expect.poll` over both conditions. **`step-reporter.ts` is not a cost** (18
 
 ## Tooling traps
 
-- `rush fast-build:lint` can report `errors 0` for a package it served from
+- `pnpm build:lint` can report `errors 0` for a package it served from
   `.fast-build-cache.json` and never linted. The real check is `npx eslint "tests/**/*.ts"` from
   inside `tests/sanity` — the glob is required, a plain `tests/` path is rejected.
 - `--reporter=line` **replaces** the reporter list: no `step-report.ndjson`, no `playwright-report.json`.
 - love files are `*.tests.ts`; a path argument gives `No tests found`, select with
-  `rushx uitest -g "<part of the title>"`.
+  `pnpm run uitest -g "<part of the title>"`.
 - `workflow-settings.spec.ts` is a serial describe — one flake re-runs the whole block, so every test
   in the file gets a `-retry1` folder while only one is reported flaky.
 - `--repeat-each` on `kanban.spec.ts` gives false failures: `setSwimLane` stores view options per

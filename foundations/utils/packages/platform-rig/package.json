@@ -7,11 +7,16 @@
   },
   "exports": {
     "./bin/*": "./bin/*",
+    "./profiles/ui/svelte": {
+      "types": "./profiles/ui/svelte/index.d.ts",
+      "default": "./profiles/ui/svelte/index.d.ts"
+    },
     "./profiles/*": "./profiles/*"
   },
   "dependencies": {
     "@node-rs/xxhash": "^1.7.7",
     "typescript": "^5.9.3",
+    "typescript7": "npm:typescript@7.0.2",
     "esbuild": "^0.25.10",
     "esbuild-plugin-copy": "~2.1.1",
     "esbuild-svelte": "^0.9.3",

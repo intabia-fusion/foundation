@@ -19,7 +19,7 @@
 - Старый `listWorkspaces` не тронут - его зовут tool/backup/workspace-сервисы.
 - WorkspacesTab самозагружается (страницы по 50); клиентскими остались Activity-sort и Inactive-фильтр (live stats страницы). BillingTab грузит имена через listWorkspacesPaged(limit 1000).
 - Поллинг: refresh-кнопка + авто 5 мин (refreshTick prop во все табы), ticker-полл списка убран.
-- Дев-стенд: account в docker - после правок сервера нужен `rush fast-build:docker` + `docker compose up -d account`.
+- Дев-стенд: account в docker - после правок сервера нужен `pnpm docker` + `docker compose up -d account`.
 
 ## Реструктуризация вкладок (2026-07-04, вторая итерация)
 - Вкладки General/Workspaces/Accounts; BillingTab удалён — подписки per-workspace в Details-попапе (Dialog из ui) + создание с полем мест (per-seat: usersLimit=seats).
@@ -29,8 +29,8 @@
 
 ## Грабли
 - `WorkspaceUserOperation` экспортируется из `@hcengineering/core`, НЕ из account-client.
-- rush check: svelte строго `^4.2.20` (mismatch ломает rush update).
-- Регистрация фронт-плагина = 4 точки в dev/prod/src/platform.ts (import, assets bundle, addStringsLoader, Routes map + addLocation) + те же в desktop/src/ui/platform.ts + оба package.json + rush.json.
+- pnpm check-versions: svelte строго `^4.2.20` (mismatch ломает pnpm install).
+- Регистрация фронт-плагина = 4 точки в dev/prod/src/platform.ts (import, assets bundle, addStringsLoader, Routes map + addLocation) + те же в desktop/src/ui/platform.ts + оба package.json + pnpm-workspace.yaml.
 
 ## Управление участниками + подписки + rename + OTP (2026-07-06..07)
 Новые admin-only RPC в account (serviceOperations.ts):

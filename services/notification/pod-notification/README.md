@@ -94,7 +94,7 @@ npm install
 
 ### Development
 ```bash
-rushx run-local
+pnpm run run-local
 ```
 
 ### Docker

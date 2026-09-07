@@ -19,10 +19,9 @@
     "test": "jest --passWithNoTests --silent",
     "format": "format src",
     "build:watch": "compile",
-    "_phase:build": "compile transpile src",
+    "_phase:build": "compile build",
     "_phase:test": "jest --passWithNoTests --silent",
-    "_phase:format": "format src",
-    "_phase:validate": "compile validate"
+    "_phase:format": "format src"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.21.0",

@@ -9,7 +9,7 @@ const { test, describe, afterEach } = require('node:test')
 const assert = require('node:assert/strict')
 const { join } = require('node:path')
 
-const { GenericWorkerPool, getWorkerPool, terminateWorkerPool } = require('../libs/workers')
+const { GenericWorkerPool, getNamedWorkerPool, terminateWorkerPool } = require('../libs/workers')
 
 const WORKER = join(__dirname, 'fixtures', 'echo-worker.js')
 const T = 10_000
@@ -114,15 +114,14 @@ describe('GenericWorkerPool', () => {
   })
 })
 
-describe('shared validate pool singleton', () => {
-  // Regression: compile_all terminated the shared pool after the validate phase but the
-  // module-level singleton kept pointing at the dead instance, so the next getWorkerPool()
-  // handed back a pool with zero workers and every task hung.
-  test('getWorkerPool returns a live pool after terminateWorkerPool', { timeout: T }, async () => {
-    const first = await getWorkerPool(1)
+describe('shared named pool singleton', () => {
+  // Regression: a terminated pool stayed in the registry, so the next lookup handed back
+  // a pool with zero workers and every task hung.
+  test('getNamedWorkerPool returns a live pool after terminateWorkerPool', { timeout: T }, async () => {
+    const first = await getNamedWorkerPool('probe', 1, WORKER)
     await terminateWorkerPool()
 
-    const second = await getWorkerPool(1)
+    const second = await getNamedWorkerPool('probe', 1, WORKER)
     assert.notEqual(second, first, 'a terminated pool must not be handed out again')
     assert.equal(second.terminated, false)
     await terminateWorkerPool()

@@ -25,19 +25,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-node-${{ hashFiles('**/pnpm-lock.yaml') }}
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/install-run-rush.js check
+        run: node common/scripts/check-versions.js
 
       - name: Installing...
-        run: node common/scripts/install-run-rush.js install
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright
         run: |
           cd ./tests/sanity
-          node ../../common/scripts/install-run-rushx.js ci
+          pnpm run ci
       - name: Run UI tests
         run: |
           cd ./tests/sanity
-          node ../../common/scripts/install-run-rushx.js staging-uitest
+          pnpm run staging-uitest
         env:
           TESTING_GH_TOKEN: ${{ secrets.TESTING_GH_TOKEN }}
           TESTING_GH_OWNER: ${{ secrets.TESTING_GH_OWNER }}

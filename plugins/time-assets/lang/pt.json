@@ -44,6 +44,8 @@
     "MyWork": "Meu trabalho",
     "WeekCalendar": "Semana",
     "DayCalendar": "Dia",
+    "MonthCalendar": "Mês",
+    "YearCalendar": "Ano",
     "GotoTimePlaning": "Planeamento",
     "GotoTimeTeamPlaning": "Planeamento de equipa",
     "NewToDo": "Nova tarefa pendente",
@@ -55,10 +57,14 @@
     "MarkedAsDone": "Concluído",
     "WorkSchedule": "Horário de trabalho",
     "SummaryDuration": "Sumário",
+    "Busy": "Ocupado",
     "UnassignToDo": "Remover tarefa atribuída",
     "UnassignToDoConfirm": "Você deseja remover a tarefa atribuída? A tarefa será removida do planejamento do responsável.",
     "ReassignToDo": "Alterar responsável pela tarefa",
-    "ReassignToDoConfirm": "Você deseja alterar o responsável pela tarefa? A tarefa será removida do planejamento atual do responsável."
+    "ReassignToDoConfirm": "Você deseja alterar o responsável pela tarefa? A tarefa será removida do planejamento atual do responsável.",
+    "Occupancy": "Ocupação",
+    "ShowEvents": "Eventos",
+    "ShowActivity": "Atividade"
   },
   "emailTemplate": {
     "ToDoCreatedNotificationText": "{body}",

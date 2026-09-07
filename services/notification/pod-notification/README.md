@@ -1,25 +1,31 @@
 # Notification Service
 
-A microservice for sending push notifications: web push to browsers, APNs to iOS and FCM to Android.
+A background worker that delivers push notifications: web push to browsers, APNs to iOS and FCM to Android.
 
 ## Overview
 
-The notification service is a background worker that consumes user notification messages from Kafka (`user-notifications` topic) and delivers them to subscribed clients via the Web Push Protocol. It uses VAPID (Voluntary Application Server Identification) keys for secure authentication and automatically handles cleanup of expired or unregistered subscriptions.
+The service consumes `QueueNotificationMessage` payloads from the platform queue
+(`QueueTopic.UserNotifications`) and delivers them to every push subscription carried by the
+message. Web Push is signed with VAPID keys; native subscriptions go to APNs or FCM instead.
+Subscriptions the transport reports as dead are removed from the workspace through the
+transactor, so no cleanup is required from the caller.
+
+There is no HTTP API - the service does not listen on a port.
 
 ## Features
 
 - **Web Push Notifications**: Send push notifications to web browsers
 - **Native Push**: APNs and FCM delivery for the mobile apps, chosen per subscription
 - **VAPID Support**: Secure authentication using VAPID keys
-- **Subscription Management**: Handles expired and invalid subscriptions
-- **Token Authentication**: Optional bearer token authentication
-- **Error Handling**: Automatic cleanup of invalid subscriptions
+- **Queue Consumer**: Kafka-backed consumer with retries and poison-message acknowledgement
+- **Subscription Cleanup**: Expired and invalid subscriptions are deleted via the transactor
 
 ## Prerequisites
 
 - Node.js (version specified in package.json)
+- A reachable platform queue (Kafka / Redpanda), accounts service and transactor
 - VAPID key pair for web push authentication
-- Valid push subscriptions from client applications
+- APNs and/or FCM credentials for mobile delivery
 
 ## Configuration
 
@@ -27,10 +33,15 @@ The service is configured via environment variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SOURCE` | Yes | - | Source email or URI identifier for VAPID push payload |
-| `SERVICE_ID` | No | `web-push-service` | The identifier of this service used for tracing, queue client IDs, and tokens |
-| `PUSH_PUBLIC_KEY` | No | - | VAPID public key for signing push notifications |
-| `PUSH_PRIVATE_KEY` | No | - | VAPID private key for signing push notifications |
+| `SOURCE` | Yes | - | Source identifier for the service |
+| `ACCOUNTS_URL` | Yes | - | Accounts service endpoint, used to resolve the transactor |
+| `SECRET` | Yes | - | Server secret used to sign the system token |
+| `QUEUE_CONFIG` | No | - | Queue (Kafka/Redpanda) connection string |
+| `QUEUE_REGION` | No | - | Queue region |
+| `SERVICE_ID` | No | `web-push-service` | Service identifier used for tracing, queue client IDs and tokens |
+| `TTL` | No | `86400` | Push TTL in seconds (24 hours) |
+| `PUSH_PUBLIC_KEY` | No | - | VAPID public key for web push |
+| `PUSH_PRIVATE_KEY` | No | - | VAPID private key for web push |
 | `PUSH_SUBJECT` | No | `mailto:hey@huly.io` | VAPID subject (email or URL) |
 | `APNS_KEY_ID` | No | - | Key ID of the APNs `.p8` key |
 | `APNS_TEAM_ID` | No | - | Apple developer team ID |
@@ -56,8 +67,8 @@ field under a scheme of its own:
 | anything else | Web Push |
 
 Neither the notification model nor the trigger that collects subscriptions knows about the
-split: they still pass one list, and the service still answers with the subscriptions that
-turned out to be dead so the caller can delete them.
+split: they still pass one list, and the service still resolves the subscriptions that
+turned out to be dead and deletes them.
 
 APNs sends an alert push rather than a silent one - waking a sleeping phone is the point,
 and `content-available` alone is throttled by iOS. FCM carries a `notification` block, so
@@ -96,7 +107,7 @@ docker run -d \
   -e PUSH_PRIVATE_KEY=your_private_key \
   -e QUEUE_CONFIG=redpanda:9092 \
   -e ACCOUNTS_URL=http://account:3000 \
-  -e SERVER_SECRET=secret \
+  -e SECRET=secret \
   intabiafusion/notification
 ```
 
@@ -105,10 +116,33 @@ docker run -d \
 The consumer listens to `QueueTopic.UserNotifications` for `QueueNotificationMessage` payloads.
 
 When a message is received:
-1. It extracts target browser push subscriptions.
-2. It sends push payloads via `web-push` library.
-3. If an endpoint responds with an expiration error (e.g. `expired`, `Unregistered`, `No such subscription` error body), the service returns the failed subscription ID.
-4. The service generates a temporary system token, contacts the transactor via `RestClient`, and removes the failed subscription documents from the database (`TxRemoveDoc`).
+1. It is skipped unless the message lists `PushNotificationProvider` among its providers.
+2. Title and body are truncated to `PUSH_NOTIFICATION_TITLE_SIZE` / `PUSH_NOTIFICATION_BODY_SIZE`.
+3. Every subscription in `pushSubscriptions` is delivered through the transport its endpoint
+   selects: APNs, FCM or `web-push`.
+4. A transport that reports the token as gone (HTTP 410, `Unregistered`, `BadDeviceToken`,
+   `DeviceTokenNotForTopic`, FCM `UNREGISTERED`/`INVALID_ARGUMENT`, or a `WebPushError` body
+   containing `expired`, `Unregistered`, `No such subscription`, `VapidPkHashMismatch`)
+   marks that subscription for deletion. Other errors are treated as transient and the
+   subscription is kept.
+5. For the failed subscriptions the service generates a system token, resolves the
+   transactor endpoint and removes the `PushSubscription` documents via `RestClient`.
+
+Processing is wrapped in `withRetry` (3 attempts, exponential backoff 1s → 5s). If all
+attempts fail, the message is logged and acknowledged so it does not poison the topic.
+
+### Push payload
+
+The `PushData` delivered to clients:
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `title` | string | Yes | Notification title |
+| `body` | string | Yes | Notification body text |
+| `tag` | string | No | Tag for grouping notifications (the notification id) |
+| `domain` | string | No | Workspace domain the notification belongs to |
+| `url` | string | No | URL to open when notification is clicked |
+| `icon` | string | No | URL to notification icon |
 
 ## Testing
 
@@ -116,14 +150,19 @@ Jest is used for unit and integration testing.
 
 Run tests:
 ```bash
-npm run test
+rushx test
 ```
 
 ## Troubleshooting
 
 ### Failed subscriptions are not being deleted
-- Verify that both `ACCOUNTS_URL` and `SERVER_SECRET` (or `SECRET`) are set correctly in the service environment.
+- Verify that both `ACCOUNTS_URL` and `SECRET` are set correctly in the service environment.
 - Check service logs for "Failed to initialize RestClient or fetch transactor endpoint" or "Failed to remove expired subscription" error messages.
+
+### Nothing is delivered to mobile devices
+- APNs needs all of `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_KEY`; FCM needs `FCM_SERVICE_ACCOUNT`.
+  When they are missing the matching subscriptions are silently skipped, not failed.
+- On a development build the device is registered against the APNs sandbox - set `APNS_PRODUCTION=false`.
 
 ### TypeError on bad error bodies
 - The service uses safe error parsing to prevent type crashes if `web-push` throws an error with a `null` or `undefined` body. Check that you are using version `0.7.0` or higher which contains this fix.
@@ -132,4 +171,5 @@ npm run test
 - [Web Push Protocol](https://tools.ietf.org/html/rfc8030)
 - [VAPID Specification](https://tools.ietf.org/html/rfc8292)
 - [Push API MDN Documentation](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
-- [Service Worker API](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)
+- [Apple Push Notification service](https://developer.apple.com/documentation/usernotifications)
+- [Firebase Cloud Messaging HTTP v1](https://firebase.google.com/docs/cloud-messaging/migrate-v1)

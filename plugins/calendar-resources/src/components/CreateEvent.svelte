@@ -102,6 +102,10 @@
   const dispatch = createEventDispatcher()
   const client = getClient()
 
+  // `_calendar` is resolved by two live queries inside CalendarSelector - until both land,
+  // saveEvent bails out silently, so the button must not be clickable yet.
+  $: canSave = title !== '' && _calendar !== undefined
+
   export function canClose (): boolean {
     return title !== undefined && title.trim().length === 0 && participants.length === 0
   }
@@ -276,7 +280,7 @@
       label={presentation.string.Create}
       focusIndex={10104}
       on:click={saveEvent}
-      disabled={title === ''}
+      disabled={!canSave}
     />
   </div>
 </div>

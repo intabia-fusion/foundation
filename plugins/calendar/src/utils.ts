@@ -1,4 +1,4 @@
-import { AccountUuid, Ref, Timestamp, generateId } from '@hcengineering/core'
+import { AccountUuid, Data, Ref, Timestamp, generateId } from '@hcengineering/core'
 import { Person } from '@hcengineering/contact'
 import calendar, {
   BusySlot,
@@ -450,6 +450,42 @@ export function getPrimaryCalendar (
     }
   }
   return `${acc}_calendar` as Ref<Calendar>
+}
+
+/**
+ * @public
+ *
+ * Slot fields mirroring an event. Shared by the server trigger and the migration: both must write
+ * the very same shape, or `getDiffUpdate` (which skips `undefined`) freezes the difference forever.
+ *
+ * `overrides` are the occurrence starts a series gave away to persisted instances - the slot has no
+ * notion of an instance, so a master must exclude them the same way `getAllEvents` does.
+ */
+export function busySlotData (event: Event, person: Ref<Person>, overrides: Timestamp[] = []): Data<BusySlot> {
+  const rec = event as ReccuringEvent
+  // An override replaces exactly one occurrence, but it inherits `rules` from the master it was
+  // cut out of - keeping them would block the whole series at the overridden time.
+  const single = (event as ReccuringInstance).recurringEventId !== undefined
+  return {
+    person,
+    eventId: event.eventId,
+    date: event.date,
+    dueDate: event.dueDate,
+    allDay: event.allDay,
+    // Empty rather than undefined: getDiffUpdate skips undefined, so turning a public event
+    // private would otherwise leave its title on the slot forever.
+    title: event.visibility === 'public' ? event.title : '',
+    timeZone: event.timeZone,
+    // Left unset, not emptied: the client splits slots into plain and recurring by
+    // `rules: { $exists: ... }`, and an override is a single occurrence like any plain one.
+    rules: single ? undefined : rec.rules,
+    exdate: single
+      ? undefined
+      : rec.rules !== undefined
+        ? Array.from(new Set([...(rec.exdate ?? []), ...overrides]))
+        : rec.exdate,
+    rdate: single ? undefined : rec.rdate
+  }
 }
 
 /**

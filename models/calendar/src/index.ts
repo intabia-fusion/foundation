@@ -106,7 +106,9 @@ export class TEvent extends TAttachedDoc implements Event {
   @Prop(TypeRef(calendar.class.Calendar), calendar.string.Calendar)
     calendar!: Ref<Calendar>
 
-  eventId!: string
+  // Participant copies and a series master are all looked up by `eventId` on every event change.
+  @Index(IndexKind.Indexed)
+    eventId!: string
 
   @Prop(TypeString(), calendar.string.Title)
   @Index(IndexKind.FullText)
@@ -191,9 +193,10 @@ export class TBusySlot extends TDoc implements BusySlot {
   allDay!: boolean
   title?: string
   timeZone?: string
-  rules!: RecurringRule[]
-  exdate!: Timestamp[]
-  rdate!: Timestamp[]
+  // Unset on a plain slot: the client tells recurring from plain by `rules: { $exists: ... }`.
+  rules?: RecurringRule[]
+  exdate?: Timestamp[]
+  rdate?: Timestamp[]
 }
 
 @Model(calendar.class.Schedule, core.class.Doc, DOMAIN_CALENDAR)

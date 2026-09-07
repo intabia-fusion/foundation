@@ -17,6 +17,7 @@ import { type IntegrationSecret } from '@hcengineering/account-client'
 import {
   AccessLevel,
   type BusySlot,
+  busySlotData,
   type Calendar,
   calendarId,
   type Event,
@@ -584,14 +585,18 @@ async function updateCalendarUser (client: MigrationClient): Promise<void> {
   }
 }
 
-// Dates a series gave away to overrides: the slot has no notion of an instance, so the master
-// must exclude them explicitly, and the override itself must not carry the series rules.
+// Occurrence starts a series gave away to persisted overrides, by master `eventId`. Built once:
+// `recurringEventId` is not indexed, so resolving it per batch would mean a scan per batch.
 async function overriddenDates (client: MigrationClient): Promise<Map<string, Timestamp[]>> {
   const res = new Map<string, Timestamp[]>()
-  const iterator = await client.traverse<ReccuringInstance>(DOMAIN_EVENT, {
-    _class: calendar.class.ReccuringInstance,
-    access: AccessLevel.Owner
-  })
+  const iterator = await client.traverse<ReccuringInstance>(
+    DOMAIN_EVENT,
+    {
+      _class: calendar.class.ReccuringInstance,
+      access: AccessLevel.Owner
+    },
+    { projection: { recurringEventId: 1, originalStartTime: 1 } }
+  )
   try {
     while (true) {
       const docs = await iterator.next(500)
@@ -616,26 +621,30 @@ async function fillBusySlots (client: MigrationClient): Promise<void> {
     access: AccessLevel.Owner
   })
 
+  client.logger.log('filling busy slots', {})
+  let processed = 0
+  let created = 0
+  let logged = 0
+
   try {
     while (true) {
       const docs = await iterator.next(500)
       if (docs === null || docs.length === 0) break
 
       // Existing slots are looked up per batch, the whole collection never lands in memory.
-      const existing = await client.find<BusySlot>(DOMAIN_BUSY, {
-        _class: calendar.class.BusySlot,
-        eventId: { $in: docs.map((it) => it.eventId) }
-      })
+      const existing = await client.find<BusySlot>(
+        DOMAIN_BUSY,
+        {
+          _class: calendar.class.BusySlot,
+          eventId: { $in: docs.map((it) => it.eventId) }
+        },
+        { projection: { person: 1, eventId: 1 } }
+      )
       const known = new Set(existing.map((it) => `${it.person}:${it.eventId}`))
 
       const slots: BusySlot[] = []
       for (const event of docs) {
         if ((event as ReccuringInstance).isCancelled === true) continue
-        const rec = event as ReccuringEvent
-        const single = (event as ReccuringInstance).recurringEventId !== undefined
-        const exdate = single
-          ? undefined
-          : Array.from(new Set([...(rec.exdate ?? []), ...(overrides.get(event.eventId) ?? [])]))
         for (const person of event.participants as Ref<Person>[]) {
           const key = `${person}:${event.eventId}`
           if (known.has(key)) continue
@@ -646,61 +655,26 @@ async function fillBusySlots (client: MigrationClient): Promise<void> {
             space: calendar.space.Calendar,
             modifiedBy: core.account.System,
             modifiedOn: Date.now(),
-            person,
-            eventId: event.eventId,
-            date: event.date,
-            dueDate: event.dueDate,
-            allDay: event.allDay,
-            timeZone: event.timeZone,
-            rules: single ? undefined : rec.rules,
-            exdate,
-            rdate: single ? undefined : rec.rdate
+            ...busySlotData(event, person, overrides.get(event.eventId) ?? [])
           })
         }
       }
       if (slots.length > 0) {
         await client.create(DOMAIN_BUSY, slots)
+        created += slots.length
+      }
+
+      processed += docs.length
+      if (processed - logged >= 10000) {
+        logged = processed
+        client.logger.log('...filling busy slots', { processed, created })
       }
     }
   } finally {
     await iterator.close()
   }
-}
 
-async function fillBusySlotTitles (client: MigrationClient): Promise<void> {
-  // Only `public` events expose their title to non-participants, so only their slots carry one.
-  const iterator = await client.traverse<Event>(DOMAIN_EVENT, {
-    _class: { $in: client.hierarchy.getDescendants(calendar.class.Event) },
-    blockTime: true,
-    access: AccessLevel.Owner,
-    visibility: 'public'
-  })
-
-  try {
-    while (true) {
-      const docs = await iterator.next(500)
-      if (docs === null || docs.length === 0) break
-
-      const titles = new Map<string, string>()
-      for (const event of docs) {
-        if ((event as ReccuringInstance).isCancelled === true) continue
-        titles.set(event.eventId, event.title)
-      }
-      if (titles.size === 0) continue
-
-      const slots = await client.find<BusySlot>(DOMAIN_BUSY, {
-        _class: calendar.class.BusySlot,
-        eventId: { $in: Array.from(titles.keys()) }
-      })
-      for (const slot of slots) {
-        const title = titles.get(slot.eventId)
-        if (title === undefined || slot.title === title) continue
-        await client.update(DOMAIN_BUSY, { _id: slot._id }, { title })
-      }
-    }
-  } finally {
-    await iterator.close()
-  }
+  client.logger.log('finished filling busy slots', { processed, created })
 }
 
 async function moveEventsToPersonSpace (client: MigrationClient): Promise<void> {
@@ -755,18 +729,21 @@ async function moveEventsToPersonSpace (client: MigrationClient): Promise<void> 
     space: calendar.space.Calendar
   })
 
+  let logged = 0
+
   try {
     while (true) {
-      const events = await iterator.next(200)
+      const events = await iterator.next(500)
       if (events === null || events.length === 0) break
-
-      const operations: { filter: MigrationDocumentQuery<Doc>, update: MigrateUpdate<Doc> }[] = []
 
       const owners = events.map(
         (it) => (it.user !== undefined && it.user !== '' ? it.user : undefined) ?? it.createdBy ?? it.modifiedBy
       )
       await resolveSpaces(owners)
 
+      // `client.bulk` runs one UPDATE per entry, so events are grouped by their target space:
+      // a batch of 500 personal events costs a couple of statements instead of 500.
+      const bySpace = new Map<Ref<PersonSpace>, Array<Ref<Event>>>()
       for (const event of events) {
         const owner =
           (event.user !== undefined && event.user !== '' ? event.user : undefined) ??
@@ -783,18 +760,20 @@ async function moveEventsToPersonSpace (client: MigrationClient): Promise<void> 
           continue
         }
 
-        operations.push({
-          filter: { _id: event._id },
-          update: { space }
-        })
+        const ids = bySpace.get(space) ?? []
+        ids.push(event._id)
+        bySpace.set(space, ids)
       }
 
-      if (operations.length > 0) {
-        await client.bulk(DOMAIN_EVENT, operations)
+      for (const [space, ids] of bySpace) {
+        await client.update(DOMAIN_EVENT, { _id: { $in: ids } }, { space })
       }
 
       processed += events.length
-      client.logger.log('...processed events', { count: processed })
+      if (processed - logged >= 10000) {
+        logged = processed
+        client.logger.log('...processed events', { count: processed })
+      }
     }
   } finally {
     await iterator.close()
@@ -903,11 +882,6 @@ export const calendarOperation: MigrateOperation = {
         state: 'move-events-to-person-space',
         mode: 'upgrade',
         func: moveEventsToPersonSpace
-      },
-      {
-        state: 'fill-busy-slot-titles',
-        mode: 'upgrade',
-        func: fillBusySlotTitles
       }
     ])
   },

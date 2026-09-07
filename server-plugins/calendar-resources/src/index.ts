@@ -14,7 +14,7 @@
 //
 import calendar, {
   AccessLevel,
-  BusySlot,
+  busySlotData,
   Calendar,
   Event,
   getPrimaryCalendar,
@@ -200,37 +200,16 @@ async function OnEvent (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   return result
 }
 
-function busySlotData (event: Event, person: Ref<Person>, exdate: Timestamp[] | undefined): Data<BusySlot> {
-  const rec = event as ReccuringEvent
-  // An override replaces exactly one occurrence, but it inherits `rules` from the master it was
-  // cut out of - keeping them would block the whole series at the overridden time.
-  const single = (event as ReccuringInstance).recurringEventId !== undefined
-  return {
-    person,
-    eventId: event.eventId,
-    date: event.date,
-    dueDate: event.dueDate,
-    allDay: event.allDay,
-    // Empty rather than undefined: getDiffUpdate skips undefined, so turning a public event
-    // private would otherwise leave its title on the slot forever.
-    title: event.visibility === 'public' ? event.title : '',
-    timeZone: event.timeZone,
-    // Left unset, not emptied: the client splits slots into plain and recurring by
-    // `rules: { $exists: ... }`, and an override is a single occurrence like any plain one.
-    rules: single ? undefined : rec.rules,
-    exdate: single ? undefined : exdate,
-    rdate: single ? undefined : rec.rdate
-  }
-}
-
 // `getAllEvents` drops a master occurrence by matching an instance `originalStartTime`, but the
 // slot carries only rules and `exdate` - so the dates taken over by overrides are excluded here.
-async function masterExdate (event: ReccuringEvent, control: TriggerControl): Promise<Timestamp[]> {
-  const overrides = await control.findAll(control.ctx, calendar.class.ReccuringInstance, {
-    recurringEventId: event.eventId,
-    access: AccessLevel.Owner
-  })
-  return Array.from(new Set([...(event.exdate ?? []), ...overrides.map((it) => it.originalStartTime)]))
+async function masterOverrides (event: ReccuringEvent, control: TriggerControl): Promise<Timestamp[]> {
+  const overrides = await control.findAll(
+    control.ctx,
+    calendar.class.ReccuringInstance,
+    { recurringEventId: event.eventId, access: AccessLevel.Owner },
+    { projection: { originalStartTime: 1 } }
+  )
+  return overrides.map((it) => it.originalStartTime)
 }
 
 // Slots are kept for the master event only: participant copies share its eventId,
@@ -238,7 +217,7 @@ async function masterExdate (event: ReccuringEvent, control: TriggerControl): Pr
 async function slotTxes (event: Event, control: TriggerControl): Promise<Tx[]> {
   const rec = event as ReccuringEvent
   const single = (event as ReccuringInstance).recurringEventId !== undefined
-  const exdate = !single && rec.rules !== undefined ? await masterExdate(rec, control) : rec.exdate
+  const overrides = !single && rec.rules !== undefined ? await masterOverrides(rec, control) : []
   const slots = await control.findAll(control.ctx, calendar.class.BusySlot, { eventId: event.eventId })
   const cancelled = (event as ReccuringInstance).isCancelled === true
   const persons = event.blockTime && !cancelled ? new Set(event.participants as Ref<Person>[]) : new Set<Ref<Person>>()
@@ -251,7 +230,7 @@ async function slotTxes (event: Event, control: TriggerControl): Promise<Tx[]> {
       continue
     }
     seen.add(slot.person)
-    const update = getDiffUpdate(slot, busySlotData(event, slot.person, exdate))
+    const update = getDiffUpdate(slot, busySlotData(event, slot.person, overrides))
     if (Object.keys(update).length !== 0) {
       res.push(control.txFactory.createTxUpdateDoc(slot._class, slot.space, slot._id, update))
     }
@@ -262,7 +241,7 @@ async function slotTxes (event: Event, control: TriggerControl): Promise<Tx[]> {
       control.txFactory.createTxCreateDoc(
         calendar.class.BusySlot,
         calendar.space.Calendar,
-        busySlotData(event, person, exdate)
+        busySlotData(event, person, overrides)
       )
     )
   }

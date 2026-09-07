@@ -15,12 +15,10 @@
 
 import calendarPlugin from '@hcengineering/calendar'
 import contact, { type Person, type PersonSpace } from '@hcengineering/contact'
-import { type Doc, type Ref, TxOperations } from '@hcengineering/core'
+import { type Ref, type Space, TxOperations } from '@hcengineering/core'
 import {
   type MigrateOperation,
-  type MigrateUpdate,
   type MigrationClient,
-  type MigrationDocumentQuery,
   type MigrationUpgradeClient,
   createOrUpdate,
   tryMigrate,
@@ -38,13 +36,15 @@ async function moveWorkSlotsToTargetSpace (client: MigrationClient): Promise<voi
   const hierarchy = client.hierarchy
   const workSlotClasses = hierarchy.getDescendants(time.class.WorkSlot)
 
-  // Both lookups are filled per batch and cached across batches: neither todos nor
-  // person spaces are loaded wholesale.
-  const todoByRef = new Map<Ref<ToDo>, ToDo | null>()
+  // Todos are resolved per batch and dropped with it - work slots of one todo sit together, so a
+  // cross-batch cache would only grow to the size of the whole todo collection. Person spaces are
+  // few and stay cached for the whole run.
+  let todoByRef = new Map<Ref<ToDo>, ToDo | null>()
   const spaceByPerson = new Map<Ref<Person>, Ref<PersonSpace> | null>()
 
   async function resolveBatch (refs: Array<Ref<ToDo>>): Promise<void> {
-    const missing = refs.filter((it) => !todoByRef.has(it))
+    todoByRef = new Map()
+    const missing = Array.from(new Set(refs))
     if (missing.length > 0) {
       const todos = await client.find<ToDo>(
         DOMAIN_TIME,
@@ -89,15 +89,18 @@ async function moveWorkSlotsToTargetSpace (client: MigrationClient): Promise<voi
     space: calendarPlugin.space.Calendar
   })
 
+  let logged = 0
+
   try {
     while (true) {
-      const slots = await iterator.next(200)
+      const slots = await iterator.next(500)
       if (slots === null || slots.length === 0) break
-
-      const operations: { filter: MigrationDocumentQuery<Doc>, update: MigrateUpdate<Doc> }[] = []
 
       await resolveBatch(slots.map((it) => it.attachedTo))
 
+      // `client.bulk` runs one UPDATE per entry, so slots are grouped by their target space:
+      // a whole batch usually lands in a handful of statements.
+      const bySpace = new Map<Ref<Space>, Array<Ref<WorkSlot>>>()
       for (const slot of slots) {
         const todo = todoByRef.get(slot.attachedTo)
         const space = todo?.attachedSpace ?? (todo != null ? (spaceByPerson.get(todo.user) ?? undefined) : undefined)
@@ -110,18 +113,20 @@ async function moveWorkSlotsToTargetSpace (client: MigrationClient): Promise<voi
           continue
         }
 
-        operations.push({
-          filter: { _id: slot._id },
-          update: { space }
-        })
+        const ids = bySpace.get(space) ?? []
+        ids.push(slot._id)
+        bySpace.set(space, ids)
       }
 
-      if (operations.length > 0) {
-        await client.bulk(DOMAIN_EVENT, operations)
+      for (const [space, ids] of bySpace) {
+        await client.update(DOMAIN_EVENT, { _id: { $in: ids } }, { space })
       }
 
       processed += slots.length
-      client.logger.log('...processed work slots', { count: processed })
+      if (processed - logged >= 10000) {
+        logged = processed
+        client.logger.log('...processed work slots', { count: processed })
+      }
     }
   } finally {
     await iterator.close()

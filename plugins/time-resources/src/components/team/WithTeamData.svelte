@@ -96,9 +96,15 @@
     }
   )
 
-  $: busyQueryR.query(calendar.class.BusySlot, { rules: { $exists: true }, person: { $in: otherPersons } }, (res) => {
-    rawBusyR = res
-  })
+  // A recurring slot's date/dueDate describe its first occurrence, so the window's start cannot
+  // be applied server-side - but nothing starting after the window's end can occur inside it.
+  $: busyQueryR.query(
+    calendar.class.BusySlot,
+    { rules: { $exists: true }, person: { $in: otherPersons }, date: { $lte: toDate } },
+    (res) => {
+      rawBusyR = res
+    }
+  )
 
   // WorkSlots of the selected projects - covers colleagues too, membership in the project space guards access.
   // Never recurring (nothing sets WorkSlot.rules), so a single query is enough.

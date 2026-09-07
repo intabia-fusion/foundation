@@ -46,6 +46,8 @@ import type { BillingPeriod, CheckoutResponse, PaymentProvider, SubscriptionPubl
 import { ProviderHttpError, SubscribeRequest } from './providers'
 import { startActiveSubscriptionReconciliation } from './reconciliation'
 import { startTrialExpiry } from './trialExpiry'
+import { createMailContext } from './mail'
+import type { MailSender } from '@hcengineering/billing-mail'
 import { backfillWindowLimits } from './windowBackfill'
 import { getAccountClient, hasGrantingTier, computePlanPrice, validateSeatQuantity, MAX_SEATS_FALLBACK } from './utils'
 import * as yaml from 'js-yaml'
@@ -155,7 +157,9 @@ export async function createServer (
     purchaseId: string,
     effect?: string,
     quantity?: number
-  ) => Promise<void>
+  ) => Promise<void>,
+  // Publishes customer mail to the platform notification queue. Undefined disables all mail.
+  sendMail?: MailSender
 ): Promise<{
     app: Express
     ensureInitialSubscription: (workspace: WorkspaceUuid) => Promise<void>
@@ -614,12 +618,18 @@ export async function createServer (
     publishSubscription
   )
 
+  // Trial mail lives here, with the sweep that retires the trial.
+  // Undefined when no queue producer was wired: mail is then skipped.
+  const mailContext =
+    sendMail !== undefined ? createMailContext(accountClient, config, planConfig, sendMail) : undefined
+
   const stopTrialExpiry = startTrialExpiry(
     ctx,
     accountClient,
     freePlanName !== undefined ? (workspace) => buildFreeSubscription(workspace) : undefined,
     { hourUtc: config.TrialExpiryHourUtc ?? 21, intervalMinutes: config.TrialExpiryIntervalMinutes },
-    logOperation
+    logOperation,
+    mailContext
   )
 
   // Fills the AI window on subscriptions predating it. Reads every active subscription, so it is

@@ -36,6 +36,7 @@ import { getAccountClient, isFinalizedUserCancel } from './utils'
 import type { SubscriptionPublisher } from './providers'
 import serverToken, { generateToken } from '@hcengineering/server-token'
 import { join } from 'path'
+import { createQueueSender, type EmailNotification } from '@hcengineering/billing-mail'
 import config from './config'
 import { createServer, listen } from './server'
 
@@ -139,12 +140,18 @@ export const main = async (): Promise<void> => {
     ])
   }
 
+  // Customer mail goes through the shared notification queue, consumed by pod-mail. MAIL_FROM is
+  // optional: pod-mail falls back to its own configured SOURCE.
+  const mailProducer = queue.getProducer<EmailNotification>(metricsContext, QueueTopic.NotificationQueue)
+  const sendMail = createQueueSender(mailProducer, config.MailFrom)
+
   const { app, ensureInitialSubscription, createFreeIfNoActiveTier, persistSubscription, close } = await createServer(
     metricsContext,
     config,
     publish,
     logOperation,
-    publishPurchaseActivated
+    publishPurchaseActivated,
+    sendMail
   )
   const server = listen(app, config.Port)
 

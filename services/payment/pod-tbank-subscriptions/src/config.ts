@@ -44,10 +44,9 @@ export interface Config {
   GracePeriodDays: number // Days after periodEnd a failed subscription stays in past_due before going readonly
   UpcomingNoticeDays: number // Days before a charge/expiry date the reminder email is sent
 
-  // Email notifications (optional — payment-failed emails are skipped when MailUrl is unset)
-  MailUrl?: string // pod-mail base URL, e.g. http://mail:8097
-  MailApiKey?: string // pod-mail API key (Bearer), optional if pod-mail has none
-  MailFrom?: string // From address for outgoing notifications
+  // Email notifications. Mail is published to the platform notification queue, so no pod-mail URL
+  // or key is needed here — pod-mail consumes the topic.
+  MailFrom?: string // From address; unset lets pod-mail use its own configured SOURCE
   BillingEmails?: string[] // Service inbox(es) notified on failed charges (comma-separated env)
   SupportEmail?: string // Support contact shown in the receipt-email footer
   SupportUrl?: string // Support link (e.g. Telegram) shown in the receipt-email footer
@@ -80,8 +79,6 @@ const config: Config = (() => {
     SchedulerIntervalMinutes: parseNumber(process.env.SCHEDULER_INTERVAL_MINUTES, 60),
     GracePeriodDays: parseNumber(process.env.GRACE_PERIOD_DAYS, 7),
     UpcomingNoticeDays: parseNumber(process.env.UPCOMING_NOTICE_DAYS, 5),
-    MailUrl: process.env.MAIL_URL,
-    MailApiKey: process.env.MAIL_API_KEY,
     MailFrom: process.env.MAIL_FROM,
     BillingEmails: process.env.BILLING_EMAILS?.split(',')
       .map((e) => e.trim())

@@ -28,6 +28,7 @@ import {
   type QueueTbankWebhookMessage,
   subscriptionEvents
 } from '@hcengineering/server-core'
+import { createQueueSender, type EmailNotification } from '@hcengineering/billing-mail'
 import { join } from 'path'
 import TbankPayments from './tbank'
 import { createMockTbank } from './mockTbank'
@@ -36,6 +37,7 @@ import config from './config'
 import { createServer, processWebhook } from './server'
 import { SubscriptionStorage } from './storage'
 import { startScheduler } from './scheduler'
+import { setMailSender } from './notifications'
 
 const setupMetadata = (): void => {
   setMetadata(serverToken.metadata.Secret, config.Secret)
@@ -111,6 +113,11 @@ export const main = async (): Promise<void> => {
       op as QueuePaymentOperationMessage
     ])
   }
+
+  // Customer mail goes through the shared notification queue,
+  // so a message survives pod-mail being briefly down.
+  const mailProducer = queue.getProducer<EmailNotification>(metricsContext, QueueTopic.NotificationQueue)
+  setMailSender(createQueueSender(mailProducer, config.MailFrom))
 
   const storage = new SubscriptionStorage(accountClient, publish, publishOperation)
 

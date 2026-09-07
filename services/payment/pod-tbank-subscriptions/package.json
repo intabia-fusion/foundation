@@ -63,6 +63,7 @@
     "@hcengineering/server-client": "workspace:^0.7.17",
     "@hcengineering/core": "workspace:^0.7.24",
     "@hcengineering/account-client": "workspace:^0.7.21",
+    "@hcengineering/billing-mail": "workspace:^0.7.0",
     "@hcengineering/platform": "workspace:^0.7.19",
 
     "cors": "^2.8.5",

@@ -143,10 +143,13 @@ export interface PlanPricing {
 // major units (tier: per-user; package: flat). Free / contact-sales plans have no price and are skipped.
 // Display name: plans carry a localized `label`; packages have no `label`, only a `description`.
 export interface PlanConfigLike {
-  plans?: Record<string, { priceMonthlyPerUser?: number, yearlyDiscount?: number, label?: Record<string, string> }>
-  packages?: Record<string, { priceMonthly?: number, description?: Record<string, string> }>
+  plans?: Record<
+  string,
+  { priceMonthlyPerUser?: number, yearlyDiscount?: number, label?: Record<string, string>, currency?: string }
+  >
+  packages?: Record<string, { priceMonthly?: number, description?: Record<string, string>, currency?: string }>
   // One-time catalog purchases: flat-priced, charged once (no renewal).
-  purchasables?: Record<string, { priceMonthly?: number, description?: Record<string, string> }>
+  purchasables?: Record<string, { priceMonthly?: number, description?: Record<string, string>, currency?: string }>
 }
 
 // TBank Amount is expressed in the currency's minor units; prices in plan-config are whole major units.

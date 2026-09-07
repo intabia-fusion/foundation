@@ -16,7 +16,7 @@
 // Payer-facing "<action> <plan>" copy for the Init Description — data only. TBank shows it to the
 // customer (order description in its email) and it names the fiscal-receipt line (54-ФЗ). The {plan}
 // placeholder is filled by the renderer in notifications.ts. Keyed by charge kind, per subscription
-// family (tier / package).
+// family (tier / package / purchase).
 export default {
   ru: {
     tier: {
@@ -30,6 +30,13 @@ export default {
       update: 'Изменение пакета «{plan}»',
       renewal: 'Продление пакета «{plan}»',
       retry: 'Оплата пакета «{plan}»'
+    },
+    // One-time catalog item: it is never changed or renewed, so every kind reads the same.
+    purchase: {
+      purchase: '{plan}',
+      update: '{plan}',
+      renewal: '{plan}',
+      retry: 'Оплата «{plan}»'
     }
   },
   en: {
@@ -44,6 +51,12 @@ export default {
       update: 'Package change “{plan}”',
       renewal: 'Package renewal “{plan}”',
       retry: 'Package payment “{plan}”'
+    },
+    purchase: {
+      purchase: '{plan}',
+      update: '{plan}',
+      renewal: '{plan}',
+      retry: 'Payment for “{plan}”'
     }
   }
 }

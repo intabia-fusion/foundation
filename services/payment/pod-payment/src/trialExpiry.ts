@@ -21,6 +21,7 @@ import {
   type SubscriptionData,
   type SubscriptionUpsert
 } from '@hcengineering/account-client'
+import { type BillingMailContext, notifyExpired } from '@hcengineering/billing-mail'
 import { hasGrantingTier } from './utils'
 
 const TRIAL_EXPIRED = 'TRIAL_EXPIRED'
@@ -41,7 +42,8 @@ export async function expireTrials (
   ctx: MeasureContext,
   accountClient: AccountClient,
   buildFreeSubscription: FreeSubscriptionBuilder | undefined,
-  logOperation?: OperationLogger
+  logOperation?: OperationLogger,
+  mail?: BillingMailContext
 ): Promise<void> {
   const now = Date.now()
 
@@ -55,7 +57,8 @@ export async function expireTrials (
       buildFreeSubscription,
       logOperation,
       trials.slice(i, i + BATCH_SIZE),
-      now
+      now,
+      mail
     )
   }
 
@@ -71,7 +74,8 @@ async function expireBatch (
   buildFreeSubscription: FreeSubscriptionBuilder | undefined,
   logOperation: OperationLogger | undefined,
   batch: Subscription[],
-  now: number
+  now: number,
+  mail?: BillingMailContext
 ): Promise<number> {
   const writes: SubscriptionUpsert[] = []
 
@@ -128,6 +132,9 @@ async function expireBatch (
 
     if (isCancel) {
       ctx.info('trial expired', { workspace: write.workspaceUuid, plan: write.plan, trialEnd: write.trialEnd })
+      if (mail !== undefined) {
+        await notifyExpired(ctx, mail, write as SubscriptionData, 'trial', write.trialEnd ?? now)
+      }
       expired++
     } else {
       ctx.info('free subscription created for workspace', { workspace: write.workspaceUuid, plan: write.plan })
@@ -162,10 +169,11 @@ export function startTrialExpiry (
   accountClient: AccountClient,
   buildFreeSubscription: FreeSubscriptionBuilder | undefined,
   schedule: { hourUtc: number, intervalMinutes?: number },
-  logOperation?: OperationLogger
+  logOperation?: OperationLogger,
+  mail?: BillingMailContext
 ): () => void {
   const run = (): void => {
-    void expireTrials(ctx, accountClient, buildFreeSubscription, logOperation).catch((err: any) => {
+    void expireTrials(ctx, accountClient, buildFreeSubscription, logOperation, mail).catch((err: any) => {
       ctx.error('trial expiry sweep failed', { err })
     })
   }

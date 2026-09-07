@@ -62,6 +62,11 @@ export interface Config {
   // Per-IP cap on plan-config reads per 15-min window (raise on test stands: every browser behind
   // the same NAT counts as one client)
   PlanConfigRateLimitMax?: number
+
+  // Email notifications. Mail is published to the platform notification queue, consumed by pod-mail.
+  MailFrom?: string // From address; unset lets pod-mail use its own configured SOURCE
+  SupportEmail?: string // Support contact shown in the mail footer
+  SupportUrl?: string // Support link (e.g. Telegram) shown in the mail footer
 }
 
 // An unset var in docker-compose arrives as an empty string, and Number('') is 0 — treat it as absent.
@@ -119,7 +124,10 @@ const config: Config = (() => {
     AllowMockProvider: process.env.ALLOW_MOCK_PROVIDER === 'true',
     RunWindowBackfill: process.env.RUN_WINDOW_BACKFILL === 'true',
     SubscriptionRateLimitMax: parseNumber(process.env.SUBSCRIPTION_RATE_LIMIT_MAX),
-    PlanConfigRateLimitMax: parseNumber(process.env.PLAN_CONFIG_RATE_LIMIT_MAX)
+    PlanConfigRateLimitMax: parseNumber(process.env.PLAN_CONFIG_RATE_LIMIT_MAX),
+    MailFrom: process.env.MAIL_FROM,
+    SupportEmail: process.env.SUPPORT_EMAIL,
+    SupportUrl: process.env.SUPPORT_URL
   }
 
   const requiredKeys: Array<keyof Config> = ['Port', 'Secret', 'AccountsUrl', 'FrontUrl', 'Provider', 'PlanConfig']

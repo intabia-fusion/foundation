@@ -145,6 +145,7 @@ packages:
   - packages/analytics-providers
   - packages/audio-dsp
   - packages/billing-client
+  - packages/billing-mail
   - packages/clisr
   - packages/highlight
   - packages/hls

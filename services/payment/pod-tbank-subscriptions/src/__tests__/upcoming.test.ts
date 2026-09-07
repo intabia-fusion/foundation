@@ -15,13 +15,14 @@
 
 import { SubscriptionStatus } from '@hcengineering/account-client'
 import { startScheduler } from '../scheduler'
-import { notifyUpcoming } from '../notifications'
+import { notifyUpcoming, notifyExpired } from '../notifications'
 
 // Stub the whole notifications module: this suite asserts *which* reminder the scheduler picks
 // and when, not how the email renders. jest.mock is hoisted above the imports, so the factory may
 // not close over anything defined here — the mock fns are reached through the imported binding.
 jest.mock('../notifications', () => ({
   notifyUpcoming: jest.fn().mockResolvedValue(undefined),
+  notifyExpired: jest.fn().mockResolvedValue(undefined),
   notifyPaymentFailed: jest.fn().mockResolvedValue(undefined),
   notifyPaymentSucceeded: jest.fn().mockResolvedValue(undefined),
   notifyReceiptBlocked: jest.fn().mockResolvedValue(undefined),
@@ -29,11 +30,12 @@ jest.mock('../notifications', () => ({
 }))
 
 const notifyUpcomingMock = notifyUpcoming as jest.MockedFunction<typeof notifyUpcoming>
+const notifyExpiredMock = notifyExpired as jest.MockedFunction<typeof notifyExpired>
 
 const NOW = Date.UTC(2026, 6, 19)
 const DAY = 24 * 60 * 60 * 1000
 
-const config: any = { GracePeriodDays: 7, UpcomingNoticeDays: 5, MailUrl: 'http://mail', MailFrom: 'a@b.c' }
+const config: any = { GracePeriodDays: 7, UpcomingNoticeDays: 5, MailFrom: 'a@b.c' }
 
 // Active recurrent tier, charge due in 3 days -> inside the 5-day notice window.
 const recurrentSub: any = {
@@ -50,26 +52,12 @@ const recurrentSub: any = {
   providerData: { rebillId: 'reb_1', period: 'monthly' }
 }
 
-const trialSub: any = {
-  id: 'trial_1',
-  provider: 'trial',
-  providerSubscriptionId: 'trial-1',
-  workspaceUuid: 'ws-2',
-  accountUuid: 'acc-2',
-  type: 'tier',
-  plan: 'business',
-  status: SubscriptionStatus.Trialing,
-  trialEnd: NOW + 3 * DAY,
-  providerData: { quantity: 10 }
-}
-
-// getCandidates feeds the paid subscriptions; getTrialCandidates feeds trials. Both default to
-// empty so the unrelated cycles (renewal/cleanup/grace/cancel) stay inert.
-function makeStorage (paid: any[] = [], trials: any[] = [], extra: Record<string, any> = {}): any {
-  const byId = new Map<string, any>([...paid, ...trials].map((s) => [s.id, s]))
+// getCandidates feeds the paid subscriptions; it defaults to empty so the unrelated cycles
+// (renewal/cleanup/grace/cancel) stay inert. Trials live in pod-payment, not here.
+function makeStorage (paid: any[] = [], extra: Record<string, any> = {}): any {
+  const byId = new Map<string, any>(paid.map((s) => [s.id, s]))
   return {
     getCandidates: jest.fn().mockResolvedValue(paid),
-    getTrialCandidates: jest.fn().mockResolvedValue(trials),
     getById: jest.fn().mockImplementation(async (id: string) => byId.get(id) ?? null),
     claimRenewal: jest.fn().mockResolvedValue({ claimed: false, status: 'charged', intentId: 'i1' }),
     reclaimStaleCharge: jest.fn().mockResolvedValue(false),
@@ -94,6 +82,7 @@ beforeEach(() => {
   jest.useFakeTimers({ doNotFake: ['nextTick'] })
   jest.setSystemTime(NOW)
   notifyUpcomingMock.mockClear()
+  notifyExpiredMock.mockClear()
 })
 
 afterEach(() => {
@@ -145,13 +134,6 @@ describe('upcoming-expiry reminder: kind', () => {
     expect(notifyUpcomingMock.mock.calls[0][4]).toBe('canceled')
   })
 
-  test('trial -> trial, dated by trialEnd', async () => {
-    await runOneTick(makeStorage([], [trialSub]))
-    expect(notifyUpcomingMock).toHaveBeenCalledTimes(1)
-    expect(notifyUpcomingMock.mock.calls[0][4]).toBe('trial')
-    expect(notifyUpcomingMock.mock.calls[0][5]).toBe(trialSub.trialEnd)
-  })
-
   test('package keeps its own family but the same kind', async () => {
     const pkg = { ...recurrentSub, type: 'package', plan: 'storage-100gb' }
     await runOneTick(makeStorage([pkg]))
@@ -170,6 +152,12 @@ describe('upcoming-expiry reminder: skipped states', () => {
   test('past_due -> silent (dunning owns that conversation)', async () => {
     const pastDue = { ...recurrentSub, status: SubscriptionStatus.PastDue }
     await runOneTick(makeStorage([pastDue]))
+    expect(notifyUpcomingMock).not.toHaveBeenCalled()
+  })
+
+  test('one-time purchase -> silent (nothing renews or runs out)', async () => {
+    const purchase = { ...recurrentSub, type: 'purchase', plan: 'ai-tokens-1m' }
+    await runOneTick(makeStorage([purchase]))
     expect(notifyUpcomingMock).not.toHaveBeenCalled()
   })
 })
@@ -223,5 +211,101 @@ describe('upcoming-expiry reminder: idempotency', () => {
     })
     await runOneTick(storage)
     expect(notifyUpcomingMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('access-ended email: which kind the scheduler picks', () => {
+  // Expired one-off: periodEnd in the past, no auto-renewal, still Active.
+  const expiredOneOff: any = {
+    ...recurrentSub,
+    periodEnd: NOW - DAY,
+    providerData: { period: 'monthly', recurrent: false }
+  }
+
+  test('one-off ran out -> oneoff, dated by periodEnd not by the tick', async () => {
+    await runOneTick(makeStorage([expiredOneOff]))
+    expect(notifyExpiredMock).toHaveBeenCalledTimes(1)
+    expect(notifyExpiredMock.mock.calls[0][4]).toBe('oneoff')
+    expect(notifyExpiredMock.mock.calls[0][5]).toBe(expiredOneOff.periodEnd)
+  })
+
+  test('the user had scheduled a cancel -> canceled, not oneoff', async () => {
+    const canceled = { ...expiredOneOff, willCancelAt: NOW - DAY }
+    await runOneTick(makeStorage([canceled]))
+    expect(notifyExpiredMock.mock.calls[0][4]).toBe('canceled')
+  })
+
+  test('a canceled one-off matches both cycles but is emailed once', async () => {
+    // willCancelAt == periodEnd, so expireOneOffSubscriptions and enforceScheduledCancel both see it.
+    // getById returns the pre-cancel row, so neither is stopped by the other's write — only the
+    // recurrent check in enforceScheduledCancel keeps this from sending twice.
+    const canceled = { ...expiredOneOff, willCancelAt: expiredOneOff.periodEnd }
+    await runOneTick(makeStorage([canceled]))
+    expect(notifyExpiredMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('a one-off with no saved card and no recurrent flag is still emailed once', async () => {
+    // recurrent:false is what routes it; a row that never set the flag must not fall through to both.
+    const canceled = { ...expiredOneOff, providerData: { period: 'monthly' }, willCancelAt: expiredOneOff.periodEnd }
+    await runOneTick(makeStorage([canceled]))
+    expect(notifyExpiredMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('period still running -> nothing sent', async () => {
+    const live = { ...expiredOneOff, periodEnd: NOW + 30 * DAY }
+    await runOneTick(makeStorage([live]))
+    expect(notifyExpiredMock).not.toHaveBeenCalled()
+  })
+
+  test('re-fetch shows a repurchase extended the period -> no email', async () => {
+    const storage = makeStorage([expiredOneOff])
+    storage.getById.mockResolvedValue({ ...expiredOneOff, periodEnd: NOW + 30 * DAY })
+    await runOneTick(storage)
+    expect(notifyExpiredMock).not.toHaveBeenCalled()
+  })
+
+  test('recurrent cancel takes effect -> canceled, dated by willCancelAt', async () => {
+    // Recurrent with a card: expireOneOffSubscriptions skips it, enforceScheduledCancel finalizes it.
+    const scheduled = { ...recurrentSub, periodEnd: NOW - DAY, willCancelAt: NOW - DAY }
+    await runOneTick(makeStorage([scheduled]))
+    expect(notifyExpiredMock).toHaveBeenCalledTimes(1)
+    expect(notifyExpiredMock.mock.calls[0][4]).toBe('canceled')
+    expect(notifyExpiredMock.mock.calls[0][5]).toBe(scheduled.willCancelAt)
+  })
+})
+
+describe('access-ended email: grace period', () => {
+  // Failed renewal with retries exhausted, period ended more than GracePeriodDays (7) ago.
+  const graceExpired: any = {
+    ...recurrentSub,
+    status: SubscriptionStatus.PastDue,
+    periodEnd: NOW - 8 * DAY,
+    providerData: { ...recurrentSub.providerData, retryAttempt: 3 }
+  }
+
+  test('grace ran out -> grace, dated by the end of the grace window', async () => {
+    await runOneTick(makeStorage([graceExpired]))
+    expect(notifyExpiredMock).toHaveBeenCalledTimes(1)
+    expect(notifyExpiredMock.mock.calls[0][4]).toBe('grace')
+    // periodEnd + 7 days, not the tick time: the mail names when access actually stopped.
+    expect(notifyExpiredMock.mock.calls[0][5]).toBe(graceExpired.periodEnd + 7 * DAY)
+  })
+
+  test('still inside the grace window -> silent', async () => {
+    const inGrace = { ...graceExpired, periodEnd: NOW - 2 * DAY }
+    await runOneTick(makeStorage([inGrace]))
+    expect(notifyExpiredMock).not.toHaveBeenCalled()
+  })
+
+  test('retries not exhausted -> silent (dunning still owns it)', async () => {
+    const retrying = { ...graceExpired, providerData: { ...graceExpired.providerData, retryAttempt: 1 } }
+    await runOneTick(makeStorage([retrying]))
+    expect(notifyExpiredMock).not.toHaveBeenCalled()
+  })
+
+  test('a pending first-payment draft is never emailed', async () => {
+    const draft = { ...graceExpired, providerData: { ...graceExpired.providerData, pending: true } }
+    await runOneTick(makeStorage([draft]))
+    expect(notifyExpiredMock).not.toHaveBeenCalled()
   })
 })

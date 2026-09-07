@@ -27,6 +27,10 @@ on the test and `sharedWorkspace(testInfo.tags.includes('@invite') ? 1 : 0)` in 
   `workbench.<workspace>.<account>.sidebar.state.` (plugins/workbench-resources/src/sidebar.ts) and
   every test gets a fresh browser context.
 
+`documents/documents-content.spec.ts` is converted too (8 tests, 3 of them `@invite`): every test
+builds its own teamspace and document from `generateId`, and the ToDo test assigns to the second,
+always new user, so the planner it opens is empty regardless of the workspace's age.
+
 ## Not converted
 
 `chat/ai-bot-scenarios.spec.ts` asserts on a workspace with exactly one tracker project (the
@@ -37,4 +41,7 @@ assumption dies with a shared workspace, so it still creates one per test.
 
 `chat/chat.spec.ts` alone: 28.2s -> 22.2s wall for the file at 5 workers, 27 workspace creations
 down to one per worker (plus a recycle when invites run out). `chat/image-reservation.spec.ts`
-converted as well (5 -> 1). Verified with `--repeat-each 3` (81 tests, 0 flaky).
+converted as well (5 -> 1). Verified with `--repeat-each 3` (81 tests, 0 flaky). A full run
+confirmed it: `setup: account and workspace` went 145.2s -> 79.0s, `chat/chat.spec.ts` hooks
+65.5s -> 17.8s. Wall did not move - it is bound by the Love lane and by workers that start late,
+not by hooks.

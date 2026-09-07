@@ -517,15 +517,7 @@ describe('processWebhook (consumer)', () => {
       processWebhook(newCtx(), baseConfig, makeTbank(true), storage, notification, true, Date.now())
     ).rejects.toThrow(/pay_missing/)
 
-    await processWebhook(
-      newCtx(),
-      baseConfig,
-      makeTbank(true),
-      storage,
-      notification,
-      true,
-      Date.now() - 120000
-    )
+    await processWebhook(newCtx(), baseConfig, makeTbank(true), storage, notification, true, Date.now() - 120000)
     expect(storage.upsert).not.toHaveBeenCalled()
   })
 })

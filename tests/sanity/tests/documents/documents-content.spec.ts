@@ -3,10 +3,9 @@ import {
   generateId,
   getTimeForPlanner,
   generateUser,
-  createAccountAndWorkspace,
+  loginByToken,
   createAccount,
   getInviteLink,
-  generateTestData,
   getSecondPageByInvite
 } from '../utils'
 import { retryIntervals } from '../retry'
@@ -17,13 +16,11 @@ import { DocumentContentPage } from '../model/documents/document-content-page'
 import { PlanningNavigationMenuPage } from '../model/planning/planning-navigation-menu-page'
 import { PlanningPage } from '../model/planning/planning-page'
 import { SignUpData } from '../model/common-types'
-import { TestData } from '../chat/types'
 import { faker } from '@faker-js/faker'
 
 const retryOptions = { intervals: retryIntervals, timeout: 60000 }
 
 test.describe('Content in the Documents tests', () => {
-  let testData: TestData
   let newUser2: SignUpData
   let testTeamspace: NewTeamspace
   let testDocument: NewDocument
@@ -36,7 +33,7 @@ test.describe('Content in the Documents tests', () => {
   let documentsSecondPage: DocumentsPage
   let documentContentSecondPage: DocumentContentPage
 
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page, sharedWorkspace }, testInfo) => {
     documentsPage = new DocumentsPage(page)
     documentContentPage = new DocumentContentPage(page)
     testTeamspace = {
@@ -49,8 +46,9 @@ test.describe('Content in the Documents tests', () => {
       space: testTeamspace.title
     }
 
-    testData = generateTestData()
-    await createAccountAndWorkspace(page, request, testData, 'document')
+    // One workspace per worker; the tests that invite a guest spend a seat of the free plan.
+    const shared = await sharedWorkspace(testInfo.tags.includes('@invite') ? 1 : 0)
+    await loginByToken(page, shared.token, shared.ws, 'document')
 
     await documentsPage.checkTeamspaceNotExist(testTeamspace.title)
     await documentsPage.createNewTeamspace(testTeamspace)
@@ -60,7 +58,7 @@ test.describe('Content in the Documents tests', () => {
     await documentContentPage.checkDocumentTitle(testDocument.title)
   })
 
-  test('ToDos in the Document', async ({ page, request, browser }) => {
+  test('ToDos in the Document', { tag: '@invite' }, async ({ page, request, browser }) => {
     newUser2 = generateUser()
     await createAccount(request, newUser2)
     const linkText = await getInviteLink(page)
@@ -105,7 +103,7 @@ test.describe('Content in the Documents tests', () => {
     for (const line of contents) await documentContentPage.checkToDo(line, true)
   })
 
-  test('Table in the Document', async ({ page, browser, request }) => {
+  test('Table in the Document', { tag: '@invite' }, async ({ page, browser, request }) => {
     newUser2 = generateUser()
     await createAccount(request, newUser2)
     const linkText = await getInviteLink(page)
@@ -314,7 +312,7 @@ test.describe('Content in the Documents tests', () => {
     })
   })
 
-  test('Checking styles in a Document', async ({ page, browser, request }) => {
+  test('Checking styles in a Document', { tag: '@invite' }, async ({ page, browser, request }) => {
     const content: string = [...new Array(21).keys()].map((index) => `Line ${index}`).join('\n')
     const testLink: string = 'http://test/link/123456'
     const testNote: string = 'Test Note'

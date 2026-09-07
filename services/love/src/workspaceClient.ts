@@ -643,6 +643,35 @@ export class WorkspaceClient {
     }
   }
 
+  /** The Person behind an account, so an endpoint never has to trust a person ref sent by a client. */
+  async findPersonByAccount (account: AccountUuid): Promise<Ref<Person> | undefined> {
+    try {
+      const persons = await this.client.findAll(contact.class.Person, {
+        personUuid: account as unknown as Person['personUuid']
+      })
+      return persons[0]?._id
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.findPersonByAccount] Failed', {
+        error: err?.message ?? String(err),
+        account
+      })
+      return undefined
+    }
+  }
+
+  /** Every seat this person holds - one row per meeting they are still counted in. */
+  async findParticipantInfosByPerson (person: Ref<Person>): Promise<ParticipantInfo[]> {
+    try {
+      return await this.client.findAll(love.class.ParticipantInfo, { person })
+    } catch (err: any) {
+      this.ctx.error('[WorkspaceClient.findParticipantInfosByPerson] Failed', {
+        error: err?.message ?? String(err),
+        person
+      })
+      return []
+    }
+  }
+
   /**
    * Remove a ParticipantInfo entry by its document ID.
    */

@@ -47,6 +47,27 @@ export const lkReconnected = writable<number>(0)
 export const lkSessionEnded = writable<number>(0)
 
 export const lkIsConnecting = writable<boolean>(false)
+// Sticky across disconnects AND reloads: a ParticipantInfo row still carrying it is this tab's own
+// leftover, not a second session. sessionStorage is per-tab, so another tab never reads this one.
+const MY_SID_KEY = 'love.lastSessionSid'
+export const myLastSessionSid = writable<string | undefined>(readMySid())
+
+function readMySid (): string | undefined {
+  try {
+    return window.sessionStorage.getItem(MY_SID_KEY) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+function rememberMySid (sid: string): void {
+  myLastSessionSid.set(sid)
+  try {
+    window.sessionStorage.setItem(MY_SID_KEY, sid)
+  } catch {
+    // Private mode or storage disabled - the store still covers this tab until it reloads.
+  }
+}
 
 const LAST_PARTICIPANT_NOTIFICATION_DELAY_MS = 60 * 1000
 const AUTO_DISCONNECT_DELAY_MS = 10 * 60 * 1000 // set 10 minutes
@@ -219,6 +240,7 @@ export class LiveKitClient {
   onConnected = (): void => {
     console.log('[LiveKitClient.onConnected] Connected event fired')
     lkSessionConnected.set(true)
+    rememberMySid(this.liveKitRoom.localParticipant.sid)
     lkIsConnecting.set(false)
 
     this.liveKitRoom.on(RoomEvent.ParticipantConnected, this.onParticipantConnected)

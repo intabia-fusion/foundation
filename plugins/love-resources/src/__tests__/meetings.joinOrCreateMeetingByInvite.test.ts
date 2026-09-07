@@ -41,7 +41,7 @@ jest.mock('../utils', () => ({
   getLiveKitEndpoint: jest.fn(() => 'wss://example.test'),
   getRoomName: jest.fn(async () => 'Room 1'),
   liveKitClient: { connect: mockConnect, disconnect: jest.fn(async () => {}) },
-  loveClient: { getRoomToken: jest.fn(async () => 'token') },
+  loveClient: { getRoomToken: jest.fn(async () => 'token'), claimSession: jest.fn(async () => {}) },
   navigateToMeetingMinutes: jest.fn(async () => {}),
   navigateToOfficeDoc: jest.fn(async () => {})
 }))
@@ -61,7 +61,7 @@ jest.mock('../invites', () => ({
 }))
 jest.mock('../liveKitClient', () => {
   const { writable } = require('svelte/store')
-  return { lkIsConnecting: writable(false), lkSessionConnected: writable(false) }
+  return { lkIsConnecting: writable(false), lkSessionConnected: writable(false), myLastSessionSid: writable(undefined) }
 })
 jest.mock('../stores', () => {
   const { writable } = require('svelte/store')
@@ -70,6 +70,7 @@ jest.mock('../stores', () => {
     rooms: writable([]),
     myConnectingSessionId: writable(null),
     meetings: writable([]),
+    myInfos: writable([]),
     currentMeetingMinutes: writable(undefined),
     waitForOfficeLoaded: jest.fn(async () => {}),
     withConnectingToMeeting: jest.fn(async (op: () => Promise<unknown>) => await op())

@@ -1,4 +1,4 @@
-import { concatLink } from '@hcengineering/core'
+import { concatLink, type Ref } from '@hcengineering/core'
 import love, { type MeetingMinutes, type Room } from '@hcengineering/love'
 import { getMetadata } from '@hcengineering/platform'
 import { getPlatformToken } from './utils'
@@ -21,6 +21,9 @@ export class LoveServiceError extends Error {
     this.name = 'LoveServiceError'
   }
 }
+
+// Optional calls must never hold up joining a meeting; `fetch` has no timeout of its own.
+const LOVE_HOUSEKEEPING_TIMEOUT_MS = 4000
 
 export class LoveClient {
   async getRoomToken (meetingMinutes: MeetingMinutes): Promise<string> {
@@ -86,6 +89,52 @@ export class LoveClient {
     }
 
     return endpoint
+  }
+
+  /**
+   * Tells love this session is the live one, so it can drop my sessions in other meetings. Call it
+   * only after LiveKit is connected: a failed connect must not cost the meeting I am still in.
+   * The person is taken from the bearer token server-side, never from the body.
+   */
+  async claimSession (meetingMinutes: MeetingMinutes): Promise<void> {
+    try {
+      await fetch(concatLink(this.getLoveEndpoint(), '/claimSession'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${getPlatformToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ meetingId: meetingMinutes._id }),
+        signal: AbortSignal.timeout(LOVE_HOUSEKEEPING_TIMEOUT_MS)
+      })
+    } catch (err: any) {
+      // Housekeeping only - polling still closes an abandoned room on its own schedule.
+      console.warn('Failed to claim the session', err)
+    }
+  }
+
+  /**
+   * Of `candidates`, the meetings LiveKit still has me in. A ParticipantInfo row outlives a closed
+   * tab by `departureTimeout`, so only the server can tell a live second session from a leftover.
+   */
+  async liveSessions (candidates: Array<Ref<MeetingMinutes>>): Promise<Array<Ref<MeetingMinutes>>> {
+    try {
+      const res = await fetch(concatLink(this.getLoveEndpoint(), '/liveSessions'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${getPlatformToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ meetings: candidates }),
+        signal: AbortSignal.timeout(LOVE_HOUSEKEEPING_TIMEOUT_MS)
+      })
+      if (!res.ok) return []
+      return (await res.json()).meetings ?? []
+    } catch (err: any) {
+      // Unknown means "do not bother the user": a wrong prompt is worse than a missing one.
+      console.warn('Failed to list live sessions', err)
+      return []
+    }
   }
 
   private async refreshRoomToken (meetingMinutes: MeetingMinutes): Promise<string> {

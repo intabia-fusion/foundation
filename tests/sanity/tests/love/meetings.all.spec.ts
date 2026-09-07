@@ -17,6 +17,7 @@ import { test } from '../fixtures'
 import { closeLoveWindows } from './meeting-helpers'
 
 import { registerAccessTests } from './meetings.access.tests'
+import { registerMultiTabTests } from './meetings.multitab.tests'
 import { registerBidirectionalLoopTests } from './meetings.bidirectional-loop.tests'
 import { registerRefreshReconnectTests } from './meetings.refresh-reconnect.tests'
 import { registerConnectTests } from './meetings.connect.tests'
@@ -74,4 +75,5 @@ test.describe('love (meetings) — suite', () => {
   registerFinishedTokenTests()
   registerTransactorRestartTests()
   registerRecordingTests()
+  registerMultiTabTests()
 })

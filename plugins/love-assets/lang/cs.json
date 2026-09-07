@@ -162,6 +162,8 @@
     "SpeakingWhileMutedAlert": "Upozornit, když mluvím s vypnutým mikrofonem",
     "SwitchWorkspaceInMeeting": "Jste ve schůzce",
     "SwitchWorkspaceLeaveMeeting": "Přepnutí pracovního prostoru vás odpojí od aktuální schůzky.",
+    "AlreadyInAnotherMeeting": "Již jste na schůzce",
+    "LeaveOtherMeeting": "Jste připojeni ke schůzce „{meeting}“ na jiné kartě nebo zařízení. Pokračovat a opustit ji?",
     "SwitchWorkspaceEndsMeeting": "Toto je vaše kancelář: přepnutí pracovního prostoru vás odpojí a ukončí schůzku pro všechny."
   }
 }

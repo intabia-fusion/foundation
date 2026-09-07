@@ -358,6 +358,11 @@ async function findPersonByAccount (control: TriggerControl, account: AccountUui
   return persons[0]
 }
 
+/**
+ * The client dedups pending invite-requests via `notMatch`, but a request that
+ * dies by TTL leaves its response behind, so a re-knock would stack a second
+ * chip on the recipient. One pending response per (from, to, room/meeting).
+ */
 async function createInviteResponseTx (
   control: TriggerControl,
   recipientSpace: Ref<Space>,
@@ -367,7 +372,21 @@ async function createInviteResponseTx (
     meeting?: Ref<MeetingMinutes>
     room?: Ref<Room>
   }
-): Promise<Tx> {
+): Promise<Tx | undefined> {
+  const existing = await control.findAll(
+    control.ctx,
+    love.class.UserMeetingInvite,
+    {
+      kind: 'invite-response',
+      from: data.from,
+      to: data.to,
+      status: 'pending',
+      ...(data.room !== undefined ? { room: data.room } : { meeting: data.meeting })
+    },
+    { limit: 1 }
+  )
+  if (existing.length > 0) return undefined
+
   return control.txFactory.createTxCreateDoc(
     love.class.UserMeetingInvite,
     recipientSpace,
@@ -524,14 +543,14 @@ export async function OnUserMeetingInvite (txes: Tx[], control: TriggerControl):
           seen.add(ownerPerson._id)
           const ownerSpace = await getPersonSpace(control, ownerPerson._id)
           if (ownerSpace === undefined) continue
-          result.push(
-            await createInviteResponseTx(control, ownerSpace._id, {
-              from: invite.from,
-              to: ownerPerson._id,
-              room: invite.room,
-              meeting: meeting._id
-            })
-          )
+          const responseTx = await createInviteResponseTx(control, ownerSpace._id, {
+            from: invite.from,
+            to: ownerPerson._id,
+            room: invite.room,
+            meeting: meeting._id
+          })
+          if (responseTx === undefined) continue
+          result.push(responseTx)
           result.push(
             ...(await createInviteNotificationTxs(control, ownerPerson._id, ownerSpace, sender, invite, tx.modifiedOn))
           )
@@ -582,13 +601,13 @@ export async function OnUserMeetingInvite (txes: Tx[], control: TriggerControl):
 
       const recipientSpace = await getPersonSpace(control, invite.to)
       if (recipientSpace === undefined) continue
-      result.push(
-        await createInviteResponseTx(control, recipientSpace._id, {
-          from: invite.from,
-          to: invite.to,
-          meeting: invite.meeting
-        })
-      )
+      const responseTx = await createInviteResponseTx(control, recipientSpace._id, {
+        from: invite.from,
+        to: invite.to,
+        meeting: invite.meeting
+      })
+      if (responseTx === undefined) continue
+      result.push(responseTx)
       result.push(
         ...(await createInviteNotificationTxs(control, invite.to, recipientSpace, sender, invite, tx.modifiedOn))
       )

@@ -60,6 +60,8 @@ export default mergeIds(loveId, love, {
   string: {
     SwitchWorkspaceInMeeting: '' as IntlString,
     SwitchWorkspaceLeaveMeeting: '' as IntlString,
+    AlreadyInAnotherMeeting: '' as IntlString,
+    LeaveOtherMeeting: '' as IntlString,
     SwitchWorkspaceEndsMeeting: '' as IntlString,
     CreateMeeting: '' as IntlString,
     LeaveRoom: '' as IntlString,

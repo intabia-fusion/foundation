@@ -23,11 +23,13 @@ import {
   type Doc,
   MeasureContext,
   newMetrics,
+  type Ref,
   systemAccountUuid,
   type Tx,
   type TxCUD,
   WorkspaceUuid
 } from '@hcengineering/core'
+import { type Person } from '@hcengineering/contact'
 import {
   loveId,
   MeetingStatus,
@@ -68,12 +70,13 @@ import { join } from 'path'
 import { updateLiveKitSessions } from './billing'
 import config from './config'
 import { LiveKitPollingService } from './polling'
+import { claimSession, liveSessionsOf } from './sessions'
 import { LimitsState } from './limits'
 import { RecordingProcessor } from './recordings'
 import { WebhookProcessor } from './webhook'
 import { WorkspaceClient } from './workspaceClient'
 import { GuestManager } from './guests'
-import { createToken, decodeMeetingToken, extractToken, getRoomName, updateMetadata } from './utils'
+import { createToken, decodeMeetingToken, extractToken, getRoomName, getWorkspaceId, updateMetadata } from './utils'
 import { setBillingProducer, type BillingMessage } from './queue'
 /**
  * Recursively converts all BigInt values in an object to strings.
@@ -338,6 +341,10 @@ export const main = async (): Promise<void> => {
     }
 
     const _id = req.body._id
+    if (typeof _id !== 'string' || _id === '') {
+      res.status(400).send({ error: 'Missing participant id' })
+      return
+    }
     const participantName = req.body.participantName
     // No sentinel: a numeric fallback reaches getFreeRoomPlace as a real seat preference.
     const x = typeof req.body.x === 'number' ? req.body.x : undefined
@@ -377,6 +384,69 @@ export const main = async (): Promise<void> => {
         } satisfies ParticipantMetadata)
       )
     )
+  })
+
+  /** The Person of whoever holds the bearer token, so a request can never act as someone else. */
+  async function resolveCaller (req: Request, workspaceId: WorkspaceUuid): Promise<Ref<Person> | undefined> {
+    const token = extractToken(req.headers)
+    if (token === undefined) return undefined
+    const account = decodeToken(token).account
+    const wsClient = await WorkspaceClient.create(workspaceId, ctx)
+    return await wsClient.findPersonByAccount(account)
+  }
+
+  // Answers "am I really still in these meetings?" - a ParticipantInfo row outlives a closed tab,
+  // so the client cannot tell a live second session from a leftover on its own.
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  app.post('/liveSessions', async (req, res) => {
+    const workspaceId = getWorkspaceId(req)
+    const candidates = req.body.meetings
+    if (workspaceId === undefined) {
+      res.status(401).send()
+      return
+    }
+    if (!Array.isArray(candidates)) {
+      res.status(400).send({ error: 'Missing meetings' })
+      return
+    }
+    try {
+      const person = await resolveCaller(req, workspaceId)
+      if (person === undefined) {
+        res.status(403).send({ error: 'No person for this account' })
+        return
+      }
+      const meetings = await liveSessionsOf(ctx, roomClient, workspaceId, person, candidates)
+      res.send({ meetings })
+    } catch (err: any) {
+      // Fail closed: an unknown answer must not pop a dialog about a meeting nobody is in.
+      ctx.warn('Failed to list live sessions', { error: err?.message ?? String(err) })
+      res.send({ meetings: [] })
+    }
+  })
+
+  // Called once the client is really connected: only then is it safe to drop the person's other
+  // sessions, which are what keeps an abandoned room occupied (see `claimSession`).
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  app.post('/claimSession', async (req, res) => {
+    const { meetingId, workspaceId } = decodeMeetingToken(req, res)
+    if (meetingId == null || workspaceId == null) {
+      return
+    }
+    try {
+      // Never the `_id` the client sends: that would let anyone evict anybody else's sessions.
+      const person = await resolveCaller(req, workspaceId)
+      if (person === undefined) {
+        res.status(403).send({ error: 'No person for this account' })
+        return
+      }
+      const wsClient = await WorkspaceClient.create(workspaceId, ctx)
+      const evicted = await claimSession(ctx, roomClient, wsClient, workspaceId, person, meetingId)
+      res.send({ evicted })
+    } catch (err: any) {
+      // Never fail the join over housekeeping.
+      ctx.warn('Failed to claim a session', { error: err?.message ?? String(err), meetingId })
+      res.send({ evicted: 0 })
+    }
   })
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises

@@ -119,6 +119,7 @@ function findAllFor (fixtures: Fixtures) {
       if (query?.kind !== undefined) inv = inv.filter((it) => it.kind === query.kind)
       if (query?.from !== undefined) inv = inv.filter((it) => it.from === query.from)
       if (query?.to !== undefined) inv = inv.filter((it) => it.to === query.to)
+      if (query?.status !== undefined) inv = inv.filter((it) => it.status === query.status)
       if (query?.meeting !== undefined) inv = inv.filter((it) => it.meeting === query.meeting)
       if (query?.room !== undefined) inv = inv.filter((it) => it.room === query.room)
       if (query?._id !== undefined) inv = inv.filter((it) => it._id === query._id)
@@ -353,6 +354,81 @@ describe('OnUserMeetingInvite - knock fan-out (Scenario Б)', () => {
       (t) => t._class === core.class.TxUpdateDoc && (t as TxUpdateDoc<UserMeetingInvite>).objectId === req._id
     ) as TxUpdateDoc<UserMeetingInvite> | undefined
     expect(requestSync?.operations.status).toBeUndefined()
+  })
+
+  it('does not stack a second chip when the same person knocks into the same room again', async () => {
+    const stale = invite({
+      _id: 'invite:resp-stale' as Ref<UserMeetingInvite>,
+      kind: 'invite-response',
+      from: knocker,
+      to: owner1,
+      room,
+      meeting: meetingId,
+      space: 'space:owner1' as Ref<Space>
+    })
+    const fixtures: Fixtures = {
+      invites: [stale],
+      meetings: [meetingDoc({ owners: [owner1Account] })],
+      spaces: [personSpace('space:owner1', owner1)],
+      removedMap: new Map()
+    }
+    const req = invite({
+      _id: 'invite:req2' as Ref<UserMeetingInvite>,
+      kind: 'invite-request',
+      room,
+      space: 'space:knocker' as Ref<Space>
+    })
+
+    const control = createControl(fixtures)
+    const result = await OnUserMeetingInvite([buildCreateInviteRequestTx(req)], control)
+
+    const responseCreates = result.filter(
+      (t) =>
+        t._class === core.class.TxCreateDoc &&
+        (t as TxCreateDoc<UserMeetingInvite>).objectClass === love.class.UserMeetingInvite
+    )
+    expect(responseCreates.length).toBe(0)
+  })
+
+  it('still knocks into a second room of the same owner', async () => {
+    const otherRoom = 'room:2' as Ref<Room>
+    const stale = invite({
+      _id: 'invite:resp-stale' as Ref<UserMeetingInvite>,
+      kind: 'invite-response',
+      from: knocker,
+      to: owner1,
+      room,
+      meeting: meetingId,
+      space: 'space:owner1' as Ref<Space>
+    })
+    const otherMeeting = meetingDoc({
+      _id: 'meeting:2' as Ref<MeetingMinutes>,
+      roomId: otherRoom,
+      owners: [owner1Account]
+    })
+    const fixtures: Fixtures = {
+      invites: [stale],
+      meetings: [meetingDoc({ owners: [owner1Account] }), otherMeeting],
+      spaces: [personSpace('space:owner1', owner1)],
+      removedMap: new Map()
+    }
+    const req = invite({
+      _id: 'invite:req3' as Ref<UserMeetingInvite>,
+      kind: 'invite-request',
+      room: otherRoom,
+      space: 'space:knocker' as Ref<Space>
+    })
+
+    const control = createControl(fixtures)
+    const result = await OnUserMeetingInvite([buildCreateInviteRequestTx(req)], control)
+
+    const responseCreates = result.filter(
+      (t) =>
+        t._class === core.class.TxCreateDoc &&
+        (t as TxCreateDoc<UserMeetingInvite>).objectClass === love.class.UserMeetingInvite
+    ) as Array<TxCreateDoc<UserMeetingInvite>>
+    expect(responseCreates.length).toBe(1)
+    expect(responseCreates[0].attributes.room).toBe(otherRoom)
   })
 })
 

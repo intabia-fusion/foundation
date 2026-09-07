@@ -162,6 +162,8 @@
     "SpeakingWhileMutedAlert": "Avisar quando eu falar com o microfone mudo",
     "SwitchWorkspaceInMeeting": "Você está em uma reunião",
     "SwitchWorkspaceLeaveMeeting": "Trocar de espaço de trabalho vai desconectar você da reunião atual.",
+    "AlreadyInAnotherMeeting": "Você já está em uma reunião",
+    "LeaveOtherMeeting": "Você está conectado a \"{meeting}\" em outra aba ou dispositivo. Continuar e sair dela?",
     "SwitchWorkspaceEndsMeeting": "Este é o seu escritório: trocar de espaço de trabalho vai desconectar você e encerrar a reunião para todos."
   }
 }

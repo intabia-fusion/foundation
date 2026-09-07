@@ -14,14 +14,14 @@
 //
 
 import { getCurrentEmployee } from '@hcengineering/contact'
-import { isOffice } from '@hcengineering/love'
+import { isOffice, type ParticipantInfo } from '@hcengineering/love'
 import { MessageBox } from '@hcengineering/presentation'
 import { showPopup } from '@hcengineering/ui'
 import { get } from 'svelte/store'
 
 import { lkSessionConnected } from './liveKitClient'
 import love from './plugin'
-import { currentRoom } from './stores'
+import { currentRoom, meetings } from './stores'
 
 /** Leaving the workspace drops the LiveKit session, and in an office it ends the meeting for everyone. */
 export async function confirmSwitchWorkspace (): Promise<boolean> {
@@ -35,6 +35,25 @@ export async function confirmSwitchWorkspace (): Promise<boolean> {
         label: love.string.SwitchWorkspaceInMeeting,
         message: endsMeeting ? love.string.SwitchWorkspaceEndsMeeting : love.string.SwitchWorkspaceLeaveMeeting,
         dangerous: endsMeeting
+      },
+      undefined,
+      (result?: boolean) => {
+        resolve(result === true)
+      }
+    )
+  })
+}
+
+/** Confirms dropping the session `findOtherLiveSession` found. False means "stay where I am". */
+export async function confirmLeaveOtherMeeting (other: ParticipantInfo): Promise<boolean> {
+  const name = get(meetings).find((it) => it._id === other.meeting)?.name ?? ''
+  return await new Promise<boolean>((resolve) => {
+    showPopup(
+      MessageBox,
+      {
+        label: love.string.AlreadyInAnotherMeeting,
+        message: love.string.LeaveOtherMeeting,
+        params: { meeting: name }
       },
       undefined,
       (result?: boolean) => {

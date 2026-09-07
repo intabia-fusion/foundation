@@ -12,7 +12,7 @@
   import { onDestroy, onMount } from 'svelte'
   import { subscribeToIncomingInvites, unsubscribeFromIncomingInvites } from '../invites'
   import { reconnectToCurrentMeeting, reconnectingToMeeting, cancelReconnect } from '../meetings'
-  import { confirmSwitchWorkspace } from '../switchWorkspaceGuard'
+  import { confirmSwitchWorkspace } from '../loveGuards'
   import { addLeaveWorkspaceGuard } from '@hcengineering/presentation'
   import { lkIsConnecting, lkReconnected, lkSessionConnected } from '../liveKitClient'
   import love from '../plugin'

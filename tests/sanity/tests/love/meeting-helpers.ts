@@ -14,7 +14,7 @@
 //
 
 import { createRestClient, getWorkspaceToken, loadServerConfig, type RestClient } from '@hcengineering/api-client'
-import { type AccountUuid, systemAccountUuid } from '@hcengineering/core'
+import { type AccountUuid, type Ref, systemAccountUuid } from '@hcengineering/core'
 import love, {
   MeetingStatus,
   type MeetingMinutes,
@@ -100,7 +100,7 @@ async function drainPendingInvites (): Promise<void> {
   }
 }
 
-// The stand's LiveKit serves this suite alone, so its rooms are always ours to close.
+// The stand's LiveKit serves this suite alone, so its rooms are always ours to close or inspect.
 const LIVEKIT_API_URL = process.env.LIVEKIT_API_URL ?? 'http://localhost:7890'
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY ?? 'testkey'
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET ?? 'testsecret_for_sanity_tests_min32chars'
@@ -125,6 +125,13 @@ export async function closeLiveKitRooms (): Promise<boolean> {
     // Best-effort: LiveKit unreachable only means the poller closes them on its own schedule.
     return false
   }
+}
+
+/** The LiveKit room backing a meeting, named `<workspace>_<meetingId>` by the love service. */
+export async function liveKitRoomOf (meetingId: Ref<MeetingMinutes>): Promise<string | null> {
+  cachedRoomClient ??= new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
+  const rooms = await cachedRoomClient.listRooms()
+  return rooms.find((r) => r.name.endsWith(`_${meetingId}`))?.name ?? null
 }
 
 /** Force-finishes every non-Finished meeting through the transactor: the `room_finished`

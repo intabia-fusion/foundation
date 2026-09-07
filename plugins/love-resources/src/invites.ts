@@ -33,6 +33,13 @@ const HEARTBEAT_MS = 15_000
 
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined
 
+// SessionId defaults to '' until the client connects; '' would make every tab
+// look like the same session and silently disable the multi-tab guards.
+function mySessionId (): string | undefined {
+  const id = getMetadata(presentation.metadata.SessionId)
+  return id !== undefined && id !== '' ? id : undefined
+}
+
 let requestPopup: PopupResult | undefined
 let responsePopup: PopupResult | undefined
 
@@ -202,6 +209,7 @@ export async function sendInvites (persons: Array<Ref<Person>>, meeting?: Ref<Me
       from: currentPerson,
       to: person,
       status: 'pending',
+      senderSessionId: mySessionId(),
       ...(meetingId !== undefined && { meeting: meetingId })
     })
     await apply.commit()
@@ -233,7 +241,8 @@ export async function sendKnockRequest (roomId: Ref<Room>): Promise<void> {
     from: currentPerson,
     to: currentPerson,
     room: roomId,
-    status: 'pending'
+    status: 'pending',
+    senderSessionId: mySessionId()
   })
   await apply.commit()
 }
@@ -361,10 +370,10 @@ function startAwaitingWatcher (): void {
     if (awaiting.length === 0) return
     const me = getCurrentEmployee()
     if (me === undefined) return
-    const mySessionId = getMetadata(presentation.metadata.SessionId) ?? undefined
+    const sid = mySessionId()
     void (async () => {
       for (const entry of awaiting) {
-        if (entry.acceptedSessionId !== undefined && entry.acceptedSessionId !== mySessionId) continue
+        if (entry.acceptedSessionId !== undefined && entry.acceptedSessionId !== sid) continue
         const callerPerson = await getPersonByPersonRef(entry.from)
         const callerAccount = callerPerson?.personUuid as AccountUuid | undefined
         const myPerson = await getPersonByPersonRef(me)
@@ -404,7 +413,7 @@ export async function responseToInviteRequest (invite: UserMeetingInvite, accept
 
   try {
     if (accept) {
-      const acceptedSessionId = getMetadata(presentation.metadata.SessionId) ?? undefined
+      const acceptedSessionId = mySessionId()
       if (invite.meeting !== undefined) {
         await joinOrCreateMeetingByInvite(invite.meeting)
         await client.update(invite, { status: 'accepted', acceptedSessionId })
@@ -474,11 +483,11 @@ const handlingAccepted = new Set<Ref<UserMeetingInvite>>()
  */
 export async function checkAndJoinIfRecipientAccepted (invites: UserMeetingInvite[]): Promise<void> {
   const client = getClient()
-  const mySessionId = getMetadata(presentation.metadata.SessionId) ?? undefined
+  const sid = mySessionId()
   for (const invite of invites) {
     if (invite.meeting === undefined) continue
     if (invite.status !== 'accepted') continue
-    if (invite.acceptedSessionId !== undefined && invite.acceptedSessionId !== mySessionId) continue
+    if (invite.acceptedSessionId !== undefined && invite.acceptedSessionId !== sid) continue
     if (handlingAccepted.has(invite._id)) continue
     handlingAccepted.add(invite._id)
     let joined = false
@@ -514,9 +523,13 @@ export async function checkAndJoinIfRecipientJoined (invites: UserMeetingInvite[
   const client = getClient()
   const me = getCurrentEmployee()
   if (me === undefined) return
+  const sid = mySessionId()
 
   for (const invite of invites) {
     if (handlingInvites.has(invite._id)) continue
+    // Only the tab that placed the call reacts, otherwise every tab joins and
+    // in A2 every tab creates its own meeting.
+    if (invite.senderSessionId !== undefined && invite.senderSessionId !== sid) continue
     if (invite.status === 'accepted') {
       handlingInvites.add(invite._id)
       try {

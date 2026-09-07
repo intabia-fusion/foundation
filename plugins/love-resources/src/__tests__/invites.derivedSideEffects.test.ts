@@ -31,6 +31,8 @@ jest.mock('@hcengineering/contact-resources', () => ({
 const mockRemoveDoc = jest.fn(async () => undefined)
 
 jest.mock('@hcengineering/presentation', () => ({
+  __esModule: true,
+  default: { metadata: { SessionId: 'presentation:metadata:SessionId' } },
   createQuery: jest.fn(() => ({ query: jest.fn(), unsubscribe: jest.fn() })),
   onClient: jest.fn(),
   getClient: jest.fn(() => ({ removeDoc: mockRemoveDoc })),

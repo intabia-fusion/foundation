@@ -266,6 +266,7 @@ services:
       - TELEGRAM_URL=http://localhost:8086
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - BRANDING_URL=http://localhost:8083/branding-test.json
+      - USE_BINARY_PROTOCOL=${USE_BINARY_PROTOCOL:-}
       - STATS_URL=http://stats:4901
       - STATS_API=http://localhost:8083/_stats
       - STREAM_URL=http://localhost:8083/_stream/recording

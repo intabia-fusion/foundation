@@ -831,9 +831,10 @@ class Connection implements ClientConnection {
       if (this.websocket !== wsocket) {
         return
       }
+      // msgpack+snappy by default: json costs +17..38% on the wire. USE_BINARY_PROTOCOL=false for json.
       const useBinary = this.opt?.useBinaryProtocol ?? getMetadata(client.metadata.UseBinaryProtocol) ?? true
       this.compressionMode =
-        this.opt?.useProtocolCompression ?? getMetadata(client.metadata.UseProtocolCompression) ?? false
+        this.opt?.useProtocolCompression ?? getMetadata(client.metadata.UseProtocolCompression) ?? true
       const helloRequest: HelloRequest = {
         method: 'hello',
         params: [],

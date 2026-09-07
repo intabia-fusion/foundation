@@ -41,6 +41,7 @@ import {
 } from '..'
 import { genMinModel } from './minmodel'
 import { createTaskModel, type Task, type TaskComment, type TStat, taskPlugin } from './tasks'
+import { withDatabase } from './utils'
 
 const txes = genMinModel()
 
@@ -49,9 +50,9 @@ createTaskModel(txes)
 const contextVars: Record<string, any> = {}
 
 describe('postgres operations', () => {
-  const baseDbUri: string = process.env.DB_URL ?? 'postgresql://root@localhost:26258/defaultdb?sslmode=disable'
+  const baseDbUri: string = process.env.DB_URL ?? 'postgresql://postgres:postgres@localhost:5433/postgres'
   let dbUuid = crypto.randomUUID() as WorkspaceUuid
-  let dbUri: string = baseDbUri.replace('defaultdb', dbUuid)
+  let dbUri: string = withDatabase(baseDbUri, dbUuid)
   const clientRef: PostgresClientReference = getDBClient(baseDbUri)
   let hierarchy: Hierarchy
   let model: ModelDb
@@ -67,7 +68,7 @@ describe('postgres operations', () => {
   beforeEach(async () => {
     try {
       dbUuid = crypto.randomUUID() as WorkspaceUuid
-      dbUri = baseDbUri.replace('defaultdb', dbUuid)
+      dbUri = withDatabase(baseDbUri, dbUuid)
       const client = await clientRef.getClient()
       await client`CREATE DATABASE ${client(dbUuid)}`
     } catch (err) {

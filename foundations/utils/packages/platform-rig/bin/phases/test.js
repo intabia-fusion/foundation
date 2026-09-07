@@ -18,8 +18,7 @@ const { success, error, dim, colorizeErrorMessage } = require('../libs/colors')
 const TEST_ENV_VARS = [
   'DB_URL',
   'ELASTIC_URL',
-  'MONGO_URL',
-  'POSTGRES_URL'
+  'MONGO_URL'
 ]
 
 /**

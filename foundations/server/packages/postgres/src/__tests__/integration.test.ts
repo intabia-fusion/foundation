@@ -48,6 +48,7 @@ import {
 } from '..'
 import { genMinModel } from './minmodel'
 import { createTaskModel, TaskReproduce, TaskStatus, type Task, type TaskComment, taskPlugin } from './tasks'
+import { withDatabase } from './utils'
 
 const txes = genMinModel()
 createTaskModel(txes)
@@ -56,7 +57,7 @@ const contextVars: Record<string, any> = {}
 
 describe('PostgreSQL Integration Tests (Real Database)', () => {
   // Use environment variable or default to localhost CockroachDB
-  const baseDbUri: string = process.env.DB_URL ?? 'postgresql://root@localhost:26258/defaultdb?sslmode=disable'
+  const baseDbUri: string = process.env.DB_URL ?? 'postgresql://postgres:postgres@localhost:5433/postgres'
 
   // Administrative client for creating/dropping test databases
   // This connects to 'defaultdb' and is used ONLY for DB admin operations
@@ -85,7 +86,7 @@ describe('PostgreSQL Integration Tests (Real Database)', () => {
   beforeEach(async () => {
     // Create a unique database for each test to ensure isolation
     dbUuid = crypto.randomUUID() as WorkspaceUuid
-    dbUri = baseDbUri.replace('defaultdb', dbUuid)
+    dbUri = withDatabase(baseDbUri, dbUuid)
 
     try {
       // Use admin client to create the test database
@@ -110,7 +111,7 @@ describe('PostgreSQL Integration Tests (Real Database)', () => {
 
       // Use admin client to drop the test database
       const adminClient = await adminClientRef.getClient()
-      await adminClient`DROP DATABASE IF EXISTS ${adminClient(dbUuid)} CASCADE`
+      await adminClient`DROP DATABASE IF EXISTS ${adminClient(dbUuid)}`
     } catch (err) {
       console.error('Cleanup error:', err)
     }

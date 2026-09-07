@@ -448,9 +448,8 @@ export class WorkspaceManager {
   async shutdown (deleteTopics: boolean = false): Promise<void> {
     clearInterval(this.shutdownInterval)
     clearTimeout(this.txInformer)
-    await this.txConsumer?.close()
-    await this.workspaceConsumer?.close()
-    await this.fulltextConsumer?.close()
+    // Sequentially each disconnect waits out its own fetch long-poll (maxWaitTimeInMs).
+    await Promise.all([this.txConsumer?.close(), this.workspaceConsumer?.close(), this.fulltextConsumer?.close()])
     await this.fulltextProducer.close()
 
     for (const v of this.indexers.values()) {

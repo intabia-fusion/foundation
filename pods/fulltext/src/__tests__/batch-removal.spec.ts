@@ -129,14 +129,26 @@ describe('fulltext batch-removal scenarios', () => {
   const toolCtx = new MeasureMetricsContext('batch-rm', {})
   const txFactory = new TxFactory(core.account.System)
 
-  async function setup (): Promise<{ h: Harness, wsId: WorkspaceUuid, txProducer: any }> {
-    const h = new Harness(toolCtx)
+  // One harness for the whole file: start/close costs ~15s of kafka group join and disconnect,
+  // while every test is already isolated by its own random workspace.
+  let h: Harness
+  let txProducer: any
+
+  beforeAll(async () => {
+    h = new Harness(toolCtx)
     await h.start()
+    txProducer = h.queue.getProducer<Tx>(toolCtx, QueueTopic.Tx)
+  })
+
+  afterAll(async () => {
+    await h.close()
+  })
+
+  async function setup (): Promise<{ h: Harness, wsId: WorkspaceUuid, txProducer: any }> {
     const personId = randomUUID().toString() as PersonUuid
     const wsId: WorkspaceUuid = randomUUID().toString() as WorkspaceUuid
     const token = generateToken(personId, wsId)
     await h.mgr.withIndexer(toolCtx, wsId, token, true, async () => {})
-    const txProducer = h.queue.getProducer<Tx>(toolCtx, QueueTopic.Tx)
     return { h, wsId, txProducer }
   }
 
@@ -146,109 +158,93 @@ describe('fulltext batch-removal scenarios', () => {
 
   it('A: create + remove in the SAME batch -> not indexed, cleaned', async () => {
     const { h, wsId, txProducer } = await setup()
-    try {
-      const create = createDoc(test.class.TestDocument, {
-        title: 'doc-A',
-        description: 'sceneA-' + generateId()
-      })
-      const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
+    const create = createDoc(test.class.TestDocument, {
+      title: 'doc-A',
+      description: 'sceneA-' + generateId()
+    })
+    const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
 
-      await txProducer.send(toolCtx, wsId, [create, remove])
+    await txProducer.send(toolCtx, wsId, [create, remove])
 
-      const id = String(create.objectId)
-      await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
+    const id = String(create.objectId)
+    await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
 
-      // Doc should NOT be in indexed (remove wins in buildDoc2Doc -> null -> toRemove)
-      expect(h.indexed.has(id)).toBe(false)
-      expect(h.cleaned.has(id)).toBe(true)
-    } finally {
-      await h.close()
-    }
+    // Doc should NOT be in indexed (remove wins in buildDoc2Doc -> null -> toRemove)
+    expect(h.indexed.has(id)).toBe(false)
+    expect(h.cleaned.has(id)).toBe(true)
   })
 
   it('B: create then remove in SEPARATE batches -> indexed first, then cleaned', async () => {
     const { h, wsId, txProducer } = await setup()
-    try {
-      const create = createDoc(test.class.TestDocument, {
-        title: 'doc-B',
-        description: 'sceneB-' + generateId()
-      })
-      await txProducer.send(toolCtx, wsId, [create])
+    const create = createDoc(test.class.TestDocument, {
+      title: 'doc-B',
+      description: 'sceneB-' + generateId()
+    })
+    await txProducer.send(toolCtx, wsId, [create])
 
-      const id = String(create.objectId)
-      await h.waitFor(() => h.indexed.has(id), 20000, `indexed ${id}`)
+    const id = String(create.objectId)
+    await h.waitFor(() => h.indexed.has(id), 20000, `indexed ${id}`)
 
-      const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
-      await txProducer.send(toolCtx, wsId, [remove])
+    const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
+    await txProducer.send(toolCtx, wsId, [remove])
 
-      await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
-      expect(h.cleaned.has(id)).toBe(true)
-    } finally {
-      await h.close()
-    }
+    await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
+    expect(h.cleaned.has(id)).toBe(true)
   })
 
   it('C: create + many updates + remove all in one batch -> cleaned, not indexed', async () => {
     const { h, wsId, txProducer } = await setup()
-    try {
-      const create = createDoc(test.class.TestDocument, {
-        title: 'doc-C',
-        description: 'sceneC-' + generateId()
-      })
-      const txs: TxCUD<Doc>[] = [create as any as TxCUD<Doc>]
-      for (let i = 0; i < 10; i++) {
-        txs.push(
-          txFactory.createTxUpdateDoc<TestDocument>(
-            test.class.TestDocument as Ref<any>,
-            core.space.Workspace,
-            create.objectId as Ref<TestDocument>,
-            {
-              title: `doc-C-upd-${i}`
-            }
-          ) as any as TxCUD<Doc>
-        )
-      }
-      txs.push(removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>))
-
-      await txProducer.send(toolCtx, wsId, txs)
-
-      const id = String(create.objectId)
-      await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
-
-      expect(h.indexed.has(id)).toBe(false)
-      expect(h.cleaned.has(id)).toBe(true)
-    } finally {
-      await h.close()
+    const create = createDoc(test.class.TestDocument, {
+      title: 'doc-C',
+      description: 'sceneC-' + generateId()
+    })
+    const txs: TxCUD<Doc>[] = [create as any as TxCUD<Doc>]
+    for (let i = 0; i < 10; i++) {
+      txs.push(
+        txFactory.createTxUpdateDoc<TestDocument>(
+          test.class.TestDocument as Ref<any>,
+          core.space.Workspace,
+          create.objectId as Ref<TestDocument>,
+          {
+            title: `doc-C-upd-${i}`
+          }
+        ) as any as TxCUD<Doc>
+      )
     }
+    txs.push(removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>))
+
+    await txProducer.send(toolCtx, wsId, txs)
+
+    const id = String(create.objectId)
+    await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
+
+    expect(h.indexed.has(id)).toBe(false)
+    expect(h.cleaned.has(id)).toBe(true)
   })
 
   it('D: remove arrives in batch WITHOUT create (create was earlier) -> cleaned', async () => {
     // This is the "split across batches" scenario that I was worried about.
     // Create is in batch 1, remove is in batch 2.
     const { h, wsId, txProducer } = await setup()
-    try {
-      const create = createDoc(test.class.TestDocument, {
-        title: 'doc-D',
-        description: 'sceneD-' + generateId()
-      })
-      await txProducer.send(toolCtx, wsId, [create])
+    const create = createDoc(test.class.TestDocument, {
+      title: 'doc-D',
+      description: 'sceneD-' + generateId()
+    })
+    await txProducer.send(toolCtx, wsId, [create])
 
-      const id = String(create.objectId)
-      await h.waitFor(() => h.indexed.has(id), 20000, `indexed ${id}`)
+    const id = String(create.objectId)
+    await h.waitFor(() => h.indexed.has(id), 20000, `indexed ${id}`)
 
-      // Now send remove alone (or with unrelated noise) in a separate batch
-      const noise = createDoc(test.class.TestDocument, {
-        title: 'noise',
-        description: 'noise-' + generateId()
-      })
-      const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
-      await txProducer.send(toolCtx, wsId, [noise, remove])
+    // Now send remove alone (or with unrelated noise) in a separate batch
+    const noise = createDoc(test.class.TestDocument, {
+      title: 'noise',
+      description: 'noise-' + generateId()
+    })
+    const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
+    await txProducer.send(toolCtx, wsId, [noise, remove])
 
-      await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
-      expect(h.cleaned.has(id)).toBe(true)
-    } finally {
-      await h.close()
-    }
+    await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
+    expect(h.cleaned.has(id)).toBe(true)
   })
 
   it('E: update arrives AFTER remove in a separate batch -> doc stays cleaned (no resurrection)', async () => {
@@ -258,93 +254,83 @@ describe('fulltext batch-removal scenarios', () => {
     // storage.findAll returns nothing for deleted doc -> doc silently NOT indexed.
     // This is correct behavior - the doc stays removed.
     const { h, wsId, txProducer } = await setup()
-    try {
-      const create = createDoc(test.class.TestDocument, {
-        title: 'doc-E',
-        description: 'sceneE-' + generateId()
-      })
-      const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
+    const create = createDoc(test.class.TestDocument, {
+      title: 'doc-E',
+      description: 'sceneE-' + generateId()
+    })
+    const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
 
-      await txProducer.send(toolCtx, wsId, [create, remove])
+    await txProducer.send(toolCtx, wsId, [create, remove])
 
-      const id = String(create.objectId)
-      await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
-      expect(h.cleaned.has(id)).toBe(true)
-      h.indexed.delete(id) // reset for the next check
+    const id = String(create.objectId)
+    await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
+    expect(h.cleaned.has(id)).toBe(true)
+    h.indexed.delete(id) // reset for the next check
 
-      // Now send a stray update after the doc is already removed
-      const update = txFactory.createTxUpdateDoc<TestDocument>(
-        test.class.TestDocument as Ref<any>,
-        core.space.Workspace,
-        create.objectId as Ref<TestDocument>,
-        {
-          title: 'doc-E-stray-update'
-        }
-      )
-      // Absence cannot be polled, so a sentinel is sent right after the stray update: same
-      // workspace means the same partition, so once the sentinel is indexed the update is done.
-      const sentinel = createDoc(test.class.TestDocument, {
-        title: 'doc-E-sentinel',
-        description: 'sceneE-sentinel-' + generateId()
-      })
-      await txProducer.send(toolCtx, wsId, [update])
-      await txProducer.send(toolCtx, wsId, [sentinel])
-      await h.waitFor(() => h.indexed.has(String(sentinel.objectId)), 20000, 'sentinel indexed')
+    // Now send a stray update after the doc is already removed
+    const update = txFactory.createTxUpdateDoc<TestDocument>(
+      test.class.TestDocument as Ref<any>,
+      core.space.Workspace,
+      create.objectId as Ref<TestDocument>,
+      {
+        title: 'doc-E-stray-update'
+      }
+    )
+    // Absence cannot be polled, so a sentinel is sent right after the stray update: same
+    // workspace means the same partition, so once the sentinel is indexed the update is done.
+    const sentinel = createDoc(test.class.TestDocument, {
+      title: 'doc-E-sentinel',
+      description: 'sceneE-sentinel-' + generateId()
+    })
+    await txProducer.send(toolCtx, wsId, [update])
+    await txProducer.send(toolCtx, wsId, [sentinel])
+    await h.waitFor(() => h.indexed.has(String(sentinel.objectId)), 20000, 'sentinel indexed')
 
-      // Doc must NOT reappear in the index
-      expect(h.indexed.has(id)).toBe(false)
-    } finally {
-      await h.close()
-    }
+    // Doc must NOT reappear in the index
+    expect(h.indexed.has(id)).toBe(false)
   })
 
   it('F: large batch with mixed create/update/remove for many docs', async () => {
     const { h, wsId, txProducer } = await setup()
-    try {
-      const N = 50
-      const creates: Array<ReturnType<typeof createDoc>> = []
-      const removes = []
-      for (let i = 0; i < N; i++) {
-        const c = createDoc(test.class.TestDocument, {
-          title: `doc-F-${i}`,
-          description: 'sceneF-' + generateId()
-        })
-        creates.push(c)
-        if (i % 3 === 0) {
-          // every third doc is created+removed in same batch
-          removes.push(removeTx(test.class.TestDocument, core.space.Workspace, c.objectId as Ref<TestDocument>))
-        }
+    const N = 50
+    const creates: Array<ReturnType<typeof createDoc>> = []
+    const removes = []
+    for (let i = 0; i < N; i++) {
+      const c = createDoc(test.class.TestDocument, {
+        title: `doc-F-${i}`,
+        description: 'sceneF-' + generateId()
+      })
+      creates.push(c)
+      if (i % 3 === 0) {
+        // every third doc is created+removed in same batch
+        removes.push(removeTx(test.class.TestDocument, core.space.Workspace, c.objectId as Ref<TestDocument>))
       }
-
-      await txProducer.send(toolCtx, wsId, [...creates, ...removes] as Tx[])
-
-      await h.waitFor(
-        () =>
-          creates.every((c, i) =>
-            i % 3 === 0 ? h.cleaned.has(String(c.objectId)) : h.indexed.has(String(c.objectId))
-          ),
-        45000,
-        `${N} docs settled`
-      )
-
-      let expectedIndexed = 0
-      let expectedCleaned = 0
-      for (let i = 0; i < N; i++) {
-        const id = String(creates[i].objectId)
-        if (i % 3 === 0) {
-          expect(h.indexed.has(id)).toBe(false)
-          expect(h.cleaned.has(id)).toBe(true)
-          expectedCleaned++
-        } else {
-          expect(h.indexed.has(id)).toBe(true)
-          expectedIndexed++
-        }
-      }
-      // sanity
-      expect(expectedIndexed + expectedCleaned).toBe(N)
-    } finally {
-      await h.close()
     }
+
+    await txProducer.send(toolCtx, wsId, [...creates, ...removes] as Tx[])
+
+    await h.waitFor(
+      () =>
+        creates.every((c, i) => (i % 3 === 0 ? h.cleaned.has(String(c.objectId)) : h.indexed.has(String(c.objectId)))),
+      45000,
+      `${N} docs settled`
+    )
+
+    let expectedIndexed = 0
+    let expectedCleaned = 0
+    for (let i = 0; i < N; i++) {
+      const id = String(creates[i].objectId)
+      if (i % 3 === 0) {
+        expect(h.indexed.has(id)).toBe(false)
+        expect(h.cleaned.has(id)).toBe(true)
+        expectedCleaned++
+      } else {
+        expect(h.indexed.has(id)).toBe(true)
+        expectedIndexed++
+      }
+    }
+    // sanity
+    expect(expectedIndexed + expectedCleaned).toBe(N)
   })
 
   it('G: many workspaces in parallel (mimics CI sanity with multiple test workspaces)', async () => {
@@ -354,74 +340,67 @@ describe('fulltext batch-removal scenarios', () => {
     // kafkajs default partitionsConsumedConcurrently = 1 means SDK serializes
     // partition processing. This test should reveal if batch consumer's
     // per-partition latency causes timeouts under multi-workspace load.
-    const h = new Harness(toolCtx)
-    await h.start()
-    try {
-      const txProducer = h.queue.getProducer<Tx>(toolCtx, QueueTopic.Tx)
-      const personId = randomUUID().toString() as PersonUuid
-      const WS_COUNT = 10 // matches partition count
-      const wsList: WorkspaceUuid[] = []
-      for (let i = 0; i < WS_COUNT; i++) {
-        const wsId = randomUUID().toString() as WorkspaceUuid
-        wsList.push(wsId)
-        const token = generateToken(personId, wsId)
-        await h.mgr.withIndexer(toolCtx, wsId, token, true, async () => {})
+    const personId = randomUUID().toString() as PersonUuid
+    const WS_COUNT = 10 // matches partition count
+    const wsList: WorkspaceUuid[] = []
+    for (let i = 0; i < WS_COUNT; i++) {
+      const wsId = randomUUID().toString() as WorkspaceUuid
+      wsList.push(wsId)
+      const token = generateToken(personId, wsId)
+      await h.mgr.withIndexer(toolCtx, wsId, token, true, async () => {})
+    }
+
+    // For each ws: send a large batch (create N docs) + later send remove for half of them
+    const N = 20
+    const allCreates: Array<{ wsId: WorkspaceUuid, id: Ref<TestDocument>, removed: boolean }> = []
+
+    // Phase 1: all workspaces send creates in parallel
+    const phase1 = wsList.map(async (wsId, wsIdx) => {
+      const txs: Tx[] = []
+      for (let i = 0; i < N; i++) {
+        const c = createDoc(test.class.TestDocument, {
+          title: `doc-G-ws${wsIdx}-${i}`,
+          description: `sceneG-${wsIdx}-${i}-` + generateId()
+        })
+        txs.push(c)
+        allCreates.push({ wsId, id: c.objectId as Ref<TestDocument>, removed: i % 2 === 0 })
       }
+      await txProducer.send(toolCtx, wsId, txs)
+    })
+    await Promise.all(phase1)
 
-      // For each ws: send a large batch (create N docs) + later send remove for half of them
-      const N = 20
-      const allCreates: Array<{ wsId: WorkspaceUuid, id: Ref<TestDocument>, removed: boolean }> = []
+    // Wait until all docs are indexed
+    await h.waitFor(
+      () => allCreates.every((d) => h.indexed.has(String(d.id))),
+      45000,
+      `${allCreates.length} docs indexed`
+    )
 
-      // Phase 1: all workspaces send creates in parallel
-      const phase1 = wsList.map(async (wsId, wsIdx) => {
-        const txs: Tx[] = []
-        for (let i = 0; i < N; i++) {
-          const c = createDoc(test.class.TestDocument, {
-            title: `doc-G-ws${wsIdx}-${i}`,
-            description: `sceneG-${wsIdx}-${i}-` + generateId()
-          })
-          txs.push(c)
-          allCreates.push({ wsId, id: c.objectId as Ref<TestDocument>, removed: i % 2 === 0 })
-        }
-        await txProducer.send(toolCtx, wsId, txs)
-      })
-      await Promise.all(phase1)
-
-      // Wait until all docs are indexed
-      await h.waitFor(
-        () => allCreates.every((d) => h.indexed.has(String(d.id))),
-        45000,
-        `${allCreates.length} docs indexed`
-      )
-
-      // Phase 2: send removes for half of them, again in parallel
-      const phase2 = wsList.map(async (wsId) => {
-        const removes = allCreates
-          .filter((d) => d.wsId === wsId && d.removed)
-          .map((d) => removeTx(test.class.TestDocument, core.space.Workspace, d.id))
-        if (removes.length > 0) {
-          await txProducer.send(toolCtx, wsId, removes as Tx[])
-        }
-      })
-      await Promise.all(phase2)
-
-      // Wait until all removes are processed
-      const toBeCleaned = allCreates.filter((d) => d.removed).map((d) => String(d.id))
-      await h.waitFor(
-        () => toBeCleaned.every((id) => h.cleaned.has(id)),
-        45000,
-        `${toBeCleaned.length} docs cleaned across ${WS_COUNT} workspaces`
-      )
-
-      for (const d of allCreates) {
-        if (d.removed) {
-          expect(h.cleaned.has(String(d.id))).toBe(true)
-        } else {
-          expect(h.indexed.has(String(d.id))).toBe(true)
-        }
+    // Phase 2: send removes for half of them, again in parallel
+    const phase2 = wsList.map(async (wsId) => {
+      const removes = allCreates
+        .filter((d) => d.wsId === wsId && d.removed)
+        .map((d) => removeTx(test.class.TestDocument, core.space.Workspace, d.id))
+      if (removes.length > 0) {
+        await txProducer.send(toolCtx, wsId, removes as Tx[])
       }
-    } finally {
-      await h.close()
+    })
+    await Promise.all(phase2)
+
+    // Wait until all removes are processed
+    const toBeCleaned = allCreates.filter((d) => d.removed).map((d) => String(d.id))
+    await h.waitFor(
+      () => toBeCleaned.every((id) => h.cleaned.has(id)),
+      45000,
+      `${toBeCleaned.length} docs cleaned across ${WS_COUNT} workspaces`
+    )
+
+    for (const d of allCreates) {
+      if (d.removed) {
+        expect(h.cleaned.has(String(d.id))).toBe(true)
+      } else {
+        expect(h.indexed.has(String(d.id))).toBe(true)
+      }
     }
   })
 })

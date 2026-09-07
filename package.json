@@ -20,6 +20,7 @@
     "docker": "./common/scripts/docker-fast.sh",
     "format": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --format",
     "format:branch": "./common/scripts/fast-format.sh",
+    "profile-test": "node ./common/scripts/profile-tests.js",
     "check-versions": "node ./common/scripts/check-versions.js",
     "check-layers": "node ./common/scripts/check-layers.js",
     "model-version": "node ./common/scripts/show_version.js",
@@ -39,6 +40,7 @@
     "tool:upgrade": "pnpm --filter @hcengineering/tool run run-local upgrade -f",
     "ts-clean": "find . -name '*.tsbuildinfo' -not -path '*node_modules*' -delete",
     "remove-ts-types": "find . -maxdepth 5 -name types -type d -not -path '*node_modules*' -exec rm -rf {} +",
-    "update-deps": "./common/scripts/node_modules/.bin/update-deps"
+    "update-deps": "./common/scripts/node_modules/.bin/update-deps",
+    "doupdate": "pnpm install --frozen-lockfile"
   }
 }

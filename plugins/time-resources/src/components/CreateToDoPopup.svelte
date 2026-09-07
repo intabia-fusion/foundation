@@ -27,6 +27,7 @@
   import { Button, Component, EditBox, IconClose, Label, Scroller } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import time from '../plugin'
+  import { getWorkSlotSpace } from '../utils'
   import DueDateEditor from './DueDateEditor.svelte'
   import PriorityEditor from './PriorityEditor.svelte'
   import Workslots from './Workslots.svelte'
@@ -91,8 +92,9 @@
       }
     )
     Analytics.handleEvent(TimeEvents.ToDoCreated, { id })
+    const workslotSpace = getWorkSlotSpace(todo)
     for (const slot of slots) {
-      await ops.addCollection(time.class.WorkSlot, calendar.space.Calendar, id, time.class.ToDo, 'workslots', {
+      await ops.addCollection(time.class.WorkSlot, workslotSpace, id, time.class.ToDo, 'workslots', {
         eventId: generateEventId(),
         date: slot.date,
         dueDate: slot.dueDate,
@@ -153,7 +155,7 @@
       visibility: todo.visibility,
       reminders: [],
       calendar: _calendar,
-      space: calendar.space.Calendar,
+      space: getWorkSlotSpace(todo),
       _id: generateId(),
       _class: time.class.WorkSlot,
       attachedTo: generateId(),

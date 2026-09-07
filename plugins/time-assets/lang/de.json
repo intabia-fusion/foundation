@@ -44,6 +44,8 @@
     "MyWork": "Meine Arbeit",
     "WeekCalendar": "Woche",
     "DayCalendar": "Tag",
+    "MonthCalendar": "Monat",
+    "YearCalendar": "Jahr",
     "GotoTimePlaning": "Planung",
     "GotoTimeTeamPlaning": "Team-Planung",
     "NewToDo": "Neue Aufgabe",
@@ -55,10 +57,14 @@
     "MarkedAsDone": "Als erledigt markiert",
     "WorkSchedule": "Arbeitsplan",
     "SummaryDuration": "Zusammenfassung",
+    "Busy": "Beschäftigt",
     "UnassignToDo": "Aufgabe nicht zuweisen",
     "UnassignToDoConfirm": "Möchten Sie diese Aufgabe nicht zuweisen? Die Aufgabe wird aus dem Planer des Zugewiesenen entfernt.",
     "ReassignToDo": "Aufgabenzuweisung ändern",
-    "ReassignToDoConfirm": "Möchten Sie die Aufgabenzuweisung ändern? Die Aufgabe wird aus dem Planer des aktuellen Zugewiesenen entfernt."
+    "ReassignToDoConfirm": "Möchten Sie die Aufgabenzuweisung ändern? Die Aufgabe wird aus dem Planer des aktuellen Zugewiesenen entfernt.",
+    "Occupancy": "Auslastung",
+    "ShowEvents": "Ereignisse",
+    "ShowActivity": "Aktivität"
   },
   "emailTemplate": {
     "ToDoCreatedNotificationText": "{body}",

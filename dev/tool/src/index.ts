@@ -109,6 +109,7 @@ import { getAccountDBUrl, getKvsUrl, getMongoDBUrl, prepareTools, registerToolLo
 import { changeConfiguration } from './configuration'
 
 import { performCalendarAccountMigrations } from './calendar'
+import { generatePlannerData } from './plannerData'
 import {
   ensureGlobalPersonsForLocalAccounts,
   filterMergedAccountsInMembers,
@@ -2140,6 +2141,27 @@ export function buildToolProgram (prepareTools: PrepareTools, extendProgram?: (p
         const email = `${faker.internet.email()}`
         await client.ensurePerson(SocialIdType.EMAIL, email, faker.person.firstName(), faker.person.lastName())
       }
+    })
+
+  program
+    .command('generate-planner-data <workspace>')
+    .description(
+      'populate a workspace with tracker projects/issues, personal todos, work slots and calendar events, ' +
+        'for eyeballing Team Planner and the calendar'
+    )
+    .option('--accounts <emails>', 'comma-separated login emails to use, need at least 3', 'user1,user2,user3')
+    .option('--password <password>', 'password for the accounts', '1234')
+    .option('--url <url>', 'platform base url', process.env.PLATFORM_URL ?? 'http://localhost:8083')
+    .action(async (workspace: string, opt: { accounts: string, password: string, url: string }) => {
+      await generatePlannerData({
+        workspace,
+        platformUrl: opt.url,
+        accountEmails: opt.accounts
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0),
+        password: opt.password
+      })
     })
 
   program

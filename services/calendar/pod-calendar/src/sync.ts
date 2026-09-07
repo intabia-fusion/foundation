@@ -24,7 +24,13 @@ import calendar, {
   Visibility,
   calendarIntegrationKind
 } from '@hcengineering/calendar'
-import contact, { Contact, getPersonRefsBySocialIds, Person } from '@hcengineering/contact'
+import contact, {
+  Contact,
+  getPersonRefByPersonId,
+  getPersonRefsBySocialIds,
+  Person,
+  PersonSpace
+} from '@hcengineering/contact'
 import core, {
   AttachedData,
   Data,
@@ -63,6 +69,7 @@ export class IncomingSyncManager {
   private calendars: ExternalCalendar[] = []
   private readonly participants = new Map<string, Ref<Person>>()
   private readonly systemClient: TxOperations
+  private personSpacePromise: Promise<Ref<PersonSpace> | undefined> | undefined
   private constructor (
     private readonly ctx: MeasureContext,
     private readonly accountClient: AccountClient,
@@ -155,6 +162,35 @@ export class IncomingSyncManager {
       await this.fillParticipants()
     }
     return this.participants
+  }
+
+  // Resolves the owner's PersonSpace once per sync session and caches it.
+  private async getPersonSpace (): Promise<Ref<PersonSpace> | undefined> {
+    if (this.personSpacePromise === undefined) {
+      this.personSpacePromise = this.resolvePersonSpace()
+    }
+    return await this.personSpacePromise
+  }
+
+  private async resolvePersonSpace (): Promise<Ref<PersonSpace> | undefined> {
+    const person = await getPersonRefByPersonId(this.client, this.user.userId)
+    if (person == null) {
+      this.ctx.error('Cannot resolve person by userId for calendar sync', {
+        workspace: this.user.workspace,
+        user: this.user.userId
+      })
+      return undefined
+    }
+    const space = await this.client.findOne(contact.class.PersonSpace, { person })
+    if (space === undefined) {
+      this.ctx.error('PersonSpace not found for calendar sync user', {
+        workspace: this.user.workspace,
+        user: this.user.userId,
+        person
+      })
+      return undefined
+    }
+    return space._id
   }
 
   static async push (
@@ -356,22 +392,10 @@ export class IncomingSyncManager {
           if (this.client.getHierarchy().hasMixin(current, mixin as Ref<Mixin<Doc>>)) {
             const diff = this.getDiff(attr, this.client.getHierarchy().as(current, mixin as Ref<Mixin<Doc>>))
             if (Object.keys(diff).length > 0) {
-              await this.client.updateMixin(
-                current._id,
-                current._class,
-                calendar.space.Calendar,
-                mixin as Ref<Mixin<Doc>>,
-                diff
-              )
+              await this.client.updateMixin(current._id, current._class, current.space, mixin as Ref<Mixin<Doc>>, diff)
             }
           } else {
-            await this.client.createMixin(
-              current._id,
-              current._class,
-              calendar.space.Calendar,
-              mixin as Ref<Mixin<Doc>>,
-              attr
-            )
+            await this.client.createMixin(current._id, current._class, current.space, mixin as Ref<Mixin<Doc>>, attr)
           }
         }
       }
@@ -519,12 +543,21 @@ export class IncomingSyncManager {
     accessRole: string,
     _calendar: ExternalCalendar
   ): Promise<void> {
+    const space = await this.getPersonSpace()
+    if (space === undefined) {
+      this.ctx.error('Skip event save, no PersonSpace', {
+        workspace: this.user.workspace,
+        user: this.user.userId,
+        eventId: event.id
+      })
+      return
+    }
     const data: AttachedData<Event> = await this.parseData(event, accessRole, _calendar._id)
     if (event.recurringEventId != null) {
       const parseRule = parseRecurrenceStrings(event.recurrence ?? [])
       const id = await this.systemClient.addCollection(
         calendar.class.ReccuringInstance,
-        calendar.space.Calendar,
+        space,
         calendar.ids.NoAttached,
         calendar.class.Event,
         'events',
@@ -539,13 +572,13 @@ export class IncomingSyncManager {
           timeZone: event.start?.timeZone ?? event.end?.timeZone ?? 'Etc/GMT'
         }
       )
-      await this.saveMixins(event, id)
+      await this.saveMixins(event, id, space)
     } else if (event.status !== 'cancelled') {
       if (event.recurrence != null) {
         const parseRule = parseRecurrenceStrings(event.recurrence)
         const id = await this.systemClient.addCollection(
           calendar.class.ReccuringEvent,
-          calendar.space.Calendar,
+          space,
           calendar.ids.NoAttached,
           calendar.class.Event,
           'events',
@@ -558,34 +591,28 @@ export class IncomingSyncManager {
             timeZone: event.start?.timeZone ?? event.end?.timeZone ?? 'Etc/GMT'
           }
         )
-        await this.saveMixins(event, id)
+        await this.saveMixins(event, id, space)
       } else {
         const id = await this.systemClient.addCollection(
           calendar.class.Event,
-          calendar.space.Calendar,
+          space,
           calendar.ids.NoAttached,
           calendar.class.Event,
           'events',
           data
         )
-        await this.saveMixins(event, id)
+        await this.saveMixins(event, id, space)
       }
     }
   }
 
-  private async saveMixins (event: calendar_v3.Schema$Event, _id: Ref<Event>): Promise<void> {
+  private async saveMixins (event: calendar_v3.Schema$Event, _id: Ref<Event>, space: Ref<PersonSpace>): Promise<void> {
     const mixins = this.parseMixins(event)
     if (mixins !== undefined) {
       for (const mixin in mixins) {
         const attr = mixins[mixin]
         if (typeof attr === 'object' && Object.keys(attr).length > 0) {
-          await this.systemClient.createMixin(
-            _id,
-            calendar.class.Event,
-            calendar.space.Calendar,
-            mixin as Ref<Mixin<Doc>>,
-            attr
-          )
+          await this.systemClient.createMixin(_id, calendar.class.Event, space, mixin as Ref<Mixin<Doc>>, attr)
         }
       }
     }
@@ -669,6 +696,15 @@ export class IncomingSyncManager {
     if (val.id != null) {
       const exists = this.calendars.find((p) => p.externalId === val.id && p.externalUser === this.email)
       if (exists === undefined) {
+        const space = await this.getPersonSpace()
+        if (space === undefined) {
+          this.ctx.error('Skip calendar save, no PersonSpace', {
+            workspace: this.user.workspace,
+            user: this.user.userId,
+            calendarId: val.id
+          })
+          return
+        }
         const data: Data<ExternalCalendar> = {
           name: val.summary ?? '',
           visibility: 'freeBusy',
@@ -682,7 +718,7 @@ export class IncomingSyncManager {
         const _id = generateId<ExternalCalendar>()
         const tx = this.client.txFactory.createTxCreateDoc<ExternalCalendar>(
           calendar.class.ExternalCalendar,
-          calendar.space.Calendar,
+          space,
           data,
           _id,
           undefined,

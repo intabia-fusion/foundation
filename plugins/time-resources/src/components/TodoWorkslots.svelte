@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { onDestroy } from 'svelte'
-  import calendar, { AccessLevel, Calendar, generateEventId } from '@hcengineering/calendar'
+  import { AccessLevel, generateEventId } from '@hcengineering/calendar'
   import contact, { getCurrentEmployee } from '@hcengineering/contact'
   import { DocumentUpdate, Ref, getCurrentAccount } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
@@ -24,7 +24,7 @@
   import time from '../plugin'
   import Workslots from './Workslots.svelte'
   import { Analytics } from '@hcengineering/analytics'
-  import { findPrimaryCalendar } from '../utils'
+  import { findPrimaryCalendar, getWorkSlotSpace } from '../utils'
 
   export let todo: ToDo
 
@@ -97,7 +97,7 @@
     const currentAccount = getCurrentAccount()
     const _calendar = await findPrimaryCalendar()
     const dueDate = date + defaultDuration
-    await client.addCollection(time.class.WorkSlot, calendar.space.Calendar, todo._id, todo._class, 'workslots', {
+    await client.addCollection(time.class.WorkSlot, getWorkSlotSpace(todo), todo._id, todo._class, 'workslots', {
       eventId: generateEventId(),
       date,
       dueDate,

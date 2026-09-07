@@ -11,11 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { type Calendar, type Event } from '@hcengineering/calendar'
+import { type BusySlot, type Calendar, type Event, getBusyIntervals } from '@hcengineering/calendar'
 import { isVisible } from '@hcengineering/calendar-resources'
-import { type Contact, type Person } from '@hcengineering/contact'
-import { type IdMap, type Ref } from '@hcengineering/core'
+import { type Contact, type Employee, type Person } from '@hcengineering/contact'
+import { type IdMap, type Ref, type Timestamp } from '@hcengineering/core'
 import { type ToDo, type WorkSlot } from '@hcengineering/time'
+import { getClient } from '@hcengineering/presentation'
+import workbench, { type Widget } from '@hcengineering/workbench'
+import { openWidget } from '@hcengineering/workbench-resources'
+import time from '../../plugin'
 import { type EventPersonMapping } from '../../types'
 
 export function isVisibleMe (value: Event, me: Ref<Contact>): boolean {
@@ -24,22 +28,37 @@ export function isVisibleMe (value: Event, me: Ref<Contact>): boolean {
   }
   return false
 }
-function isVisibleAll (value: ToDo): boolean {
-  if (value.visibility === 'public' || value.visibility === undefined) {
+function isVisibleAll (value: ToDo, mePerson: Ref<Person>): boolean {
+  // My own todos are always shown in full - visibility only hides them from colleagues.
+  if (value.user === (mePerson as unknown as Ref<Employee>)) {
     return true
   }
-  return false
+  return value.visibility === 'public' || value.visibility === undefined
 }
 
-/**
- * @public
- */
+function emptyMapping (user: Ref<Person>): EventPersonMapping {
+  return {
+    busy: { slots: [], total: 0, user },
+    mappings: [],
+    user,
+    total: 0,
+    events: [],
+    busyTotal: 0,
+    busyEvents: [],
+    busySlots: [],
+    namedBusy: []
+  }
+}
+
 export function groupTeamData (
   items: WorkSlot[],
   todos: IdMap<ToDo>,
   events: Event[],
+  busySlots: BusySlot[],
   mePerson: Ref<Person>,
-  calendarStore: IdMap<Calendar>
+  calendarStore: IdMap<Calendar>,
+  from: Timestamp,
+  to: Timestamp
 ): EventPersonMapping[] {
   const result = new Map<Ref<Person>, EventPersonMapping>()
 
@@ -49,26 +68,14 @@ export function groupTeamData (
     if (todo === undefined) {
       continue
     }
-    const mapping: EventPersonMapping = result.get(todo.user) ?? {
-      busy: {
-        slots: [],
-        total: 0,
-        user: todo.user
-      },
-      mappings: [],
-      user: todo.user,
-      total: 0,
-      events: [],
-      busyTotal: 0,
-      busyEvents: []
-    }
+    const mapping: EventPersonMapping = result.get(todo.user) ?? emptyMapping(todo.user)
     result.set(todo.user, mapping)
 
     const totalEvents = totalEventsMap.get(todo.user) ?? []
     const over = calcOverlap(totalEvents, slot)
     totalEvents.push(...over.events)
     totalEventsMap.set(todo.user, totalEvents)
-    if (isVisibleAll(todo)) {
+    if (isVisibleAll(todo, mePerson)) {
       let mm = mapping.mappings.find((it) => it.todo?._id === todo._id)
       if (mm === undefined) {
         mm = {
@@ -94,19 +101,7 @@ export function groupTeamData (
       continue
     }
     for (const p of event.participants as Array<Ref<Person>>) {
-      const mapping: EventPersonMapping = result.get(p) ?? {
-        busy: {
-          slots: [],
-          total: 0,
-          user: p
-        },
-        mappings: [],
-        user: p,
-        total: 0,
-        events: [],
-        busyTotal: 0,
-        busyEvents: []
-      }
+      const mapping: EventPersonMapping = result.get(p) ?? emptyMapping(p)
       result.set(p, mapping)
       if (mapping.events.find((it) => it.eventId === event.eventId) === undefined) {
         const totalEvents = totalEventsMap.get(p) ?? []
@@ -123,6 +118,41 @@ export function groupTeamData (
         }
       }
     }
+  }
+
+  // A public event keeps its title on the slot, so it is listed by name instead of being
+  // folded into the anonymous busy total.
+  for (const slot of busySlots.filter((it) => (it.title ?? '') !== '')) {
+    for (const [p, intervals] of getBusyIntervals([slot], from, to)) {
+      const mapping = result.get(p) ?? emptyMapping(p)
+      result.set(p, mapping)
+      const totalEvents = totalEventsMap.get(p) ?? []
+      for (const interval of intervals) {
+        const over = calcOverlap(totalEvents, interval)
+        totalEvents.push(...over.events)
+        mapping.namedBusy.push({ ...interval, title: slot.title ?? '' })
+      }
+      totalEventsMap.set(p, totalEvents)
+    }
+  }
+
+  // Other people's busy time - no event content, just intervals.
+  for (const [p, intervals] of getBusyIntervals(
+    busySlots.filter((it) => (it.title ?? '') === ''),
+    from,
+    to
+  )) {
+    const mapping: EventPersonMapping = result.get(p) ?? emptyMapping(p)
+    result.set(p, mapping)
+
+    const totalEvents = totalEventsMap.get(p) ?? []
+    for (const interval of intervals) {
+      const over = calcOverlap(totalEvents, interval)
+      totalEvents.push(...over.events)
+      mapping.busyTotal += over.total
+      mapping.busySlots.push({ ...interval, overlap: interval.dueDate - interval.date - over.total })
+    }
+    totalEventsMap.set(p, totalEvents)
   }
   return Array.from(result.values())
 }
@@ -186,4 +216,15 @@ function calcOverlap (events: EventVars[], event: EventVars): { events: EventVar
     tmp = newTmp
   }
   return { events: tmp, total: tmp.reduce((v, it) => v + (it.dueDate - it.date), 0) }
+}
+
+/**
+ * Opens the person's own day in the sidebar - as much of it as the viewer is allowed to see.
+ */
+export function openPersonDay (person: Ref<Person>, date: Timestamp): void {
+  const widget = getClient()
+    .getModel()
+    .findAllSync(workbench.class.Widget, { _id: time.ids.PersonDayWidget as Ref<Widget> })[0]
+  if (widget === undefined) return
+  openWidget(widget, { person, date }, { active: true, openedByUser: true })
 }

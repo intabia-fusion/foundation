@@ -13,7 +13,7 @@
   "scripts": {
     "build": "compile",
     "build:watch": "compile",
-    "test": "jest --passWithNoTests --silent",
+    "test": "jest --passWithNoTests --silent --forceExit",
     "_phase:bundle": "pnpm run bundle",
     "_phase:docker-build": "pnpm run docker:build",
     "_phase:docker-staging": "pnpm run docker:staging",

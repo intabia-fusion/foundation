@@ -14,11 +14,14 @@
 // limitations under the License.
 //
 import { readFile } from 'fs/promises'
+import { join } from 'path'
 import { extractDocument } from '../process'
+
+const demoDir = join(__dirname, '../../demo')
 
 describe('pdf-parse', () => {
   it('check hh6', async () => {
-    const data = await readFile('./demo/hh_err1.pdf')
+    const data = await readFile(join(demoDir, 'hh_err1.pdf'))
     const { resume } = await extractDocument(data)
 
     expect(resume.format).toBe('unknown')

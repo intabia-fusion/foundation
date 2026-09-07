@@ -10,6 +10,7 @@
     "build": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel",
     "build:lint": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --lint",
     "test": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --test",
+    "jest": "node ./foundations/utils/packages/platform-rig/bin/jest.js",
     "bundle": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --bundle",
     "package": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --bundle --package",
     "docker:build": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --docker-build",

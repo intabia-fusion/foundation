@@ -7,6 +7,7 @@
   "author": "Anticrm Platform Contributors",
   "template": "@hcengineering/node-package",
   "license": "EPL-2.0",
+  "testIsolated": true,
   "scripts": {
     "start": "ts-node src/index.ts",
     "build": "compile",

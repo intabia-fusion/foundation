@@ -174,8 +174,14 @@ export class WorkflowMiddleware extends BaseMiddleware {
       updateTx.meta = {}
     }
     updateTx.meta.fromStatus = fromStatus
+    updateTx.meta.fromKind = oldTask.kind
 
     if (fromStatus === toStatus) return
+
+    // A type change moves the task between workflows, so neither graph describes this transition.
+    // Only a real change is exempt: a `kind` repeating the current one would wave anything through.
+    const toKind = getUpdatedFieldValue(updateTx.operations, 'kind')
+    if (toKind != null && toKind !== oldTask.kind) return
 
     const workflowRef = await this.getWorkflowRef(ctx, oldTask.space as Ref<Project>, oldTask.kind)
     if (workflowRef == null) return

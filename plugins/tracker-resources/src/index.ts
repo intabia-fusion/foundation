@@ -166,6 +166,7 @@ import { componentStore, grouppingComponentManager } from './component'
 import DeleteComponentPresenter from './components/components/DeleteComponentPresenter.svelte'
 import IssueStatusIcon from './components/issues/IssueStatusIcon.svelte'
 import MoveIssues from './components/issues/Move.svelte'
+import ChangeTaskTypePopup from './components/issues/ChangeTaskType.svelte'
 import PriorityIconPresenter from './components/issues/PriorityIconPresenter.svelte'
 import StatusRefPresenter from './components/issues/StatusRefPresenter.svelte'
 import TimeSpendReportPopup from './components/issues/timereport/TimeSpendReportPopup.svelte'
@@ -178,14 +179,15 @@ import ProjectSpacePresenter from './components/projects/ProjectSpacePresenter.s
 
 import { get } from 'svelte/store'
 import { settingId } from '@hcengineering/setting'
-import type { TaskType } from '@hcengineering/task'
-import { getAllStates } from '@hcengineering/task-resources'
+import task, { type TaskType } from '@hcengineering/task'
+import { getAllStates, taskTypeStore } from '@hcengineering/task-resources'
 import view, { type Filter } from '@hcengineering/view'
 import EstimationValueEditor from './components/issues/timereport/EstimationValueEditor.svelte'
 import TimePresenter from './components/issues/timereport/TimePresenter.svelte'
 import { getTargetObjectFromUrl } from '@hcengineering/text-editor-resources'
 import contact from '@hcengineering/contact'
 import { createIssue } from './createIssue'
+import { hasAlternativeTaskTypes } from './taskTypeChange'
 
 export { default as AssigneeEditor } from './components/issues/AssigneeEditor.svelte'
 export { default as IssueStatusIcon } from './components/issues/IssueStatusIcon.svelte'
@@ -243,6 +245,29 @@ export async function queryIssue<D extends Issue> (
 
 async function move (issues: Issue | Issue[]): Promise<void> {
   showPopup(MoveIssues, { selected: issues }, 'top')
+}
+
+async function changeTaskType (issue: Issue): Promise<void> {
+  showPopup(ChangeTaskTypePopup, { value: issue }, 'top')
+}
+
+async function canChangeTaskType (_doc: Doc | Doc[] | undefined): Promise<boolean> {
+  const doc = Array.isArray(_doc) ? _doc[0] : _doc
+  if (doc === undefined) return false
+
+  const client = getClient()
+  const hierarchy = client.getHierarchy()
+  if (!hierarchy.isDerived(doc._class, tracker.class.Issue)) return false
+
+  const project = get(activeProjects).get((doc as Issue).space)
+  if (project === undefined) return false
+
+  return hasAlternativeTaskTypes(
+    hierarchy,
+    get(taskTypeStore),
+    project.type,
+    client.getModel().findAllSync(task.class.TaskTypeDescriptor, {})
+  )
 }
 
 async function editWorkflowStatuses (project: Project): Promise<void> {
@@ -558,12 +583,14 @@ export default async (): Promise<Resources> => ({
     GetIssueDefaultStatuses: getIssueDefaultStatuses,
     SetComponentStore: setStore,
     ComponentFilterFunction: filterComponents,
+    CanChangeTaskType: canChangeTaskType,
     OpenIssuesOfTaskType: openIssuesOfTaskType,
     FormatIssueMarkdownValue: formatIssueValue,
     ReportedTimeApplier: reportedTimeApplier
   },
   actionImpl: {
     Move: move,
+    ChangeTaskType: changeTaskType,
     EditWorkflowStatuses: editWorkflowStatuses,
     EditProject: editProject,
     DeleteMilestone: deleteMilestone,

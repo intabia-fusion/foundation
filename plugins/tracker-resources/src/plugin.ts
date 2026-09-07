@@ -207,6 +207,10 @@ export default mergeIds(trackerId, tracker, {
     Duplicate: '' as IntlString,
     MoveIssues: '' as IntlString,
     MoveIssuesDescription: '' as IntlString,
+    ChangeTaskType: '' as IntlString,
+    NewTaskType: '' as IntlString,
+    SelectNewStatus: '' as IntlString,
+    LostAttributesHint: '' as IntlString,
     ManageAttributes: '' as IntlString,
     KeepOriginalAttributes: '' as IntlString,
     KeepOriginalAttributesTooltip: '' as IntlString,
@@ -423,6 +427,7 @@ export default mergeIds(trackerId, tracker, {
     CreateIssueDraft: '' as Metadata<IssueDraft>
   },
   function: {
+    CanChangeTaskType: '' as Resource<(doc: Doc | Doc[] | undefined) => Promise<boolean>>,
     IssueTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
     IssueIdentifierProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,
     ComponentTitleProvider: '' as Resource<(client: Client, ref: Ref<Doc>, doc?: Doc) => Promise<string>>,

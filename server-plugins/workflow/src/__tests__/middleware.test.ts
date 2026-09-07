@@ -826,6 +826,121 @@ describe('WorkflowMiddleware', () => {
       await expect(middleware.tx(defaultCtx, [updateTx])).rejects.toThrow('workflow:status:ForbiddenTransition')
     })
 
+    it('should allow an otherwise forbidden status when the task type changes in the same tx', async () => {
+      const oldTask: Task = {
+        _id: 'task-1' as Ref<Task>,
+        _class: task.class.Task,
+        space: 'proj-1' as Ref<Project>,
+        kind: 'kind-1' as Ref<TaskType>,
+        status: 'todo' as Ref<DocStatus>,
+        number: 1,
+        identifier: 'TASK-1',
+        rank: '0|i00000:',
+        modifiedBy: 'user-uuid' as PersonId,
+        modifiedOn: Date.now()
+      } as unknown as Task
+
+      const project: Project = {
+        _id: 'proj-1' as Ref<Project>,
+        _class: task.class.Project,
+        space: core.space.Model,
+        name: 'Test Project',
+        modifiedBy: 'user-uuid' as PersonId,
+        modifiedOn: Date.now(),
+        workflows: { ['kind-1' as Ref<TaskType>]: 'wf-1' as Ref<Workflow> }
+      } as unknown as Project
+
+      const transition: WorkflowTransition = {
+        _id: 'trans-1' as Ref<WorkflowTransition>,
+        _class: workflow.class.WorkflowTransition,
+        space: 'proj-1' as Ref<Space>,
+        attachedTo: 'wf-1' as Ref<Workflow>,
+        name: 'Move to Progress',
+        from: ['todo' as Ref<DocStatus>],
+        to: 'in-progress' as Ref<DocStatus>,
+        modifiedBy: 'user-uuid' as PersonId,
+        modifiedOn: Date.now(),
+        rank: '',
+        attachedToClass: workflow.class.Workflow,
+        collection: 'transitions'
+      }
+
+      jest.spyOn(privateMiddleware, 'provideFindAll').mockImplementation(async (_ctx, _class, query) => {
+        if (query._id === 'task-1') return [oldTask]
+        if (query._id === 'proj-1') return [project]
+        if (query.attachedTo === 'wf-1') return [transition]
+        return []
+      })
+
+      const updateTx = createMockUpdateTx(
+        task.class.Task,
+        'task-1' as Ref<Task>,
+        { status: 'done', kind: 'kind-2' },
+        'proj-1' as Ref<Space>
+      )
+
+      await expect(middleware.tx(defaultCtx, [updateTx])).resolves.not.toThrow()
+      expect(updateTx.meta?.fromStatus).toBe('todo')
+      expect(updateTx.meta?.fromKind).toBe('kind-1')
+    })
+
+    it('should still block a forbidden transition when kind repeats the task current type', async () => {
+      const oldTask: Task = {
+        _id: 'task-1' as Ref<Task>,
+        _class: task.class.Task,
+        space: 'proj-1' as Ref<Project>,
+        kind: 'kind-1' as Ref<TaskType>,
+        status: 'todo' as Ref<DocStatus>,
+        number: 1,
+        identifier: 'TASK-1',
+        rank: '0|i00000:',
+        modifiedBy: 'user-uuid' as PersonId,
+        modifiedOn: Date.now()
+      } as unknown as Task
+
+      const project: Project = {
+        _id: 'proj-1' as Ref<Project>,
+        _class: task.class.Project,
+        space: core.space.Model,
+        name: 'Test Project',
+        modifiedBy: 'user-uuid' as PersonId,
+        modifiedOn: Date.now(),
+        workflows: { ['kind-1' as Ref<TaskType>]: 'wf-1' as Ref<Workflow> }
+      } as unknown as Project
+
+      const transition: WorkflowTransition = {
+        _id: 'trans-1' as Ref<WorkflowTransition>,
+        _class: workflow.class.WorkflowTransition,
+        space: 'proj-1' as Ref<Space>,
+        attachedTo: 'wf-1' as Ref<Workflow>,
+        name: 'Move to Progress',
+        from: ['todo' as Ref<DocStatus>],
+        to: 'in-progress' as Ref<DocStatus>,
+        modifiedBy: 'user-uuid' as PersonId,
+        modifiedOn: Date.now(),
+        rank: '',
+        attachedToClass: workflow.class.Workflow,
+        collection: 'transitions'
+      }
+
+      jest.spyOn(privateMiddleware, 'provideFindAll').mockImplementation(async (_ctx, _class, query) => {
+        if (query._id === 'task-1') return [oldTask]
+        if (query._id === 'proj-1') return [project]
+        if (query.attachedTo === 'wf-1') return [transition]
+        return []
+      })
+
+      // Same kind the task already has: no type change, so the transition rules still apply.
+      const updateTx = createMockUpdateTx(
+        task.class.Task,
+        'task-1' as Ref<Task>,
+        { status: 'done', kind: 'kind-1' },
+        'proj-1' as Ref<Space>
+      )
+
+      await expect(middleware.tx(defaultCtx, [updateTx])).rejects.toThrow('workflow:status:ForbiddenTransition')
+    })
+
     it('should allow valid status transition and set meta.fromStatus', async () => {
       const oldTask: Task = {
         _id: 'task-1' as Ref<Task>,

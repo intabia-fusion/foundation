@@ -18,6 +18,7 @@
   import { AttributeBarEditor, getClient, KeyedAttribute } from '@hcengineering/presentation'
   import { Person } from '@hcengineering/contact'
   import tags from '@hcengineering/tags'
+  import task from '@hcengineering/task'
   import { Issue, reduceChildInfoTree } from '@hcengineering/tracker'
   import { Component, Label, floorFractionDigits } from '@hcengineering/ui'
   import { getDocMixins, getFiltredKeys, isCollectionAttr, ObjectBox } from '@hcengineering/view-resources'
@@ -29,6 +30,7 @@
   import DueDateEditor from '../DueDateEditor.svelte'
   import PriorityEditor from '../PriorityEditor.svelte'
   import StatusEditor from '../StatusEditor.svelte'
+  import TaskTypeEditor from '../TaskTypeEditor.svelte'
   import EstimationValueEditor from '../timereport/EstimationValueEditor.svelte'
   import ReportedTimeEditor from '../timereport/ReportedTimeEditor.svelte'
   import TimePresenter from '../timereport/TimePresenter.svelte'
@@ -54,7 +56,8 @@
     'identifier',
     'estimation',
     'reportedTime',
-    'remainingTime'
+    'remainingTime',
+    'kind'
   ]
 
   const allowedCollections = ['collaborators']
@@ -166,6 +169,11 @@
   />
 
   <div class="divider" />
+
+  <span class="labelOnPanel">
+    <Label label={task.string.TaskType} />
+  </span>
+  <TaskTypeEditor value={issue} size={'medium'} iconSize={'small'} isEditable={!readonly} width={'100%'} />
 
   <span class="labelOnPanel">
     <Label label={tracker.string.Component} />

@@ -546,7 +546,7 @@
     if (props.length >= 3) {
       const _class = props[2] as Ref<Class<Doc>>
       const _id = await parseLinkId(linkProviders, props[1], _class)
-      const doc = await client.findOne<Doc>(_class, { _id })
+      const doc = await client.findOne<Doc>(client.getHierarchy().getParentClass(_class), { _id })
       panelDoc = { _class, _id }
 
       if (doc !== undefined) {
@@ -575,7 +575,8 @@
   const panelQuery = createQuery()
 
   $: if (panelDoc !== undefined) {
-    panelQuery.query(panelDoc._class, { _id: panelDoc._id }, (r) => {
+    const watchClass = client.getHierarchy().getParentClass(panelDoc._class)
+    panelQuery.query(watchClass, { _id: panelDoc._id }, (r) => {
       if (r.length === 0) {
         closePanel(false)
         panelDoc = undefined

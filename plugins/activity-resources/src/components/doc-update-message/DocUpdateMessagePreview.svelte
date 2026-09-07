@@ -74,7 +74,7 @@
       return
     }
 
-    const isObjectRemoved = await checkIsObjectRemoved(client, _id, _class)
+    const isObjectRemoved = await checkIsObjectRemoved(client, _id, client.getHierarchy().getParentClass(_class))
 
     if (isObjectRemoved) {
       object = await buildRemovedDoc(client, _id, _class)

@@ -19,6 +19,7 @@ import contact, { Employee, type Person } from '@hcengineering/contact'
 import core, {
   AccountUuid,
   AnyAttribute,
+  type Class,
   Collaborator,
   Doc,
   getClassCollaborators,
@@ -309,6 +310,31 @@ async function OnDocSpaceChanged (txes: TxUpdateDoc<Doc>[], control: TriggerCont
   return result
 }
 
+export async function OnDocClassChanged (txes: TxUpdateDoc<Doc>[], control: TriggerControl): Promise<Tx[]> {
+  const result: Tx[] = []
+
+  for (const tx of txes) {
+    const objectClass = (tx.operations as any)._class as Ref<Class<Doc>> | undefined
+    if (objectClass == null || objectClass === tx.objectClass) continue
+
+    const contexts = await control.findAll(control.ctx, notification.class.DocNotifyContext, {
+      objectId: tx.objectId
+    })
+    for (const context of contexts) {
+      result.push(control.txFactory.createTxUpdateDoc(context._class, context.space, context._id, { objectClass }))
+    }
+
+    const notifications = await control.findAll(control.ctx, notification.class.InboxNotification, {
+      objectId: tx.objectId
+    })
+    for (const item of notifications) {
+      result.push(control.txFactory.createTxUpdateDoc(item._class, item.space, item._id, { objectClass }))
+    }
+  }
+
+  return result
+}
+
 export * from './push'
 export * from './types'
 export * from './utils'
@@ -321,6 +347,7 @@ export default async () => ({
     OnDocRemove,
     OnDocCreated,
     OnDocSpaceChanged,
+    OnDocClassChanged,
     OnEmployeeDeactivate,
     PushNotificationsHandler,
     OnCollaboratorRemoved

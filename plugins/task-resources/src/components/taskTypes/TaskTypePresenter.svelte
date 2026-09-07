@@ -20,19 +20,22 @@
   import TaskTypeIcon from './TaskTypeIcon.svelte'
 
   export let value: TaskType | Ref<TaskType> | undefined
+  export let accent: boolean = false
 
   $: _value = typeof value === 'string' ? $taskTypeStore.get(value) : value
 
   $: _parent = _value !== undefined ? $typeStore.get(_value.parent) : undefined
 
+  $: withPrefix = !accent && $selectedTypeStore !== _parent?._id
+
   $: _class = _value?.ofClass !== undefined ? getClient().getHierarchy().getClass(_value.ofClass) : undefined
 </script>
 
 {#if _class !== undefined && _value !== undefined}
-  <span class="label flex-row-center gap-1 ml-3">
+  <span class="label flex-row-center gap-1 ml-1">
     <TaskTypeIcon value={_value} size={'small'} />
     <span class="flex-row-center no-word-wrap" class:ml-1={_class.icon !== undefined}>
-      {#if $selectedTypeStore !== _parent?._id}
+      {#if withPrefix}
         {_parent?.name}
         <div>/</div>
       {/if}

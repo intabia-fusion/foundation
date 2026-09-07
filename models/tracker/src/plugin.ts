@@ -79,6 +79,7 @@ export default mergeIds(trackerId, tracker, {
   },
   actionImpl: {
     Move: '' as ViewAction,
+    ChangeTaskType: '' as ViewAction,
     CopyToClipboard: '' as ViewAction,
     EditWorkflowStatuses: '' as ViewAction,
     EditProject: '' as ViewAction,

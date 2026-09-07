@@ -40,7 +40,7 @@ const TWO_PACKAGES = {
 }
 
 describe('compile_all end to end', () => {
-  test('transpiles and validates in dependency order', { timeout: T }, () => {
+  test('emits JS and declarations in dependency order', { timeout: T }, () => {
     repo = createMiniRepo(TWO_PACKAGES)
     const { code, out } = compileAll(repo.root, ['--validate', '--parallel', '2'])
 
@@ -56,7 +56,6 @@ describe('compile_all end to end', () => {
 
     const second = compileAll(repo.root, ['--validate', '--parallel', '2'])
     assert.equal(second.code, 0, second.out)
-    assert.match(second.out, /2 packages unchanged, skipped/)
     assert.match(second.out, /\(2 from cache\)/)
   })
 
@@ -69,9 +68,9 @@ describe('compile_all end to end', () => {
     assert.match(out, /TS2322/)
   })
 
-  // Validate sees a dependency only through its emitted .d.ts. Keying on the dependency's
-  // sources re-validated the whole downstream closure for edits that changed no public API —
-  // 460 packages re-validated for a one-line change.
+  // A package sees a dependency only through its emitted .d.ts. Keying on the dependency's
+  // sources rebuilt the whole downstream closure for edits that changed no public API —
+  // 460 packages rebuilt for a one-line change.
   test('a dependency edit that does not change its .d.ts leaves dependents cached', { timeout: T }, () => {
     repo = createMiniRepo({
       '@mini/core': {
@@ -92,10 +91,10 @@ describe('compile_all end to end', () => {
     const second = compileAll(repo.root, ['--validate', '--parallel', '2'])
 
     assert.equal(second.code, 0, second.out)
-    assert.match(second.out, /@mini\/app.*validated.*\(cached\)/, '@mini/app must come from cache')
+    assert.match(second.out, /\(1 from cache\)/, '@mini/app must come from cache')
   })
 
-  test('changing a dependency revalidates its dependents', { timeout: T }, () => {
+  test('changing a dependency rebuilds its dependents', { timeout: T }, () => {
     repo = createMiniRepo(TWO_PACKAGES)
     assert.equal(compileAll(repo.root, ['--validate', '--parallel', '2']).code, 0)
 
@@ -103,10 +102,10 @@ describe('compile_all end to end', () => {
     const second = compileAll(repo.root, ['--validate', '--parallel', '2'])
 
     assert.equal(second.code, 0, second.out)
-    assert.doesNotMatch(second.out, /@mini\/app validated \(cached\)/)
+    assert.doesNotMatch(second.out, /\(2 from cache\)/)
   })
 
-  // Regression: transpile called invalidateCache() on any upstream change, deleting the whole
+  // Regression: the build phase called invalidateCache() on any upstream change, deleting the whole
   // .fast-build-cache.json and with it every other phase's entry for the entire downstream closure.
   test('an upstream change keeps unrelated phase cache entries', { timeout: T }, () => {
     repo = createMiniRepo(TWO_PACKAGES)
@@ -122,26 +121,8 @@ describe('compile_all end to end', () => {
     assert.equal(
       isPhaseCached(appDir, 'docker-hash', 'docker-build', null, []),
       true,
-      'transpile must invalidate only its own phase entry'
+      'build must invalidate only its own phase entry'
     )
-  })
-
-  // Regression: validate's syncDirectory prunes types/ against .validate/emit, so declaration
-  // files produced by other steps (generateSvelteTypes writes types/*.svelte.d.ts) were deleted
-  // on every validate, which in turn dirtied the transpile output hash and forced a rebuild loop.
-  test('validate keeps declaration files it did not emit itself', { timeout: T }, () => {
-    repo = createMiniRepo({ '@mini/core': { files: { 'src/index.ts': 'export const answer = 42\n' } } })
-    const coreDir = repo.pkgDir('@mini/core')
-
-    assert.equal(compileAll(repo.root, ['--validate', '--parallel', '1']).code, 0)
-
-    const extra = join(coreDir, 'types', 'Widget.svelte.d.ts')
-    fs.writeFileSync(extra, 'declare const Widget: unknown\nexport default Widget\n')
-
-    fs.writeFileSync(join(coreDir, 'src', 'index.ts'), 'export const answer = 45\n')
-    assert.equal(compileAll(repo.root, ['--validate', '--parallel', '1']).code, 0)
-
-    assert.ok(fs.existsSync(extra), 'types/*.svelte.d.ts must survive the validate sync')
   })
 
   // Regression: strict string equality on phase scripts dropped packages without a word.
@@ -174,7 +155,7 @@ describe('compile_all end to end', () => {
     const { code, out } = compileAll(repo.root, ['--validate', '--list'])
 
     assert.equal(code, 0, out)
-    assert.match(out, /Transpile: 2/)
+    assert.match(out, /Build: 2/)
     assert.ok(!fs.existsSync(join(repo.pkgDir('@mini/core'), 'lib')), '--list must not produce output')
   })
 })

@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "commonjs",
+    "moduleResolution": "bundler",
     "declaration": true,
     "strict": true,
     "sourceMap": true,

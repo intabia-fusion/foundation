@@ -8,7 +8,7 @@
 */
 
 // Per-package formatter (invoked as `format <srcDir>` from `_phase:format`).
-// Shares the unified `.fast-build-cache.json` cache used by `rush fast-build:format`,
+// Shares the unified `.fast-build-cache.json` cache used by `pnpm format`,
 // so a package formatted by either entry point is recognised as up-to-date by the other.
 
 const { existsSync } = require('fs')

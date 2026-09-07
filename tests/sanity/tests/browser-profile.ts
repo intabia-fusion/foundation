@@ -17,7 +17,7 @@ import { type CDPSession, type Page, test } from '@playwright/test'
 import { appendFile, mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 
-// Opt-in, same switch style as STATS: BROWSER_PROFILE=1 rushx uitest
+// Opt-in, same switch style as STATS: BROWSER_PROFILE=1 pnpm run uitest
 const enabled = process.env.BROWSER_PROFILE === '1' || process.env.BROWSER_PROFILE === 'true'
 const outDir = process.env.BROWSER_PROFILE_DIR ?? 'browser-profiles'
 

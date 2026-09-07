@@ -51,7 +51,7 @@ Love project, idle stand, 60 tests: work 173.7s -> 138.6s, wall 3.2m -> 2.6m. Bi
 ## The outage tests run on demand
 
 `meetings.network.tests.ts` is tagged `@network` - 58s of the love lane spent probing LiveKit
-reconnects rather than the product. `rushx uitest` excludes `@llm|@network`; `rushx uitest-network`
+reconnects rather than the product. `pnpm run uitest` excludes `@llm|@network`; `pnpm run uitest-network`
 runs them. Nothing in CI runs them today.
 
 ## The 3s poll interval evicted live participants

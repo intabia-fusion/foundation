@@ -85,7 +85,7 @@ npx web-push generate-vapid-keys
 
 ### Development Local Run
 ```bash
-cross-env SOURCE=no-reply@huly.io QUEUE_CONFIG=localhost:9092 rushx run-local
+pnpm run run-local
 ```
 
 ### Docker Run

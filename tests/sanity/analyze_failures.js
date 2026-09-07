@@ -69,7 +69,7 @@ function outcome (t) {
 
 const rep = readReport(REPORT)
 if (rep === null) {
-  console.error(`no ${REPORT} - run the tests first (rushx uitest)`)
+  console.error(`no ${REPORT} - run the tests first (pnpm run uitest)`)
   process.exit(1)
 }
 

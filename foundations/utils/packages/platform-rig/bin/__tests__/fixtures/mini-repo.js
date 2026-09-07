@@ -5,9 +5,7 @@
   See https://www.eclipse.org/legal/epl-2.0
 */
 
-// Builds a throwaway Rush-shaped monorepo on disk. `rush list --json` is never
-// invoked: graph.js prefers common/temp/.rush-list-cache.json when its key
-// (rush.json mtime + pnpm-lock mtime) matches, so we pre-seed that file.
+// Builds a throwaway pnpm workspace on disk: the tooling reads pnpm-workspace.yaml.
 
 const fs = require('node:fs')
 const os = require('node:os')
@@ -27,12 +25,13 @@ function tsconfig (extraCompilerOptions = {}) {
     compilerOptions: {
       target: 'ES2021',
       module: 'CommonJS',
-      moduleResolution: 'node',
+      moduleResolution: 'bundler',
       strict: true,
       declaration: true,
       esModuleInterop: true,
       skipLibCheck: true,
       outDir: 'lib',
+      declarationDir: 'types',
       rootDir: 'src',
       ...extraCompilerOptions
     },
@@ -62,7 +61,7 @@ function createMiniRepo (packages) {
       main: 'lib/index.js',
       types: 'types/index.d.ts',
       dependencies: deps,
-      scripts: spec.scripts ?? { '_phase:build': 'compile transpile src', '_phase:validate': 'compile validate' },
+      scripts: spec.scripts ?? { '_phase:build': 'compile build' },
       ...spec.extraPkgJson
     }, null, 2))
 
@@ -87,16 +86,8 @@ function createMiniRepo (packages) {
     projects.push({ name, fullPath: dir, projectFolder: relative(root, dir) })
   }
 
-  write(root, 'rush.json', JSON.stringify({
-    rushVersion: '5.169.3',
-    pnpmVersion: '10.28.0',
-    projects: projects.map(p => ({ packageName: p.name, projectFolder: p.projectFolder }))
-  }, null, 2))
-  write(root, join('common', 'config', 'rush', 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+  write(root, 'pnpm-workspace.yaml', `packages:\n${projects.map(p => `  - '${p.projectFolder}'\n`).join('')}`)
   write(root, join('common', 'scripts', 'version.txt'), '1.0.0\n')
-
-  const key = `${fs.statSync(join(root, 'rush.json')).mtimeMs}:${fs.statSync(join(root, 'common/config/rush/pnpm-lock.yaml')).mtimeMs}`
-  write(root, join('common', 'temp', '.rush-list-cache.json'), JSON.stringify({ key, projects }))
 
   return {
     root,

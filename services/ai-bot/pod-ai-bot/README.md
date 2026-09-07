@@ -192,8 +192,8 @@ rush install
 rush build --to @hcengineering/pod-ai-bot
 
 # Run locally
-rushx run-local
+pnpm run run-local
 
 # Run tests
-rushx test
+pnpm run test
 ```

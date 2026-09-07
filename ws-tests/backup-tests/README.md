@@ -15,7 +15,7 @@ cd ws-tests
 Then, from this directory:
 
 ```
-rushx backup-test
+pnpm run backup-test
 ```
 
 Defaults target the local stand, so no exports are needed. Note the stand keeps

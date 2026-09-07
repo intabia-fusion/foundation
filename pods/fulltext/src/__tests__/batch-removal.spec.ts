@@ -155,11 +155,10 @@ describe('fulltext batch-removal scenarios', () => {
 
       await txProducer.send(toolCtx, wsId, [create, remove])
 
-      // Wait a bit for processing to settle
-      await new Promise((resolve) => setTimeout(resolve, 5000))
+      const id = String(create.objectId)
+      await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
 
       // Doc should NOT be in indexed (remove wins in buildDoc2Doc -> null -> toRemove)
-      const id = String(create.objectId)
       expect(h.indexed.has(id)).toBe(false)
       expect(h.cleaned.has(id)).toBe(true)
     } finally {
@@ -213,9 +212,9 @@ describe('fulltext batch-removal scenarios', () => {
 
       await txProducer.send(toolCtx, wsId, txs)
 
-      await new Promise((resolve) => setTimeout(resolve, 5000))
-
       const id = String(create.objectId)
+      await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
+
       expect(h.indexed.has(id)).toBe(false)
       expect(h.cleaned.has(id)).toBe(true)
     } finally {
@@ -267,9 +266,9 @@ describe('fulltext batch-removal scenarios', () => {
       const remove = removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>)
 
       await txProducer.send(toolCtx, wsId, [create, remove])
-      await new Promise((resolve) => setTimeout(resolve, 3000))
 
       const id = String(create.objectId)
+      await h.waitFor(() => h.cleaned.has(id), 20000, `cleaned ${id}`)
       expect(h.cleaned.has(id)).toBe(true)
       h.indexed.delete(id) // reset for the next check
 
@@ -282,10 +281,15 @@ describe('fulltext batch-removal scenarios', () => {
           title: 'doc-E-stray-update'
         }
       )
+      // Absence cannot be polled, so a sentinel is sent right after the stray update: same
+      // workspace means the same partition, so once the sentinel is indexed the update is done.
+      const sentinel = createDoc(test.class.TestDocument, {
+        title: 'doc-E-sentinel',
+        description: 'sceneE-sentinel-' + generateId()
+      })
       await txProducer.send(toolCtx, wsId, [update])
-
-      // Give it time to process
-      await new Promise((resolve) => setTimeout(resolve, 3000))
+      await txProducer.send(toolCtx, wsId, [sentinel])
+      await h.waitFor(() => h.indexed.has(String(sentinel.objectId)), 20000, 'sentinel indexed')
 
       // Doc must NOT reappear in the index
       expect(h.indexed.has(id)).toBe(false)
@@ -298,7 +302,7 @@ describe('fulltext batch-removal scenarios', () => {
     const { h, wsId, txProducer } = await setup()
     try {
       const N = 50
-      const creates = []
+      const creates: Array<ReturnType<typeof createDoc>> = []
       const removes = []
       for (let i = 0; i < N; i++) {
         const c = createDoc(test.class.TestDocument, {
@@ -314,7 +318,14 @@ describe('fulltext batch-removal scenarios', () => {
 
       await txProducer.send(toolCtx, wsId, [...creates, ...removes] as Tx[])
 
-      await new Promise((resolve) => setTimeout(resolve, 10000))
+      await h.waitFor(
+        () =>
+          creates.every((c, i) =>
+            i % 3 === 0 ? h.cleaned.has(String(c.objectId)) : h.indexed.has(String(c.objectId))
+          ),
+        45000,
+        `${N} docs settled`
+      )
 
       let expectedIndexed = 0
       let expectedCleaned = 0

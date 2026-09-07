@@ -27,7 +27,7 @@ function findSvelteCheckBin(cwd) {
 }
 
 /**
- * Run svelte-check for a single package directly (no rushx overhead)
+ * Run svelte-check for a single package directly (no script-runner overhead)
  */
 function readProcessRssMB(pid) {
   try {

@@ -437,7 +437,7 @@ async function main () {
     const list = rows.filter((r) => r.category === s)
     if (list.length === 0) continue
     md.push(`## ${s}`, '')
-    md.push('```bash', `node common/scripts/outdated-apply.js --category ${s} --bump patch   # + rush update и команда проверки`, '```', '')
+    md.push('```bash', `node common/scripts/outdated-apply.js --category ${s} --bump patch   # + pnpm install и команда проверки`, '```', '')
     const groups = [
       ['security-сигналы', list.filter((r) => r.security.length > 0)],
       ['patch/minor без маркеров', list.filter((r) => r.security.length === 0 && r.bump !== 'major' && r.breaking.length === 0)],

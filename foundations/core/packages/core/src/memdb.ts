@@ -257,7 +257,7 @@ export abstract class MemDb extends TxProcessor implements Storage {
       result = await this.fillAssociations(result, options.associations)
     }
 
-    if (options?.sort !== undefined) resultSort(result, options?.sort, _class, this.hierarchy, this)
+    if (options?.sort !== undefined) resultSort(result as T[], options?.sort, _class, this.hierarchy, this)
     const total = result.length
     result = result.slice(0, options?.limit)
     const tresult = this.hierarchy.clone(result) as WithLookup<T>[]
@@ -295,7 +295,7 @@ export abstract class MemDb extends TxProcessor implements Storage {
       // We need to filter instances without mixin was set
       result = result.filter((r) => (r as any)[_class] !== undefined)
     }
-    if (options?.sort !== undefined) resultSort(result, options?.sort, _class, this.hierarchy, this)
+    if (options?.sort !== undefined) resultSort(result as T[], options?.sort, _class, this.hierarchy, this)
     const total = result.length
     result = result.slice(0, options?.limit)
 

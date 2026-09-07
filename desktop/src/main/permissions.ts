@@ -89,7 +89,7 @@ async function askForMediaAccess (type: 'microphone' | 'camera'): Promise<boolea
 
     return status === 'granted'
   } catch (error) {
-    log.error(`Could not get ${type} permission:`, error.message)
+    log.error(`Could not get ${type} permission:`, (error as Error).message)
   }
 
   return false

@@ -14,7 +14,7 @@
 - Симптом: код правки в pod (lib/*.js свежий) НЕ попадают в docker образ. `fast-build:docker` пишет "Bundled N from cache", образ latest старый (проверять `docker images ... CreatedSince`).
 - Причина: прерванный (teardown/kill) fast-build оставляет несогласованный `.fast-build-cache.json` -> bundle не пересобирается, docker берёт stale `bundle/bundle.js` (mtime старее lib/).
 - Диагностика: `grep -c <новый_символ> bundle/bundle.js` (0 = stale); сравнить mtime bundle.js vs lib/*.js.
-- Лечение: `rm .fast-build-cache.json && rushx bundle && rushx docker:build` в pkg-каталоге, затем `docker compose up -d --force-recreate <service>`. Проверить bundle внутри контейнера: `docker exec <c> grep -c <символ> /app/bundle.js`.
+- Лечение: `rm .fast-build-cache.json && pnpm run bundle && pnpm run docker:build` в pkg-каталоге, затем `docker compose up -d --force-recreate <service>`. Проверить bundle внутри контейнера: `docker exec <c> grep -c <символ> /app/bundle.js`.
 
 ## tbank ledger через queue (payment-operation topic)
 - tbank-subscriptions logOperation (best-effort try/catch) -> publishOperation -> Kafka topic `payment-operation` -> account-service consumer groupId `payment-operation-payment-ledger` -> `global_account.payment_operation` (append-only, id=gen_random_uuid).

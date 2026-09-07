@@ -65,7 +65,7 @@ FRONT_URL/workbench/setting/setting/billing?payment=success&checkout_id={CHECKOU
 To run the payment service locally:
 
 ```bash
-rushx run-local
+pnpm run run-local
 ```
 
 Make sure you have all required environment variables configured (see [Environment Configuration](#environment-configuration) below).

@@ -6,6 +6,6 @@ roots='./server/server ./server/front ./pods/account ./pods/backup'
 for r in $roots
 do
   pushd $r
-  rushx docker:build
+  pnpm run docker:build
   popd
 done

@@ -10,10 +10,9 @@
   "scripts": {
     "build": "compile",
     "build:watch": "compile",
-    "_phase:build": "compile transpile tests",
+    "_phase:build": "compile build",
     "_phase:test": "",
     "_phase:format": "format tests",
-    "_phase:validate": "compile validate",
     "lint:fix": "eslint --fix tests",
     "lint": "eslint tests",
     "format": "format tests",

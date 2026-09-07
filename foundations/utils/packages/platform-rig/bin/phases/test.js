@@ -1,5 +1,5 @@
 /**
- * Test phase — runs `rushx test` for packages with `_phase:test`
+ * Test phase — runs `pnpm run test` for packages with `_phase:test`
  */
 const { spawn } = require('child_process')
 const { performance } = require('perf_hooks')
@@ -98,7 +98,7 @@ async function runTestPhase (graph, packageNames, concurrency, options = {}) {
 
     return new Promise((resolve) => {
       const pkgStart = performance.now()
-      const child = spawn('rushx', ['test'], {
+      const child = spawn('pnpm', ['run', 'test'], {
         cwd,
         stdio: ['pipe', 'pipe', 'pipe']
       })

@@ -43,7 +43,7 @@ async function runPackagePhase(graph, packageNames, concurrency, options = {}) {
 
     return new Promise((resolve) => {
       const startTime = performance.now()
-      const child = spawn('rushx', ['package'], {
+      const child = spawn('pnpm', ['run', 'package'], {
         cwd,
         stdio: ['pipe', 'pipe', 'pipe']
       })

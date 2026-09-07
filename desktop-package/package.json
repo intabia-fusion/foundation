@@ -6,7 +6,7 @@
   "template": "@hcengineering/default-package",
   "packageManager": "pnpm@10.28.0",
   "scripts": {
-    "_phase:package": "rushx package",
+    "_phase:package": "pnpm run package",
     "package": "rm -rf ./dist && cp -r ../desktop/dist . && cp ../desktop/.env ./dist && echo 'done'",
     "dist": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false NODE_ENV=production node ../common/scripts/set_model_and_version_env.js electron-builder build -p onTag",
     "dist-local": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false NODE_ENV=production node ../common/scripts/set_model_and_version_env.js electron-builder build",
@@ -15,8 +15,8 @@
     "format": "echo done",
     "bump": "bump-package-version",
     "bundle:server": "node ../common/scripts/esbuild.js --entry=src/server.ts --keep-names=true --sourcemap=external --minify",
-    "dist-docker-build": "rushx bundle:server && node ../common/scripts/run_in_bash.js ../common/scripts/docker_build.sh intabiafusion/desktop-distro",
-    "dist-docker-push": "rushx bundle:server && rushx docker:build && ../common/scripts/run_in_bash.js ../common/scripts/docker_tag.sh intabiafusion/desktop-distro",
+    "dist-docker-build": "pnpm run bundle:server && node ../common/scripts/run_in_bash.js ../common/scripts/docker_build.sh intabiafusion/desktop-distro",
+    "dist-docker-push": "pnpm run bundle:server && pnpm run docker:build && ../common/scripts/run_in_bash.js ../common/scripts/docker_tag.sh intabiafusion/desktop-distro",
     "test": "jest --forceExit",
     "verify-manifests": "node scripts/verify-manifests.js"
   },

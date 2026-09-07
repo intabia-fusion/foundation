@@ -2,70 +2,26 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
 //
-// Script to check and update @hcengineering/* dependencies across all Rush packages
+// Script to check and update @hcengineering/* dependencies across all workspace packages
 //
 
 const fs = require('fs')
 const path = require('path')
 const https = require('https')
-const { execSync } = require('child_process')
 
 const SCOPE = '@hcengineering/'
 
 /**
- * Get list of Rush projects using 'rush list --json'
+ * Workspace projects from pnpm-workspace.yaml.
  */
 function getRushProjects() {
-  try {
-    const output = execSync('rush list --json', {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-
-    const data = JSON.parse(output)
-
-    // rush list --json returns { projects: [...] }
-    const projects = data.projects || data
-
-    if (!Array.isArray(projects)) {
-      throw new Error('Expected rush list --json to return an array of projects')
-    }
-
-    return projects
-  } catch (err) {
-    if (err.message.includes('rush') || err.code === 'ENOENT') {
-      throw new Error('Failed to run "rush list --json". Make sure you are in a Rush workspace and Rush is installed.')
-    }
-    throw new Error(`Failed to get Rush projects: ${err.message}`)
-  }
+  return require('./libs/workspace').listWorkspaceProjects()
 }
 
-/**
- * Get the workspace root from rush list output
- */
-function getWorkspaceRoot(projects) {
-  if (projects.length === 0) {
-    return process.cwd()
-  }
-
-  // Use fullPath from rush list output
-  const firstProject = projects[0]
-  if (firstProject.fullPath && firstProject.path) {
-    // Remove the relative path part from the full path to get workspace root
-    return firstProject.fullPath.replace(new RegExp(firstProject.path + '$'), '')
-  }
-
-  // Fallback: find rush.json
-  let currentDir = process.cwd()
-  while (currentDir !== '/') {
-    const rushJsonPath = path.join(currentDir, 'rush.json')
-    if (fs.existsSync(rushJsonPath)) {
-      return currentDir
-    }
-    currentDir = path.dirname(currentDir)
-  }
-
-  throw new Error('Could not determine workspace root')
+function getWorkspaceRoot() {
+  const root = require('./libs/workspace').findWorkspaceRoot()
+  if (root == null) throw new Error('Could not determine workspace root')
+  return root
 }
 
 /**
@@ -126,7 +82,6 @@ function isNewerVersion(current, latest) {
  * Check and update @hcengineering dependencies in a package.json
  */
 async function updatePackageDependencies(project, latestVersions, dryRun = false) {
-  // Use fullPath from rush list output
   const packageJsonPath = project.fullPath ? path.join(project.fullPath, 'package.json') : null
 
   if (!packageJsonPath || !fs.existsSync(packageJsonPath)) {
@@ -249,7 +204,7 @@ async function main() {
   // Show help
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
-Rush @hcengineering Dependencies Updater
+@hcengineering Dependencies Updater
 
 Usage:
   update-hcengineering-deps [options]
@@ -259,7 +214,7 @@ Options:
   --help, -h       Show this help message
 
 Description:
-  This script checks all Rush packages for @hcengineering/* dependencies
+  This script checks all workspace packages for @hcengineering/* dependencies
   and updates them to the latest versions available in npm registry.
 
   Workspace dependencies (using 'workspace:' protocol) are never modified.
@@ -272,8 +227,8 @@ Examples:
   update-hcengineering-deps
 
 After updating:
-  1. Run 'rush update' to update lockfiles
-  2. Run 'rush build' to verify builds
+  1. Run 'pnpm install' to update the lockfile
+  2. Run 'pnpm build' to verify builds
   3. Test your changes
 `)
     return
@@ -283,7 +238,6 @@ After updating:
 
   console.log('🚀 Rush @hcengineering Dependencies Updater\n')
 
-  // Get Rush projects using 'rush list --json'
   const projects = getRushProjects()
   const workspaceRoot = getWorkspaceRoot(projects)
 
@@ -321,8 +275,8 @@ After updating:
     } else {
       console.log(`\n✅ Updated ${totalUpdates} dependency version(s)`)
       console.log('\n💡 Next steps:')
-      console.log('   1. Run: rush update')
-      console.log('   2. Run: rush build')
+      console.log('   1. Run: pnpm install')
+      console.log('   2. Run: pnpm build')
       console.log('   3. Test your changes')
     }
   }

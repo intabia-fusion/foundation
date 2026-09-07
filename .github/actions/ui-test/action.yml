@@ -65,29 +65,29 @@ runs:
     - name: Build test package
       shell: bash
       run: |
-        node common/scripts/install-run-rush.js fast-build --to ${{ inputs.build-package }}
+        pnpm build --to ${{ inputs.build-package }}
 
     - name: Install Playwright
       shell: bash
       run: |
         cd ./${{ inputs.test-folder }}/sanity
-        node ../../common/scripts/install-run-rushx.js ci
+        pnpm run ci
 
     - name: Run API tests
       if: inputs.run-api-tests == 'true'
       shell: bash
       run: |
+        pnpm build --to @hcengineering/api-tests
         cd ./${{ inputs.test-folder }}/api-tests
-        node ../../common/scripts/install-run-rush.js fast-build:validate --to @hcengineering/api-tests
-        node ../../common/scripts/install-run-rushx.js api-test --verbose
+        pnpm run api-test --verbose
 
     - name: Run backup tests
       if: inputs.run-backup-tests == 'true'
       shell: bash
       run: |
+        pnpm build --to @hcengineering/backup-tests
         cd ./${{ inputs.test-folder }}/backup-tests
-        node ../../common/scripts/install-run-rush.js fast-build:validate --to @hcengineering/backup-tests
-        node ../../common/scripts/install-run-rushx.js backup-test --verbose
+        pnpm run backup-test --verbose
 
     - name: Start profiling
       if: inputs.enable-profiling == 'true'
@@ -116,7 +116,7 @@ runs:
       shell: bash
       run: |
         cd ./${{ inputs.test-folder }}/sanity
-        node ../../common/scripts/install-run-rushx.js uitest
+        pnpm run uitest
 
     - name: Collect telemetry
       if: always()

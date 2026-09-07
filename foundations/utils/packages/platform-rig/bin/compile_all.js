@@ -10,7 +10,7 @@ const { calculatePackageHash } = require('./libs/cache')
 const { success, error, warn, info, dim, bold, colorizeErrorMessage } = require('./libs/colors')
 
 // Import phases
-const { runTranspilePhase } = require('./phases/transpile')
+const { runBuildPhase } = require('./phases/build')
 const { runBundlePhase } = require('./phases/bundle-phase')
 const { runPackagePhase } = require('./phases/package')
 const { runDockerBuildPhase, preloadDockerImages, getDockerImageName } = require('./phases/docker-build')
@@ -24,7 +24,6 @@ const { computeTypesHashes, compositeHashFromTypes } = require('./libs/composite
 function parseArgs(args) {
   let parallel = getDefaultWorkerCount()
   let verbose = false
-  let doValidate = false
   let doTest = false
   let doLint = false
   let doFormat = false
@@ -58,16 +57,13 @@ function parseArgs(args) {
     } else if (arg === '--verbose' || arg === '-v') {
       verbose = true
     } else if (arg === '--validate') {
-      doValidate = true
+      // Accepted for compatibility: validation is part of the build phase now.
     } else if (arg === '--test') {
       doTest = true
-      doValidate = true  // --test implies --validate
     } else if (arg === '--lint') {
       doLint = true
-      doValidate = true  // --lint implies --validate
     } else if (arg === '--format') {
       doFormat = true
-      doValidate = true  // --format implies --validate (typings needed for eslint --fix)
     } else if (arg === '--force' || arg === '-f') {
       force = true
     } else if (arg === '--bundle') {
@@ -81,7 +77,6 @@ function parseArgs(args) {
       doBundle = true  // docker-build implies bundle
     } else if (arg === '--svelte-check') {
       doSvelteCheck = true
-      doValidate = true  // svelte-check implies validate
     } else if (arg === '--list' || arg === '-l') {
       list = true
     } else if (arg === '--to') {
@@ -102,32 +97,17 @@ function parseArgs(args) {
     }
   }
 
-  // Read Rush custom parameters from environment variables
-  // Check RUSH_INVOKED_ARGS for multiple --to flags (Rush passes all args here)
-  if (!toPackage && process.env.RUSH_INVOKED_ARGS) {
-    const rushArgs = process.env.RUSH_INVOKED_ARGS.split(' ')
-    const toPackages = []
-    for (let i = 0; i < rushArgs.length; i++) {
-      if (rushArgs[i] === '--to' && i + 1 < rushArgs.length) {
-        toPackages.push(rushArgs[i + 1])
-        i++
-      }
-    }
-    if (toPackages.length > 0) {
-      toPackage = toPackages.join(',')
-    }
-  }
   if (!toPackage) {
-    toPackage = process.env.RUSH_TO || process.env.TO || null
+    toPackage = process.env.TO || null
   }
   if (!list) {
-    list = process.env.RUSH_LIST === '1' || process.env.LIST === '1'
+    list = process.env.LIST === '1'
   }
   if (!verbose) {
-    verbose = process.env.RUSH_VERBOSE === '1' || process.env.VERBOSE === '1'
+    verbose = process.env.VERBOSE === '1'
   }
 
-  return { parallel, verbose, doValidate, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers }
+  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers }
 }
 
 function printUsage() {
@@ -135,7 +115,7 @@ function printUsage() {
 Usage: compile-all <rootDir> [options]
 
 Arguments:
-  rootDir              Root directory of the Rush monorepo (where rush.json is located)
+  rootDir              Root directory of the monorepo (where pnpm-workspace.yaml is located)
 
 Options:
   --parallel, -p <n>   Run compilation in parallel with n workers (default: 4, or 8 on systems with >64GB RAM)
@@ -143,26 +123,23 @@ Options:
                        Parallel compilation respects dependency order (builds in waves)
   --force-workers      Force exact worker count, ignore memory limits (use with caution!)
   --verbose, -v        Show detailed output for each package
-  --validate           Also run TypeScript validation for packages with "_phase:validate"
-  --test               Run tests for packages with "_phase:test" (implies --validate)
-  --lint               Run ESLint check (no fix) after validation (implies --validate); for packages with "_phase:format"
-  --format             Run format phase only (no transpile/validate) for packages with "_phase:format"
+  --validate           Accepted for compatibility: type checking is part of the build
+  --test               Run tests for packages with "_phase:test"
+  --lint               Run ESLint check (no fix) after the build; for packages with "_phase:format"
+  --format             Run the format phase only, for packages with "_phase:format"
   --force, -f          Disable all caching (forces full rebuild, revalidation)
   --bundle             Run bundle phase for packages with "_phase:bundle"
   --docker-build       Run docker-build phase (implies --bundle)
-  --svelte-check       Run svelte-check for packages with "_phase:svelte-check" (implies --validate)
+  --svelte-check       Run svelte-check for packages with "_phase:svelte-check"
   --list, -l           Only print the list of packages in compilation order (no actual compilation)
   --to <package>       Only compile the specified package and its dependencies
   --help, -h           Show this help message
 
 Description:
-  This script compiles all Rush packages that have "_phase:build": "compile transpile src"
+  This script compiles all workspace packages that have a "_phase:build" script
   in their package.json scripts section. Packages are compiled in dependency order.
 
-  When --validate is specified, also runs TypeScript validation for packages that have
-  "_phase:validate": "compile validate" in their scripts.
-
-  When --lint is specified (implies --validate), also runs ESLint check (no fix) for
+  When --lint is specified, also runs ESLint check (no fix) for
   packages that have "_phase:format" defined.
 
   When --format is specified, runs only the format phase for packages with "_phase:format".
@@ -173,7 +150,7 @@ Description:
   When --docker-build is specified, runs bundle first, then docker-build for packages
   with "_phase:docker-build".
 
-  When --svelte-check is specified (implies --validate), runs svelte-check for packages
+  When --svelte-check is specified, runs svelte-check for packages
   with "_phase:svelte-check" defined.
 
   When --to is specified, only the specified package and all its dependencies will be compiled.
@@ -232,179 +209,6 @@ function calculatePackageHashWithDeps(packageName, graph, packageHashes, process
 
   const crypto = require('crypto')
   return crypto.createHash('md5').update(parts.join('\n')).digest('hex')
-}
-
-async function runValidationPhase(packages, graph, validationWorkers, force, packageHashes, heapMB = 2048) {
-  if (packages.length === 0) return { successCount: 0, total: 0, cacheHits: 0, errors: [], time: 0 }
-
-  const { getWorkerPool } = require('./libs/workers')
-  const { markPhaseCompleted, getPhaseMetadata, calculateOutputHashForDirs } = require('./libs/cache')
-  // Without a ceiling each V8 isolate grows towards the default (multi-GB on a big box)
-  // before collecting: 9.2GB peak. A 2GB cap collects sooner and measured *faster*
-  // (43s vs 44s) at 5.4GB. The figure comes from the memory budget, so a small container
-  // gets a small ceiling instead of being OOM-killed.
-  const validateHeapMB = parseInt(process.env.FAST_BUILD_VALIDATE_HEAP_MB ?? String(heapMB), 10)
-  const pool = await getWorkerPool(validationWorkers, {
-    workerOptions: {
-      resourceLimits: {
-        maxOldGenerationSizeMb: validateHeapMB,
-        maxYoungGenerationSizeMb: 128
-      }
-    }
-  })
-
-  const startTime = performance.now()
-  const results = {
-    successCount: 0,
-    total: packages.length,
-    cacheHits: 0,
-    errors: [],
-    time: 0
-  }
-
-  let completedCount = 0
-  const timings = []
-
-  // typesHash per package, consumed by dependents. Seeded from what is on disk so that
-  // packages outside this validate set still contribute a real hash; each validated
-  // package overwrites its entry before any dependent reads it (waves run in dep order).
-  const packageTypesHashes = computeTypesHashes(graph)
-
-  console.log(`\n=== Phase: Validating ${packages.length} packages ===`)
-  console.log(`    Using ${validationWorkers} validation workers`)
-
-  // Process packages in waves based on dependencies (like transpile phase)
-  const pending = new Set(packages)
-  const completed = new Set()
-
-  async function validatePackage(packageName) {
-    const node = graph.get(packageName)
-    const srcDir = node.phaseBuild === 'compile transpile tests' ? 'tests' : 'src'
-    const pkgStart = performance.now()
-
-    // A dependency is only visible here through its emitted .d.ts, so keying on the
-    // dependency's sources re-validated the whole downstream closure for edits that
-    // changed no public API. Own sources + dependency types is the real input.
-    const packageHash = compositeHashFromTypes(packageName, graph, packageHashes, packageTypesHashes, ['tsconfig.json'])
-
-    // Validate produces types/ directory
-    const outputDirs = ['types']
-
-    // Hash types/ once and reuse it for both the cache check and the dependents' hash —
-    // isPhaseCached would otherwise re-read every .d.ts a second time.
-    const typesHash = calculateOutputHashForDirs(node.project.fullPath, ['types'])
-    if (typesHash) {
-      packageTypesHashes.set(packageName, typesHash)
-    }
-    const cachedPhase = packageHash ? getPhaseMetadata(node.project.fullPath, packageHash, 'validate') : null
-    const outputsMatch = cachedPhase != null && (cachedPhase.outputHash == null || cachedPhase.outputHash === typesHash)
-
-    if (!force && packageHash && outputsMatch) {
-      results.successCount++
-      results.cacheHits++
-      const pkgTime = Math.round(performance.now() - pkgStart)
-      console.log(`    ${success('V')} ${dim(completedCount + 1)}/${packages.length} ${packageName} ${success('validated')} (cached) ${dim(pkgTime + 'ms')}`)
-      return { success: true, fromCache: true }
-    }
-
-    try {
-      const result = await pool.validate(node.project.fullPath, { srcDir })
-      const pkgTime = Math.round(performance.now() - pkgStart)
-
-      if (result.success) {
-        results.successCount++
-        const syncInfo = result.syncResult ? ` [${result.syncResult.copied}c/${result.syncResult.unchanged}u/${result.syncResult.removed}r]` : ''
-        const cacheStatsInfo = result.cacheStats?.sourceCacheSize ? ` src:${result.cacheStats.sourceCacheSize} files` : ''
-        console.log(`    ${success('V')} ${dim(completedCount + 1)}/${packages.length} ${packageName} ${success('validated')}${syncInfo}${cacheStatsInfo} ${dim(pkgTime + 'ms')}`)
-        timings.push({ package: packageName, time: pkgTime })
-
-        // Compute typesHash from the freshly emitted types/ for dependents to use
-        const typesHash = calculateOutputHashForDirs(node.project.fullPath, ['types'])
-        if (typesHash) {
-          packageTypesHashes.set(packageName, typesHash)
-        }
-
-        // Mark validate phase as completed in unified cache
-        if (packageHash) {
-          markPhaseCompleted(node.project.fullPath, packageHash, 'validate', null, outputDirs)
-        }
-      } else {
-        results.errors.push({ package: packageName, error: result.error })
-        const errMsg = result.error ? (result.error.message || String(result.error)) : 'unknown'
-        const { colored } = colorizeErrorMessage(errMsg.split('\n')[0])
-        console.error(`    ${error('V')} ${dim(completedCount + 1)}/${packages.length} ${packageName} ${error('FAILED')} ${dim(pkgTime + 'ms')}`)
-        console.error(`      ${colored}`)
-        timings.push({ package: packageName, time: pkgTime, failed: true })
-      }
-
-      return result
-    } catch (err) {
-      const pkgTime = Math.round(performance.now() - pkgStart)
-      results.errors.push({ package: packageName, error: err })
-      const { colored } = colorizeErrorMessage(err.message.split('\n')[0])
-      console.error(`    ${error('V')} ${dim(completedCount + 1)}/${packages.length} ${packageName} ${error('ERROR')} ${dim(pkgTime + 'ms')}`)
-      console.error(`      ${colored}`)
-      timings.push({ package: packageName, time: pkgTime, failed: true })
-      return { success: false, error: err }
-    }
-  }
-
-  // Process in dependency order waves
-  while (completed.size < packages.length) {
-    // Find packages ready to validate (all deps completed)
-    const ready = []
-    for (const name of pending) {
-      const node = graph.get(name)
-      const depsCompleted = [...node.dependencies].filter(d => packages.includes(d))
-        .every(d => completed.has(d))
-      if (depsCompleted) {
-        ready.push(name)
-      }
-    }
-
-    if (ready.length === 0) {
-      throw new Error('Circular dependency detected in validation phase')
-    }
-
-    // Validate ready packages in parallel with limited concurrency
-    const validatePromises = ready.map(async (name) => {
-      await validatePackage(name)
-      completedCount++
-      completed.add(name)
-      pending.delete(name)
-    })
-
-    // Limit concurrency to validationWorkers
-    const chunks = []
-    for (let i = 0; i < validatePromises.length; i += validationWorkers) {
-      chunks.push(validatePromises.slice(i, i + validationWorkers))
-    }
-
-    for (const chunk of chunks) {
-      await Promise.all(chunk)
-    }
-  }
-
-  await pool.terminate()
-
-  results.time = performance.now() - startTime
-
-  console.log(`\nValidated: ${results.successCount}/${results.total} packages in ${Math.round(results.time)}ms`)
-  if (results.cacheHits > 0) console.log(`  (${results.cacheHits} from cache)`)
-
-  // Print timing summary
-  if (timings.length > 0) {
-    const sorted = timings.sort((a, b) => b.time - a.time)
-    const slowCount = Math.min(10, sorted.length)
-    console.log(`\n    Top ${slowCount} slowest validate packages:`)
-    for (let i = 0; i < slowCount; i++) {
-      const t = sorted[i]
-      const failInfo = t.failed ? ' FAILED' : ''
-      console.log(`      ${(t.time / 1000).toFixed(1)}s ${t.package}${failInfo}`)
-    }
-  }
-
-  return results
 }
 
 async function runBuildPipeline(packagesToBundle, packagesToPackage, packagesToDockerBuild, graph, buildWorkers, force, packageHashes) {
@@ -606,16 +410,17 @@ async function runBuildPipeline(packagesToBundle, packagesToPackage, packagesToD
 
 // Per-phase timing plus what the run was allowed to use. Printed on every build so a CI
 // log carries the numbers needed to tell "slow" from "starved" without a rerun.
-function printResourceSummary(phaseStats, validationPlan, buildPlan) {
+function printResourceSummary(phaseStats, validationPlan, buildPlan, tscPlan) {
   const { peakMB, source } = getPeakMemoryMB()
 
   console.log(`\n=== Resources ===`)
   console.log(`  CPUs usable        : ${validationPlan.cpuCount}`)
   console.log(`  Memory available   : ${validationPlan.availableMemoryMB} MB`)
   console.log(`  Memory budget (85%): ${validationPlan.budgetMB} MB`)
-  console.log(`  Validate pool      : ${validationPlan.workers} workers x ${validationPlan.heapMB} MB heap ` +
+  console.log(`  tsc pool           : ${tscPlan.workers} processes`)
+  console.log(`  Lint/format pool   : ${validationPlan.workers} workers x ${validationPlan.heapMB} MB heap ` +
     `= ${validationPlan.workers * validationPlan.heapMB} MB`)
-  console.log(`  Build pool         : ${buildPlan.workers} workers`)
+  console.log(`  Bundle pool        : ${buildPlan.workers} workers`)
   if (peakMB != null) {
     const pct = validationPlan.budgetMB > 0 ? Math.round((peakMB / validationPlan.budgetMB) * 100) : 0
     console.log(`  Peak memory        : ${peakMB} MB (${pct}% of budget) — ${source}`)
@@ -663,7 +468,6 @@ async function compileAll(rootDir, options = {}) {
   const {
     parallel = 4,
     verbose = false,
-    doValidate = false,
     doTest = false,
     doLint = false,
     doFormat = false,
@@ -682,17 +486,19 @@ async function compileAll(rootDir, options = {}) {
   // Size every pool against the memory this process may actually use (cgroup limit in a
   // container, MemAvailable otherwise) rather than the host's total RAM.
   const validationPlan = getOptimalWorkerCount(parallel, 'typescript')
+  const tscPlan = getOptimalWorkerCount(parallel, 'tsc')
   const buildPlan = getOptimalWorkerCount(parallel, 'bundle')
   const validationWorkers = forceWorkers ? parallel : validationPlan.workers
+  const tscWorkers = forceWorkers ? parallel : tscPlan.workers
   const buildWorkers = forceWorkers ? parallel : buildPlan.workers
 
   // Start CPU tracking
   const cpuTracker = new CpuTracker(100)
   cpuTracker.start()
 
-  console.log(`Building with ${validationWorkers} validation workers, ${buildWorkers} build workers...`)
+  console.log(`Building with ${tscWorkers} tsc workers, ${validationWorkers} lint/format workers, ${buildWorkers} bundle workers...`)
   console.log(`  Memory: ${validationPlan.availableMemoryMB}MB available, ${validationPlan.budgetMB}MB budget, ` +
-    `${validationPlan.cpuCount} usable CPU(s); validate heap ${validationPlan.heapMB}MB/worker`)
+    `${validationPlan.cpuCount} usable CPU(s); worker heap ${validationPlan.heapMB}MB/worker`)
   if (validationPlan.belowSafeHeap) {
     console.warn(warn(`  Warning: only ${validationPlan.heapMB}MB per validation worker; the heaviest ` +
       `packages need ~${validationPlan.minHeapMB}MB and may fail. Give the runner more memory ` +
@@ -743,11 +549,10 @@ async function compileAll(rootDir, options = {}) {
   }
 
   const selection = selectPackagesForPhases(graph, {
-    doValidate, doTest, doBundle, doPackage, doDockerBuild, doSvelteCheck, targetPackages
+    doTest, doBundle, doPackage, doDockerBuild, doSvelteCheck, targetPackages
   })
 
-  const packagesToTranspile = selection.transpile
-  const packagesToValidate = selection.validate
+  const packagesToBuild = selection.build
   const packagesToTest = selection.test
   const packagesToFormat = selection.format
   const packagesToBundle = selection.bundle
@@ -757,17 +562,16 @@ async function compileAll(rootDir, options = {}) {
 
   // Packages whose phase script this tool cannot run used to disappear without a word.
   if (selection.unknown.length > 0) {
-    console.warn(`\n${warn(`Warning: ${selection.unknown.length} unrecognised phase script(s), these packages are NOT built by fast-build:`)}`)
+    console.warn(`\n${warn(`Warning: ${selection.unknown.length} unrecognised phase script(s), these packages are NOT built:`)}`)
     for (const u of selection.unknown) {
       console.warn(`  ${u.package} — _phase:${u.phase}: ${dim(u.script)}`)
     }
-    console.warn(`  Run them with ${bold('rushx')} directly, or express them as a supported phase script.`)
+    console.warn(`  Run them with ${bold('pnpm run')} inside the package, or express them as a supported phase script.`)
   }
 
   if (list) {
     console.log('\nPackages to process:')
-    console.log(`  Transpile: ${packagesToTranspile.length}`)
-    console.log(`  Validate: ${packagesToValidate.length}`)
+    console.log(`  Build: ${packagesToBuild.length}`)
     console.log(`  Test: ${packagesToTest.length}`)
     console.log(`  Format: ${packagesToFormat.length}`)
     console.log(`  Bundle: ${packagesToBundle.length}`)
@@ -809,31 +613,6 @@ async function compileAll(rootDir, options = {}) {
   const hasLeafPhase = doTest || doLint || doSvelteCheck
   const forcePrerequisites = force && !hasLeafPhase
 
-  // Phase 1: Transpile
-  console.log(`\n=== Phase 1: Transpiling ${packagesToTranspile.length} packages ===`)
-  const transpileResults = await runTranspilePhase(graph, packagesToTranspile, validationWorkers, { force: forcePrerequisites, packageHashes })
-  console.log(`Transpiled: ${transpileResults.successCount}/${transpileResults.total} packages in ${Math.round(transpileResults.time)}ms`)
-  const transpileStat = { name: 'transpile', result: transpileResults }
-
-  // Refresh hashes of rebuilt packages so validate sees correct hashes.
-  if (transpileResults.changedPackages && transpileResults.changedPackages.size > 0) {
-    for (const pkg of transpileResults.changedPackages) {
-      const node = graph.get(pkg)
-      if (node && node.project && node.project.fullPath) {
-        packageHashes.set(pkg, calculatePackageHash(node.project.fullPath))
-      }
-    }
-  }
-
-  if (transpileResults.errors.length > 0) {
-    console.error('\nTranspile errors:')
-    for (const err of transpileResults.errors) {
-      const errMsg = err.error?.message || err.error || 'Unknown error'
-      console.error(`  ${error(err.package)}: ${errMsg.split('\n')[0]}`)
-    }
-    return { success: false, errors: transpileResults.errors.length }
-  }
-
   // Collect all errors across phases for final summary
   const allErrors = []
   const phaseStats = []
@@ -851,43 +630,46 @@ async function compileAll(rootDir, options = {}) {
     })
   }
 
-  // Phase 2: Validate (with worker pool)
-  let validateResults = { successCount: 0, total: 0, cacheHits: 0, errors: [] }
-  if (doValidate && packagesToValidate.length > 0) {
-    validateResults = await runValidationPhase(packagesToValidate, graph, validationWorkers, forcePrerequisites, packageHashes, validationPlan.heapMB)
+  // Single build phase: one tsc pass per package emits JS and .d.ts together.
+  const buildPhaseResults = await runBuildPhase(graph, packagesToBuild, tscWorkers, {
+    force: forcePrerequisites,
+    packageHashes
+  })
 
-    if (doLint) {
-      // Lint phase: run ESLint without fix on packages with phaseFormat.
-      // Only runs when --lint flag is passed.
-      let lintResults = { successCount: 0, total: 0, cacheHits: 0, errors: [] }
-      const packagesToLint = packagesToValidate.filter(name => graph.get(name)?.phaseFormat)
-      if (packagesToLint.length > 0) {
-        console.log(`\n=== Phase: Linting ${packagesToLint.length} packages ===`)
-        lintResults = await runLintPhase(graph, packagesToLint, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph) })
-        console.log(`Linted: ${lintResults.successCount}/${lintResults.total} packages in ${Math.round(lintResults.time)}ms`)
-        recordPhase('lint', lintResults, null, null)
-        if (lintResults.cacheHits > 0) console.log(`  (${lintResults.cacheHits} from cache)`)
-      }
+  if (buildPhaseResults.errors.length > 0) {
+    for (const err of buildPhaseResults.errors) allErrors.push({ phase: 'build', ...err })
+    console.error('\nBuild errors - stopping')
+    printErrorSummary(allErrors)
+    return { success: false, errors: buildPhaseResults.errors.length }
+  }
 
-      if (validateResults.errors.length > 0 || lintResults.errors.length > 0) {
-        for (const err of validateResults.errors) allErrors.push({ phase: 'validate', ...err })
+  // Refresh hashes of rebuilt packages so later phases see correct hashes.
+  for (const pkg of buildPhaseResults.changedPackages) {
+    const node = graph.get(pkg)
+    if (node?.project?.fullPath) {
+      packageHashes.set(pkg, calculatePackageHash(node.project.fullPath))
+    }
+  }
+
+  if (doLint) {
+    const packagesToLint = packagesToBuild.filter((name) => graph.get(name)?.phaseFormat)
+    if (packagesToLint.length > 0) {
+      console.log(`\n=== Phase: Linting ${packagesToLint.length} packages ===`)
+      const lintResults = await runLintPhase(graph, packagesToLint, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph) })
+      console.log(`Linted: ${lintResults.successCount}/${lintResults.total} packages in ${Math.round(lintResults.time)}ms`)
+      recordPhase('lint', lintResults, null, null)
+      if (lintResults.cacheHits > 0) console.log(`  (${lintResults.cacheHits} from cache)`)
+
+      if (lintResults.errors.length > 0) {
         for (const err of lintResults.errors) allErrors.push({ phase: 'lint', ...err })
-        const total = validateResults.errors.length + lintResults.errors.length
-        console.error(`\n${validateResults.errors.length} validation error(s), ${lintResults.errors.length} lint error(s) - stopping build`)
+        console.error(`\n${lintResults.errors.length} lint error(s) - stopping build`)
         printErrorSummary(allErrors)
-        return { success: false, errors: total }
-      }
-    } else {
-      if (validateResults.errors.length > 0) {
-        for (const err of validateResults.errors) allErrors.push({ phase: 'validate', ...err })
-        console.error('\nValidation errors - stopping build')
-        printErrorSummary(allErrors)
-        return { success: false, errors: validateResults.errors.length }
+        return { success: false, errors: lintResults.errors.length }
       }
     }
   }
 
-  // Phase: Svelte-check (runs after validate)
+  // Phase: Svelte-check (runs after build)
   if (doSvelteCheck && packagesToSvelteCheck.length > 0) {
     console.log(`\n=== Phase: Svelte-checking ${packagesToSvelteCheck.length} packages ===`)
     const svelteCheckResults = await runSvelteCheckPhase(graph, packagesToSvelteCheck, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph) })
@@ -949,13 +731,12 @@ async function compileAll(rootDir, options = {}) {
 
   const totalTime = performance.now() - startTime
 
-  recordPhase('transpile', transpileStat.result, validationWorkers, null)
-  recordPhase('validate', validateResults, validationWorkers, validationPlan.heapMB)
+  recordPhase('build', buildPhaseResults, tscWorkers, null)
 
   console.log(`\n=== Summary ===`)
   console.log(`Total time: ${Math.round(totalTime)}ms`)
   console.log(`CPU usage: avg ${cpuStats.avg}%, peak ${cpuStats.peak}%`)
-  printResourceSummary(phaseStats, validationPlan, buildPlan)
+  printResourceSummary(phaseStats, validationPlan, buildPlan, tscPlan)
 
   if (allErrors.length > 0) {
     printErrorSummary(allErrors)
@@ -985,8 +766,8 @@ async function main() {
 
   const rootDir = resolve(options.rootDir)
 
-  if (!existsSync(join(rootDir, 'rush.json'))) {
-    console.error(`Error: rush.json not found in ${rootDir}`)
+  if (!existsSync(join(rootDir, 'pnpm-workspace.yaml'))) {
+    console.error(`Error: pnpm-workspace.yaml not found in ${rootDir}`)
     process.exit(1)
   }
 
@@ -1024,4 +805,4 @@ if (require.main === module) {
   })
 }
 
-module.exports = { compileAll, runValidationPhase, calculatePackageHashWithDeps }
+module.exports = { compileAll, runBuildPhase, calculatePackageHashWithDeps }

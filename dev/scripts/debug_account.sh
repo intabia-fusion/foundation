@@ -2,7 +2,7 @@
 set -e
 
 cd ./pods/account
-rushx bundle
+pnpm run bundle
 
 port=${1:-3000}
 echo "Running account on port: ${port}"

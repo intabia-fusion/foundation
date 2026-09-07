@@ -4,7 +4,7 @@ See `docs/love.md`, section 11 (Тесты) - test layout, helpers, mocking stra
 and the `parseRoomName` / `webhook.test.ts` gotchas live there.
 
 ```bash
-rushx test
-rushx test --coverage
+pnpm run test
+pnpm run test --coverage
 npx jest webhook.test.ts
 ```

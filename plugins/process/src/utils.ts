@@ -1,7 +1,5 @@
-import { Tx, TxUpdateDoc } from '@hcengineering/core/types/tx'
+import core, { Doc, Tx, TxUpdateDoc } from '@hcengineering/core'
 import { SelectedContext } from './types'
-import core from '@hcengineering/core'
-import { Card } from '@hcengineering/card'
 import { parseDSLContext } from './dslContext'
 
 export function parseContext (value: any): SelectedContext | undefined {
@@ -21,6 +19,6 @@ export function parseContext (value: any): SelectedContext | undefined {
   }
 }
 
-export function isUpdateTx (etx: Tx): etx is TxUpdateDoc<Card> {
+export function isUpdateTx (etx: Tx): etx is TxUpdateDoc<Doc> {
   return etx._class === core.class.TxUpdateDoc
 }

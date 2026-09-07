@@ -44,6 +44,8 @@
     "MyWork": "Моя работа",
     "WeekCalendar": "Неделя",
     "DayCalendar": "Дни",
+    "MonthCalendar": "Месяц",
+    "YearCalendar": "Год",
     "GotoTimePlaning": "Планирование",
     "GotoTimeTeamPlaning": "Командное планирование",
     "NewToDo": "Новое Действие",
@@ -55,10 +57,14 @@
     "MarkedAsDone": "Выполнено",
     "WorkSchedule": "Расписание работы",
     "SummaryDuration": "Всего",
+    "Busy": "Занят",
     "UnassignToDo": "Отменить назначение Действия",
     "UnassignToDoConfirm": "Вы хотите отменить назначение Действия? Действие будет удалено из планирования исполнителя.",
     "ReassignToDo": "Изменить исполнителя Действия",
-    "ReassignToDoConfirm": "Вы хотите изменить исполнителя Действия? Действие будет удалено из планирования текущего исполнителя."
+    "ReassignToDoConfirm": "Вы хотите изменить исполнителя Действия? Действие будет удалено из планирования текущего исполнителя.",
+    "Occupancy": "Занятость",
+    "ShowEvents": "События",
+    "ShowActivity": "Активность"
   },
   "emailTemplate": {
     "ToDoCreatedNotificationText": "{body}",

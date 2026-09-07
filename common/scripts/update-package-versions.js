@@ -208,23 +208,23 @@ function main() {
     console.log()
     console.log('Next steps:')
     console.log('1. Review the changes: git diff')
-    console.log('2. Run: rush update')
-    console.log('3. Run: rush rebuild')
+    console.log('2. Run: pnpm install')
+    console.log('3. Run: pnpm build')
   } else {
     console.log()
     console.log('No packages were updated.')
   }
-  // Execute rush update if there were updates
+  // Execute pnpm install if there were updates
   if (updatedFiles > 0) {
     console.log()
-    console.log('Running rush update...')
+    console.log('Running pnpm install...')
     console.log('='.repeat(80))
     try {
-      execSync('rush update', { stdio: 'inherit', cwd: workspaceRoot })
+      execSync('pnpm install', { stdio: 'inherit', cwd: workspaceRoot })
       console.log('='.repeat(80))
-      console.log('✓ rush update completed successfully!')
+      console.log('✓ pnpm install completed successfully!')
     } catch (error) {
-      console.error('Failed to run rush update:', error.message)
+      console.error('Failed to run pnpm install:', error.message)
       process.exit(1)
     }
   }

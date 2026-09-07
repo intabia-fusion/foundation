@@ -13,9 +13,9 @@
 // limitations under the License.
 //
 
+import PersonDayWidget from './components/team/PersonDayWidget.svelte'
 import type { Resources } from '@hcengineering/platform'
 import Me from './components/Me.svelte'
-import Team from './components/team/Team.svelte'
 import IssuePresenter from './components/presenters/IssuePresenter.svelte'
 import LeadPresenter from './components/presenters/LeadPresenter.svelte'
 import DocumentPresenter from './components/presenters/DocumentPresenter.svelte'
@@ -32,10 +32,13 @@ import PersonCalendar from './components/team/calendar/PersonCalendar.svelte'
 
 export type ToDosMode = 'unplanned' | 'planned' | 'all' | 'tag' | 'date'
 
+// Right-hand panel of the Planner: my own schedule, the team grid or the team occupancy view.
+export type PlannerCalendarMode = 'personal' | 'team-calendar' | 'team'
+
 export default async (): Promise<Resources> => ({
   component: {
+    PersonDayWidget,
     Me,
-    Team,
     IssuePresenter,
     LeadPresenter,
     DocumentPresenter,

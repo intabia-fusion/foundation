@@ -50,19 +50,19 @@ Make sure to replace the values with your actual credentials and configuration.
 ### Running Locally
 
 ```bash
-rushx run-local
+pnpm run run-local
 ```
 
 ### Building
 
 ```bash
-rushx build
+pnpm run build
 ```
 
 ### Testing
 
 ```bash
-rushx test
+pnpm run test
 ```
 
 ## Docker Support
@@ -71,7 +71,7 @@ The service can be built using Docker:
 
 ```bash
 # Build Docker image
-rushx docker:build
+pnpm run docker:build
 ```
 
 ## Configuration

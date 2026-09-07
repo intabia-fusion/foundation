@@ -77,7 +77,7 @@ function bumpPackage (name, dependency, depVersion) {
 }
 
 function main () {
-  const config = JSON.parse(execSync('rush list -p --json', { encoding: 'utf-8' }))
+  const config = { projects: require('../../foundations/utils/packages/platform-rig/bin/libs/workspace').listWorkspaceProjects() }
 
   fillPackages(config)
   buildDependencyTree()

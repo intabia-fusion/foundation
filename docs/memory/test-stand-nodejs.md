@@ -66,7 +66,7 @@ Verified on the merged `full` stand: QMS suite 55 passed / 2 flaky / 0 failed (1
 385 passed / 30 skipped / 2 flaky / 0 failed (9.8 min). `ws` stand comes up in 48s with all eight
 workspaces verified, `api-tests` 238 passed / 2 skipped, ws UI suite 18 passed.
 
-`api-tests` needs a worker cap locally: `rushx api-test` lets jest use cpus-1, and 11 suites
+`api-tests` needs a worker cap locally: `pnpm run api-test` lets jest use cpus-1, and 11 suites
 connecting at once starve the transactor into 60s `connect()` timeouts. `-w 3` (what a CI runner
 ends up with) is green. Unrelated to the stand.
 

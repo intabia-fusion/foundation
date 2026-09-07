@@ -36,4 +36,4 @@ Pipeline e2e ограничен скоростью write-side (`TxOperations.cre
 
 ## Запуск тестов
 
-Окружение через `tests/prepare-tests.sh` (docker-compose: redpanda 19093, cockroach 26258, postgres 5433, elastic 9201). Локальный run: `cd pods/fulltext && rushx test` (включая bench, по совпадению с `*.bench.ts` в jest config).
+Окружение через `tests/prepare-tests.sh` (docker-compose: redpanda 19093, cockroach 26258, postgres 5433, elastic 9201). Локальный run: `cd pods/fulltext && pnpm run test` (включая bench, по совпадению с `*.bench.ts` в jest config).

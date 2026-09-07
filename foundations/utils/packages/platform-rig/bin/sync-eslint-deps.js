@@ -2,40 +2,20 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
 //
-// Script to sync ESLint dev dependencies from platform-rig to all Rush packages
+// Script to sync ESLint dev dependencies from platform-rig to all workspace packages
 //
 
 const fs = require('fs')
 const path = require('path')
-const { execSync } = require('child_process')
 
 // ESLint related dependency prefixes to sync
 const ESLINT_PATTERNS = ['eslint', '@typescript-eslint/', 'eslint-plugin-', 'eslint-config-']
 
 /**
- * Get list of Rush projects using 'rush list --json'
+ * Workspace projects from pnpm-workspace.yaml.
  */
 function getRushProjects() {
-  try {
-    const output = execSync('rush list --json', {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-
-    const data = JSON.parse(output)
-    const projects = data.projects || data
-
-    if (!Array.isArray(projects)) {
-      throw new Error('Expected rush list --json to return an array of projects')
-    }
-
-    return projects
-  } catch (err) {
-    if (err.message.includes('rush') || err.code === 'ENOENT') {
-      throw new Error('Failed to run "rush list --json". Make sure you are in a Rush workspace and Rush is installed.')
-    }
-    throw new Error(`Failed to get Rush projects: ${err.message}`)
-  }
+  return require('./libs/workspace').listWorkspaceProjects()
 }
 
 /**
@@ -170,9 +150,9 @@ function main() {
     }
     console.log()
 
-    // Get all Rush projects
+    // Get all workspace projects
     const projects = getRushProjects()
-    console.log(`Found ${projects.length} projects in Rush workspace\n`)
+    console.log(`Found ${projects.length} projects in workspace\n`)
 
     // Update all packages
     let updatedCount = 0
@@ -197,7 +177,7 @@ function main() {
     console.log(`   Skipped: ${skippedCount} package(s) (already up-to-date)`)
 
     if (updatedCount > 0) {
-      console.log('\n💡 Don\'t forget to run "rush update" to install the updated dependencies')
+      console.log('\n💡 Don\'t forget to run "pnpm install" to install the updated dependencies')
     }
   } catch (error) {
     console.error(`\n❌ Error: ${error.message}`)

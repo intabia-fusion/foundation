@@ -33,7 +33,7 @@ cold validate + lint + svelte-check combined (401 s).
 ## Correctness bugs found
 
 - **Packages silently dropped from phases.** Phase scripts were matched by strict string
-  equality, so `services/ai-bot/love-agent` (`rushx build:wasm && node esbuild.config.js`) was
+  equality, so `services/ai-bot/love-agent` (`pnpm run build:wasm && node esbuild.config.js`) was
   never transpiled and `dev/prod` (`rm -rf ./types && compile validate`) was never validated —
   with no warning. Now `libs/phase-select.js` returns an `unknown` list that `compile_all`
   prints. Unsupported scripts are still not executed; they are only reported.

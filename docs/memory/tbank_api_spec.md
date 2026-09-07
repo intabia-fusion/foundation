@@ -116,7 +116,7 @@ REFUNDING, PARTIAL_REFUNDED, REFUNDED, REJECTED, DEADLINE_EXPIRED, CANCELED, 3DS
 - mockTbank.ts: добавлены getPaymentState/checkOrder.
 Build+validate чистые. 55/55 тестов PASS.
 Гейча: тесты utils/updatePlan падали из-за устаревшего собранного @hcengineering/account-client (makePlanKey undefined) —
-не связано с заменой; лечится `rush fast-build:lint --to @hcengineering/account-client`.
+не связано с заменой; лечится `pnpm build:lint --to @hcengineering/account-client`.
 
 > Полная карта статусов и переходов — `docs/billing-subscription-status-transitions.md`.
 > При правке логики отмены обновлять оба файла в одном PR.

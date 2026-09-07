@@ -17,12 +17,15 @@
   import { Person } from '@hcengineering/contact'
   import { ContactRefPresenter } from '@hcengineering/contact-resources'
   import { Ref } from '@hcengineering/core'
-  import { Button, IconClose } from '@hcengineering/ui'
+  import { Button, Icon, IconCheck, IconClose, IconError, tooltip } from '@hcengineering/ui'
+  import calendar from '../plugin'
 
   export let participant: Ref<Person> | undefined = undefined
   export let externalParticipant: string | undefined = undefined
   export let disabled: boolean = false
   export let focusIndex: number = -1
+  // undefined - busy state unknown (external participant, or not resolved yet)
+  export let busy: boolean | undefined = undefined
 
   const dispatch = createEventDispatcher()
 </script>
@@ -31,6 +34,11 @@
   <!-- svelte-ignore a11y-no-noninteractive-tabindex -->
   <div class="antiOption step-tb25" tabindex={focusIndex}>
     <ContactRefPresenter disabled value={participant} />
+    {#if busy !== undefined}
+      <div class="busy-mark" class:busy use:tooltip={busy ? { label: calendar.string.Busy } : undefined}>
+        <Icon icon={busy ? IconError : IconCheck} size={'small'} />
+      </div>
+    {/if}
     {#if !disabled}
       <div class="tools">
         <Button
@@ -69,3 +77,17 @@
     {/if}
   </div>
 {/if}
+
+<style lang="scss">
+  .busy-mark {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    padding-right: 0.5rem;
+    color: var(--theme-won-color);
+
+    &.busy {
+      color: var(--theme-lost-color);
+    }
+  }
+</style>

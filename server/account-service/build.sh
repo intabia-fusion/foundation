@@ -15,6 +15,6 @@
 #  limitations under the License.
 #
 
-rushx bundle
-rushx docker:build
-rushx docker:push
+pnpm run bundle
+pnpm run docker:build
+pnpm run docker:push

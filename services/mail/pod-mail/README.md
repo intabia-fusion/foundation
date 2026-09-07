@@ -50,7 +50,7 @@ To use the real SMTP server it is required to register an account in some email 
 Start the service locally using:
 
 ```bash
-rushx run-local
+pnpm run run-local
 ```
 
 The service will run and listen for incoming requests on the configured port.

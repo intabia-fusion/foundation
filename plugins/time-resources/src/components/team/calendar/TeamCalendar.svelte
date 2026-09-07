@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import calendar, { Event, getAllEvents } from '@hcengineering/calendar'
+  import calendar, { BusySlot, Event, getAllEvents } from '@hcengineering/calendar'
   import { calendarByIdStore } from '@hcengineering/calendar-resources'
   import contact, { getCurrentEmployee, Person } from '@hcengineering/contact'
   import { employeeRefByAccountUuidStore, getPersonRefsByPersonIdsCb } from '@hcengineering/contact-resources'
@@ -38,26 +38,51 @@
   import time from '../../../plugin'
   import TimePresenter from '../../presenters/TimePresenter.svelte'
   import WithTeamData from '../WithTeamData.svelte'
-  import { groupTeamData, toSlots } from '../utils'
+  import { groupTeamData, toSlots, openPersonDay } from '../utils'
   import PersonCalendar from './PersonCalendar.svelte'
+  import DayCell from './DayCell.svelte'
   import TxPanel from './TxPanel.svelte'
 
-  export let space: Ref<Project>
+  export let spaces: Array<Ref<Project>> = []
+  export let filterPersons: Array<Ref<Person>> = []
   export let currentDate: Date
   export let maxDays = 5
+  // The cell always shows time and busy hours; the rest is opt-in, see Calendar.svelte.
+  export let showPlanned: boolean = false
+  export let showEvents: boolean = false
+  export let showActivity: boolean = false
+  // Month cells are too short for the bar and the slot list - the total alone reads better.
+  export let detailed: boolean = true
 
   $: fromDate = new Date(currentDate).setDate(currentDate.getDate() - Math.round(maxDays / 2 + 1))
   $: toDate = new Date(currentDate).setDate(currentDate.getDate() + Math.round(maxDays / 2 + 1))
   const me = getCurrentEmployee()
 
-  let project: Project | undefined
+  let projects: Project[] = []
   let slots: WorkSlot[] = []
   let events: Event[] = []
   let todos: IdMap<ToDo> = new Map()
+  let busySlots: BusySlot[] = []
 
-  $: personsRefs = (project?.members ?? [])
-    .map((it) => $employeeRefByAccountUuidStore.get(it))
-    .filter((it) => it !== undefined)
+  // No project selected - show all active employees of the platform instead of project members.
+  const activeEmployeesQuery = createQuery()
+  let activeEmployees: Array<Ref<Person>> = []
+  $: if (spaces.length === 0) {
+    activeEmployeesQuery.query(contact.mixin.Employee, { active: true }, (res) => {
+      activeEmployees = res.map((e) => e._id)
+    })
+  } else {
+    activeEmployeesQuery.unsubscribe()
+  }
+
+  $: memberRefs =
+    spaces.length === 0
+      ? activeEmployees
+      : unique(projects.flatMap((p) => p.members ?? []))
+        .map((it) => $employeeRefByAccountUuidStore.get(it))
+        .filter((it) => it !== undefined)
+
+  $: personsRefs = filterPersons.length > 0 ? memberRefs.filter((it) => filterPersons.includes(it)) : memberRefs
 
   const txCreateQuery = createQuery()
 
@@ -154,7 +179,17 @@
   $: allEvents = getAllEvents(events, fromDate, toDate)
 </script>
 
-<WithTeamData {space} {fromDate} {toDate} bind:project bind:todos bind:slots bind:events bind:persons={personsRefs} />
+<WithTeamData
+  {spaces}
+  {fromDate}
+  {toDate}
+  bind:projects
+  bind:todos
+  bind:slots
+  bind:events
+  bind:persons={personsRefs}
+  bind:busySlots
+/>
 
 <PersonCalendar persons={personsRefs} startDate={currentDate} {maxDays}>
   <svelte:fragment slot="day" let:day let:today let:weekend let:person let:height>
@@ -164,28 +199,45 @@
       toSlots(getAllEvents(allSlots, dayFrom, dayTo)),
       todos,
       getAllEvents(allEvents, dayFrom, dayTo),
+      busySlots,
       me,
-      $calendarByIdStore
+      $calendarByIdStore,
+      dayFrom,
+      dayTo
     )}
     {@const gitem = grouped.find((it) => it.user === person)}
     {@const planned = gitem?.mappings.reduce((it, val) => it + val.total, 0) ?? 0}
     {@const pevents = gitem?.events.reduce((it, val) => it + (val.dueDate - val.date), 0) ?? 0}
-    {@const busy = gitem?.busy.slots.reduce((it, val) => it + (val.dueDate - val.date), 0) ?? 0}
+    {@const busy =
+      (gitem?.busy.slots.reduce((it, val) => it + (val.dueDate - val.date), 0) ?? 0) + (gitem?.busyTotal ?? 0)}
     {@const txInfo = group(txesMap.get(person) ?? [], dayFrom, dayTo)}
-    <div style:overflow="auto" style:height="{height}rem" class="p-1">
-      <div class="flex-row-center p-1">
-        <Icon icon={time.icon.Team} size={'small'} />
-        <TimePresenter value={gitem?.total ?? 0} />
-      </div>
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div
+      style:overflow="auto"
+      style:height="{height}rem"
+      class="p-1 cursor-pointer"
+      on:click={() => {
+        openPersonDay(person, dayFrom)
+      }}
+    >
+      {#if (gitem?.total ?? 0) > 0}
+        <div class="flex-row-center p-1">
+          <TimePresenter value={gitem?.total ?? 0} />
+        </div>
+      {/if}
+      {#if detailed}
+        <DayCell {gitem} {dayFrom} {dayTo} maxRows={Math.max(1, Math.floor((height - 2.5) / 1.1))} />
+      {/if}
       <div class="flex flex-row-center">
-        {#if planned > 0}
+        {#if showPlanned && planned > 0}
           <div class="flex-row-center p-1 flex-nowrap">
             <Icon icon={time.icon.FilledFlag} size={'small'} fill={'var(--positive-button-default)'} />
             <TimePresenter value={planned} />
           </div>
         {/if}
 
-        {#if pevents > 0}
+        {#if showEvents && pevents > 0}
           <div class="flex-row-center p-1 flex-nowrap">
             <Icon icon={calendar.icon.Calendar} size={'small'} fill={'var(--positive-button-default)'} />
             <TimePresenter value={pevents} />
@@ -199,7 +251,7 @@
           </div>
         {/if}
       </div>
-      {#if txInfo.add.size > 0}
+      {#if showActivity && txInfo.add.size > 0}
         <div class="flex">
           {#each Array.from(txInfo.add.entries()) as add}
             <div
@@ -217,7 +269,7 @@
           {/each}
         </div>
       {/if}
-      {#if txInfo.change.size > 0}
+      {#if showActivity && txInfo.change.size > 0}
         <div class="flex">
           {#each Array.from(txInfo.change.entries()) as change}
             <div

@@ -11,7 +11,6 @@ pods/workspace/init-scripts/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-*./rush-logs
 *tests/sanity/screenshots
 
 # Runtime data
@@ -73,9 +72,7 @@ jspm_packages/
 
 # Rush temporary files
 common/deploy/
-common/temp/
 common/autoinstallers/*/.npmrc
-**/.rush/temp/
 bundle.js
 bundle/*.js
 dist

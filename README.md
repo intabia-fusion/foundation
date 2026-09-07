@@ -141,25 +141,19 @@ sh ./scripts/fast-start.sh
 
 ## Installation
 
-You need Microsoft's [rush](https://rushjs.io) to install the application.
+The repository is a [pnpm](https://pnpm.io) workspace.
 
-1. Install Rush globally using the command:
+1. Activate pnpm. Corepack ships with Node and pins the version from `packageManager`:
 
 ```bash
-npm install -g @microsoft/rush
+corepack enable pnpm
 ```
 
-2. Navigate to the repository root and run the following commands:
+2. Navigate to the repository root and run:
 
 ```bash
-rush install
-rush build
-```
-
-Alternatively, you can just execute:
-
-```bash
-sh ./scripts/presetup-rush.sh
+pnpm install --frozen-lockfile
+pnpm build
 ```
 
 ## Build and run
@@ -168,19 +162,22 @@ Development environment setup requires Docker to be installed on system.
 
 Support is available for both amd64 and arm64 containers on Linux and macOS.
 
+All commands are run from the repository root and accept `--to <package>` to scope the run
+to a package and its dependencies.
+
 ```bash
-cd ./dev/
-rush build    # Will build all the required packages.
-# rush rebuild  # could be used to omit build cache.
-rush bundle   # Will prepare bundles.
-rush package  # Will build all webpack packages.
-rush validate # Will validate all sources with typescript and generate d.ts files required for ts-node execution.
-rush svelte-check # Optional. svelte files validation using svelte-check.
-rush docker:build   # Will build Docker containers for all applications in the local Docker environment.
-rush docker:up # Will set up all the containers
+pnpm build          # Compile every package: JS, .d.ts and sourcemaps in one tsc pass.
+pnpm build --force  # Same, ignoring the build cache.
+pnpm bundle         # Prepare bundles.
+pnpm package        # Build all webpack packages.
+pnpm svelte-check   # Optional. svelte files validation using svelte-check.
+pnpm docker         # Build Docker containers for the local stand (curated pod list).
+pnpm docker:build   # Same, for every package that defines a docker phase.
+pnpm docker:up      # Set up all the containers
 ```
 
-Be aware `rush docker:build` will automatically execute all required phases like build, bundle, package.
+Type checking is part of `pnpm build` - there is no separate validate step.
+`pnpm docker` and `pnpm docker:build` automatically run build, bundle and package.
 
 Alternatively, you can just execute:
 
@@ -201,9 +198,9 @@ Limitations:
 Development mode allows for live reloading and a smoother development process.
 
 ```bash
+pnpm build --to @hcengineering/prod
 cd dev/prod
-rush validate
-rushx dev-server
+pnpm run dev-server
 ```
 
 Then go to <http://localhost:8080>
@@ -215,45 +212,50 @@ Select "Sign up" on the right panel and click the "Sign up with password" link a
 If the project's structure is updated, it may be necessary to relink and rebuild the projects.
 
 ```bash
-rush update
-rush build
+pnpm install
+pnpm build
 ```
 
 ## Troubleshooting
 
-If a build fails, but the code is correct, try to delete the [build cache](https://rushjs.io/pages/maintainer/build_cache/) and retry.
+If a build fails, but the code is correct, retry ignoring the cache:
 
 ```bash
 # from the project root
-rm -rf common/temp/build-cache
+pnpm build --force
+```
+
+To also drop the TypeScript incremental state:
+
+```bash
+pnpm ts-clean
 ```
 
 ## Build & Watch
 
-For development purpose `rush build:watch` action could be used.
-
-It includes build and validate phases in watch mode.
+For development purpose `pnpm build:watch` could be used: it rebuilds and type checks
+changed packages on save. `pnpm build:watch:lint` additionally runs ESLint.
 
 ## Tests
 
 ### Unit tests
 
 ```bash
-rush test # To execute all tests
+pnpm test # To execute all tests
 
-rushx test # For individual test execution inside a package directory
+pnpm run test # For individual test execution inside a package directory
 ```
 
 ### UI tests
 
 ```bash
+pnpm install --frozen-lockfile
+pnpm docker
 cd ./tests
-rush update
-rush fast-build:docker
 ## creates test Docker containers and sets up test database
 ./prepare-pg.sh
 ## runs UI tests
-rushx uitest --workers 2
+cd sanity && pnpm run uitest --workers 2
 ```
 
 ## Package publishing
@@ -310,7 +312,7 @@ Windows Git often automatically replaces line endings. Since most build scripts 
 Some commands in the instructions require elevated privileges when working in WSL. If you're using Ubuntu distribution, prefix commands with `sudo`:
 
 ```bash
-sudo npm install -g @microsoft/rush
+sudo npm install -g pnpm
 ```
 
 #### WSL Configuration
@@ -335,7 +337,7 @@ After these preparations, the build instructions should work without issues.
 
 #### Port Conflicts
 
-When starting the application (`rush docker:up`), some network ports in Windows might be occupied. You can fix port mapping in the `\dev\docker-compose.yaml` file.
+When starting the application (`pnpm docker:up`), some network ports in Windows might be occupied. You can fix port mapping in the `\dev\docker-compose.yaml` file.
 
 **Important:** Depending on which port you change, you'll need to:
 1. Find what's using that port

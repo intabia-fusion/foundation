@@ -18,7 +18,7 @@
 <div class="item flex-between items-baseline">
   <div class="flex-col ml-0-5">
     {#if item.todo !== undefined}
-      <ToDoPresenter value={item.todo} showCheck />
+      <ToDoPresenter value={item.todo} showCheck readonly />
     {:else}
       <div class="overflow-label flex-no-shrink">
         <Label label={calendarPlugin.string.Busy} />

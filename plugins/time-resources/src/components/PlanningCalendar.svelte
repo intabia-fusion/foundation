@@ -1,10 +1,19 @@
 <script lang="ts">
-  import calendar, { AccessLevel, Calendar, Event, generateEventId, getAllEvents } from '@hcengineering/calendar'
+  import calendar, {
+    AccessLevel,
+    BusySlot,
+    Calendar,
+    Event,
+    generateEventId,
+    getAllEvents,
+    getBusyIntervals
+  } from '@hcengineering/calendar'
   import { DayCalendar, calendarByIdStore, hidePrivateEvents } from '@hcengineering/calendar-resources'
-  import { getCurrentEmployee } from '@hcengineering/contact'
-  import { Ref, SortingOrder, Timestamp, getCurrentAccount } from '@hcengineering/core'
+  import contact, { Employee, Person, getCurrentEmployee, getName } from '@hcengineering/contact'
+  import { UserBoxList, employeeByIdStore } from '@hcengineering/contact-resources'
+  import { IdMap, PersonId, Ref, SortingOrder, Timestamp, getCurrentAccount } from '@hcengineering/core'
   import { IntlString, getEmbeddedLabel } from '@hcengineering/platform'
-  import { createQuery } from '@hcengineering/presentation'
+  import { createQuery, getClient } from '@hcengineering/presentation'
   import {
     AnyComponent,
     ButtonBase,
@@ -21,7 +30,10 @@
     deviceOptionsStore as deviceInfo
   } from '@hcengineering/ui'
   import { ToDo, WorkSlot } from '@hcengineering/time'
+  import { PlannerCalendarMode } from '..'
   import time from '../plugin'
+  import PlannerViewSwitch from './PlannerViewSwitch.svelte'
+  import { getWorkSlotSpace } from '../utils'
   import IconSun from './icons/Sun.svelte'
 
   export let dragItem: ToDo | null = null
@@ -29,6 +41,8 @@
   export let displayedDaysCount = 1
   export let element: HTMLElement | undefined = undefined
   export let createComponent: AnyComponent | undefined = calendar.component.CreateEvent
+  export let calMode: PlannerCalendarMode = 'personal'
+  export let showToDos: boolean = true
 
   const q = createQuery()
 
@@ -63,6 +77,109 @@
   $: from = getFrom(currentDate)
   $: to = getTo(currentDate, displayedDaysCount)
 
+  const extraPersonsKey = 'planner_extra_persons'
+  let extraPersons: Array<Ref<Person>> = JSON.parse(localStorage.getItem(extraPersonsKey) ?? '[]')
+  let showMine: boolean = localStorage.getItem('planner_show_mine') !== 'false'
+
+  const hierarchy = getClient().getHierarchy()
+
+  const busyQuery = createQuery()
+  const busyRecurringQuery = createQuery()
+  let busyPlain: BusySlot[] = []
+  let busyRecurring: BusySlot[] = []
+
+  // My own events are already on the grid in full detail, an extra busy block would double them.
+  $: overlayPersons = extraPersons.filter((it) => it !== getCurrentEmployee())
+
+  $: if (overlayPersons.length > 0) {
+    busyQuery.query(
+      calendar.class.BusySlot,
+      { person: { $in: overlayPersons }, date: { $lte: to }, dueDate: { $gte: from } },
+      (res) => {
+        busyPlain = res
+      }
+    )
+    // A recurring slot's date/dueDate describe its first occurrence, so the window's start
+    // cannot be applied server-side - but nothing starting after `to` can occur inside it.
+    busyRecurringQuery.query(
+      calendar.class.BusySlot,
+      { person: { $in: overlayPersons }, rules: { $exists: true }, date: { $lte: to } },
+      (res) => {
+        busyRecurring = res
+      }
+    )
+  } else {
+    busyQuery.unsubscribe()
+    busyRecurringQuery.unsubscribe()
+    busyPlain = []
+    busyRecurring = []
+  }
+
+  // Colleagues' events live in their own PersonSpace and are unreadable here, only their
+  // BusySlots are - so the overlay is synthetic: one freeBusy event per merged busy interval.
+  function mkOverlay (
+    person: Ref<Person>,
+    interval: { date: Timestamp, dueDate: Timestamp },
+    label: string,
+    idx: number
+  ): Event {
+    return {
+      _id: `busy-${person}-${label}-${idx}` as Ref<Event>,
+      _class: calendar.class.Event,
+      space: calendar.space.Calendar,
+      attachedTo: calendar.ids.NoAttached,
+      attachedToClass: calendar.class.Event,
+      collection: 'events',
+      modifiedBy: myAcc.primarySocialId,
+      modifiedOn: interval.date,
+      eventId: `busy-${person}-${label}-${idx}`,
+      calendar: '' as Ref<Calendar>,
+      title: label,
+      description: '',
+      date: interval.date,
+      dueDate: interval.dueDate,
+      allDay: false,
+      blockTime: true,
+      participants: [person],
+      access: AccessLevel.Reader,
+      visibility: 'freeBusy',
+      user: '' as PersonId
+    } as unknown as Event
+  }
+
+  function busyOverlay (slots: BusySlot[], from: Timestamp, to: Timestamp, employees: IdMap<Employee>): Event[] {
+    const me = getCurrentEmployee()
+    const unique = slots.filter(
+      (slot, idx, arr) => slot.person !== me && arr.findIndex((it) => it._id === slot._id) === idx
+    )
+    const nameOf = (person: Ref<Person>): string => {
+      const employee = employees.get(person as Ref<Employee>)
+      return employee !== undefined ? getName(hierarchy, employee) : ''
+    }
+    const res: Event[] = []
+    // A public event keeps its title on the slot, so it is shown by name instead of being merged
+    // into the anonymous busy time around it.
+    for (const slot of unique.filter((it) => (it.title ?? '') !== '')) {
+      for (const [person, intervals] of getBusyIntervals([slot], from, to)) {
+        intervals.forEach((interval, idx) => {
+          res.push(mkOverlay(person, interval, slot.title ?? '', idx))
+        })
+      }
+    }
+    for (const [person, intervals] of getBusyIntervals(
+      unique.filter((it) => (it.title ?? '') === ''),
+      from,
+      to
+    )) {
+      intervals.forEach((interval, idx) => {
+        res.push(mkOverlay(person, interval, nameOf(person), idx))
+      })
+    }
+    return res
+  }
+
+  $: overlay = busyOverlay(busyPlain.concat(busyRecurring), from, to, $employeeByIdStore)
+
   function update (calendars: Calendar[]): void {
     q.query<Event>(
       calendar.class.Event,
@@ -76,7 +193,8 @@
 
   $: update(calendars)
   $: all = getAllEvents(raw, from, to)
-  $: objects = hidePrivateEvents(all, $calendarByIdStore)
+  // Hiding my own schedule keeps the drag preview, there is nothing to drop onto otherwise.
+  $: objects = showMine ? hidePrivateEvents(all, $calendarByIdStore) : all.filter((it) => it._id === dragItemId)
 
   function inc (val: number): void {
     if (val === 0) {
@@ -129,7 +247,7 @@
           visibility: 'public',
           blockTime: true,
           calendar: personalCalendar,
-          space: calendar.space.Calendar,
+          space: getWorkSlotSpace(dragItem),
           modifiedBy: myAcc.primarySocialId,
           participants: [getCurrentEmployee()],
           modifiedOn: Date.now(),
@@ -141,7 +259,7 @@
       }
       raw = raw
       all = getAllEvents(raw, from, to)
-      objects = hidePrivateEvents(all, $calendarByIdStore)
+      objects = showMine ? hidePrivateEvents(all, $calendarByIdStore) : all.filter((it) => it._id === dragItemId)
     }
   }
   function dragLeave (event: DragEvent) {
@@ -161,7 +279,7 @@
     if (dragItem === null) {
       raw = raw.filter((p) => p._id !== dragItemId)
       all = getAllEvents(raw, from, to)
-      objects = hidePrivateEvents(all, $calendarByIdStore)
+      objects = showMine ? hidePrivateEvents(all, $calendarByIdStore) : all.filter((it) => it._id === dragItemId)
     }
   }
   $: clear(dragItem)
@@ -184,14 +302,41 @@
   }}
 >
   <Header adaptive={'disabled'}>
-    <div class="heading-medium-20 line-height-auto overflow-label">
-      <Label label={time.string.Schedule} />: <Label label={getTitle(currentDate, $ticker)} />
-    </div>
+    <PlannerViewSwitch bind:calMode bind:showToDos />
+    <!-- On a narrow panel the day columns already carry the date, and the heading would push
+         the actions out of the header. -->
+    {#if showLabel}
+      <div class="heading-medium-20 line-height-auto overflow-label">
+        <Label label={getTitle(currentDate, $ticker)} />
+      </div>
+    {/if}
     <svelte:fragment slot="actions">
+      <ButtonIcon
+        icon={contact.icon.Person}
+        kind={'secondary'}
+        size={'small'}
+        pressed={showMine}
+        tooltip={{ label: time.string.Schedule }}
+        on:click={() => {
+          showMine = !showMine
+          localStorage.setItem('planner_show_mine', showMine ? 'true' : 'false')
+        }}
+      />
+      <UserBoxList
+        items={extraPersons}
+        docQuery={{ _id: { $nin: [getCurrentEmployee()] } }}
+        kind={'regular'}
+        size={'small'}
+        on:update={(e) => {
+          extraPersons = e.detail
+          localStorage.setItem(extraPersonsKey, JSON.stringify(extraPersons))
+        }}
+      />
       <ButtonIcon
         icon={IconChevronLeft}
         kind={'secondary'}
         size={'small'}
+        dataId={'btnPrev'}
         on:click={() => {
           inc(-1)
         }}
@@ -214,6 +359,7 @@
         icon={IconChevronRight}
         kind={'secondary'}
         size={'small'}
+        dataId={'btnNext'}
         on:click={() => {
           inc(1)
         }}
@@ -224,6 +370,7 @@
     <DayCalendar
       bind:this={dayCalendar}
       events={objects}
+      backgroundEvents={overlay}
       bind:displayedDaysCount
       startFromWeekStart={false}
       clearCells={dragItem !== null}

@@ -48,7 +48,7 @@ The easiest way to reindex a workspace is using the dev tool:
 export FULLTEXT_URL=http://localhost:4700
 
 # Reindex a specific workspace
-rushx tool fulltext-reindex <workspace-name>
+pnpm run tool fulltext-reindex <workspace-name>
 ```
 
 This sends a reindex event through the queue system, which is the recommended approach.

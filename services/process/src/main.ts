@@ -462,14 +462,15 @@ async function executeTransition (
           const updateTx = tx as TxUpdateDoc<Doc> | TxMixin<Doc, Doc>
           if (updateTx.objectId === execution.card) {
             if (isUpdateTx(updateTx)) {
+              const upTx = updateTx
               const updatedCard = TxProcessor.updateDoc2Doc(
                 control.client.getHierarchy().clone(control.cache.get(execution.card)),
-                updateTx
+                upTx
               )
-              context.operations = { ...context.operations, ...updateTx.operations }
+              context.operations = { ...context.operations, ...upTx.operations }
               control.cache.set(execution.card, updatedCard)
-            } else if (updateTx._class === core.class.TxMixin) {
-              const mixinTx = updateTx as TxMixin<Doc, Doc>
+            } else if (tx._class === core.class.TxMixin) {
+              const mixinTx = tx as TxMixin<Doc, Doc>
               const updatedCard = TxProcessor.updateMixin4Doc(
                 control.client.getHierarchy().clone(control.cache.get(execution.card)),
                 mixinTx

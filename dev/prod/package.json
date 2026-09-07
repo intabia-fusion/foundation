@@ -7,8 +7,7 @@
     "extraHashFiles": ["webpack.config.js", "postcss.config.js", ".browserslistrc", ".env-prod"]
   },
   "scripts": {
-    "_phase:package": "rushx package",
-    "_phase:validate": "rm -rf ./types && compile validate",
+    "_phase:package": "pnpm run package",
     "package": "rm -rf ./dist && cross-env NODE_ENV=production webpack --stats-error-details && echo 'done'",
     "packagep": "rm -rf ./dist && cross-env NODE_ENV=production webpack --stats-error-details --progress && echo 'done'",
     "analyze": "rm -rf ./dist && cross-env NODE_ENV=production DO_ANALYZE=true webpack --profile --json > stats.json",

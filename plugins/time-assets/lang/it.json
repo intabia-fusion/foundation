@@ -44,6 +44,8 @@
     "MyWork": "Il mio lavoro",
     "WeekCalendar": "Settimana",
     "DayCalendar": "Giorno",
+    "MonthCalendar": "Mese",
+    "YearCalendar": "Anno",
     "GotoTimePlaning": "Pianificazione",
     "GotoTimeTeamPlaning": "Pianificazione del Team",
     "NewToDo": "Nuovo Elemento d'Azione",
@@ -55,10 +57,14 @@
     "MarkedAsDone": "Completato",
     "WorkSchedule": "Programma di lavoro",
     "SummaryDuration": "Riepilogo",
+    "Busy": "Occupato",
     "UnassignToDo": "Dissocia Elemento d'Azione",
     "UnassignToDoConfirm": "Vuoi dissociare questo Elemento d'Azione? L'Elemento d'Azione verrà rimosso dal pianificatore dell'assegnatario.",
     "ReassignToDo": "Cambia assegnatario dell'Elemento d'Azione",
-    "ReassignToDoConfirm": "Vuoi cambiare l'assegnatario dell'Elemento d'Azione? L'Elemento d'Azione verrà rimosso dal pianificatore dell'assegnatario attuale."
+    "ReassignToDoConfirm": "Vuoi cambiare l'assegnatario dell'Elemento d'Azione? L'Elemento d'Azione verrà rimosso dal pianificatore dell'assegnatario attuale.",
+    "Occupancy": "Occupazione",
+    "ShowEvents": "Eventi",
+    "ShowActivity": "Attività"
   },
   "emailTemplate": {
     "ToDoCreatedNotificationText": "{body}",

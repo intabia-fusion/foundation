@@ -71,7 +71,7 @@
 {:else if keys.length === 0}
   <div class="hulyTableAttr-content empty"><Label label={settingsRes.string.NoApiKeys} /></div>
 {:else}
-  <div class="hulyTableAttr-content">
+  <div class="hulyTableAttr-content table">
     <ApiKeyTable {keys} {spaceNames} {onRevoke} {statsByKey} />
   </div>
 {/if}
@@ -85,5 +85,9 @@
   .empty {
     padding: var(--spacing-2);
     color: var(--theme-dark-color);
+  }
+  .table {
+    padding: var(--spacing-1_5);
+    overflow-x: auto;
   }
 </style>

@@ -24,7 +24,7 @@
     type WebhookSecretEntry,
     type WebhookStat
   } from '@hcengineering/setting'
-  import {
+  import ui, {
     Button,
     ButtonIcon,
     CheckBox,
@@ -319,6 +319,15 @@
                       }}
                     />
                   {/each}
+                  <Button
+                    kind="ghost"
+                    size="small"
+                    label={ui.string.Clear}
+                    disabled={readonly}
+                    on:click={() => {
+                      void update({ spaces: [] })
+                    }}
+                  />
                 </div>
               {/if}
             </div>
@@ -471,6 +480,7 @@
   .chips {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.375rem;
   }
   .eventsSection {

@@ -15,7 +15,7 @@
 <script lang="ts">
   import core from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import setting, { generateWebhookSecret, type WebhookSecretEntry } from '@hcengineering/setting'
+  import setting, { generateWebhookSecret, webhookEventSamples, type WebhookSecretEntry } from '@hcengineering/setting'
   import { CheckBox, Label, Modal, ModernEditbox } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import settingsRes from '../plugin'
@@ -26,6 +26,8 @@
 
   let url = ''
   let events = new Set<WebhookEventType>()
+  // Which event's sample is shown in the right-hand panel - independent of the checkbox selection.
+  let selectedExampleType: WebhookEventType = webhookEventTypes[0]
   let saving = false
   let error: string | undefined
 
@@ -86,21 +88,34 @@
       <div class="hint warn"><Label label={settingsRes.string.WebhookUrlHttpsOnly} /></div>
     {/if}
 
-    <div class="flex-col flex-gap-2">
-      <Label label={settingsRes.string.WebhookEventsLabel} />
-      <div class="hint"><Label label={settingsRes.string.WebhookEventsHint} /></div>
-      {#each webhookEventTypes as type}
-        <label class="flex-row-center flex-gap-2" for={`event-${type}`}>
-          <CheckBox
-            id={`event-${type}`}
-            checked={events.has(type)}
-            on:value={(e) => {
-              toggleEvent(type, e.detail)
-            }}
-          />
-          <Label label={webhookEventLabels[type]} />
-        </label>
-      {/each}
+    <div class="flex-row-stretch flex-gap-4 eventsSection">
+      <div class="flex-col flex-gap-2 eventsList">
+        <Label label={settingsRes.string.WebhookEventsLabel} />
+        <div class="hint"><Label label={settingsRes.string.WebhookEventsHint} /></div>
+        {#each webhookEventTypes as type}
+          <div class="eventRow" class:selected={selectedExampleType === type}>
+            <CheckBox
+              checked={events.has(type)}
+              on:value={(e) => {
+                toggleEvent(type, e.detail)
+              }}
+            />
+            <button
+              type="button"
+              class="eventLabelBtn"
+              on:click={() => {
+                selectedExampleType = type
+              }}
+            >
+              <Label label={webhookEventLabels[type]} />
+            </button>
+          </div>
+        {/each}
+      </div>
+      <div class="examplePanel">
+        <div class="hint"><Label label={settingsRes.string.WebhookExamplePayload} /></div>
+        <pre class="samplePayload">{JSON.stringify(webhookEventSamples[selectedExampleType], null, 2)}</pre>
+      </div>
     </div>
 
     {#if error}
@@ -110,6 +125,43 @@
 </Modal>
 
 <style lang="scss">
+  .eventsSection {
+    align-items: flex-start;
+  }
+  .eventsList {
+    flex: 1;
+    min-width: 12rem;
+  }
+  .eventRow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    &.selected .eventLabelBtn {
+      color: var(--theme-caption-color);
+    }
+  }
+  .eventLabelBtn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--theme-content-color);
+    cursor: pointer;
+  }
+  .examplePanel {
+    flex: 1;
+    min-width: 16rem;
+  }
+  .samplePayload {
+    margin: 0.25rem 0 0;
+    padding: 0.5rem;
+    max-height: 16rem;
+    overflow: auto;
+    border-radius: 0.375rem;
+    background: var(--theme-bg-accent-color);
+    font-family: monospace;
+    font-size: 0.75rem;
+  }
   .hint {
     color: var(--theme-dark-color);
     font-size: 0.8125rem;

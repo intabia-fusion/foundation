@@ -34,17 +34,20 @@
 {:else if endpoints.length === 0}
   <div class="hulyTableAttr-content empty"><Label label={settingsRes.string.NoWebhooks} /></div>
 {:else}
-  <div class="hulyTableAttr-content">
+  <div class="hulyTableAttr-content task">
     {#each endpoints as endpoint (endpoint._id)}
       <button
         type="button"
-        class="hulyTableAttr-content__row justify-start"
+        class="hulyTableAttr-content__row"
         data-id="webhook-row"
         on:click|stopPropagation={() => {
           onOpen(endpoint._id)
         }}
       >
-        <div class="hulyTableAttr-content__row-label font-medium-14 url" class:dimmed={!endpoint.enabled}>
+        <div class="hulyTableAttr-content__row-icon-wrapper">
+          <Icon icon={settingsRes.icon.Setting} size="small" />
+        </div>
+        <div class="hulyTableAttr-content__row-label font-medium-14 grow url" class:dimmed={!endpoint.enabled}>
           {endpoint.url}
         </div>
         <div class="meta">
@@ -74,9 +77,9 @@
   }
   .meta {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 0;
     gap: 0.75rem;
-    margin-left: auto;
     padding-left: 0.75rem;
     font-size: 0.8125rem;
     color: var(--theme-dark-color);

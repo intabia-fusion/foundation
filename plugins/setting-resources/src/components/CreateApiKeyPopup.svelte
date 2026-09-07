@@ -16,19 +16,19 @@
   import { apiKeyOperations, type ApiKeyOperation, type CreatedApiKey } from '@hcengineering/account-client'
   import core, { type Ref, type Space } from '@hcengineering/core'
   import presentation, { createQuery, getClient } from '@hcengineering/presentation'
-  import {
+  import ui, {
     Button,
     ButtonIcon,
-    CheckBox,
     Chip,
     DatePresenter,
-    EditBox,
     IconAdd,
     Label,
     Modal,
     ModernEditbox,
+    NumberInput,
     RadioGroup,
     Spinner,
+    Toggle,
     eventToHTMLElement,
     showPopup,
     type RadioItem
@@ -124,10 +124,6 @@
     )
   }
 
-  function addAllSpaces (): void {
-    spaces = pickableSpaces.map((s) => s._id)
-  }
-
   async function save (): Promise<void> {
     loading = true
     try {
@@ -212,22 +208,13 @@
       <div class="flex-col flex-gap-2">
         <div class="flex-row-center flex-between">
           <Label label={settingsRes.string.ApiKeySpaces} />
-          <div class="flex-row-center flex-gap-1">
-            <ButtonIcon
-              kind="tertiary"
-              size="small"
-              icon={IconAdd}
-              tooltip={{ label: presentation.string.Add }}
-              on:click={pickSpaces}
-            />
-            <Button
-              kind="ghost"
-              size="small"
-              label={settingsRes.string.ApiKeyAddAll}
-              disabled={pickableSpaces.length === 0 || spaces.length === pickableSpaces.length}
-              on:click={addAllSpaces}
-            />
-          </div>
+          <ButtonIcon
+            kind="tertiary"
+            size="small"
+            icon={IconAdd}
+            tooltip={{ label: presentation.string.Add }}
+            on:click={pickSpaces}
+          />
         </div>
         <div class="hint"><Label label={settingsRes.string.ApiKeySpacesHint} /></div>
         {#if spaces.length > 0}
@@ -241,45 +228,50 @@
                 }}
               />
             {/each}
+            <Button
+              kind="ghost"
+              size="small"
+              label={ui.string.Clear}
+              on:click={() => {
+                spaces = []
+              }}
+            />
           </div>
         {/if}
       </div>
     {/if}
 
-    <div class="flex-col flex-gap-2">
-      <EditBox
-        label={settingsRes.string.ApiKeyTokenTtl}
-        format="number"
-        minValue={minTokenTtlDays}
-        maxValue={maxTokenTtlDays}
-        bind:value={tokenTtlDays}
-      />
-      <div class="hint">
-        <Label label={settingsRes.string.ApiKeyTokenTtlHint} params={{ min: minTokenTtlDays, max: maxTokenTtlDays }} />
+    <div class="settingsGroup">
+      <div class="settingsRow">
+        <div class="flex-col flex-gap-1">
+          <Label label={settingsRes.string.ApiKeyTokenTtl} />
+          <div class="hint">
+            <Label
+              label={settingsRes.string.ApiKeyTokenTtlHint}
+              params={{ min: minTokenTtlDays, max: maxTokenTtlDays }}
+            />
+          </div>
+        </div>
+        <NumberInput
+          bind:value={tokenTtlDays}
+          minValue={minTokenTtlDays}
+          maxValue={maxTokenTtlDays}
+          maxWidth="4rem"
+          focusable
+        />
+      </div>
+      <div class="settingsRow">
+        <Label label={settingsRes.string.ApiKeyExpiresOn} />
+        <DatePresenter bind:value={expiresOn} editable kind="regular" size="medium" />
+      </div>
+      <div class="settingsRow">
+        <div class="flex-col flex-gap-1">
+          <Label label={settingsRes.string.ApiKeyAllowIncoming} />
+          <div class="hint"><Label label={settingsRes.string.ApiKeyAllowIncomingHint} /></div>
+        </div>
+        <Toggle bind:on={incoming} />
       </div>
     </div>
-
-    <div class="flex-col flex-gap-2">
-      <label class="flex-row-center flex-gap-2" for="apiKeyIncoming">
-        <CheckBox
-          id="apiKeyIncoming"
-          checked={incoming}
-          on:value={(e) => {
-            incoming = e.detail
-          }}
-        />
-        <Label label={settingsRes.string.ApiKeyAllowIncoming} />
-      </label>
-      <div class="hint"><Label label={settingsRes.string.ApiKeyAllowIncomingHint} /></div>
-    </div>
-
-    <DatePresenter
-      bind:value={expiresOn}
-      editable
-      label={settingsRes.string.ApiKeyExpiresOn}
-      kind="regular"
-      size="large"
-    />
 
     {#if error}
       <div class="errorMsg">{error}</div>
@@ -300,7 +292,25 @@
   .chips {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.375rem;
+  }
+  .settingsGroup {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--theme-divider-color);
+    border-radius: 0.5rem;
+  }
+  .settingsRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem;
+
+    & + .settingsRow {
+      border-top: 1px solid var(--theme-divider-color);
+    }
   }
   .opChips :global(.chip-label) {
     font-family: monospace;

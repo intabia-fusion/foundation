@@ -70,6 +70,8 @@ import core, {
 import {
   type ConnectionMgr,
   createDBClient,
+  getDBFlavor,
+  type DBFlavor,
   type DBClient,
   type DBResult,
   doFetchTypes,
@@ -225,6 +227,8 @@ abstract class PostgresAdapterBase implements DbAdapter {
   protected readonly _helper: DBCollectionHelper
   protected readonly tableFields = new Map<string, string[]>()
 
+  protected dbFlavor: DBFlavor | undefined
+
   constructor (
     protected readonly client: DBClient,
 
@@ -239,6 +243,10 @@ abstract class PostgresAdapterBase implements DbAdapter {
     readonly mgrId: string
   ) {
     this._helper = new DBCollectionHelper(this.client, this.workspaceId)
+  }
+
+  async initFlavor (connection: postgres.Sql): Promise<void> {
+    this.dbFlavor = await getDBFlavor(connection, this.refClient.url())
   }
 
   reserveContext (id: string): () => void {
@@ -1391,7 +1399,11 @@ abstract class PostgresAdapterBase implements DbAdapter {
             // LC_CTYPE=C only fold ASCII, so Cyrillic (and any non-ASCII) search is
             // case-sensitive. An explicit ICU collation folds case correctly on any
             // database, regardless of how it was created.
-            res.push(`${tlkey} COLLATE ${SEARCH_COLLATION} ILIKE ${vars.add(val, valType)}`)
+            if (this.dbFlavor === 'postgres') {
+              res.push(`(${tlkey}) COLLATE ${SEARCH_COLLATION} ILIKE ${vars.add(val, valType)}`)
+            } else {
+              res.push(`${tlkey} ILIKE ${vars.add(val, valType)}`)
+            }
             break
           case '$exists':
             res.push(`${tlkey} IS ${val === true || val === 'true' ? 'NOT NULL' : 'NULL'}`)
@@ -2273,7 +2285,7 @@ export async function createPostgresAdapter (
 ): Promise<DbAdapter> {
   const client = getDBClient(url)
   const connection = await client.getClient()
-  return new PostgresAdapter(
+  const adapter = new PostgresAdapter(
     createDBClient(connection),
     client.mgr,
     client,
@@ -2282,6 +2294,8 @@ export async function createPostgresAdapter (
     modelDb,
     'default-' + wsIds.url
   )
+  await adapter.initFlavor(connection)
+  return adapter
 }
 /**
  * @public
@@ -2296,7 +2310,7 @@ export async function createPostgresTxAdapter (
   const client = getDBClient(url)
   const connection = await client.getClient()
 
-  return new PostgresTxAdapter(
+  const adapter = new PostgresTxAdapter(
     createDBClient(connection),
     client.mgr,
     client,
@@ -2305,4 +2319,6 @@ export async function createPostgresTxAdapter (
     modelDb,
     'tx' + wsIds.url
   )
+  await adapter.initFlavor(connection)
+  return adapter
 }

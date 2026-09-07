@@ -758,7 +758,7 @@
   let dragId: Ref<Event> | null = null
   let resizeId: Ref<Event> | null = null
   let directionResize: 'top' | 'bottom' | null
-  let oldMins: number = 0
+  let oldResizeTime: number = 0
   let oldTime: number = -1
   let originDate: Timestamp = 0
   let originDueDate: Timestamp = 0
@@ -797,6 +797,7 @@
     closeTooltip()
     resizeId = event._id
     directionResize = direction
+    oldResizeTime = 0
     originDate = event.date
     originDueDate = event.dueDate
     containerRect = scroller.getBoundingClientRect()
@@ -811,9 +812,11 @@
     const exactly = getExactly(e)
     const minutes = getMinutes(exactly)
     const mins: number = getStickyMinutes(minutes, exactly, day, hour + startHour, resizeId)
-    if (oldMins === mins) return
-    oldMins = mins
     const newDate = new Date(day).setHours(hour + startHour, mins, 0, 0)
+    // Compare the whole moment, not the minutes: moving between hours at the same minute mark
+    // (x:00 -> y:00) used to look unchanged and the resize did nothing.
+    if (oldResizeTime === newDate) return
+    oldResizeTime = newDate
     const index = events.findIndex((ev) => ev._id === resizeId)
     if (index === -1) return
     if (directionResize === 'top') {

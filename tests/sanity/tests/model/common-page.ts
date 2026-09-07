@@ -208,6 +208,9 @@ export class CommonPage {
     await expect(form.locator('input').first()).toBeVisible()
     await form.locator('input').first().fill(input)
     await form.locator('button', { hasText: 'Save' }).click()
+    // Save stays disabled while the popup holds an unparsed value, and a click on it changes
+    // nothing - the form left on screen says so instead of a wrong estimation minutes later.
+    await expect(form).toBeHidden({ timeout: 5000 })
   }
 
   async checkFromDropdown (page: Page, point: string): Promise<void> {

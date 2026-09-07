@@ -2,6 +2,7 @@ import { expect, type Locator } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
 import { Issue, NewIssue } from './types'
 import { convertEstimation } from '../../tracker/tracker.utils'
+import { retry } from '../../retry'
 
 export class TemplateDetailsPage extends CommonTrackerPage {
   inputTitle = (): Locator => this.page.locator('div.popupPanel-body input[type="text"]')
@@ -69,8 +70,14 @@ export class TemplateDetailsPage extends CommonTrackerPage {
       await this.selectMenuItem(this.page, data.component)
     }
     if (data.estimation != null) {
-      await this.buttonEstimation().click()
-      await this.fillEstimationPopup(this.page, data.estimation)
+      const estimation = data.estimation
+      // The popup parses its input reactively, so a Save that lands first writes the old value back
+      // and reports nothing. Check the panel and redo the edit rather than trust one pass.
+      await retry(async () => {
+        await this.buttonEstimation().click()
+        await this.fillEstimationPopup(this.page, estimation)
+        await expect(this.buttonEstimation()).toHaveText(convertEstimation(estimation), { timeout: 5000 })
+      })
     }
     if (data.duedate != null) {
       if (data.duedate === 'today') {

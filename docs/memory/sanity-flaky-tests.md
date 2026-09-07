@@ -215,6 +215,27 @@ levers are a bigger runner or splitting across runners.
 **`Promise.race` of two `waitFor`s bills the loser** — 98.8s over 9 sign-ups in `confirmOtpIfNeeded`.
 Use `expect.poll` over both conditions. **`step-reporter.ts` is not a cost** (18836 rows / 4MB).
 
+## Kanban drag: what the drop checks must compare (2026-09-07)
+
+`dragPointer` (tests/sanity/tests/model/tracker/kanban-board-page.ts) verified the drop target by
+`data-state` alone. With swim lanes on, every lane carries a cell per status, so a drop that landed
+one lane off matched `wanted`, passed both the pre-release hit test and the `__dropSeen` check, and
+the test failed later as "attachedTo never changed" - exactly the flake seen in run 20260907-185152.
+The zone key is now `data-swimlane-id|data-state` in all three places (`wanted`, the capture-phase
+`drop` listener, `elementFromPoint`).
+
+Two more things the drag got wrong:
+
+- The pointer aimed at the centre of the target's bounding box. A swim lane cell is taller than the
+  900px viewport, so its centre sat below the fold and `elementFromPoint` returned nothing. It now
+  aims at the centre of the intersection with the viewport (`visiblePointOf`).
+- Taking the card out of its own cell rearranges the board, so the target moves after it was
+  measured. Measure-move-verify now runs up to 4 times inside the same held drag instead of failing
+  the caller's attempt.
+
+`expectCardInColumn` / `expectCardInSwimLaneCell` call `revealCard` first: past a column's limit the
+card is not in the DOM at all, and the assertion reported it as missing.
+
 ## Tooling traps
 
 - `pnpm build:lint` can report `errors 0` for a package it served from

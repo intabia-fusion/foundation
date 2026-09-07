@@ -46,8 +46,8 @@ export class ChannelPage extends CommonPage {
 
   readonly closePopupWindow = (): Locator => this.page.locator('.notifyPopup button[data-id="btnNotifyClose"]')
   readonly openAddMemberToChannel = (userName: string): Locator => this.page.getByRole('button', { name: userName })
-  readonly addMemberToChannelTableButton = (userName: string): Locator =>
-    this.page.locator('.antiTable-body__row').getByText(userName)
+  readonly addMemberToChannelTableButton = (userName: string, channel: string): Locator =>
+    this.page.locator('.antiTable-body__row', { hasText: channel }).getByText(userName)
 
   readonly addMemberToChannelButton = (userName: string): Locator => this.page.getByText(userName)
   readonly joinChannelButton = (): Locator => this.page.getByRole('button', { name: 'Join' })
@@ -312,8 +312,8 @@ export class ChannelPage extends CommonPage {
     await this.closePopupWindow().click()
   }
 
-  async clickOnUser (user: string): Promise<void> {
-    await this.addMemberToChannelTableButton(user).click()
+  async clickOnUser (user: string, channel: string): Promise<void> {
+    await this.addMemberToChannelTableButton(user, channel).click()
   }
 
   async addMemberToChannel (user: string): Promise<void> {

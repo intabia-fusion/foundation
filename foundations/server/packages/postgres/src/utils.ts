@@ -310,9 +310,9 @@ export function parseUpdate<T extends Doc> (
     if (key.startsWith('$')) {
       for (const k in val) {
         if (schemaFields.domainFields.has(k)) {
-          ;(extractedFields as any)[k] = val[key]
+          ;(extractedFields as any)[k] = val[k]
         } else {
-          ;(remainingData as any)[k] = val[key]
+          ;(remainingData as any)[k] = val[k]
         }
       }
     } else {

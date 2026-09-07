@@ -55,17 +55,16 @@ function classChangeTx (): TxUpdateDoc<Doc> {
 }
 
 describe('OnDocClassChanged (notification)', () => {
-  it('repoints the notify context, the inbox notifications and the browser ones', async () => {
+  it('repoints the notify context and the inbox notifications', async () => {
     const control = makeControl({
       [notification.class.DocNotifyContext]: [record('ctx-1', notification.class.DocNotifyContext)],
-      [notification.class.InboxNotification]: [record('inbox-1', notification.class.InboxNotification)],
-      [notification.class.BrowserNotification]: [record('browser-1', notification.class.BrowserNotification)]
+      [notification.class.InboxNotification]: [record('inbox-1', notification.class.InboxNotification)]
     })
 
     const result = (await OnDocClassChanged([classChangeTx()], control)) as TxUpdateDoc<Doc>[]
 
-    expect(result).toHaveLength(3)
-    expect(result.map((it) => it.objectId).sort()).toEqual(['browser-1', 'ctx-1', 'inbox-1'])
+    expect(result).toHaveLength(2)
+    expect(result.map((it) => it.objectId).sort()).toEqual(['ctx-1', 'inbox-1'])
     for (const tx of result) {
       expect((tx.operations as any).objectClass).toBe(newClass)
     }

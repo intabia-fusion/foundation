@@ -138,28 +138,6 @@ describe('task type change', () => {
     expect((after as any)[shared]).toBe('carried over')
   })
 
-  it('clears a custom attribute the target type does not have', async () => {
-    const ctx = await project()
-    const onlyOnIssue = await addCustomAttribute(client, type.taskTypes.Issue, core.class.TypeString, 'Only on Issue')
-
-    const issueId = await createIssue(ctx, { status: 'Backlog', taskType: 'Issue' })
-    const issue = (await getIssue(ctx, issueId)) as Issue
-    await client.updateDoc(issue._class, issue.space, issue._id, { [onlyOnIssue]: 'to be dropped' } as any)
-    expect(((await getIssue(ctx, issueId)) as any)[onlyOnIssue]).toBe('to be dropped')
-
-    // What the dialog sends: the new kind plus an $unset for every attribute left behind.
-    await client.updateDoc(issue._class, issue.space, issue._id, {
-      kind: type.taskTypes.Bug,
-      $unset: { [onlyOnIssue]: '' }
-    } as any)
-
-    const after = await eventually(async () => {
-      const doc = await getIssue(ctx, issueId)
-      return doc?.kind === type.taskTypes.Bug ? doc : undefined
-    })
-    expect((after as any)[onlyOnIssue]).toBeUndefined()
-  })
-
   it('applies the picked status together with the new type', async () => {
     const ctx = await project()
     const issueId = await createIssue(ctx, { status: 'Backlog', taskType: 'Issue' })

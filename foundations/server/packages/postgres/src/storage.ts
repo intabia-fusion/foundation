@@ -246,7 +246,12 @@ abstract class PostgresAdapterBase implements DbAdapter {
   }
 
   async initFlavor (connection: postgres.Sql): Promise<void> {
-    this.dbFlavor = await getDBFlavor(connection, this.refClient.url())
+    try {
+      this.dbFlavor = await getDBFlavor(connection, this.refClient.url())
+    } catch (err: any) {
+      // Not worth failing startup over: $like falls back to plain ILIKE.
+      this.dbFlavor = 'unknown'
+    }
   }
 
   reserveContext (id: string): () => void {

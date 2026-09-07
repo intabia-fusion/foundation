@@ -19,25 +19,8 @@ import * as fs from 'fs'
 import { type Sql, type TransactionSql } from 'postgres'
 import * as path from 'path'
 
-export type DBFlavor = 'postgres' | 'cockroach' | 'unknown'
-
-export async function getDbFlavor (pgClient: Sql<any>): Promise<DBFlavor> {
-  // Run the version query
-  const [{ version }] = await pgClient`SELECT version()`
-
-  // CockroachDB’s string contains “Cockroach” (case‑insensitive)
-  if (/cockroach/i.test(version)) {
-    return 'cockroach'
-  }
-
-  // Anything else that looks like a PostgreSQL version string
-  if (/postgresql/i.test(version)) {
-    return 'postgres'
-  }
-
-  // Fallback – could be a custom build or something unexpected
-  return 'unknown'
-}
+export type { DBFlavor } from '@hcengineering/postgres'
+export { getDBFlavor as getDbFlavor } from '@hcengineering/postgres'
 
 export async function ensureSystemSchema (sql: Sql): Promise<void> {
   await sql.unsafe('CREATE SCHEMA IF NOT EXISTS system;')

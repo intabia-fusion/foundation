@@ -21,23 +21,27 @@ export type DBFlavor = 'postgres' | 'cockroach' | 'unknown'
 
 const dbFlavors = new Map<string, DBFlavor>()
 
-export async function getDBFlavor (client: postgres.Sql, cacheKey: string): Promise<DBFlavor> {
-  const cached = dbFlavors.get(cacheKey)
-  if (cached !== undefined) {
-    return cached
-  }
-  let flavor: DBFlavor = 'unknown'
-  try {
-    const [{ version }] = await client`SELECT version()`
-    if (/cockroach/i.test(version)) {
-      flavor = 'cockroach'
-    } else if (/postgresql/i.test(version)) {
-      flavor = 'postgres'
+export async function getDBFlavor (client: postgres.Sql, cacheKey?: string): Promise<DBFlavor> {
+  if (cacheKey !== undefined) {
+    const cached = dbFlavors.get(cacheKey)
+    if (cached !== undefined) {
+      return cached
     }
-  } catch (err: any) {
-    // Leave it as 'unknown' - callers must degrade to the portable behaviour.
   }
-  dbFlavors.set(cacheKey, flavor)
+
+  // The version string is the only reliable way to tell the two apart.
+  const [{ version }] = await client`SELECT version()`
+
+  let flavor: DBFlavor = 'unknown'
+  if (/cockroach/i.test(version)) {
+    flavor = 'cockroach'
+  } else if (/postgresql/i.test(version)) {
+    flavor = 'postgres'
+  }
+
+  if (cacheKey !== undefined) {
+    dbFlavors.set(cacheKey, flavor)
+  }
   return flavor
 }
 

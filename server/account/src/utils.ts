@@ -43,7 +43,7 @@ import {
   workspaceEvents,
   type QueueWorkspaceLimitsMessage
 } from '@hcengineering/server-core'
-import { getDBClient, setDBExtraOptions } from '@hcengineering/postgres'
+import { getDBClient, getDBFlavor, setDBExtraOptions } from '@hcengineering/postgres'
 import { pbkdf2Sync, randomBytes } from 'crypto'
 import otpGenerator from 'otp-generator'
 
@@ -85,27 +85,9 @@ import {
   type WorkspaceStatus
 } from './types'
 import { isAdminEmail, isBillingAdminEmail } from './admin'
-import { type Sql } from 'postgres'
 
 export const GUEST_ACCOUNT = 'b6996120-416f-49cd-841e-e4a5d2e49c9b' as PersonUuid
 
-export async function getDbFlavor (pgClient: Sql<any>): Promise<DBFlavor> {
-  // Run the version query
-  const [{ version }] = await pgClient`SELECT version()`
-
-  // CockroachDB’s string contains “Cockroach” (case‑insensitive)
-  if (/cockroach/i.test(version)) {
-    return 'cockroach'
-  }
-
-  // Anything else that looks like a PostgreSQL version string
-  if (/postgresql/i.test(version)) {
-    return 'postgres'
-  }
-
-  // Fallback – could be a custom build or something unexpected
-  return 'unknown'
-}
 export async function getAccountDB (
   uri: string,
   dbNs?: string,
@@ -130,7 +112,7 @@ export async function getAccountDB (
 
     do {
       try {
-        flavor = await getDbFlavor(pgClient)
+        flavor = await getDBFlavor(pgClient, uri)
         error = false
       } catch (err: any) {
         error = true

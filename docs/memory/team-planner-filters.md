@@ -1,40 +1,38 @@
 # Team Planner: FilterBar/FilterButton project filter (FUSIO-1308)
 
-## No ClassFilters mixin for task.class.Project or time.class.WorkSlot
+## Own ClassFilters mixin on time.class.ToDo
 
-`FilterBar`/`FilterButton` (`plugins/view-resources/src/components/filter/`) only render
-options for a class that has `view.mixin.ClassFilters` registered
-(`FilterTypePopup.getOwnTypes`: `hierarchy.classHierarchyMixin(_class, view.mixin.ClassFilters)
-=== undefined` -> returns `[]`, and `FilterBar` itself hides its row entirely:
-`visible = hierarchy.classHierarchyMixin(_class, view.mixin.ClassFilters) !== undefined`).
-Neither `models/task` nor `models/time` nor `models/calendar` register this mixin for any of
-their classes - confirmed by grep, none exists. Mounting `FilterButton`/`FilterBar` directly on
-`task.class.Project`, `time.class.WorkSlot`, `time.class.ToDo`/`ProjectToDo`, or
-`calendar.class.BusySlot` compiles but is inert (empty "+" popup).
+`FilterBar`/`FilterButton` (`plugins/view-resources/src/components/filter/`) only render options
+for a class that has `view.mixin.ClassFilters` registered (`FilterTypePopup.getOwnTypes`:
+`hierarchy.classHierarchyMixin(_class, view.mixin.ClassFilters) === undefined` -> returns `[]`,
+and `FilterBar` hides its row entirely on the same check). Mounting them on a class without the
+mixin compiles but is inert - an empty "+" popup.
 
-## Fix used: reuse tracker.class.Issue's ready-made filters, not a surrogate
+`models/time/src/index.ts:224` registers the mixin for `time.class.ToDo`:
 
-`tracker.class.Issue` already has `view.mixin.ClassFilters` with `'space'` (project) and
-`'assignee'` (person) among its filters (`models/tracker/src/index.ts` `defineFilters`), each
-backed by a real `view.mixin.AttributeFilter` on the target class
-(`tracker.class.Project`/nothing extra needed for `Ref<Person>`). This is not a hack: every
-`ProjectToDo`/`WorkSlot.space` in this codebase *is* a `tracker.class.Project`, because
-`tracker.class.Issue` is the only class registering `serverTime.mixin.ToDoFactory`
-(`models/server-time/src/index.ts` - grepped, no other class registers it). So Issue's `space`
-filter enumerates exactly the right project set.
+```ts
+builder.mixin(time.class.ToDo, core.class.Class, view.mixin.ClassFilters, {
+  filters: ['attachedSpace', 'user'],
+  strict: true
+})
+```
 
-`plugins/time-resources/src/components/team/TeamContent.svelte` mounts one
-`FilterButton`/`FilterBar` pair scoped to `tracker.class.Issue`, and extracts `.space`/.assignee`
-from the resulting `DocumentQuery<Issue>` (only the `$in` mode is handled; `$nin` - "not in" - is
-a real gap, silently ignored) into `spaces: Ref<Project>[]` / `filterPersons: Ref<Person>[]`,
-threaded down into `Calendar`/`Agenda`/`YearCalendar` → `WithTeamData`.
+`strict: true` limits the popup to exactly these two - project and person are the only things
+the team views can act on, and anything else offered there would silently do nothing.
 
-Known cost of *not* doing this "for real": the Issue-scoped popup also offers Kind/Status/
-Priority/CreatedBy/Component/Milestone - filters that are inert here (silently have no effect on
-the team view). The proper fix is a dedicated `ClassFilters` mixin for `task.class.Project`
-(`filters: ['space']`-style using `_id`) or `time.class.WorkSlot` directly, a few lines in
-`models/task/src/index.ts` or `models/time/src/index.ts` - out of scope for FUSIO-1308 (`models/**`
-excluded).
+`attachedSpace` is declared `@Prop(TypeRef(task.class.Project), ...)` (`models/time/src/index.ts:112`)
+even though its type is `Ref<Space>`: the filter enumerates the referenced class, so typing it as
+`Space` would offer every space in the workspace. `user` is `Ref<Employee>` and needs nothing extra.
+
+An earlier attempt scoped the filters to `tracker.class.Issue` to reuse its ready-made
+`space`/`assignee` filters. Dropped: its popup also offers Kind/Status/Priority/CreatedBy/
+Component/Milestone, all inert in the team view.
+
+`plugins/time-resources/src/components/team/TeamContent.svelte` mounts one `FilterButton`/
+`FilterBar` pair on `time.class.ToDo` and pulls `attachedSpace`/`user` out of the resulting
+`DocumentQuery<ToDo>` into `spaces: Ref<Project>[]` / `filterPersons: Ref<Person>[]`, threaded
+down into `Calendar`/`Agenda`/`YearCalendar` -> `WithTeamData`. Its `toRefs` handles only the
+`$in` mode - `$nin` ("not in") is silently ignored, still a real gap.
 
 ## `WithTeamData` generalized from single `space` to `spaces: Ref<Project>[]`
 

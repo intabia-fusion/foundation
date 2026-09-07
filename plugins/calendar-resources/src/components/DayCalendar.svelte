@@ -45,6 +45,7 @@
     CalendarElementRect,
     CalendarGrid
   } from '..'
+  import { layoutColumns } from '../layout'
   import calendar from '../plugin'
   import { isReadOnly, updateReccuringInstance } from '../utils'
   import EventElement from './EventElement.svelte'
@@ -235,11 +236,7 @@
       })
       // Wide segments never clash with my events, only with each other - share the column.
       wide.sort((a, b) => a.date - b.date)
-      wide.forEach((segment) => {
-        const group = wide.filter((it) => it.date < segment.dueDate && it.dueDate > segment.date)
-        segment.cols = group.length
-        segment.index = group.indexOf(segment)
-      })
+      layoutColumns(wide)
       result.push(...wide)
     }
     return result

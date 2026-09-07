@@ -14,7 +14,9 @@
 //
 
 import { webhookEventTypes, type WebhookEventType } from '@hcengineering/setting'
-import type { IntlString } from '@hcengineering/platform'
+import { translateCB, type IntlString } from '@hcengineering/platform'
+import { themeStore } from '@hcengineering/ui'
+import { derived, type Readable } from 'svelte/store'
 import settingRes from './plugin'
 
 // Translated label per shared event type - the type list itself is @hcengineering/setting's
@@ -30,5 +32,20 @@ export const webhookEventLabels: Record<WebhookEventType, IntlString> = {
   'message.posted': settingRes.string.WebhookEventMessagePosted,
   'document.created': settingRes.string.WebhookEventDocumentCreated
 }
+
+/** `Chip` renders a plain string, so a chip's event name has to be translated before it gets there. */
+export const webhookEventNames: Readable<Record<string, string>> = derived(
+  themeStore,
+  ($theme, set) => {
+    const names: Record<string, string> = {}
+    for (const type of webhookEventTypes) {
+      translateCB(webhookEventLabels[type], {}, $theme.language, (translated) => {
+        names[type] = translated
+        set({ ...names })
+      })
+    }
+  },
+  {}
+)
 
 export { webhookEventTypes, type WebhookEventType }

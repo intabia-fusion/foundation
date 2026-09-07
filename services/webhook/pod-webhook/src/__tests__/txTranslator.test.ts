@@ -204,7 +204,10 @@ describe('buildEventsForBatch - time report without a cached create', () => {
     const classCache: ClassResolutionCache = new Map()
 
     const translated = buildEventsForBatch(domainRules, cache, classCache, [
-      ws('ws1', updateTx(tracker.class.TimeSpendReport, 'report-9', 'space-1', { value: 1.5 }, { attachedTo: 'issue-9' }))
+      ws(
+        'ws1',
+        updateTx(tracker.class.TimeSpendReport, 'report-9', 'space-1', { value: 1.5 }, { attachedTo: 'issue-9' })
+      )
     ])
 
     expect(translated).toHaveLength(1)

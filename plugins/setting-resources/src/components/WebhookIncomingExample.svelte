@@ -349,6 +349,8 @@
   .section {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
+    width: 100%;
     gap: 0.75rem;
     padding: var(--spacing-2);
   }

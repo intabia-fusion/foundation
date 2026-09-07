@@ -14,13 +14,14 @@
 //
 
 jest.mock('../workspaceClient', () => ({
-  getTransactorTarget: jest.fn()
+  getTransactorTarget: jest.fn(),
+  getSystemTransactorTarget: jest.fn()
 }))
 
 /* eslint-disable import/first */
 import setting from '@hcengineering/setting'
 import { processJob } from '../consumer'
-import { getTransactorTarget } from '../workspaceClient'
+import { getSystemTransactorTarget, getTransactorTarget } from '../workspaceClient'
 import { WebhookStore } from '../store'
 import type { WebhookJobMessage } from '../types'
 /* eslint-enable import/first */
@@ -52,6 +53,15 @@ function mockTarget (uploadMarkup: jest.Mock = jest.fn().mockResolvedValue('blob
 }
 
 describe('processJob', () => {
+  beforeEach(() => {
+    // Counters are written as the platform, not as the caller's key - see processJob.
+    ;(getSystemTransactorTarget as jest.Mock).mockResolvedValue({
+      token: 'system-token',
+      transactorUrl: 'http://transactor.local',
+      rest: { findOne: jest.fn().mockResolvedValue(undefined), createDoc: jest.fn(), updateDoc: jest.fn() }
+    })
+  })
+
   afterEach(() => {
     jest.resetAllMocks()
   })
@@ -180,10 +190,11 @@ describe('processJob', () => {
     const findOne = jest.fn().mockResolvedValue(undefined)
     const createDoc = jest.fn().mockResolvedValue('stat-id')
     const updateDoc = jest.fn().mockResolvedValue(undefined)
-    ;(getTransactorTarget as jest.Mock).mockResolvedValue({
-      token: 'key-token',
+    ;(getTransactorTarget as jest.Mock).mockResolvedValue(mockTarget())
+    ;(getSystemTransactorTarget as jest.Mock).mockResolvedValue({
+      token: 'system-token',
       transactorUrl: 'http://transactor.local',
-      rest: { uploadMarkup: jest.fn().mockResolvedValue('blob-ref-1'), findOne, createDoc, updateDoc }
+      rest: { findOne, createDoc, updateDoc }
     })
     ;(global as any).fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ identifier: 'FUSIO-1' }) })
 

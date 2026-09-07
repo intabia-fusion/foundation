@@ -163,9 +163,8 @@
   $: subEditor = $resolvedLocationStore.path[5]
   $: subObject = $resolvedLocationStore.path[6]
   $: selectedEndpoint = isOwner && subEditor === 'endpoints' ? (subObject as Ref<WebhookEndpoint>) : undefined
-  $: selectedExample = subEditor === 'examples' && (subObject === 'incoming' || subObject === 'outgoing')
-    ? subObject
-    : undefined
+  $: selectedExample =
+    subEditor === 'examples' && (subObject === 'incoming' || subObject === 'outgoing') ? subObject : undefined
   let selectedName: string | undefined
 
   function openSub (kind?: string, id?: string): void {

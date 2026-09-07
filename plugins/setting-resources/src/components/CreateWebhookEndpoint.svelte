@@ -29,7 +29,7 @@
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import settingsRes from '../plugin'
-  import { webhookEventLabels, webhookEventTypes, type WebhookEventType } from '../webhookEvents'
+  import { webhookEventNames, webhookEventTypes, type WebhookEventType } from '../webhookEvents'
   import WebhookEventsPopup from './WebhookEventsPopup.svelte'
 
   const client = getClient()
@@ -132,7 +132,7 @@
         <div class="chips">
           {#each events as type (type)}
             <Chip
-              label={webhookEventLabels[type]}
+              label={$webhookEventNames[type] ?? type}
               isRemovable
               on:remove={() => {
                 events = events.filter((t) => t !== type)

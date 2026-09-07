@@ -99,14 +99,17 @@ const ensuredPersons = new Set<string>()
  */
 async function ensureIntegrationPerson (
   ctx: MeasureContext,
-  target: TransactorTarget,
+  config: Config,
   workspace: WorkspaceUuid,
   grant: KeyGrant
 ): Promise<void> {
   const cacheKey = `${workspace}:${grant.keyId}`
   if (ensuredPersons.has(cacheKey)) return
   try {
-    await target.rest.ensurePerson(SocialIdType.WEBHOOK, grant.keyId, grant.name, '')
+    // Under the platform's own token, not the key's: materializing the key's Person is pod bookkeeping,
+    // and a key narrowed to named operations may only write through /api/v1/ops.
+    const system = await getSystemTransactorTarget(config, workspace)
+    await system.rest.ensurePerson(SocialIdType.WEBHOOK, grant.keyId, grant.name, '')
     ensuredPersons.add(cacheKey)
   } catch (err) {
     ctx.warn('webhook: failed to ensure integration person', { workspace, keyId: grant.keyId, err })
@@ -121,7 +124,7 @@ export async function getTransactorTarget (
   grant: KeyGrant
 ): Promise<TransactorTarget> {
   const target = await resolveTarget(config, workspace, issueKeyToken(grant, workspace))
-  await ensureIntegrationPerson(ctx, target, workspace, grant)
+  await ensureIntegrationPerson(ctx, config, workspace, grant)
   return target
 }
 

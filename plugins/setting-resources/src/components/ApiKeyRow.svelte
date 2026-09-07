@@ -140,6 +140,10 @@
     padding: 0.5rem 0.75rem;
     border-top: 1px solid var(--theme-divider-color);
     vertical-align: middle;
+    // Same reason as the header: a fixed-layout cell must cut its content, not overflow the neighbour.
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .row.revoked td,
   .detail.revoked td {
@@ -162,10 +166,15 @@
     }
   }
   .nameCell {
-    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
   }
   .name {
     font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .masked {
     font-family: monospace;
@@ -195,7 +204,7 @@
     white-space: nowrap;
   }
   .badge {
-    margin-left: 0.5rem;
+    flex-shrink: 0;
     font-size: 0.75rem;
     padding: 0.125rem 0.5rem;
     border-radius: 0.5rem;
@@ -211,6 +220,7 @@
   }
   .detail td {
     padding: 0 0.75rem 0.75rem 2.25rem;
+    white-space: normal;
   }
   .meta {
     display: flex;

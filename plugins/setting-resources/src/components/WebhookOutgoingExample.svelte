@@ -106,7 +106,13 @@
             <div class="pickers">
               <div class="flex-col flex-gap-1">
                 <Label label={settingsRes.string.WebhookEventsLabel} />
-                <DropdownLabels items={eventItems} bind:selected={eventType} kind="regular" size="medium" justify="left" />
+                <DropdownLabels
+                  items={eventItems}
+                  bind:selected={eventType}
+                  kind="regular"
+                  size="medium"
+                  justify="left"
+                />
               </div>
               {#if eventClass !== undefined}
                 {@const cls = eventClass}
@@ -166,6 +172,8 @@
   .section {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
+    width: 100%;
     gap: 0.75rem;
     padding: var(--spacing-2);
   }

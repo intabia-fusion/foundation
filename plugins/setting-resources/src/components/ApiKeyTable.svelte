@@ -57,25 +57,25 @@
     width: 2rem;
   }
   th:nth-child(2) {
-    width: 15%;
+    width: 18%;
   }
   th:nth-child(3) {
-    width: 19%;
+    width: 20%;
   }
   th:nth-child(4) {
-    width: 8%;
+    width: 6rem;
   }
   th:nth-child(5) {
-    width: 12%;
+    width: 14%;
   }
   th:nth-child(6) {
-    width: 20%;
+    width: 16%;
   }
   th:nth-child(7) {
     width: 16%;
   }
   th:nth-child(8) {
-    width: 10%;
+    width: 7rem;
   }
   th {
     text-align: left;
@@ -85,7 +85,11 @@
     text-transform: uppercase;
     letter-spacing: 0.02em;
     color: var(--theme-darker-color);
+    // A fixed-layout cell does not shrink its content: without this the longer headers and values
+    // paint straight over the next column instead of being cut.
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   th.center {
     text-align: center;

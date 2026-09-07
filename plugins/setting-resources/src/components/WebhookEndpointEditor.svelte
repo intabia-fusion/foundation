@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import core, { concatLink, SortingOrder, type Ref, type Space } from '@hcengineering/core'
-  import { getMetadata, type IntlString } from '@hcengineering/platform'
+  import { getMetadata } from '@hcengineering/platform'
   import presentation, { copyTextToClipboard, createQuery, getClient, MessageBox } from '@hcengineering/presentation'
   import setting, {
     generateWebhookSecret,
@@ -29,6 +29,8 @@
     Chip,
     Icon,
     IconAdd,
+    IconCopy,
+    IconSend,
     Label,
     ModernEditbox,
     Scroller,
@@ -37,9 +39,10 @@
     showPopup
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
+  import view from '@hcengineering/view'
   import settingsRes from '../plugin'
   import { isApiKeyPickableSpace } from '../utils'
-  import { webhookEventLabels, type WebhookEventType } from '../webhookEvents'
+  import { webhookEventNames, type WebhookEventType } from '../webhookEvents'
 
   import ApiKeySpacesPopup from './ApiKeySpacesPopup.svelte'
   import WebhookEventsPopup from './WebhookEventsPopup.svelte'
@@ -73,11 +76,11 @@
     { sort: { createdOn: SortingOrder.Descending }, limit: 20 }
   )
 
-  // Delivered counts per event type of this endpoint.
-  let sentByType = new Map<string, number>()
+  // One number for the whole endpoint: per-event counters were noise on every chip.
+  let sentTotal = 0
   const statsQuery = createQuery()
   $: statsQuery.query(setting.class.WebhookStat, { direction: 'out', target: objectId }, (res: WebhookStat[]) => {
-    sentByType = new Map(res.map((s) => [s.type, s.count]))
+    sentTotal = res.reduce((sum, s) => sum + s.count, 0)
   })
 
   // Same set ApiKeySpacesPopup offers, so "Add all" and the picker can never disagree.
@@ -93,9 +96,6 @@
   // ALLOW_INSECURE_WEBHOOK_HTTP - only there is an http recipient accepted.
   const allowHttp = location.protocol !== 'https:'
   $: urlValid = (allowHttp ? /^https?:\/\// : /^https:\/\//).test(url.trim())
-
-  // endpoint.events is a plain string[] - the doc does not restrict it to the known set at rest.
-  const eventLabels: Partial<Record<string, IntlString>> = webhookEventLabels
 
   let revealedSecretIds = new Set<string>()
   let testing = false
@@ -234,27 +234,37 @@
       <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content gap">
           <div class="hulyComponent-content__column-group mt-4">
-            <ModernEditbox
-              bind:value={url}
-              label={settingsRes.string.WebhookUrl}
-              size="medium"
-              disabled={readonly}
-              on:change={commitUrl}
-              on:blur={commitUrl}
-            />
+            <div class="urlRow">
+              <div class="urlField">
+                <ModernEditbox
+                  bind:value={url}
+                  label={settingsRes.string.WebhookUrl}
+                  size="medium"
+                  disabled={readonly}
+                  on:change={commitUrl}
+                  on:blur={commitUrl}
+                />
+              </div>
+              <!-- Next to the address it belongs to: a switch parked below the form went unnoticed. -->
+              <div class="flex-row-center flex-gap-2 flex-no-shrink">
+                <Label label={settingsRes.string.WebhookEnabled} />
+                <Toggle on={endpoint.enabled} disabled={readonly} on:change={toggleEnabled} />
+              </div>
+            </div>
             {#if url.length > 0 && !urlValid}
               <div class="hint warn"><Label label={settingsRes.string.WebhookUrlHttpsOnly} /></div>
             {/if}
-            <div class="flex-row-center flex-between mt-4">
-              <Label label={settingsRes.string.WebhookEnabled} />
-              <Toggle on={endpoint.enabled} disabled={readonly} on:change={toggleEnabled} />
-            </div>
           </div>
 
           <div class="hulyTableAttr-container">
             <div class="hulyTableAttr-header font-medium-12">
               <Icon icon={settingsRes.icon.Setting} size="small" />
               <span><Label label={settingsRes.string.WebhookEventsLabel} /></span>
+              {#if sentTotal > 0}
+                <div class="counter">
+                  <Label label={settingsRes.string.WebhookEventDeliveredCount} params={{ count: sentTotal }} />
+                </div>
+              {/if}
               <ButtonIcon
                 kind="primary"
                 icon={IconAdd}
@@ -270,20 +280,23 @@
                 {@const selectedEvents = endpoint.events}
                 <div class="chips">
                   {#each selectedEvents as type (type)}
-                    {@const count = sentByType.get(type) ?? 0}
                     <Chip
-                      label={eventLabels[type] ?? type}
+                      label={$webhookEventNames[type] ?? type}
                       isRemovable={!readonly}
                       on:remove={() => {
                         void update({ events: selectedEvents.filter((t) => t !== type) })
                       }}
                     />
-                    {#if count > 0}
-                      <span class="hint">
-                        <Label label={settingsRes.string.WebhookEventDeliveredCount} params={{ count }} />
-                      </span>
-                    {/if}
                   {/each}
+                  <Button
+                    kind="ghost"
+                    size="small"
+                    label={ui.string.Clear}
+                    disabled={readonly}
+                    on:click={() => {
+                      void update({ events: [] })
+                    }}
+                  />
                 </div>
               {/if}
             </div>
@@ -370,6 +383,15 @@
                   </div>
                   <div class="flex-row-center flex-gap-2">
                     <Button
+                      kind="ghost"
+                      size="small"
+                      icon={IconCopy}
+                      showTooltip={{ label: view.string.CopyToClipboard }}
+                      on:click={() => {
+                        void copySecret(secret.secret)
+                      }}
+                    />
+                    <Button
                       label={revealedSecretIds.has(secret.id)
                         ? settingsRes.string.WebhookSecretHide
                         : settingsRes.string.WebhookSecretReveal}
@@ -400,6 +422,7 @@
               <span><Label label={settingsRes.string.WebhookDeliveries} /></span>
               <Button
                 label={settingsRes.string.WebhookSendTest}
+                icon={IconSend}
                 kind="regular"
                 size="small"
                 loading={testing}
@@ -461,9 +484,25 @@
 {/if}
 
 <style lang="scss">
+  .counter {
+    margin-right: 0.5rem;
+    text-transform: none;
+    color: var(--theme-dark-color);
+  }
+  .urlRow {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .urlField {
+    flex-grow: 1;
+    min-width: 0;
+  }
   .section {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
+    width: 100%;
     gap: 0.5rem;
     padding: var(--spacing-2);
   }

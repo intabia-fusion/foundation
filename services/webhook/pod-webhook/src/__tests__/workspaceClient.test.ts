@@ -26,6 +26,7 @@ jest.mock('@hcengineering/api-client', () => ({ createRestClient: jest.fn() }))
 /* eslint-disable import/first */
 import { SocialIdType } from '@hcengineering/core'
 import { createRestClient } from '@hcengineering/api-client'
+import { decodeToken } from '@hcengineering/server-token'
 import { getTransactorTarget, type KeyGrant } from '../workspaceClient'
 /* eslint-enable import/first */
 
@@ -60,6 +61,25 @@ describe('getTransactorTarget', () => {
 
     expect(ensurePerson).toHaveBeenCalledTimes(1)
     expect(ensurePerson).toHaveBeenCalledWith(SocialIdType.WEBHOOK, 'key_1', 'ci', '')
+  })
+
+  test('the person is materialized under the platform token, never the key one', async () => {
+    const clients = new Map<string, { ensurePerson: jest.Mock }>()
+    ;(createRestClient as jest.Mock).mockImplementation((_url: string, _ws: string, token: string) => {
+      const client = { ensurePerson: jest.fn().mockResolvedValue({}) }
+      clients.set(token, client as any)
+      return client
+    })
+
+    const ctx = newCtx()
+    const workspace = '66666666-6666-4666-8666-666666666666' as any
+    await getTransactorTarget(ctx, config, workspace, grant())
+
+    const used = Array.from(clients.entries()).filter(([, c]) => c.ensurePerson.mock.calls.length > 0)
+    expect(used).toHaveLength(1)
+    // A key narrowed to operations may only write through /api/v1/ops, so this write goes as the service.
+    expect(decodeToken(used[0][0]).extra?.service).toBe('webhook')
+    expect(decodeToken(used[0][0]).extra?.apikey).toBeUndefined()
   })
 
   test('a failed ensurePerson call does not fail target resolution', async () => {

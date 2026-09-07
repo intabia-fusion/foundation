@@ -25,7 +25,7 @@ import { backoffDelayMs, MAX_ATTEMPTS, scheduleRetry } from './retry'
 import { bumpWebhookStat } from './stats'
 import type { WebhookStore } from './store'
 import type { WebhookJobMessage } from './types'
-import { getTransactorTarget, type TransactorTarget } from './workspaceClient'
+import { getSystemTransactorTarget, getTransactorTarget, type TransactorTarget } from './workspaceClient'
 
 const CONSUMER_GROUP = 'webhook-consumer'
 
@@ -117,7 +117,10 @@ export async function processJob (
     const result = await callTransactor(target, job.workspace, job.action, body, config.TransactorTimeoutMs)
 
     store.markDone(job.jobId, result)
-    await bumpWebhookStat(ctx, target.rest, 'in', job.keyId, job.action)
+    // The counter is the pod's own bookkeeping, so it is written as the platform - the caller's key
+    // may only write through /api/v1/ops.
+    const system = await getSystemTransactorTarget(config, job.workspace)
+    await bumpWebhookStat(ctx, system.rest, 'in', job.keyId, job.action)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     ctx.error('webhook job failed', { jobId: job.jobId, action: job.action, attempt: job.attempt, error: message })

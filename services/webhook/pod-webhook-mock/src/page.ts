@@ -213,17 +213,34 @@ document.querySelectorAll('#response-mode input').forEach((el) => {
 
 document.getElementById('clear-btn').addEventListener('click', async () => {
   await fetch(api('deliveries/clear'), { method: 'POST' })
-  await loadDeliveries()
+  openEntries.clear()
+  await loadDeliveries(true)
 })
-document.getElementById('refresh-btn').addEventListener('click', loadDeliveries)
+document.getElementById('refresh-btn').addEventListener('click', () => loadDeliveries(true))
 
 const HIGHLIGHT_HEADERS = ['webhook-id', 'webhook-timestamp', 'webhook-signature', 'x-webhook-delivery-id', 'x-webhook-attempt']
 
-async function loadDeliveries () {
+// A delivery never changes once received, so the list only has to be rebuilt when its ids do - and an
+// open entry stays open across that rebuild. Without both, the 3s poll kept collapsing what you read.
+const openEntries = new Set()
+let renderedSignature = null
+
+function rememberOpen (details, key) {
+  details.open = openEntries.has(key)
+  details.addEventListener('toggle', () => {
+    if (details.open) openEntries.add(key)
+    else openEntries.delete(key)
+  })
+}
+
+async function loadDeliveries (force) {
   const res = await fetch(api('deliveries'))
   const items = await res.json()
   const secret = document.getElementById('secret').value.trim()
   const container = document.getElementById('deliveries')
+  const signature = items.map((i) => i.id).join(',') + '|' + secret
+  if (force !== true && signature === renderedSignature) return
+  renderedSignature = signature
   container.innerHTML = ''
   if (items.length === 0) {
     container.innerHTML = '<p class="muted">No deliveries received yet.</p>'
@@ -231,6 +248,7 @@ async function loadDeliveries () {
   }
   for (const item of items) {
     const details = document.createElement('details')
+    rememberOpen(details, item.id)
     const time = new Date(item.receivedAt).toLocaleTimeString()
     const summary = document.createElement('summary')
     summary.textContent = time + ' - webhook-id=' + (item.headers['webhook-id'] ?? '?') + ', attempt=' + (item.headers['x-webhook-attempt'] ?? '?')
@@ -244,6 +262,7 @@ async function loadDeliveries () {
 
     const allHeaders = document.createElement('details')
     allHeaders.innerHTML = '<summary>all headers</summary><pre>' + escapeHtml(JSON.stringify(item.headers, null, 2)) + '</pre>'
+    rememberOpen(allHeaders, item.id + ':headers')
     details.appendChild(allHeaders)
 
     const bodyPre = document.createElement('pre')
@@ -278,7 +297,7 @@ function escapeHtml (str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 }
 
-loadDeliveries()
+loadDeliveries(true)
 setInterval(() => {
   if (document.getElementById('auto-refresh').checked) loadDeliveries()
 }, 3000)

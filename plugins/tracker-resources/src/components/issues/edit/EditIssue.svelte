@@ -111,9 +111,11 @@
     void inboxClient.readDoc(issueId)
   })
 
+  // By the base class, not `_class`: a task type change moves the issue to another class, and a
+  // subscription pinned to the old one would lose it and collapse the panel.
   $: if (issueId !== undefined && _class !== undefined) {
     queryClient.query<Issue>(
-      _class,
+      tracker.class.Issue,
       { _id: issueId },
       async (result) => {
         if (lastId !== issueId) {
@@ -181,7 +183,8 @@
     }
     return undefined
   }
-  $: editorFooter = getEditorFooter(issue?._class)
+  $: currentClass = issue?._class ?? _class
+  $: editorFooter = getEditorFooter(currentClass)
 
   let content: HTMLElement
 
@@ -263,7 +266,7 @@
     <svelte:fragment slot="pre-utils">
       <ComponentExtensions
         extension={view.extensions.EditDocTitleExtension}
-        props={{ size: 'medium', kind: 'ghost', _id, _class, value: issue, readonly }}
+        props={{ size: 'medium', kind: 'ghost', _id, _class: currentClass, value: issue, readonly }}
       />
       <ComponentExtensions
         extension={tracker.extensions.EditIssueHeader}
@@ -395,7 +398,10 @@
 
     {#if editorFooter}
       <div class="step-tb-6">
-        <Component is={editorFooter.footer} props={{ object: issue, _class, ...editorFooter.props, readonly }} />
+        <Component
+          is={editorFooter.footer}
+          props={{ object: issue, _class: currentClass, ...editorFooter.props, readonly }}
+        />
       </div>
     {/if}
 

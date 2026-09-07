@@ -123,4 +123,12 @@ export function createModel (builder: Builder): void {
     },
     isAsync: true
   })
+
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverNotification.trigger.OnDocClassChanged,
+    txMatch: {
+      _class: core.class.TxUpdateDoc
+    },
+    isAsync: true
+  })
 }

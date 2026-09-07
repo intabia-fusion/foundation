@@ -191,6 +191,190 @@ describe('Workflow Post-Functions', () => {
     expect((pfTx.operations as any).assignee).toBe('user-2')
   })
 
+  it('should skip post-functions when the update also changes the task type', async () => {
+    const fromStatus = generateId<Status>()
+    const toStatus = generateId<Status>()
+    const taskTypeId = generateId<TaskType>()
+    const newTaskTypeId = generateId<TaskType>()
+    const workflowId = generateId<Workflow>()
+    const pfRuleId = generateId()
+
+    const oldTask = createMockTask({ status: fromStatus, kind: newTaskTypeId })
+    const updateTx: TxUpdateDoc<Task> = txFactory.createTxUpdateDoc(task.class.Task, testSpace, oldTask._id, {
+      status: toStatus,
+      kind: newTaskTypeId
+    })
+    // The stored task already holds the new kind by the time the trigger runs; the middleware
+    // recorded the old one in meta.
+    updateTx.meta = { fromStatus, fromKind: taskTypeId }
+
+    const project: Project = {
+      _id: testSpace,
+      _class: task.class.Project,
+      space: testSpace,
+      name: 'Test Project',
+      rank: '0|i00000:' as Rank,
+      modifiedBy: 'user-1' as any,
+      modifiedOn: Date.now(),
+      createdOn: Date.now(),
+      createdBy: 'user-1' as any,
+      workflows: { [taskTypeId]: workflowId, [newTaskTypeId]: workflowId }
+    } as any
+
+    const transition: WorkflowTransition = {
+      _id: generateId(),
+      _class: workflow.class.WorkflowTransition,
+      space: testSpace as any,
+      modifiedOn: Date.now(),
+      modifiedBy: 'user-1' as any,
+      attachedTo: workflowId,
+      attachedToClass: workflow.class.Workflow,
+      collection: 'transitions',
+      name: 'Close',
+      from: [fromStatus],
+      to: toStatus,
+      rank: '0|i00000:' as Rank,
+      postFunctions: [
+        {
+          id: 'pf-1',
+          rule: pfRuleId as any,
+          props: { fields: [{ fieldKey: 'assignee', value: { type: 'const', value: 'user-2' } }] }
+        }
+      ]
+    } as any
+
+    const pfRule = {
+      _id: pfRuleId,
+      _class: workflow.class.WorkflowPostFunction,
+      space: testSpace,
+      modifiedOn: Date.now(),
+      modifiedBy: 'user-1',
+      label: 'Set field value',
+      description: '',
+      order: 10,
+      editor: 'editor',
+      serverExecutor: 'UpdateFieldValue'
+    } as any
+
+    const hierarchy = createMockHierarchy({
+      hasMixin: () => true,
+      as: (obj: any, mixin: any) => {
+        if (mixin === workflow.mixin.ProjectWorkflow) return project
+        if (String(mixin).includes('PostFunctionImpl')) return pfRule
+        return obj
+      }
+    })
+
+    const control: TriggerControl = {
+      ctx: mockCtx,
+      hierarchy,
+      txFactory,
+      modelDb: { findAllSync: () => [] } as any,
+      findAll: jest.fn().mockImplementation(async (ctx, _class, query) => {
+        if (_class === task.class.Project) return toFindResult([project])
+        if (_class === task.class.Task) return toFindResult([oldTask])
+        if (_class === workflow.class.WorkflowTransition) return toFindResult([transition])
+        if (_class === workflow.class.WorkflowPostFunction) return toFindResult([pfRule])
+        return toFindResult([])
+      })
+    } as any
+
+    const resultTxes = await PostFunctionsTrigger([updateTx], control)
+    expect(resultTxes).toEqual([])
+  })
+
+  it('should still run post-functions when kind repeats the task current type', async () => {
+    const fromStatus = generateId<Status>()
+    const toStatus = generateId<Status>()
+    const taskTypeId = generateId<TaskType>()
+    const workflowId = generateId<Workflow>()
+    const pfRuleId = generateId()
+
+    const oldTask = createMockTask({ status: fromStatus, kind: taskTypeId })
+    const updateTx: TxUpdateDoc<Task> = txFactory.createTxUpdateDoc(task.class.Task, testSpace, oldTask._id, {
+      status: toStatus,
+      kind: taskTypeId
+    })
+    // Same kind before and after: no type change, so the rules of this workflow still apply.
+    updateTx.meta = { fromStatus, fromKind: taskTypeId }
+
+    const project: Project = {
+      _id: testSpace,
+      _class: task.class.Project,
+      space: testSpace,
+      name: 'Test Project',
+      rank: '0|i00000:' as Rank,
+      modifiedBy: 'user-1' as any,
+      modifiedOn: Date.now(),
+      createdOn: Date.now(),
+      createdBy: 'user-1' as any,
+      workflows: { [taskTypeId]: workflowId }
+    } as any
+
+    const transition: WorkflowTransition = {
+      _id: generateId(),
+      _class: workflow.class.WorkflowTransition,
+      space: testSpace as any,
+      modifiedOn: Date.now(),
+      modifiedBy: 'user-1' as any,
+      attachedTo: workflowId,
+      attachedToClass: workflow.class.Workflow,
+      collection: 'transitions',
+      name: 'Close',
+      from: [fromStatus],
+      to: toStatus,
+      rank: '0|i00000:' as Rank,
+      postFunctions: [
+        {
+          id: 'pf-1',
+          rule: pfRuleId as any,
+          props: { fields: [{ fieldKey: 'assignee', value: { type: 'const', value: 'user-2' } }] }
+        }
+      ]
+    } as any
+
+    const pfRule = {
+      _id: pfRuleId,
+      _class: workflow.class.WorkflowPostFunction,
+      space: testSpace,
+      modifiedOn: Date.now(),
+      modifiedBy: 'user-1',
+      label: 'Set field value',
+      description: '',
+      order: 10,
+      editor: 'editor',
+      serverExecutor: 'UpdateFieldValue'
+    } as any
+
+    const hierarchy = createMockHierarchy({
+      hasMixin: () => true,
+      as: (obj: any, mixin: any) => {
+        if (mixin === workflow.mixin.ProjectWorkflow) return project
+        if (String(mixin).includes('PostFunctionImpl')) return pfRule
+        return obj
+      }
+    })
+
+    const control: TriggerControl = {
+      ctx: mockCtx,
+      hierarchy,
+      txFactory,
+      modelDb: { findAllSync: () => [] } as any,
+      findAll: jest.fn().mockImplementation(async (ctx, _class, query) => {
+        if (_class === task.class.Project) return toFindResult([project])
+        if (_class === task.class.Task) return toFindResult([oldTask])
+        if (_class === workflow.class.WorkflowTransition) return toFindResult([transition])
+        if (_class === workflow.class.WorkflowPostFunction) return toFindResult([pfRule])
+        return toFindResult([])
+      })
+    } as any
+
+    const resultTxes = await PostFunctionsTrigger([updateTx], control)
+    expect(resultTxes.length).toBe(1)
+    const pfTx = resultTxes[0] as TxUpdateDoc<Task>
+    expect((pfTx.operations as any).assignee).toBe('user-2')
+  })
+
   it('should evaluate presets, field functions, and parent references in UpdateFieldValue', async () => {
     const parentId = generateId<Task>()
     const parentTask = createMockTask({ _id: parentId, description: 'Parent Desc' })

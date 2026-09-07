@@ -678,6 +678,24 @@ export function createActions (builder: Builder, issuesId: string, componentsId:
   createAction(
     builder,
     {
+      action: tracker.actionImpl.ChangeTaskType,
+      label: tracker.string.ChangeTaskType,
+      icon: task.icon.Task,
+      input: 'focus',
+      category: tracker.category.Tracker,
+      target: tracker.class.Issue,
+      visibilityTester: tracker.function.CanChangeTaskType,
+      context: {
+        mode: ['context', 'browser'],
+        application: tracker.app.Tracker,
+        group: 'edit'
+      }
+    },
+    tracker.action.ChangeTaskType
+  )
+  createAction(
+    builder,
+    {
       action: view.actionImpl.ValueSelector,
       actionPopup: tracker.component.RelationsPopup,
       actionProps: {

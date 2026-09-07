@@ -215,6 +215,12 @@ class ValuesVariables {
 
 const DB_QUERY_DURATION = 'db.query.duration'
 
+// Locale-independent collation used for case-insensitive matching ($like).
+// "und-x-icu" is the ICU root locale: it is always present in PostgreSQL builds
+// with ICU support and folds case for all scripts, unlike the database LC_CTYPE
+// which only handles ASCII when the database was created with LC_CTYPE=C.
+const SEARCH_COLLATION = '"und-x-icu"'
+
 abstract class PostgresAdapterBase implements DbAdapter {
   protected readonly _helper: DBCollectionHelper
   protected readonly tableFields = new Map<string, string[]>()
@@ -1381,7 +1387,11 @@ abstract class PostgresAdapterBase implements DbAdapter {
             }
             break
           case '$like':
-            res.push(`${tlkey} ILIKE ${vars.add(val, valType)}`)
+            // ILIKE folds case using the database LC_CTYPE. Databases created with
+            // LC_CTYPE=C only fold ASCII, so Cyrillic (and any non-ASCII) search is
+            // case-sensitive. An explicit ICU collation folds case correctly on any
+            // database, regardless of how it was created.
+            res.push(`${tlkey} COLLATE ${SEARCH_COLLATION} ILIKE ${vars.add(val, valType)}`)
             break
           case '$exists':
             res.push(`${tlkey} IS ${val === true || val === 'true' ? 'NOT NULL' : 'NULL'}`)

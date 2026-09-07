@@ -176,6 +176,10 @@ export interface WebhookSecretEntry {
  */
 export interface WebhookEndpoint extends Doc {
   url: string
+  /** Shown instead of the raw URL wherever the endpoint is named - several endpoints on one host
+   * are unreadable otherwise, and the auto-disable mail has nothing to call them by. */
+  name?: string
+  description?: string
   /** Domain event names this endpoint subscribes to, e.g. 'issue.created'. */
   events: string[]
   /** Oldest first; all active secrets sign each delivery, so a receiver can rotate without downtime. */

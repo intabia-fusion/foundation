@@ -58,11 +58,16 @@
 
   let endpoint: WebhookEndpoint | undefined
   let url = ''
+  let title = ''
+  let description = ''
   const detailQuery = createQuery()
   $: detailQuery.query(setting.class.WebhookEndpoint, { _id: objectId }, (res) => {
     endpoint = res[0]
-    name = endpoint?.url
+    // The breadcrumb shows what the endpoint is called, falling back to the address itself.
+    name = endpoint?.name ?? endpoint?.url
     url = endpoint?.url ?? ''
+    title = endpoint?.name ?? ''
+    description = endpoint?.description ?? ''
   })
 
   let deliveries: WebhookDelivery[] = []
@@ -104,6 +109,16 @@
   async function update (upd: Partial<WebhookEndpoint>): Promise<void> {
     if (endpoint === undefined || readonly) return
     await client.updateDoc(setting.class.WebhookEndpoint, core.space.Workspace, endpoint._id, upd)
+  }
+
+  async function commitName (): Promise<void> {
+    if (endpoint === undefined || title.trim() === (endpoint.name ?? '')) return
+    await update({ name: title.trim() })
+  }
+
+  async function commitDescription (): Promise<void> {
+    if (endpoint === undefined || description.trim() === (endpoint.description ?? '')) return
+    await update({ description: description.trim() })
   }
 
   async function commitUrl (): Promise<void> {
@@ -234,7 +249,15 @@
       <Scroller align="center" padding="var(--spacing-3)" bottomPadding="var(--spacing-3)">
         <div class="hulyComponent-content gap">
           <div class="hulyComponent-content__column-group mt-4">
-            <div class="urlRow">
+            <ModernEditbox
+              bind:value={title}
+              label={core.string.Name}
+              size="medium"
+              disabled={readonly}
+              on:change={commitName}
+              on:blur={commitName}
+            />
+            <div class="urlRow mt-4">
               <div class="urlField">
                 <ModernEditbox
                   bind:value={url}
@@ -254,6 +277,16 @@
             {#if url.length > 0 && !urlValid}
               <div class="hint warn"><Label label={settingsRes.string.WebhookUrlHttpsOnly} /></div>
             {/if}
+            <div class="mt-4">
+              <ModernEditbox
+                bind:value={description}
+                label={core.string.Description}
+                size="medium"
+                disabled={readonly}
+                on:change={commitDescription}
+                on:blur={commitDescription}
+              />
+            </div>
           </div>
 
           <div class="hulyTableAttr-container">
@@ -445,7 +478,8 @@
                   {/if}
                 </div>
               {/if}
-              {#if endpoint.lastError !== undefined}
+              <!-- A success clears it to '' rather than removing the field, so emptiness is the check. -->
+              {#if endpoint.lastError !== undefined && endpoint.lastError !== ''}
                 <div class="hint warn"><Label label={settingsRes.string.WebhookLastError} />: {endpoint.lastError}</div>
               {/if}
               {#if deliveries.length === 0}

@@ -47,8 +47,13 @@
         <div class="hulyTableAttr-content__row-icon-wrapper">
           <Icon icon={settingsRes.icon.Setting} size="small" />
         </div>
-        <div class="hulyTableAttr-content__row-label font-medium-14 grow url" class:dimmed={!endpoint.enabled}>
-          {endpoint.url}
+        <div class="hulyTableAttr-content__row-labels-group grow" class:dimmed={!endpoint.enabled}>
+          {#if endpoint.name !== undefined && endpoint.name !== ''}
+            <div class="hulyTableAttr-content__row-label font-medium-14">{endpoint.name}</div>
+            <div class="hulyTableAttr-content__row-label url secondary">{endpoint.url}</div>
+          {:else}
+            <div class="hulyTableAttr-content__row-label font-medium-14 url">{endpoint.url}</div>
+          {/if}
         </div>
         <div class="meta">
           {#if !endpoint.enabled}
@@ -70,10 +75,13 @@
   .url {
     font-family: monospace;
     word-break: break-all;
-
-    &.dimmed {
-      opacity: 0.5;
-    }
+  }
+  .secondary {
+    font-size: 0.8125rem;
+    color: var(--theme-dark-color);
+  }
+  .dimmed {
+    opacity: 0.5;
   }
   .meta {
     display: flex;

@@ -144,6 +144,8 @@ export class TWorkspaceSetting extends TDoc implements WorkspaceSetting {
 @Model(setting.class.WebhookEndpoint, core.class.Doc, DOMAIN_SETTING)
 export class TWebhookEndpoint extends TDoc implements WebhookEndpoint {
   url!: string
+  name?: string
+  description?: string
   events!: string[]
   secrets!: WebhookSecretEntry[]
   enabled!: boolean

@@ -25,6 +25,11 @@ export interface EmailNotification {
   data: { to: string, subject: string, text: string, html: string }
 }
 
+/** Its name when it has one, the address otherwise - several endpoints on one host read alike. */
+function endpointLabel (endpoint: Pick<WebhookEndpoint, 'url' | 'name'>): string {
+  return endpoint.name !== undefined && endpoint.name !== '' ? `${endpoint.name} (${endpoint.url})` : endpoint.url
+}
+
 function escapeHtml (str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
@@ -36,7 +41,7 @@ export async function notifyOwnerDisabled (
   token: string,
   workspace: WorkspaceUuid,
   producer: PlatformQueueProducer<EmailNotification>,
-  endpoint: Pick<WebhookEndpoint, '_id' | 'url'>,
+  endpoint: Pick<WebhookEndpoint, '_id' | 'url' | 'name'>,
   reason: string
 ): Promise<void> {
   try {
@@ -48,10 +53,10 @@ export async function notifyOwnerDisabled (
 
     const subject = 'Outgoing webhook disabled'
     const text =
-      `Your outgoing webhook to ${endpoint.url} was disabled after repeated delivery failures.\n` +
+      `Your outgoing webhook ${endpointLabel(endpoint)} was disabled after repeated delivery failures.\n` +
       `Last error: ${reason}\n\nRe-enable it from workspace settings once the issue is fixed.`
     const html =
-      `<p>Your outgoing webhook to <code>${escapeHtml(endpoint.url)}</code> was disabled after repeated ` +
+      `<p>Your outgoing webhook <code>${escapeHtml(endpointLabel(endpoint))}</code> was disabled after repeated ` +
       `delivery failures.</p><p>Last error: ${escapeHtml(reason)}</p>` +
       '<p>Re-enable it from workspace settings once the issue is fixed.</p>'
 

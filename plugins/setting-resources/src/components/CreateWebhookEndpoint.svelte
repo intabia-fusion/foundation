@@ -36,6 +36,7 @@
   const dispatch = createEventDispatcher()
 
   let url = ''
+  let name = ''
   let events: WebhookEventType[] = []
   let saving = false
   let error: string | undefined
@@ -72,6 +73,7 @@
       }
       const _id = await client.createDoc(setting.class.WebhookEndpoint, core.space.Workspace, {
         url: url.trim(),
+        ...(name.trim() !== '' ? { name: name.trim() } : {}),
         events,
         spaces: [],
         secrets: [secret],
@@ -100,7 +102,8 @@
   }}
 >
   <div class="flex-col-stretch flex-gap-4">
-    <ModernEditbox bind:value={url} label={settingsRes.string.WebhookUrl} size="medium" autoFocus />
+    <ModernEditbox bind:value={name} label={core.string.Name} size="medium" autoFocus />
+    <ModernEditbox bind:value={url} label={settingsRes.string.WebhookUrl} size="medium" />
     {#if url.length > 0 && !urlValid}
       <div class="hint warn"><Label label={settingsRes.string.WebhookUrlHttpsOnly} /></div>
     {/if}

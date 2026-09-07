@@ -216,7 +216,13 @@ rushx bundle:server
 
 # Build desktop app
 rushx package
+# electron-builder 26 shells out to the package manager named in package.json
+# ("packageManager": "pnpm@..."), so pnpm must be on PATH. Rush ships one:
+export PATH="../common/temp/pnpm-local/node_modules/.bin:$PATH"
 rushx dist --linux --windows --macos
+
+# Validate the update manifests the build produced
+node scripts/verify-manifests.js deploy latest
 
 # Build Docker image locally
 docker build -t desktop-distro .

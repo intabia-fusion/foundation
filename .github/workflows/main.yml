@@ -633,6 +633,10 @@ jobs:
         run: node common/scripts/install-run-rush.js model-version
       - name: Package
         run: node common/scripts/install-run-rush.js fast-build:package --to desktop -v
+      - name: Test desktop update system
+        run: |
+          cd desktop-package
+          node ../common/scripts/install-run-rushx.js test
       - name: Bump package JSON version
         run: |
           cd desktop-package
@@ -666,11 +670,27 @@ jobs:
           APPLE_ID_APP_PASS: ${{ secrets.APPLE_ID_APP_PASS }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
+          # electron-builder 26 collects production deps by shelling out to the package
+          # manager named in desktop-package/package.json ("packageManager": "pnpm@..").
+          # Rush installs pnpm below but never puts it on PATH, so without this the
+          # build dies with `spawn pnpm ENOENT`. If Rush ever moves this directory,
+          # the `pnpm --version` below is what fails, not electron-builder 4 minutes in.
+          RUSH_PNPM_BIN="$GITHUB_WORKSPACE/common/temp/pnpm-local/node_modules/.bin"
+          if [ ! -x "$RUSH_PNPM_BIN/pnpm" ]; then
+            echo "pnpm not found at $RUSH_PNPM_BIN - check where rush installs it now" >&2
+            exit 1
+          fi
+          export PATH="$RUSH_PNPM_BIN:$PATH"
+          pnpm --version
           cd desktop-package
           node ../common/scripts/install-run-rushx.js dist --linux --x64
           node ../common/scripts/install-run-rushx.js dist --windows --x64
           node ../common/scripts/install-run-rushx.js dist-signed --macos --x64 --arm64
           # ./scripts/copy-publish-artifacts.sh ${{ env.PublishTempFolder}}
+      - name: Verify update manifests
+        run: |
+          cd desktop-package
+          node scripts/verify-manifests.js deploy latest
       # - name: Publish distribution assets and version
       #   uses: ryand56/r2-upload-action@latest
       #   with:

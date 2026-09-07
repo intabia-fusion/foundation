@@ -43,6 +43,7 @@ import { addMenus } from './standardMenu'
 import { dispatchMenuBarAction } from './customMenu'
 import { addPermissionHandlers } from './permissions'
 import autoUpdater from './updater'
+import { resolveUpdateFeed } from './updateChannel'
 import { generateId } from '@hcengineering/core'
 import { DownloadItem } from '@hcengineering/desktop-downloads'
 import { rebuildJumpList, setupWindowsSpecific } from './windowsSpecificSetup'
@@ -487,32 +488,10 @@ function runTheApp (): void {
 
     setupCookieHandler(config)
 
-    const updatesUrl =
-      process.env.DESKTOP_UPDATES_URL ?? config.DESKTOP_UPDATES_URL ?? 'https://platform.intabia.ru/_dist'
-    // NOTE: env format is: default_value;key1:value1;key2:value2...
-    const updatesChannels = (
-      process.env.DESKTOP_UPDATES_CHANNEL ??
-      config.DESKTOP_UPDATES_CHANNELS ??
-      config.DESKTOP_UPDATES_CHANNEL ??
-      'platform'
-    )
-      .split(';')
-      .map((c) => c.trim().split(':'))
-    const updateChannelsMap: Record<string, string> = {}
-    for (const channelInfo of updatesChannels) {
-      if (channelInfo.length === 1) {
-        updateChannelsMap.default = channelInfo[0]
-      } else if (channelInfo.length === 2) {
-        const [key, value] = channelInfo
-        updateChannelsMap[key] = value
-      }
-    }
+    const updatesChannelKey = packedConfig?.updatesChannelKey
+    const { url: updatesUrl, channel: updatesChannel } = resolveUpdateFeed(config, process.env, updatesChannelKey)
 
-    const updatesChannelKey = packedConfig?.updatesChannelKey ?? 'default'
-    const updatesChannel = updateChannelsMap[updatesChannelKey] ?? updateChannelsMap.default ?? 'platform'
-
-    log.info('updates channels', updatesChannels)
-    log.info('updates channel', updatesChannelKey, updatesChannel)
+    log.info('updates channel', updatesChannelKey ?? 'default', updatesChannel, updatesUrl)
 
     autoUpdater.setFeedURL({
       provider: 'generic',

@@ -14,11 +14,8 @@
 //
 
 import otpGenerator from 'otp-generator'
-import { Convenience, Message } from 'telegraf/types'
+import { Convenience, Message, InputMediaAudio, InputMediaDocument, InputMediaPhoto, InputMediaVideo } from 'telegraf/types'
 import { Parser } from 'htmlparser2'
-import { InputMediaAudio, InputMediaDocument, InputMediaPhoto, InputMediaVideo } from 'telegraf/types'
-
-type MediaGroup = Convenience.MediaGroup
 import { Context, Input } from 'telegraf'
 import { TelegramNotificationQueueMessage } from '@hcengineering/server-telegram'
 import { systemAccountUuid } from '@hcengineering/core'
@@ -26,6 +23,8 @@ import { generateToken } from '@hcengineering/server-token'
 
 import { PlatformFileInfo, TelegramFileInfo } from './types'
 import { PostgresDB } from './db'
+
+type MediaGroup = Convenience.MediaGroup
 
 export async function getNewOtp (db: PostgresDB): Promise<string> {
   let otp = otpGenerator.generate(6, {

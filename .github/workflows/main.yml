@@ -209,6 +209,9 @@ jobs:
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
+      - name: Installing...
+        run: pnpm install --frozen-lockfile
+
       - name: Prepare server (with rate limit retry)
         run: |
           set -o pipefail
@@ -226,9 +229,6 @@ jobs:
               exit 1
             fi
           fi
-      - name: Installing...
-        run: pnpm install --frozen-lockfile
-
       - name: Testing...
         run: pnpm test --verbose
         env:

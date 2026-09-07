@@ -50,15 +50,23 @@ async function runShared (shared, jestBin) {
   const args = ['-c', configPath, ...shared.flags, '--json', `--outputFile=${jsonPath}`]
   if (testTimeout !== undefined) args.push(`--testTimeout=${testTimeout}`)
   const started = performance.now()
-  const child = spawn(jestBin, args, { stdio: ['ignore', 'inherit', 'inherit'] })
+  // jest prints a line per suite; captured here so a green run stays quiet, replayed on failure.
+  const child = spawn(jestBin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+  let output = ''
+  child.stdout?.on('data', (d) => { output += d.toString() })
+  child.stderr?.on('data', (d) => { output += d.toString() })
+  const heartbeat = setInterval(() => {
+    console.log(`    [test] shared jest still running... (${Math.round((performance.now() - started) / 1000)}s elapsed)`)
+  }, 15000)
   await new Promise((resolve) => {
     child.on('close', resolve)
     child.on('error', () => resolve(-1))
   })
+  clearInterval(heartbeat)
   const wall = performance.now() - started
 
   // Attribute every suite to the package it lives in, longest path first so nested dirs win.
-  const byPackage = new Map(shared.packages.map((p) => [p.name, { time: 0, failed: false }]))
+  const byPackage = new Map(shared.packages.map((p) => [p.name, { time: 0, failed: false, details: [] }]))
   const sorted = [...shared.packages].sort((a, b) => b.cwd.length - a.cwd.length)
   let parsed = false
   if (existsSync(jsonPath)) {
@@ -70,7 +78,10 @@ async function runShared (shared, jestBin) {
         if (owner === undefined) continue
         const acc = byPackage.get(owner.name)
         acc.time += suite.endTime - suite.startTime
-        if (suite.status === 'failed') acc.failed = true
+        if (suite.status === 'failed') {
+          acc.failed = true
+          if (suite.message) acc.details.push(suite.message.trimEnd())
+        }
       }
     } catch { /* handled below */ }
   }
@@ -80,7 +91,7 @@ async function runShared (shared, jestBin) {
   if (!parsed) {
     for (const acc of byPackage.values()) acc.failed = true
   }
-  return { byPackage, wall, parsed }
+  return { byPackage, wall, parsed, output }
 }
 
 async function runTestPhase (graph, packageNames, concurrency, options = {}) {
@@ -218,7 +229,9 @@ async function runTestPhase (graph, packageNames, concurrency, options = {}) {
       const time = result.time ? Math.round(result.time) + 'ms' : ''
       timings.push({ package: name, time: Math.round(result.time || 0), failed: true })
       console.error(`    ${error('T')} ${dim(completedCount)}/${packageNames.length} ${name} ${error('FAILED')} ${dim(time)}`)
-      if (result.error?.stderr) {
+      if (result.details) {
+        for (const line of result.details.split('\n')) console.error(`      ${line}`)
+      } else if (result.error?.stderr) {
         const lines = result.error.stderr.split('\n').filter(l => l.trim()).slice(-5)
         for (const line of lines) {
           const { colored } = colorizeErrorMessage(line)
@@ -259,12 +272,14 @@ async function runTestPhase (graph, packageNames, concurrency, options = {}) {
       if (verbose) {
         for (const i of isolated) console.log(`      ${dim(i.name)} ${dim('— ' + i.reason)}`)
       }
-      const { byPackage, parsed } = await runShared(shared, jestBin)
+      const { byPackage, parsed, output } = await runShared(shared, jestBin)
+      // Without a report there is nothing to attribute, so the raw tail is all we have.
+      if (!parsed) console.error(output.split('\n').slice(-200).join('\n'))
       for (const pkg of shared.packages) {
         const acc = byPackage.get(pkg.name)
         if (acc.failed) {
           const err = new Error(parsed ? 'Test failed in the shared jest run' : 'Shared jest run produced no report')
-          report(pkg.name, { success: false, error: err, time: acc.time })
+          report(pkg.name, { success: false, error: err, time: acc.time, details: acc.details.join('\n\n') })
         } else {
           const packageHash = hashOf(pkg.name)
           if (packageHash) markPhaseCompleted(pkg.cwd, packageHash, 'test', null, [])

@@ -34,15 +34,34 @@ import { createRestClient } from '@hcengineering/api-client'
 import webpush, { WebPushError } from 'web-push'
 
 import config from './config'
+import { apnsConfigured, Delivery, fcmConfigured, PushKind, pushTarget, sendApns, sendFcm } from './mobile'
 import { getCtx } from './utils'
 
 const errorMessages = ['expired', 'Unregistered', 'No such subscription', 'VapidPkHashMismatch']
 
+/**
+ * Native clients subscribe with a device token instead of a Web Push endpoint,
+ * so the transport is chosen per subscription. The caller is unaware of the
+ * split: it still posts one list and deletes whatever comes back dead.
+ */
 export async function sendPushToSubscription (
   subscriptions: PushSubscription[],
   data: PushData
 ): Promise<Ref<PushSubscription>[]> {
   const promises = subscriptions.map(async (subscription) => {
+    const target = pushTarget(subscription.endpoint)
+    if (target.kind === PushKind.Apns) {
+      if (apnsConfigured() && (await sendApns(target.token, data)) === Delivery.Gone) {
+        return subscription._id
+      }
+      return null
+    }
+    if (target.kind === PushKind.Fcm) {
+      if (fcmConfigured() && (await sendFcm(target.token, data)) === Delivery.Gone) {
+        return subscription._id
+      }
+      return null
+    }
     try {
       await webpush.sendNotification(subscription, JSON.stringify(data), {
         TTL: config.TTL,

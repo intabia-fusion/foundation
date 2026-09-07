@@ -179,6 +179,28 @@ export async function commentIssue (client: TxOperations, issue: Issue, message:
   })
 }
 
+/** Fields of an existing time report an integration may change - the same ones the popup edits. */
+export interface TimeReportUpdate {
+  employee?: Ref<Employee> | null
+  date?: Timestamp
+  value?: number
+  description?: string
+}
+
+export async function updateTimeReport (
+  client: TxOperations,
+  report: TimeSpendReport,
+  data: TimeReportUpdate
+): Promise<void> {
+  const update: DocumentUpdate<TimeSpendReport> = {}
+  if (data.employee !== undefined) update.employee = data.employee
+  if (data.date !== undefined) update.date = data.date
+  if (data.value !== undefined) update.value = data.value
+  if (data.description !== undefined) update.description = data.description
+  if (Object.keys(update).length === 0) return
+  await client.update(report, update)
+}
+
 /** Log time spent on an issue, same as the time-report popup. `reportedTime`/`remainingTime` on the
  * issue are rolled up by a server trigger (server-plugins/tracker-resources), not done here. */
 export async function reportTime (

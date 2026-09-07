@@ -201,6 +201,8 @@ export const webhookEventTypes = [
   'issue.status_changed',
   'issue.assigned',
   'issue.commented',
+  'issue.time_reported',
+  'issue.time_report_updated',
   'message.posted',
   'document.created'
 ] as const
@@ -219,41 +221,50 @@ export const webhookEventSamples: Record<WebhookEventType, Record<string, unknow
   'issue.created': {
     action: 'create',
     type: 'issue.created',
-    actor: '64f10a1b2c3d4e5f6a7b8c8f',
+    // Refs a receiver cannot use are sent as the tokens the ingest API accepts back: a person is an
+    // email, a status and a priority are names, and every object carries its front link.
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
     data: {
       id: '64f10a1b2c3d4e5f6a7b8c91',
       identifier: 'FUSIO-123',
       title: 'Payment webhook retries indefinitely',
-      status: '64f10a1b2c3d4e5f6a7b8c92',
-      assignee: '64f10a1b2c3d4e5f6a7b8c93',
-      priority: 2
+      status: 'In Progress',
+      assignee: 'assignee@example.com',
+      priority: 'urgent'
     },
     organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
   },
   // `data.identifier` is present only if pod-webhook still has this issue's create cached in-process
-  // (see txTranslator.ts's `ponytail:` note) - unknown after a restart, same as `updatedFrom`.
+  // (see txTranslator.ts's `ponytail:` note) - unknown after a restart, same as `updatedFrom`. Without
+  // it there is no issue link either: the front resolves an issue by its identifier.
   'issue.status_changed': {
     action: 'update',
     type: 'issue.status_changed',
-    actor: '64f10a1b2c3d4e5f6a7b8c8f',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
     data: {
       id: '64f10a1b2c3d4e5f6a7b8c91',
       identifier: 'FUSIO-123',
-      status: '64f10a1b2c3d4e5f6a7b8c94'
+      status: 'In Progress'
     },
     updatedFrom: {
-      status: '64f10a1b2c3d4e5f6a7b8c92'
+      status: 'Todo'
     },
     organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
   },
   'issue.assigned': {
     action: 'update',
     type: 'issue.assigned',
-    actor: '64f10a1b2c3d4e5f6a7b8c8f',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
     data: {
       id: '64f10a1b2c3d4e5f6a7b8c91',
       identifier: 'FUSIO-123',
-      assignee: '64f10a1b2c3d4e5f6a7b8c93'
+      assignee: 'assignee@example.com'
     },
     updatedFrom: {
       assignee: null
@@ -263,19 +274,60 @@ export const webhookEventSamples: Record<WebhookEventType, Record<string, unknow
   'issue.commented': {
     action: 'create',
     type: 'issue.commented',
-    actor: '64f10a1b2c3d4e5f6a7b8c8f',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
     data: {
       id: '64f10a1b2c3d4e5f6a7b8c95',
+      issue: 'FUSIO-123',
       message: 'Reproduced on staging, looking into the retry loop now.'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.time_reported': {
+    action: 'create',
+    type: 'issue.time_reported',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c98',
+      // The issue identifier `issue:time_report` takes as its `space`, and the report id it takes as
+      // `id` to update this very report later.
+      issue: 'FUSIO-123',
+      employee: 'assignee@example.com',
+      date: 1789084800000,
+      value: 2.5,
+      description: 'Investigated the retry loop'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.time_report_updated': {
+    action: 'update',
+    type: 'issue.time_report_updated',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c98',
+      issue: 'FUSIO-123',
+      value: 3.5
+    },
+    updatedFrom: {
+      value: 2.5
     },
     organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
   },
   'message.posted': {
     action: 'create',
     type: 'message.posted',
-    actor: '64f10a1b2c3d4e5f6a7b8c8f',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/chunter/64f10a1b2c3d4e5f6a7b8c90|chunter:class:Channel',
     data: {
       id: '64f10a1b2c3d4e5f6a7b8c96',
+      // The name `chat:post` takes as its `space`, so an answer can go straight back to this channel.
+      channel: 'general',
       message: 'Deploy finished, all green.'
     },
     organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
@@ -283,7 +335,9 @@ export const webhookEventSamples: Record<WebhookEventType, Record<string, unknow
   'document.created': {
     action: 'create',
     type: 'document.created',
-    actor: '64f10a1b2c3d4e5f6a7b8c8f',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/document/q3-roadmap-64f10a1b2c3d4e5f6a7b8c97',
     data: {
       id: '64f10a1b2c3d4e5f6a7b8c97',
       title: 'Q3 Roadmap'

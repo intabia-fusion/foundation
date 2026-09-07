@@ -39,6 +39,7 @@ import setting, { type WebhookEndpoint } from '@hcengineering/setting'
 import type { Config } from './config'
 import { domainRules, type CreateRule, type DomainRule, type RemoveRule, type UpdateRule } from './eventTable'
 import type { WebhookDeliveryMessage, WebhookEvent } from './types'
+import { createEnrichCache, enrichEvents, type EnrichCache } from './enrich'
 import { getSystemTransactorTarget } from './workspaceClient'
 
 const CONSUMER_GROUP = 'webhook-tx-translator'
@@ -199,6 +200,9 @@ function collapseCreate (
     }
   }
 
+  if (rule.attachedField !== undefined && createTx.attachedTo !== undefined) {
+    data[rule.attachedField] = createTx.attachedTo
+  }
   cache.set(cacheKey, { ...seed, ...data })
   // The creator, not whoever last edited it in the same batch - the event still reports a creation.
   return [
@@ -274,21 +278,38 @@ function collapseUpdates (
   }
   if (touched.size === 0) return []
 
+  // Fields mapped to the same event type belong to one fact: an edit touching a report's hours and
+  // its description is one 'time report changed', not two.
+  const grouped = new Map<string, { rule: UpdateRule, fields: string[] }>()
+  for (const field of touched.keys()) {
+    const rule = byField.get(field) as UpdateRule
+    const entry = grouped.get(rule.type)
+    if (entry === undefined) grouped.set(rule.type, { rule, fields: [field] })
+    else entry.fields.push(field)
+  }
+
+  const attachedTo = txs.find((tx) => tx.attachedTo !== undefined)?.attachedTo
   const nextCached = { ...cached }
   const events: WebhookEvent[] = []
-  for (const [field, entry] of touched) {
-    nextCached[field] = entry.after
-    const rule = byField.get(field) as UpdateRule
+  for (const { rule, fields } of grouped.values()) {
     const updatedFrom: Record<string, unknown> = {}
-    if (entry.before !== undefined) updatedFrom[field] = entry.before
     // `identifier` rides the same cache as `updatedFrom` - present only if this pod's cache still
     // has it from the object's create (see the `ponytail:` note above), omitted otherwise.
-    const data: Record<string, unknown> = { id: objectId, [field]: entry.after }
+    const data: Record<string, unknown> = { id: objectId }
+    let actor = (touched.get(fields[0]) as { actor: PersonId }).actor
+    for (const field of fields) {
+      const entry = touched.get(field) as { before: unknown, after: unknown, actor: PersonId }
+      nextCached[field] = entry.after
+      data[field] = entry.after
+      if (entry.before !== undefined) updatedFrom[field] = entry.before
+      actor = entry.actor
+    }
     if (cached.identifier !== undefined) data.identifier = cached.identifier
+    if (rule.attachedField !== undefined && attachedTo !== undefined) data[rule.attachedField] = attachedTo
     events.push({
       action: 'update',
       type: rule.type,
-      actor: entry.actor,
+      actor,
       data,
       updatedFrom,
       organizationId: workspace
@@ -506,6 +527,7 @@ export function startTxTranslator (ctx: MeasureContext, config: Config, queue: P
   const cache: ObjectCache = new Map()
   const classCache: ClassResolutionCache = new Map()
   const endpointCache: EndpointCache = new Map()
+  const enrichCache: EnrichCache = createEnrichCache()
   let seen = 0
   let discarded = 0
   let lastReportedAt = 0
@@ -540,6 +562,7 @@ export function startTxTranslator (ctx: MeasureContext, config: Config, queue: P
       }
 
       for (const [workspace, events] of byWorkspace) {
+        await enrichEvents(ctx, config, workspace, events, enrichCache)
         await dispatch(ctx, config, deliveryProducer, endpointCache, workspace, events)
       }
     },

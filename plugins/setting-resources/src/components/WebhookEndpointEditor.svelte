@@ -14,11 +14,10 @@
 -->
 <script lang="ts">
   import core, { concatLink, SortingOrder, type Ref, type Space } from '@hcengineering/core'
-  import { getMetadata } from '@hcengineering/platform'
+  import { getMetadata, type IntlString } from '@hcengineering/platform'
   import presentation, { copyTextToClipboard, createQuery, getClient, MessageBox } from '@hcengineering/presentation'
   import setting, {
     generateWebhookSecret,
-    webhookEventSamples,
     type WebhookDelivery,
     type WebhookEndpoint,
     type WebhookSecretEntry,
@@ -27,22 +26,23 @@
   import ui, {
     Button,
     ButtonIcon,
-    CheckBox,
     Chip,
     Icon,
     IconAdd,
     Label,
     ModernEditbox,
-    ModernToggle,
     Scroller,
+    Toggle,
     eventToHTMLElement,
     showPopup
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import settingsRes from '../plugin'
   import { isApiKeyPickableSpace } from '../utils'
-  import { webhookEventLabels, webhookEventTypes, type WebhookEventType } from '../webhookEvents'
+  import { webhookEventLabels, type WebhookEventType } from '../webhookEvents'
+
   import ApiKeySpacesPopup from './ApiKeySpacesPopup.svelte'
+  import WebhookEventsPopup from './WebhookEventsPopup.svelte'
 
   export let objectId: Ref<WebhookEndpoint>
   // The sub-editor contract of the space-type editors: the frame shows this in the breadcrumbs.
@@ -94,11 +94,12 @@
   const allowHttp = location.protocol !== 'https:'
   $: urlValid = (allowHttp ? /^https?:\/\// : /^https:\/\//).test(url.trim())
 
+  // endpoint.events is a plain string[] - the doc does not restrict it to the known set at rest.
+  const eventLabels: Partial<Record<string, IntlString>> = webhookEventLabels
+
   let revealedSecretIds = new Set<string>()
   let testing = false
   let testResult: { delivered: boolean, status?: number, error?: string } | undefined
-  // Which event's sample is shown in the right-hand panel - independent of the checkbox selection.
-  let selectedExampleType: WebhookEventType = webhookEventTypes[0]
 
   async function update (upd: Partial<WebhookEndpoint>): Promise<void> {
     if (endpoint === undefined || readonly) return
@@ -110,20 +111,26 @@
     await update({ url: url.trim() })
   }
 
-  async function toggleEvent (type: WebhookEventType, checked: boolean): Promise<void> {
-    if (endpoint === undefined) return
-    const events = new Set(endpoint.events)
-    if (checked) events.add(type)
-    else events.delete(type)
-    await update({ events: Array.from(events) })
-  }
-
   async function toggleEnabled (): Promise<void> {
     if (endpoint === undefined) return
     const enabled = !endpoint.enabled
     // Re-enabling clears failureCount - delivery.ts only resets it on a successful delivery, so a manual
     // re-enable after an auto-disable would otherwise start back at the old count.
     await update({ enabled, ...(enabled ? { failureCount: 0 } : {}) })
+  }
+
+  function pickEvents (event: MouseEvent): void {
+    showPopup(
+      WebhookEventsPopup,
+      { selected: endpoint?.events ?? [] },
+      eventToHTMLElement(event),
+      undefined,
+      (result: WebhookEventType[] | undefined) => {
+        if (result != null) {
+          void update({ events: result })
+        }
+      }
+    )
   }
 
   function pickSpaces (event: MouseEvent): void {
@@ -208,7 +215,7 @@
       const base = getMetadata(setting.metadata.WebhookServiceUrl) ?? ''
       const token = getMetadata(presentation.metadata.Token) ?? ''
       const workspace = getMetadata(presentation.metadata.WorkspaceUuid) ?? ''
-      const res = await fetch(concatLink(base, `/${workspace}/test/${endpoint._id}`), {
+      const res = await fetch(concatLink(base, `/api/v1/webhook/${workspace}/test/${endpoint._id}`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -239,10 +246,8 @@
               <div class="hint warn"><Label label={settingsRes.string.WebhookUrlHttpsOnly} /></div>
             {/if}
             <div class="flex-row-center flex-between mt-4">
-              <Label
-                label={endpoint.enabled ? settingsRes.string.WebhookEnabled : settingsRes.string.WebhookDisabled}
-              />
-              <ModernToggle size="small" checked={endpoint.enabled} disabled={readonly} on:change={toggleEnabled} />
+              <Label label={settingsRes.string.WebhookEnabled} />
+              <Toggle on={endpoint.enabled} disabled={readonly} on:change={toggleEnabled} />
             </div>
           </div>
 
@@ -250,45 +255,37 @@
             <div class="hulyTableAttr-header font-medium-12">
               <Icon icon={settingsRes.icon.Setting} size="small" />
               <span><Label label={settingsRes.string.WebhookEventsLabel} /></span>
+              <ButtonIcon
+                kind="primary"
+                icon={IconAdd}
+                size="small"
+                dataId="btnPickWebhookEvents"
+                disabled={readonly}
+                on:click={pickEvents}
+              />
             </div>
-            <div class="hulyTableAttr-content">
-              <div class="flex-row-stretch flex-gap-4 eventsSection">
-                <div class="flex-col flex-gap-2 eventsList">
-                  <div class="hint"><Label label={settingsRes.string.WebhookEventsHint} /></div>
-                  {#each webhookEventTypes as type}
-                    <div class="eventRow" class:selected={selectedExampleType === type}>
-                      <CheckBox
-                        checked={endpoint.events.includes(type)}
-                        {readonly}
-                        on:value={(e) => {
-                          void toggleEvent(type, e.detail)
-                        }}
-                      />
-                      <button
-                        type="button"
-                        class="eventLabelBtn"
-                        on:click={() => {
-                          selectedExampleType = type
-                        }}
-                      >
-                        <Label label={webhookEventLabels[type]} />
-                      </button>
-                      {#if (sentByType.get(type) ?? 0) > 0}
-                        <span class="hint">
-                          <Label
-                            label={settingsRes.string.WebhookEventDeliveredCount}
-                            params={{ count: sentByType.get(type) }}
-                          />
-                        </span>
-                      {/if}
-                    </div>
+            <div class="hulyTableAttr-content section">
+              <div class="hint"><Label label={settingsRes.string.WebhookEventsHint} /></div>
+              {#if endpoint.events.length > 0}
+                {@const selectedEvents = endpoint.events}
+                <div class="chips">
+                  {#each selectedEvents as type (type)}
+                    {@const count = sentByType.get(type) ?? 0}
+                    <Chip
+                      label={eventLabels[type] ?? type}
+                      isRemovable={!readonly}
+                      on:remove={() => {
+                        void update({ events: selectedEvents.filter((t) => t !== type) })
+                      }}
+                    />
+                    {#if count > 0}
+                      <span class="hint">
+                        <Label label={settingsRes.string.WebhookEventDeliveredCount} params={{ count }} />
+                      </span>
+                    {/if}
                   {/each}
                 </div>
-                <div class="examplePanel">
-                  <div class="hint"><Label label={settingsRes.string.WebhookExamplePayload} /></div>
-                  <pre class="samplePayload">{JSON.stringify(webhookEventSamples[selectedExampleType], null, 2)}</pre>
-                </div>
-              </div>
+              {/if}
             </div>
           </div>
 
@@ -482,44 +479,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.375rem;
-  }
-  .eventsSection {
-    align-items: flex-start;
-    padding: var(--spacing-2);
-  }
-  .eventsList {
-    flex: 1;
-    min-width: 12rem;
-  }
-  .eventRow {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-
-    &.selected .eventLabelBtn {
-      color: var(--theme-caption-color);
-    }
-  }
-  .eventLabelBtn {
-    background: none;
-    border: none;
-    padding: 0;
-    color: var(--theme-content-color);
-    cursor: pointer;
-  }
-  .examplePanel {
-    flex: 1;
-    min-width: 16rem;
-  }
-  .samplePayload {
-    margin: 0.25rem 0 0;
-    padding: 0.5rem;
-    max-height: 16rem;
-    overflow: auto;
-    border-radius: 0.375rem;
-    background: var(--theme-bg-accent-color);
-    font-family: monospace;
-    font-size: 0.75rem;
   }
   .secretRow {
     display: flex;

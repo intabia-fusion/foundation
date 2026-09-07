@@ -22,6 +22,8 @@ export interface WebhookEvent {
   action: 'create' | 'update' | 'remove'
   // Domain event name, e.g. 'issue.status_changed' - see eventTable.ts's domainRules for the full set.
   type: string
+  // Email of the person behind the transaction when it resolves - the same token the ingest API takes
+  // for `assignee`/`employee`; the raw social id when it does not.
   actor: PersonId
   // For an issue update event, `identifier` (e.g. 'PROJ-123') rides along when this pod's in-process
   // cache still has it from the create - unknown, not wrong, right after a restart (see txTranslator.ts).
@@ -29,9 +31,10 @@ export interface WebhookEvent {
   // Only meaningful for action:'update' - the touched fields' values before this change. Omitted
   // (rather than guessed) for a field this pod has no prior recorded value for - see eventTable.ts.
   updatedFrom?: Record<string, unknown>
-  // Not populated yet: a deep link needs a per-class lookup (an issue's identifier lives on its
-  // Project). Kept in the shape so receivers need no parser change later.
+  /** Front link to the object this event is about - the address a receiver can open or send back. */
   url?: string
+  /** Front link to the person in `actor`, when the social id resolves to one. */
+  actorUrl?: string
   organizationId: WorkspaceUuid
 }
 

@@ -49,6 +49,8 @@ function issueKeyToken (grant: KeyGrant, workspace: WorkspaceUuid): string {
 interface TransactorEndpoint {
   transactorUrl: string
   collaboratorEndpoint?: string
+  /** Human slug, the segment front URLs carry - not the workspace uuid. */
+  workspaceUrl: string
 }
 
 // ponytail: cached for the process lifetime and identity-independent, so both target helpers share it.
@@ -58,13 +60,14 @@ const endpoints = new Map<WorkspaceUuid, Promise<TransactorEndpoint>>()
 async function loadEndpoint (config: Config, workspace: WorkspaceUuid, token: string): Promise<TransactorEndpoint> {
   const wsInfo = await getAccountClient(config.AccountsUrl, token).selectWorkspace('', 'internal')
   const transactorUrl = wsInfo.endpoint.replace('ws://', 'http://').replace('wss://', 'https://')
-  return { transactorUrl, collaboratorEndpoint: wsInfo.collaboratorEndpoint }
+  return { transactorUrl, collaboratorEndpoint: wsInfo.collaboratorEndpoint, workspaceUrl: wsInfo.workspaceUrl }
 }
 
 export interface TransactorTarget {
   /** The token used to reach the transactor - both the REST client below and any `/api/v1/ops` call use it. */
   token: string
   transactorUrl: string
+  workspaceUrl: string
   /** For `uploadMarkup` only - the pod no longer builds a `TxOperations`/`Client` over this. */
   rest: RestClient
 }
@@ -76,10 +79,10 @@ async function resolveTarget (config: Config, workspace: WorkspaceUuid, token: s
     endpoints.set(workspace, cached)
     cached.catch(() => endpoints.delete(workspace)) // don't cache a failed attempt
   }
-  const { transactorUrl, collaboratorEndpoint } = await cached
+  const { transactorUrl, collaboratorEndpoint, workspaceUrl } = await cached
 
   const rest = createRestClient(transactorUrl, workspace, token, collaboratorEndpoint)
-  return { token, transactorUrl, rest }
+  return { token, transactorUrl, workspaceUrl, rest }
 }
 
 // ponytail: cached for the process lifetime, keyed by (workspace, keyId) - a key rename needs a pod

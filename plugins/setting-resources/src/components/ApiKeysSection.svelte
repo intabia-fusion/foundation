@@ -15,7 +15,7 @@
 <script lang="ts">
   import { type ApiKeyInfo } from '@hcengineering/account-client'
   import { type Ref, type Space } from '@hcengineering/core'
-  import { ButtonIcon, Icon, IconAdd, IconDescription, Label, Loading } from '@hcengineering/ui'
+  import { ButtonIcon, Icon, IconAdd, Label, Loading } from '@hcengineering/ui'
   import settingsRes from '../plugin'
   import ApiKeyTable from './ApiKeyTable.svelte'
 
@@ -28,8 +28,6 @@
   export let statsByKey: Map<string, Map<string, number>>
   export let onCreate: (personal: boolean) => void
   export let onRevoke: (key: ApiKeyInfo) => void
-  // Only the section that every member sees carries the request constructor.
-  export let onConstruct: (() => void) | undefined = undefined
 
   $: atLimit = !loading && used >= limit
 </script>
@@ -43,16 +41,6 @@
     <div class="usage"><Label label={settingsRes.string.ApiKeysUsage} params={{ used, limit }} /></div>
   {/if}
   <div class="flex-row-center flex-gap-1">
-    {#if onConstruct !== undefined}
-      <ButtonIcon
-        kind="tertiary"
-        icon={IconDescription}
-        size="small"
-        dataId="btnConstructWebhook"
-        tooltip={{ label: settingsRes.string.WebhookConstruct }}
-        on:click={onConstruct}
-      />
-    {/if}
     <ButtonIcon
       kind="primary"
       icon={IconAdd}

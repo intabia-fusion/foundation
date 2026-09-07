@@ -36,6 +36,20 @@
 - Strings `WebhookManage`, `WebhookSaveChanges`, `WebhookLastDelivery`, `WebhookNeverDelivered` deleted
   with the modal (12 lang files).
 
+## Outgoing payload speaks the ingest vocabulary
+- `src/enrich.ts` (pod-webhook) rewrites refs into what `/api/v1/ops` accepts back: status name,
+  person email, priority name, channel name; plus `url`/`actorUrl` built in `src/links.ts` from
+  `FRONT_URL` + workspaceUrl. Unresolved values stay as ids - a decoration must never drop a field.
+- The `UrlPresenter` mixin was NOT reused: it needs Hierarchy + a loaded model, the very load this
+  pod avoids. Path shapes copied from the server presenters instead (tracker uses `identifier`,
+  document uses the trailing `_id`, chunter uses `id|class`).
+- `eventTable.test.ts`'s drift guard now allows enrichment-added keys (`message.posted` -> channel).
+
+## Test-send URL was broken from the start
+- The settings "send test" button called `/_webhook/{ws}/test/{id}`; nginx strips `/_webhook`, the
+  pod route is `/api/v1/webhook/:workspace/test/:endpointId` -> 404. Every other caller included the
+  `/api/v1/webhook` prefix; only this one did not.
+
 ## incoming permission (ApiKeySecret.incoming)
 - New independent gate, unrelated to `ops`/`unrestricted`. `verifyApiKey` computes
   `incoming: secret.incoming === true` into `ApiKeyCheck` (non-optional there, unlike the optional storage field).

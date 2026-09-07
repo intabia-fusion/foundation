@@ -25,11 +25,17 @@ describe('webhookEventSamples matches eventTable.ts', () => {
     }
   })
 
+  // Fields enrich.ts adds after the rule ran, so a receiver gets a token it can send back.
+  const enriched: Partial<Record<string, string[]>> = { 'message.posted': ['channel'] }
+
   test('a create rule sample data has exactly the id key plus the rule dataFields', () => {
     for (const rule of domainRules) {
       if (rule.kind !== 'create') continue
       const data = webhookEventSamples[rule.type].data as Record<string, unknown>
-      expect(new Set(Object.keys(data))).toEqual(new Set(['id', ...rule.dataFields]))
+      const attached = rule.attachedField !== undefined ? [rule.attachedField] : []
+      expect(new Set(Object.keys(data))).toEqual(
+        new Set(['id', ...rule.dataFields, ...attached, ...(enriched[rule.type] ?? [])])
+      )
     }
   })
 })

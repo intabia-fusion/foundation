@@ -49,9 +49,11 @@ import tracker, {
   IssuePriority,
   type NewIssue,
   type Project,
+  type TimeSpendReport,
   commentIssue,
   createIssue,
   reportTime,
+  updateTimeReport,
   updateIssue
 } from '@hcengineering/tracker'
 
@@ -313,13 +315,41 @@ const issueComment: OpsExecutor = async (client, payload) => {
 
 const issueTimeReport: OpsExecutor = async (client, payload) => {
   const issue = await resolveIssue(client, requireString(payload, 'space'))
-  const employee = (await resolvePersonByEmail(client, requireString(payload, 'employee'), 'employee')) as Ref<Employee>
-  const date = parseDate(payload, 'date')
-  const hours = requirePositiveNumber(payload, 'hours')
+  const reportId = optionalString(payload, 'id')
+  const employeeEmail = optionalString(payload, 'employee')
+  const employee =
+    employeeEmail !== undefined
+      ? ((await resolvePersonByEmail(client, employeeEmail, 'employee')) as Ref<Employee>)
+      : undefined
   const description = optionalString(payload, 'description')
 
-  const reportId = await reportTime(client, issue, employee, date, hours, description)
-  return { reportId }
+  // `id` is what the outgoing `issue.time_reported` event carries, so a receiver can send a correction
+  // back for the very report it was told about.
+  if (reportId !== undefined) {
+    const report = await client.findOne(tracker.class.TimeSpendReport, {
+      _id: reportId as Ref<TimeSpendReport>,
+      attachedTo: issue._id
+    })
+    if (report === undefined) {
+      throw badRequest(`field "id": time report not found on issue "${issue.identifier}": "${reportId}"`)
+    }
+    await updateTimeReport(client, report, {
+      employee,
+      date: 'date' in payload ? parseDate(payload, 'date') : undefined,
+      value: 'hours' in payload ? requirePositiveNumber(payload, 'hours') : undefined,
+      description
+    })
+    return { reportId: report._id }
+  }
+
+  if (employee === undefined) {
+    throw badRequest('field "employee": required when creating a time report')
+  }
+  const date = parseDate(payload, 'date')
+  const hours = requirePositiveNumber(payload, 'hours')
+
+  const created = await reportTime(client, issue, employee, date, hours, description)
+  return { reportId: created }
 }
 
 const chatPost: OpsExecutor = async (client, payload) => {

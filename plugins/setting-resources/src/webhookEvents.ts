@@ -25,6 +25,8 @@ export const webhookEventLabels: Record<WebhookEventType, IntlString> = {
   'issue.status_changed': settingRes.string.WebhookEventIssueStatusChanged,
   'issue.assigned': settingRes.string.WebhookEventIssueAssigned,
   'issue.commented': settingRes.string.WebhookEventIssueCommented,
+  'issue.time_reported': settingRes.string.WebhookEventIssueTimeReported,
+  'issue.time_report_updated': settingRes.string.WebhookEventIssueTimeReportUpdated,
   'message.posted': settingRes.string.WebhookEventMessagePosted,
   'document.created': settingRes.string.WebhookEventDocumentCreated
 }

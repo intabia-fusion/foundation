@@ -75,7 +75,7 @@ function updateTx (
   objectId: string,
   objectSpace: string,
   operations: Record<string, unknown>,
-  opts: { modifiedBy?: string } = {}
+  opts: { modifiedBy?: string, attachedTo?: string } = {}
 ): unknown {
   return {
     _id: nextTxId(),
@@ -86,7 +86,8 @@ function updateTx (
     objectSpace,
     operations,
     modifiedBy: opts.modifiedBy ?? 'actor-1',
-    modifiedOn: Date.now()
+    modifiedOn: Date.now(),
+    ...(opts.attachedTo !== undefined ? { attachedTo: opts.attachedTo, collection: 'reports' } : {})
   }
 }
 
@@ -114,6 +115,106 @@ function eventOf (
 ): WebhookEvent | undefined {
   return translated.find((t) => t.event.data.id === objectId)?.event
 }
+
+describe('buildEventsForBatch - time reports', () => {
+  test('a logged time report carries the issue it hangs on', () => {
+    const cache: ObjectCache = new Map()
+    const classCache: ClassResolutionCache = new Map()
+
+    const translated = buildEventsForBatch(domainRules, cache, classCache, [
+      ws('ws1', {
+        ...(createTx(
+          tracker.class.TimeSpendReport,
+          'report-1',
+          'space-1',
+          {
+            employee: 'person-1',
+            date: 1789084800000,
+            value: 2.5,
+            description: 'Investigated the retry loop'
+          },
+          { attachedToClass: tracker.class.Issue }
+        ) as any),
+        attachedTo: 'issue-1'
+      })
+    ])
+
+    expect(translated).toHaveLength(1)
+    expect(translated[0].event.type).toBe('issue.time_reported')
+    expect(translated[0].event.data).toEqual({
+      id: 'report-1',
+      issue: 'issue-1',
+      employee: 'person-1',
+      date: 1789084800000,
+      value: 2.5,
+      description: 'Investigated the retry loop'
+    })
+  })
+
+  test('hours and description changed together are one event, not two', () => {
+    const cache: ObjectCache = new Map()
+    const classCache: ClassResolutionCache = new Map()
+
+    buildEventsForBatch(domainRules, cache, classCache, [
+      ws('ws1', {
+        ...(createTx(
+          tracker.class.TimeSpendReport,
+          'report-1',
+          'space-1',
+          {
+            employee: 'person-1',
+            date: 1789084800000,
+            value: 2.5,
+            description: 'first'
+          },
+          { attachedToClass: tracker.class.Issue }
+        ) as any),
+        attachedTo: 'issue-1'
+      })
+    ])
+
+    const translated = buildEventsForBatch(domainRules, cache, classCache, [
+      ws(
+        'ws1',
+        updateTx(tracker.class.TimeSpendReport, 'report-1', 'space-1', { value: 3.5 }, { attachedTo: 'issue-1' })
+      ),
+      ws(
+        'ws1',
+        updateTx(
+          tracker.class.TimeSpendReport,
+          'report-1',
+          'space-1',
+          { description: 'second' },
+          { attachedTo: 'issue-1' }
+        )
+      )
+    ])
+
+    expect(translated).toHaveLength(1)
+    const event = translated[0].event
+    expect(event.type).toBe('issue.time_report_updated')
+    expect(event.data).toEqual({ id: 'report-1', issue: 'issue-1', value: 3.5, description: 'second' })
+    expect(event.updatedFrom).toEqual({ value: 2.5, description: 'first' })
+  })
+})
+
+describe('buildEventsForBatch - time report without a cached create', () => {
+  test('an edit of a report this pod never saw created still names its issue', () => {
+    const cache: ObjectCache = new Map()
+    const classCache: ClassResolutionCache = new Map()
+
+    const translated = buildEventsForBatch(domainRules, cache, classCache, [
+      ws('ws1', updateTx(tracker.class.TimeSpendReport, 'report-9', 'space-1', { value: 1.5 }, { attachedTo: 'issue-9' }))
+    ])
+
+    expect(translated).toHaveLength(1)
+    const event = translated[0].event
+    expect(event.type).toBe('issue.time_report_updated')
+    expect(event.data).toEqual({ id: 'report-9', issue: 'issue-9', value: 1.5 })
+    // Nothing to compare against after a restart: the field is omitted, not guessed.
+    expect(event.updatedFrom).toEqual({})
+  })
+})
 
 describe('buildEventsForBatch - collapsing rules', () => {
   test('create then update collapses to one create event with the final state', () => {

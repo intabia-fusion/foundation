@@ -38,9 +38,11 @@
   import { getAccountClient } from '../utils'
   import ApiKeyPopup from './ApiKeyPopup.svelte'
   import ApiKeysSection from './ApiKeysSection.svelte'
-  import ConstructIncomingWebhookPopup from './ConstructIncomingWebhookPopup.svelte'
   import CreateApiKeyPopup from './CreateApiKeyPopup.svelte'
   import CreateWebhookEndpoint from './CreateWebhookEndpoint.svelte'
+  import WebhookExamplesSection from './WebhookExamplesSection.svelte'
+  import WebhookIncomingExample from './WebhookIncomingExample.svelte'
+  import WebhookOutgoingExample from './WebhookOutgoingExample.svelte'
   import WebhookEndpointEditor from './WebhookEndpointEditor.svelte'
   import WebhookEndpointsSection from './WebhookEndpointsSection.svelte'
 
@@ -142,10 +144,6 @@
     })
   }
 
-  function openConstruct (): void {
-    showPopup(ConstructIncomingWebhookPopup, {}, 'top')
-  }
-
   onMount(loadKeys)
 
   // ---- Outgoing (webhooks), Owner only ----
@@ -160,20 +158,30 @@
     })
   }
 
-  // The endpoint editor is a page of its own, addressed by the settings path - the same shape the
-  // space type editor uses for its sub-editors.
-  $: selectedEndpoint = isOwner ? ($resolvedLocationStore.path[5] as Ref<WebhookEndpoint> | undefined) : undefined
+  // Sub-pages are addressed by the settings path, the shape the space type editor uses:
+  // path[5] names the kind, path[6] the object - here an endpoint id or which example to show.
+  $: subEditor = $resolvedLocationStore.path[5]
+  $: subObject = $resolvedLocationStore.path[6]
+  $: selectedEndpoint = isOwner && subEditor === 'endpoints' ? (subObject as Ref<WebhookEndpoint>) : undefined
+  $: selectedExample = subEditor === 'examples' && (subObject === 'incoming' || subObject === 'outgoing')
+    ? subObject
+    : undefined
   let selectedName: string | undefined
 
-  function openEndpoint (id: Ref<WebhookEndpoint> | undefined): void {
+  function openSub (kind?: string, id?: string): void {
     const loc = getCurrentResolvedLocation()
-    if (id !== undefined) {
-      loc.path[5] = id
-      loc.path.length = 6
+    if (kind !== undefined && id !== undefined) {
+      loc.path[5] = kind
+      loc.path[6] = id
+      loc.path.length = 7
     } else {
       loc.path.length = 5
     }
     navigate(loc)
+  }
+
+  function openEndpoint (id: Ref<WebhookEndpoint> | undefined): void {
+    openSub(id !== undefined ? 'endpoints' : undefined, id)
   }
 
   function createEndpoint (): void {
@@ -191,15 +199,21 @@
           { id: 'integrationKeys', label: settingsRes.string.IntegrationApiKeys },
           { id: 'outgoing', label: settingsRes.string.WebhookAccess }
         ]
-      : [])
+      : []),
+    { id: 'examples', label: settingsRes.string.WebhookExamples }
   ]
   const sectionRefs: Record<string, HTMLElement | undefined> = {}
 
   defineSeparators('integrationsSettings', secondNavSeparators)
 
+  $: exampleLabel =
+    selectedExample === 'incoming'
+      ? settingsRes.string.WebhookExamplesIncoming
+      : settingsRes.string.WebhookExamplesOutgoing
   $: bcItems = [
     { icon: settingsRes.icon.Setting, label: settingsRes.string.Integrations },
-    ...(selectedEndpoint !== undefined ? [{ title: selectedName ?? selectedEndpoint }] : [])
+    ...(selectedEndpoint !== undefined ? [{ title: selectedName ?? selectedEndpoint }] : []),
+    ...(selectedExample !== undefined ? [{ label: exampleLabel }] : [])
   ]
 </script>
 
@@ -208,9 +222,9 @@
     <Breadcrumbs
       items={bcItems}
       size="large"
-      selected={selectedEndpoint !== undefined ? 1 : 0}
+      selected={bcItems.length - 1}
       on:select={(e) => {
-        if (e.detail === 0) openEndpoint(undefined)
+        if (e.detail === 0) openSub()
       }}
     />
   </Header>
@@ -220,10 +234,14 @@
         objectId={selectedEndpoint}
         bind:name={selectedName}
         on:close={() => {
-          openEndpoint(undefined)
+          openSub()
         }}
       />
     {/key}
+  {:else if selectedExample === 'incoming'}
+    <WebhookIncomingExample />
+  {:else if selectedExample === 'outgoing'}
+    <WebhookOutgoingExample />
   {:else}
     <div class="hulyComponent-content__container columns">
       <div class="hulyComponent-content__column">
@@ -257,7 +275,6 @@
                 statsByKey={inStatsByKey}
                 onCreate={openCreate}
                 onRevoke={revokeKey}
-                onConstruct={openConstruct}
               />
             </div>
 
@@ -285,6 +302,14 @@
                 />
               </div>
             {/if}
+
+            <div id="examples" bind:this={sectionRefs.examples} class="hulyTableAttr-container">
+              <WebhookExamplesSection
+                onOpen={(id) => {
+                  openSub('examples', id)
+                }}
+              />
+            </div>
           </div>
         </Scroller>
       </div>

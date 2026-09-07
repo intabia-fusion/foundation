@@ -59,7 +59,11 @@ function makeNext (): { next: Middleware, txCalled: () => boolean, lastQuery: ()
   return { next, txCalled: () => txCalled, lastQuery: () => lastQuery }
 }
 
-interface ApiKeyGrant { canWrite: boolean, opsOnly: boolean, spaces: Ref<Space>[] }
+interface ApiKeyGrant {
+  canWrite: boolean
+  opsOnly: boolean
+  spaces: Ref<Space>[]
+}
 
 // A key narrowed to named operations, as loginWithApiKey mints it for a webhook integration.
 function opsKey (spaces: Ref<Space>[] = []): ApiKeyGrant {

@@ -24,22 +24,27 @@ import { type WebhookEventType } from '@hcengineering/setting'
 
 /** A create of `objectClass` (optionally narrowed to attachments under `attachedToClass`, e.g. telling
  * an issue comment apart from a channel post - both are a ChatMessage create). `dataFields` lists which
- * attributes end up in the event's `data`, alongside the object id which is always included. */
+ * attributes end up in the event's `data`, alongside the object id which is always included.
+ * `attachedField`, when set, also carries the parent's ref under that name - a report or a comment is
+ * useless to a receiver without the issue it belongs to. */
 export interface CreateRule {
   kind: 'create'
   objectClass: Ref<Class<Doc>>
   attachedToClass?: Ref<Class<Doc>>
   type: WebhookEventType
   dataFields: string[]
+  attachedField?: string
 }
 
 /** An update of `objectClass` that touches `field`. One rule per tracked field, not per class - so an
- * issue update touching both `status` and `assignee` produces two distinct domain events. */
+ * issue update touching both `status` and `assignee` produces two distinct domain events. Fields
+ * sharing one `type` collapse into a single event carrying all of them. */
 export interface UpdateRule {
   kind: 'update'
   objectClass: Ref<Class<Doc>>
   field: string
   type: WebhookEventType
+  attachedField?: string
 }
 
 /** A remove of `objectClass`. `data` for these is whatever this pod still has cached for the object
@@ -68,8 +73,24 @@ export const domainRules: DomainRule[] = [
     objectClass: chunter.class.ChatMessage,
     attachedToClass: tracker.class.Issue,
     type: 'issue.commented',
-    dataFields: ['message']
+    dataFields: ['message'],
+    attachedField: 'issue'
   },
+  {
+    kind: 'create',
+    objectClass: tracker.class.TimeSpendReport,
+    attachedToClass: tracker.class.Issue,
+    type: 'issue.time_reported',
+    dataFields: ['employee', 'date', 'value', 'description'],
+    attachedField: 'issue'
+  },
+  ...(['employee', 'date', 'value', 'description'] as const).map<UpdateRule>((field) => ({
+    kind: 'update',
+    objectClass: tracker.class.TimeSpendReport,
+    field,
+    type: 'issue.time_report_updated',
+    attachedField: 'issue'
+  })),
   {
     kind: 'create',
     objectClass: chunter.class.ChatMessage,

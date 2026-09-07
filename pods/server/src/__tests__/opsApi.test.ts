@@ -196,6 +196,107 @@ describe('opsApi operations registry', () => {
       })
     })
 
+    test('an id turns the call into an update of that very report', async () => {
+      const client = fakeClient()
+      const report = { _id: 'report-1', _class: tracker.class.TimeSpendReport, attachedTo: 'issue-1' }
+      client.findOne
+        .mockResolvedValueOnce({
+          _id: 'issue-1',
+          _class: 'tracker:class:Issue',
+          space: 'proj-1',
+          identifier: 'FUSIO-1'
+        })
+        .mockResolvedValueOnce(report)
+      client.addCollection = jest.fn()
+      client.update = jest.fn().mockResolvedValue(undefined)
+
+      const result = await operations['issue:time_report'](client, {
+        space: 'FUSIO-1',
+        id: 'report-1',
+        hours: 4,
+        description: 'corrected'
+      })
+
+      expect(result.reportId).toBe('report-1')
+      expect(client.addCollection).not.toHaveBeenCalled()
+      expect(client.update).toHaveBeenCalledWith(report, { value: 4, description: 'corrected' })
+    })
+
+    test('an update resolves a new employee by email and parses the date', async () => {
+      const client = fakeClient()
+      const report = { _id: 'report-1', _class: tracker.class.TimeSpendReport, attachedTo: 'issue-1' }
+      client.findOne
+        .mockResolvedValueOnce({
+          _id: 'issue-1',
+          _class: 'tracker:class:Issue',
+          space: 'proj-1',
+          identifier: 'FUSIO-1'
+        })
+        .mockResolvedValueOnce({ attachedTo: 'person-2' })
+        .mockResolvedValueOnce(report)
+      client.update = jest.fn().mockResolvedValue(undefined)
+
+      await operations['issue:time_report'](client, {
+        space: 'FUSIO-1',
+        id: 'report-1',
+        employee: 'c@d.com',
+        date: '2026-02-01'
+      })
+
+      expect(client.update).toHaveBeenCalledWith(report, {
+        employee: 'person-2',
+        date: Date.parse('2026-02-01T00:00:00.000Z')
+      })
+    })
+
+    test('an update naming no field writes nothing', async () => {
+      const client = fakeClient()
+      client.findOne
+        .mockResolvedValueOnce({
+          _id: 'issue-1',
+          _class: 'tracker:class:Issue',
+          space: 'proj-1',
+          identifier: 'FUSIO-1'
+        })
+        .mockResolvedValueOnce({ _id: 'report-1', _class: tracker.class.TimeSpendReport, attachedTo: 'issue-1' })
+      client.update = jest.fn()
+
+      const result = await operations['issue:time_report'](client, { space: 'FUSIO-1', id: 'report-1' })
+
+      expect(result.reportId).toBe('report-1')
+      expect(client.update).not.toHaveBeenCalled()
+    })
+
+    test('an id that does not belong to the issue is refused', async () => {
+      const client = fakeClient()
+      client.findOne
+        .mockResolvedValueOnce({
+          _id: 'issue-1',
+          _class: 'tracker:class:Issue',
+          space: 'proj-1',
+          identifier: 'FUSIO-1'
+        })
+        .mockResolvedValueOnce(undefined)
+
+      await expect(
+        operations['issue:time_report'](client, { space: 'FUSIO-1', id: 'report-9', hours: 1 })
+      ).rejects.toThrow('field "id": time report not found on issue "FUSIO-1": "report-9"')
+    })
+
+    test('creating without an employee names the missing field', async () => {
+      const client = fakeClient()
+      client.findOne.mockResolvedValueOnce({
+        _id: 'issue-1',
+        _class: 'tracker:class:Issue',
+        space: 'proj-1',
+        identifier: 'FUSIO-1'
+      })
+
+      await expect(
+        operations['issue:time_report'](client, { space: 'FUSIO-1', date: '2026-01-15', hours: 1 })
+      ).rejects.toThrow('field "employee": required when creating a time report')
+    })
+
     test('rejects an unknown issue', async () => {
       const client = fakeClient()
       await expect(

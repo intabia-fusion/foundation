@@ -44,6 +44,8 @@ export interface Config {
   WebhookDisableAfterFailures: number
   /** Cap on one `/api/v1/ops` call. Without it a stalled transactor holds a consumer handler forever. */
   TransactorTimeoutMs: number
+  /** Front base for the document links carried by outgoing events. Empty = links are omitted. */
+  FrontUrl: string
 }
 
 const parseNumber = (str: string | undefined, defaultVal: number): number =>
@@ -72,7 +74,8 @@ const config: Config = (() => {
     WebhookDeliveryTimeoutMs: parseNumber(process.env.WEBHOOK_DELIVERY_TIMEOUT_MS, 10000),
     WebhookMaxResponseBytes: parseNumber(process.env.WEBHOOK_MAX_RESPONSE_BYTES, 65536),
     WebhookDisableAfterFailures: parseNumber(process.env.WEBHOOK_DISABLE_AFTER_FAILURES, 3),
-    TransactorTimeoutMs: parseNumber(process.env.TRANSACTOR_TIMEOUT_MS, 30000)
+    TransactorTimeoutMs: parseNumber(process.env.TRANSACTOR_TIMEOUT_MS, 30000),
+    FrontUrl: process.env.FRONT_URL ?? ''
   }
 
   const requiredKeys: Array<keyof Config> = ['Secret', 'AccountsUrl']

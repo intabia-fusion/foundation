@@ -14,20 +14,29 @@
 -->
 <script lang="ts">
   import core from '@hcengineering/core'
-  import { getClient } from '@hcengineering/presentation'
-  import setting, { generateWebhookSecret, webhookEventSamples, type WebhookSecretEntry } from '@hcengineering/setting'
-  import { CheckBox, Label, Modal, ModernEditbox } from '@hcengineering/ui'
+  import setting, { generateWebhookSecret, type WebhookSecretEntry } from '@hcengineering/setting'
+  import presentation, { getClient } from '@hcengineering/presentation'
+  import ui, {
+    Button,
+    ButtonIcon,
+    Chip,
+    IconAdd,
+    Label,
+    Modal,
+    ModernEditbox,
+    eventToHTMLElement,
+    showPopup
+  } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import settingsRes from '../plugin'
   import { webhookEventLabels, webhookEventTypes, type WebhookEventType } from '../webhookEvents'
+  import WebhookEventsPopup from './WebhookEventsPopup.svelte'
 
   const client = getClient()
   const dispatch = createEventDispatcher()
 
   let url = ''
-  let events = new Set<WebhookEventType>()
-  // Which event's sample is shown in the right-hand panel - independent of the checkbox selection.
-  let selectedExampleType: WebhookEventType = webhookEventTypes[0]
+  let events: WebhookEventType[] = []
   let saving = false
   let error: string | undefined
 
@@ -35,12 +44,20 @@
   // ALLOW_INSECURE_WEBHOOK_HTTP - only there is an http recipient accepted.
   const allowHttp = location.protocol !== 'https:'
   $: urlValid = (allowHttp ? /^https?:\/\// : /^https:\/\//).test(url.trim())
-  $: canSave = !saving && urlValid && events.size > 0
+  $: canSave = !saving && urlValid && events.length > 0
 
-  function toggleEvent (type: WebhookEventType, checked: boolean): void {
-    if (checked) events.add(type)
-    else events.delete(type)
-    events = events
+  function pickEvents (event: MouseEvent): void {
+    showPopup(
+      WebhookEventsPopup,
+      { selected: events },
+      eventToHTMLElement(event),
+      undefined,
+      (result: WebhookEventType[] | undefined) => {
+        if (result != null) {
+          events = result
+        }
+      }
+    )
   }
 
   async function save (): Promise<void> {
@@ -55,7 +72,7 @@
       }
       const _id = await client.createDoc(setting.class.WebhookEndpoint, core.space.Workspace, {
         url: url.trim(),
-        events: Array.from(events),
+        events,
         spaces: [],
         secrets: [secret],
         enabled: true,
@@ -88,34 +105,50 @@
       <div class="hint warn"><Label label={settingsRes.string.WebhookUrlHttpsOnly} /></div>
     {/if}
 
-    <div class="flex-row-stretch flex-gap-4 eventsSection">
-      <div class="flex-col flex-gap-2 eventsList">
+    <div class="flex-col flex-gap-2">
+      <div class="flex-row-center flex-between">
         <Label label={settingsRes.string.WebhookEventsLabel} />
-        <div class="hint"><Label label={settingsRes.string.WebhookEventsHint} /></div>
-        {#each webhookEventTypes as type}
-          <div class="eventRow" class:selected={selectedExampleType === type}>
-            <CheckBox
-              checked={events.has(type)}
-              on:value={(e) => {
-                toggleEvent(type, e.detail)
+        <div class="flex-row-center flex-gap-1">
+          <ButtonIcon
+            kind="tertiary"
+            size="small"
+            icon={IconAdd}
+            tooltip={{ label: presentation.string.Add }}
+            on:click={pickEvents}
+          />
+          <Button
+            kind="ghost"
+            size="small"
+            label={settingsRes.string.ApiKeyAddAll}
+            disabled={events.length === webhookEventTypes.length}
+            on:click={() => {
+              events = [...webhookEventTypes]
+            }}
+          />
+        </div>
+      </div>
+      <div class="hint"><Label label={settingsRes.string.WebhookEventsHint} /></div>
+      {#if events.length > 0}
+        <div class="chips">
+          {#each events as type (type)}
+            <Chip
+              label={webhookEventLabels[type]}
+              isRemovable
+              on:remove={() => {
+                events = events.filter((t) => t !== type)
               }}
             />
-            <button
-              type="button"
-              class="eventLabelBtn"
-              on:click={() => {
-                selectedExampleType = type
-              }}
-            >
-              <Label label={webhookEventLabels[type]} />
-            </button>
-          </div>
-        {/each}
-      </div>
-      <div class="examplePanel">
-        <div class="hint"><Label label={settingsRes.string.WebhookExamplePayload} /></div>
-        <pre class="samplePayload">{JSON.stringify(webhookEventSamples[selectedExampleType], null, 2)}</pre>
-      </div>
+          {/each}
+          <Button
+            kind="ghost"
+            size="small"
+            label={ui.string.Clear}
+            on:click={() => {
+              events = []
+            }}
+          />
+        </div>
+      {/if}
     </div>
 
     {#if error}
@@ -125,42 +158,11 @@
 </Modal>
 
 <style lang="scss">
-  .eventsSection {
-    align-items: flex-start;
-  }
-  .eventsList {
-    flex: 1;
-    min-width: 12rem;
-  }
-  .eventRow {
+  .chips {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
-
-    &.selected .eventLabelBtn {
-      color: var(--theme-caption-color);
-    }
-  }
-  .eventLabelBtn {
-    background: none;
-    border: none;
-    padding: 0;
-    color: var(--theme-content-color);
-    cursor: pointer;
-  }
-  .examplePanel {
-    flex: 1;
-    min-width: 16rem;
-  }
-  .samplePayload {
-    margin: 0.25rem 0 0;
-    padding: 0.5rem;
-    max-height: 16rem;
-    overflow: auto;
-    border-radius: 0.375rem;
-    background: var(--theme-bg-accent-color);
-    font-family: monospace;
-    font-size: 0.75rem;
+    gap: 0.375rem;
   }
   .hint {
     color: var(--theme-dark-color);

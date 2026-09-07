@@ -814,6 +814,8 @@ services:
       # stay blocked regardless; never set either of these in production.
       - ALLOW_INSECURE_WEBHOOK_HTTP=true
       - DEV_ALLOWED_WEBHOOK_HOSTS=webhook-mock,host.docker.internal
+      # Base of the document links carried by outgoing events; the browser's own front, not a pod name.
+      - FRONT_URL=http://localhost:8087
     restart: unless-stopped
   webhook-mock:
     image: "intabiafusion/webhook-mock:${DOCKER_TAG:-latest}"

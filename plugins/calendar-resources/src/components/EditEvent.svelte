@@ -35,6 +35,7 @@
   import { isReadOnly, saveUTC, updateReccuringInstance } from '../utils'
   import CalendarSelector from './CalendarSelector.svelte'
   import EventParticipants from './EventParticipants.svelte'
+  import ParticipantsBusy from './ParticipantsBusy.svelte'
   import EventReminders from './EventReminders.svelte'
   import EventTimeEditor from './EventTimeEditor.svelte'
   import EventTimeExtraButton from './EventTimeExtraButton.svelte'
@@ -49,6 +50,10 @@
 
   const defaultDuration = 60 * 60 * 1000
   const allDayDuration = 24 * 60 * 60 * 1000 - 1
+
+  let busyPersons = new Set<Ref<Person>>()
+  // Slots of a recurring series belong to its master event, an instance has an id of its own.
+  $: ignoreEventId = (object as ReccuringInstance).recurringEventId ?? object.eventId
 
   let startDate = object.date
   const duration = object.dueDate - object.date
@@ -198,7 +203,14 @@
     </div>
     <div class="block rightCropPadding">
       <LocationEditor bind:value={location} focusIndex={10005} {readOnly} />
-      <EventParticipants bind:participants bind:externalParticipants disabled={readOnly} focusIndex={10006} />
+      <EventParticipants
+        bind:participants
+        bind:externalParticipants
+        disabled={readOnly}
+        focusIndex={10006}
+        {busyPersons}
+      />
+      <ParticipantsBusy {participants} date={startDate} {dueDate} {ignoreEventId} bind:busyPersons />
       <ComponentExtensions extension={calendar.extensions.EditEventExtensions} props={{ readOnly, value: object }} />
     </div>
     <div class="block description">

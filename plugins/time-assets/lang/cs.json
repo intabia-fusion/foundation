@@ -44,6 +44,8 @@
     "MyWork": "Moje práce",
     "WeekCalendar": "Týden",
     "DayCalendar": "Den",
+    "MonthCalendar": "Měsíc",
+    "YearCalendar": "Rok",
     "GotoTimePlaning": "Plánování",
     "GotoTimeTeamPlaning": "Plánování týmu",
     "NewToDo": "Nová akční položka",
@@ -55,10 +57,14 @@
     "MarkedAsDone": "Dokončeno",
     "WorkSchedule": "Pracovní plán",
     "SummaryDuration": "Souhrn",
+    "Busy": "Zaneprázdněn",
     "UnassignToDo": "Odebrat přiřazení akční položky",
     "UnassignToDoConfirm": "Chcete odebrat přiřazení této akční položky? Akční položka bude odebrána z plánovače přiřazeného uživatele.",
     "ReassignToDo": "Změnit přiřazení akční položky",
-    "ReassignToDoConfirm": "Chcete změnit přiřazení akční položky? Akční položka bude odebrána z plánovače aktuálního přiřazeného uživatele."
+    "ReassignToDoConfirm": "Chcete změnit přiřazení akční položky? Akční položka bude odebrána z plánovače aktuálního přiřazeného uživatele.",
+    "Occupancy": "Vytíženost",
+    "ShowEvents": "Události",
+    "ShowActivity": "Aktivita"
   },
   "emailTemplate": {
     "ToDoCreatedNotificationText": "{body}",

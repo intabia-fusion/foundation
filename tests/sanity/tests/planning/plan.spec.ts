@@ -305,7 +305,7 @@ test.describe('Planning ToDo tests', () => {
     const page2 = _page2.page
     const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
 
-    await leftSideMenuPageSecond.clickTeam()
+    await leftSideMenuPageSecond.clickPlanner()
     const teamPage = new TeamPage(page2)
     await teamPage.checkTeamPageIsOpened()
     await teamPage.selectTeam('Default')

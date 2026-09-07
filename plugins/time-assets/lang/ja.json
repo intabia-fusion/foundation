@@ -44,6 +44,8 @@
     "MyWork": "自分の作業",
     "WeekCalendar": "週",
     "DayCalendar": "日",
+    "MonthCalendar": "月",
+    "YearCalendar": "年",
     "GotoTimePlaning": "計画",
     "GotoTimeTeamPlaning": "チーム計画",
     "NewToDo": "新しいアクションアイテム",
@@ -55,10 +57,14 @@
     "MarkedAsDone": "完了しました",
     "WorkSchedule": "作業スケジュール",
     "SummaryDuration": "概要",
+    "Busy": "取り込み中",
     "UnassignToDo": "アクションアイテムの担当者を解除",
     "UnassignToDoConfirm": "このアクションアイテムの担当者を解除しますか？アクションアイテムは担当者のプランナーから削除されます。",
     "ReassignToDo": "アクションアイテムの担当者を変更",
-    "ReassignToDoConfirm": "アクションアイテムの担当者を変更しますか？アクションアイテムは現在の担当者のプランナーから削除されます。"
+    "ReassignToDoConfirm": "アクションアイテムの担当者を変更しますか？アクションアイテムは現在の担当者のプランナーから削除されます。",
+    "Occupancy": "稼働状況",
+    "ShowEvents": "イベント",
+    "ShowActivity": "アクティビティ"
   },
   "emailTemplate": {
     "ToDoCreatedNotificationText": "{body}",

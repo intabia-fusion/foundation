@@ -80,14 +80,10 @@ export class PlanningPage extends CalendarPage {
     this.popup().locator('div.month-container > div.header > div:last-child > button:first-child')
 
   readonly buttonPrevDayInSchedule = (): Locator =>
-    this.page
-      .locator('div.hulyHeader-container', { hasText: 'Schedule:' })
-      .locator('div.hulyHeader-buttonsGroup > button:first-child')
+    this.page.locator('div.hulyComponent.modal div.hulyHeader-container .actions button[data-id="btnPrev"]')
 
   readonly buttonNextDayInSchedule = (): Locator =>
-    this.page
-      .locator('div.hulyHeader-container', { hasText: 'Schedule:' })
-      .locator('div.hulyHeader-buttonsGroup > button:last-child')
+    this.page.locator('div.hulyComponent.modal div.hulyHeader-container .actions button[data-id="btnNext"]')
 
   readonly selectInputToDo = (): Locator =>
     this.toDosContainer().getByPlaceholder('Add Action Item, press Enter to save')

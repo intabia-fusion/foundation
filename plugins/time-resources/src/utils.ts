@@ -1,10 +1,11 @@
-import { getCurrentAccount, type Client, type Ref } from '@hcengineering/core'
+import { getCurrentAccount, type Client, type Ref, type Space } from '@hcengineering/core'
 import { getClient } from '@hcengineering/presentation'
 import type { ToDo, WorkSlot } from '@hcengineering/time'
 import time from '@hcengineering/time'
 import type { DefSeparators } from '@hcengineering/ui'
 
 import calendarPlugin, { AccessLevel, getPrimaryCalendar, type Calendar } from '@hcengineering/calendar'
+import { getCurrentEmployeeSpace } from '@hcengineering/contact'
 
 export * from './types'
 
@@ -26,6 +27,14 @@ export const timeSeparators: DefSeparators = [
   null,
   { minSize: 25, size: 41.25, maxSize: 90 }
 ]
+
+/**
+ * With the todo list hidden the Planner shows two panels, not three - Separator indexes
+ * straight into this config, so the layouts need one entry set (and one name) each.
+ *
+ * @public
+ */
+export const timeSeparatorsNoToDos: DefSeparators = [{ minSize: 18, size: 18, maxSize: 22.5, float: 'navigator' }, null]
 
 /**
  * @public
@@ -61,6 +70,11 @@ export function calculateEventsDuration (events: WorkSlot[]): number {
   })
 
   return duration
+}
+
+// A ProjectToDo's workslot goes to the project space, a plain ToDo's workslot to the owner's personal space.
+export function getWorkSlotSpace (todo: Pick<ToDo, 'attachedSpace'>): Ref<Space> {
+  return todo.attachedSpace ?? getCurrentEmployeeSpace()
 }
 
 export async function findPrimaryCalendar (): Promise<Ref<Calendar>> {

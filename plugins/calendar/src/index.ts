@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Contact, Employee } from '@hcengineering/contact'
+import { Contact, Employee, Person } from '@hcengineering/contact'
 import type {
   AttachedDoc,
   Class,
@@ -22,6 +22,7 @@ import type {
   Mixin,
   PersonId,
   Ref,
+  Space,
   SystemSpace,
   Timestamp
 } from '@hcengineering/core'
@@ -97,7 +98,8 @@ export interface ReccuringEvent extends Event {
  * @public
  */
 export interface Event extends AttachedDoc {
-  space: Ref<SystemSpace>
+  // PersonSpace of the owner; subclasses may live elsewhere (WorkSlot).
+  space: Ref<Space>
   eventId: string
   title: string
   description: Markup
@@ -153,6 +155,31 @@ export interface ReccuringInstance extends ReccuringEvent {
 
 /**
  * @public
+ *
+ * Free/busy interval without event content. Lives in the shared space so anyone
+ * planning a meeting can read it.
+ */
+export interface BusySlot extends Doc {
+  person: Ref<Person>
+
+  // Source event, key for upsert and removal.
+  eventId: string
+
+  date: Timestamp
+  dueDate: Timestamp
+  allDay: boolean
+  // Title of a `public` event, empty for everything else - the only detail a non-participant may see.
+  title?: string
+  timeZone?: string
+
+  // Recurrence rules, occurrences are not materialized.
+  rules?: RecurringRule[]
+  exdate?: Timestamp[]
+  rdate?: Timestamp[]
+}
+
+/**
+ * @public
  */
 export interface CalendarEventPresenter extends Class<Event> {
   presenter: AnyComponent
@@ -200,6 +227,7 @@ const calendarPlugin = plugin(calendarId, {
     ReccuringEvent: '' as Ref<Class<ReccuringEvent>>,
     ReccuringInstance: '' as Ref<Class<ReccuringInstance>>,
     Schedule: '' as Ref<Class<Schedule>>,
+    BusySlot: '' as Ref<Class<BusySlot>>,
     PrimaryCalendar: '' as Ref<Class<PrimaryCalendar>>
   },
   mixin: {

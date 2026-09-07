@@ -123,6 +123,7 @@ export default plugin(timeId, {
     Me: '' as AnyComponent,
     Team: '' as AnyComponent,
     EditToDo: '' as AnyComponent,
+    PersonDayWidget: '' as AnyComponent,
     ToDoPresenter: '' as AnyComponent
   },
   class: {
@@ -138,7 +139,8 @@ export default plugin(timeId, {
   ids: {
     NotAttached: '' as Ref<Doc>,
     TimeNotificationGroup: '' as Ref<Doc>,
-    ToDoCreated: '' as Ref<TxNotificationType>
+    ToDoCreated: '' as Ref<TxNotificationType>,
+    PersonDayWidget: '' as Ref<Doc>
   },
   space: {
     ToDos: '' as Ref<Space>

@@ -325,7 +325,13 @@
     "CreateAndOpen": "Создать и открыть",
     "CreateAndNew": "Создать и начать новую",
     "ExportToCSV": "Экспорт в CSV",
-    "ExportToCSVTooltip": "Экспортировать отображаемые задачи в CSV файл"
+    "ExportToCSVTooltip": "Экспортировать отображаемые задачи в CSV файл",
+    "EstimationTask": "Оценка",
+    "EstimationSubtask": "Подзадачи",
+    "EstimationTotalTime": "Суммарно",
+    "ReportedTaskTime": "Потраченное время",
+    "ReportedSubtaskTime": "Подзадачи",
+    "ReportedTotalTime": "Суммарно"
   },
   "status": {},
   "emailTemplate": {

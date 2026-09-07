@@ -16,7 +16,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import attachment, { type Attachment } from '@hcengineering/attachment'
   import { Button, IconDelete, Loading, showPopup } from '@hcengineering/ui'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
   import { deleteObjects, FixedColumn, ObjectPresenter } from '@hcengineering/view-resources'
   import contact from '@hcengineering/contact'
   import { createEventDispatcher } from 'svelte'

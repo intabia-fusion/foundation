@@ -37,10 +37,11 @@
   export let value: number
   export let kind: 'no-border' | 'link' = 'no-border'
   export let size: 'small' | 'medium' | 'large' = 'large'
-  export let currentProject: Project | undefined
+  export let currentProject: Project | undefined = undefined
   export let readonly: boolean = false
   export let draft: boolean = false
   export let onChange: ((val: any) => void) | undefined = undefined
+  export let showChildIssues: boolean = true
 
   $: if (currentProject === undefined) {
     currentProject = $activeProjects.get(object.space)
@@ -110,14 +111,18 @@
   >
     {#if numericValue !== undefined}
       <span class="flex-row-center">
-        <TimePresenter value={numericValue + childTime} />
-        {#if numericValue !== numericValue + childTime}
-          <span class="ml-1">
-            (<TimePresenter value={numericValue} />
-            {#if childTime !== 0}
-              / <TimePresenter value={childTime} />)
-            {/if}
-          </span>
+        {#if showChildIssues}
+          <TimePresenter value={numericValue + childTime} />
+          {#if numericValue !== numericValue + childTime}
+            <span class="ml-1">
+              (<TimePresenter value={numericValue} />
+              {#if childTime !== 0}
+                / <TimePresenter value={childTime} />)
+              {/if}
+            </span>
+          {/if}
+        {:else}
+          <TimePresenter value={numericValue} />
         {/if}
       </span>
     {:else}

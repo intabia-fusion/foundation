@@ -14,8 +14,9 @@
 //
 
 import { Ref } from '@hcengineering/core'
-import { ProjectType, TaskType } from './index'
-import { getAllowedChildTaskTypes, getAllowedParentTaskTypes, getRootTaskTypes } from './utils'
+
+import { ProjectType, TaskType } from '../index'
+import { getAllowedChildTaskTypes, getAllowedParentTaskTypes, getRootTaskTypes } from '../utils'
 
 describe('Task type hierarchy helpers', () => {
   const projectType1 = 'proj-1' as Ref<ProjectType>

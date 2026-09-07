@@ -59,7 +59,7 @@ test.describe('Tracker duplicate issue tests', () => {
     await test.step('Update the first issue title', async () => {
       const newIssueTitle = `Duplicate Update issue-${generateId()}`
       await issuesPage.openIssueById(firstIssueId)
-      await issuesDetailsPage.inputTitle().fill(newIssueTitle)
+      await issuesDetailsPage.setTitle(newIssueTitle)
       await issuesDetailsPage.checkIssue({
         ...firstIssue,
         title: newIssueTitle

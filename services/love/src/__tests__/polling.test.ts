@@ -604,3 +604,126 @@ describe('office owner leaves', () => {
     expect(roomClient.deleteRoom).not.toHaveBeenCalled()
   })
 })
+
+describe('only the AI agent is left in the room', () => {
+  const human = 'person-human' as Ref<Person>
+  const GRACE_MS = 15000
+  let roomClient: ReturnType<typeof createMockRoomClient>
+  let wsClient: Record<string, jest.Mock>
+  let service: LiveKitPollingService
+
+  /** One poll cycle: `humans` join as regular participants, the AI bot as a `kind: 4` agent. */
+  async function pollWith (opts: { humans: Array<Ref<Person>>, agent?: boolean, humansLeftAt?: number }): Promise<void> {
+    const metadata: Record<string, unknown> = { projectKey: 'test-project' }
+    if (opts.humansLeftAt !== undefined) metadata.humansLeftAt = opts.humansLeftAt
+    roomClient.listRooms.mockResolvedValue([{ name: roomName, metadata: JSON.stringify(metadata) }])
+    const participants: any[] = opts.humans.map((identity, i) => ({ identity, sid: `sid-${i}`, kind: 0 }))
+    if (opts.agent !== false) {
+      participants.push({ identity: 'ai-person', sid: 'sid-agent', kind: 4, permission: { agent: true } })
+    }
+    roomClient.listParticipants.mockResolvedValue(participants)
+    await (service as any).poll()
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    roomClient = createMockRoomClient()
+    wsClient = createMockWsClient()
+    ;(WorkspaceClient.create as jest.Mock).mockResolvedValue(wsClient)
+
+    service = new LiveKitPollingService(
+      createMockContext(),
+      roomClient as any,
+      { intervalMs: 1000, projectKey: 'test-project', ownerRejoinGraceMs: GRACE_MS },
+      undefined
+    )
+    ;(service as any).isRunning = true
+  })
+
+  it('leaves the room alone while a human is still there', async () => {
+    await pollWith({ humans: [human] })
+
+    expect(roomClient.deleteRoom).not.toHaveBeenCalled()
+    expect(roomClient.updateRoomMetadata).not.toHaveBeenCalled()
+  })
+
+  it('stamps the departure on the first poll with the agent alone', async () => {
+    await pollWith({ humans: [] })
+
+    expect(roomClient.deleteRoom).not.toHaveBeenCalled()
+    const raw = roomClient.updateRoomMetadata.mock.calls[0]?.[1]
+    expect(JSON.parse(raw).humansLeftAt).toEqual(expect.any(Number))
+  })
+
+  it('keeps the room inside the grace period', async () => {
+    await pollWith({ humans: [], humansLeftAt: Date.now() - 1000 })
+
+    expect(roomClient.deleteRoom).not.toHaveBeenCalled()
+  })
+
+  it('closes the room once the humans have been gone past the grace', async () => {
+    await pollWith({ humans: [], humansLeftAt: Date.now() - GRACE_MS - 1000 })
+
+    expect(roomClient.deleteRoom).toHaveBeenCalledWith(roomName)
+  })
+
+  it('clears the stamp when a human comes back', async () => {
+    await pollWith({ humans: [human], humansLeftAt: Date.now() - GRACE_MS - 1000 })
+
+    expect(roomClient.deleteRoom).not.toHaveBeenCalled()
+    expect(roomClient.updateRoomMetadata).toHaveBeenCalledWith(roomName, JSON.stringify({ projectKey: 'test-project' }))
+  })
+
+  it('leaves a fully empty room to LiveKit', async () => {
+    await pollWith({ humans: [], agent: false, humansLeftAt: Date.now() - GRACE_MS - 1000 })
+
+    expect(roomClient.deleteRoom).not.toHaveBeenCalled()
+  })
+})
+
+describe('a room that has not had anyone in it yet', () => {
+  const GRACE_MS = 15000
+  let roomClient: ReturnType<typeof createMockRoomClient>
+  let service: LiveKitPollingService
+
+  /** `creationTime` is LiveKit's, in seconds. */
+  async function pollWithRoomAge (ageMs: number): Promise<void> {
+    const creationTime = Math.floor((Date.now() - ageMs) / 1000)
+    roomClient.listRooms.mockResolvedValue([
+      { name: roomName, metadata: JSON.stringify({ projectKey: 'test-project' }), creationTime }
+    ])
+    roomClient.listParticipants.mockResolvedValue([
+      { identity: 'ai-person', sid: 'sid-agent', kind: 4, permission: { agent: true } }
+    ])
+    await (service as any).poll()
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    roomClient = createMockRoomClient()
+    ;(WorkspaceClient.create as jest.Mock).mockResolvedValue(createMockWsClient())
+
+    service = new LiveKitPollingService(
+      createMockContext(),
+      roomClient as any,
+      { intervalMs: 1000, projectKey: 'test-project', ownerRejoinGraceMs: GRACE_MS },
+      undefined
+    )
+    ;(service as any).isRunning = true
+  })
+
+  // The agent is dispatched at room creation, before the joiner's WebSocket is up.
+  it('does not stamp a room younger than the grace', async () => {
+    await pollWithRoomAge(2000)
+
+    expect(roomClient.updateRoomMetadata).not.toHaveBeenCalled()
+    expect(roomClient.deleteRoom).not.toHaveBeenCalled()
+  })
+
+  it('stamps once the room is older than the grace and nobody came', async () => {
+    await pollWithRoomAge(GRACE_MS + 1000)
+
+    const raw = roomClient.updateRoomMetadata.mock.calls[0]?.[1]
+    expect(JSON.parse(raw).humansLeftAt).toEqual(expect.any(Number))
+  })
+})

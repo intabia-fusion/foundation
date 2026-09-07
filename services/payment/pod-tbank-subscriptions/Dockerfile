@@ -1,4 +1,4 @@
-FROM intabiafusion/base:v20251218
+FROM intabiafusion/base:v20260309
 WORKDIR /app
 
 # T-Bank API serves a chain signed by Russian Trusted CA (НУЦ Минцифры), absent from Node's

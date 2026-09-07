@@ -23,12 +23,30 @@ import { SelectWorkspacePage } from '../model/select-workspace-page'
 import { ChannelPage } from '../model/channel-page'
 import { IssuesPage } from '../model/tracker/issues-page'
 import { NewIssue } from '../model/tracker/types'
+import { connectTracker } from '../API/TrackerApi'
+import { type Class, type Doc, type Ref } from '@hcengineering/core'
 
 test.use({
   storageState: PlatformSetting
 })
 
 test.describe('Planning ToDo tests', () => {
+  // Every run leaves a ToDo in the same slot, and EventElement renders no title once a block is
+  // narrower than 44px - the drag then looks lost and each retry adds another block.
+  test.beforeAll(async () => {
+    // Literal class refs: the time plugin is not a dependency of the test package.
+    const toDoClass = 'time:class:ToDo' as Ref<Class<Doc & { title: string }>>
+    const workSlotClass = 'time:class:WorkSlot' as Ref<Class<Doc>>
+    const { client } = await connectTracker()
+    const stale = (await client.findAll(toDoClass, {})).filter((it) => it.title.startsWith('ToDo to change duration'))
+    for (const todo of stale) {
+      for (const slot of await client.findAll(workSlotClass, { attachedTo: todo._id } as any)) {
+        await client.remove(slot)
+      }
+      await client.remove(todo)
+    }
+  })
+
   test.beforeEach(async ({ page }) => {
     await (await page.goto(`${PlatformURI}/workbench/sanity-ws/time`))?.finished()
   })

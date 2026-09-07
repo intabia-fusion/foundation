@@ -266,6 +266,7 @@ services:
       - TELEGRAM_URL=http://localhost:8086
       - STORAGE_CONFIG=${STORAGE_CONFIG}
       - BRANDING_URL=http://localhost:8083/branding-test.json
+      - USE_BINARY_PROTOCOL=${USE_BINARY_PROTOCOL:-}
       - STATS_URL=http://stats:4901
       - STATS_API=http://localhost:8083/_stats
       - STREAM_URL=http://localhost:8083/_stream/recording
@@ -565,7 +566,13 @@ services:
       # a global webhook in livekit-test-config.yaml pointing back to love
       # via nginx, so per-egress webhook override is not needed.
       - POLLING_ENABLED=true
+      # Test stand only: the peer of a leaving office owner sits in a dead meeting until the
+      # grace expires, so 15s of default grace was 31s of the love suite. 8s still covers a
+      # host refresh under load. The interval stays at the default: at 3s the poller evicted
+      # live participants on a stale snapshot ("ParticipantInfo with stale sessionId"), and the
+      # grace deadline is pulled forward by scheduleNext anyway.
       - POLLING_INTERVAL_MS=10000
+      - OWNER_REJOIN_GRACE_SEC=8
       - PENDING_JOIN_TIMEOUT_MS=60000
       - STATS_URL=http://stats:4901
       - QUEUE_CONFIG=${QUEUE_CONFIG}

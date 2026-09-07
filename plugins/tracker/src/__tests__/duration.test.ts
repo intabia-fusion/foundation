@@ -2,8 +2,8 @@ import { formatDuration, formatDurationCompact } from '../duration'
 
 describe('duration formatting', () => {
   it('keeps every unit in the full form', () => {
-    expect(formatDuration(18 * 5 * 8 + 3 * 8 + 5.5)).toEqual('18w 3d 5h 30m')
-    expect(formatDuration(8 + 4)).toEqual('1d 4h')
+    expect(formatDuration(18 * 5 * 8 + 3 * 8 + 5.5)).toEqual('749h 30m')
+    expect(formatDuration(8 + 4)).toEqual('12h')
     expect(formatDuration(0)).toEqual('0m')
   })
 

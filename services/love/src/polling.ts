@@ -390,6 +390,7 @@ export class LiveKitPollingService {
     this.roomStates.set(roomName, state)
 
     await this.closeRoomIfOwnerGone(room, state, currentParticipants)
+    await this.closeRoomIfAgentsOnly(room, state, currentParticipants, allParticipants)
 
     // Bill the un-sent meeting-minutes delta for every real (non-agent) participant still in the room.
     await this.trackMeetingMinutesBilling(workspace, roomName, currentParticipants, sentByParticipant)
@@ -444,6 +445,64 @@ export class LiveKitPollingService {
       this.roomStates.delete(state.roomName)
     } catch (err: any) {
       this.ctx.warn('[PollingService] Failed to close the room after the owner left', {
+        roomName: state.roomName,
+        error: err?.message ?? String(err)
+      })
+    }
+  }
+
+  // Safety net, not the primary path: LiveKit 1.13.6 closes an agent-only room on its own
+  // `departureTimeout`, but if a deployment ever keeps such a room alive, `room_finished` never
+  // arrives and the meeting stays Active. Same stamp-in-metadata scheme as `ownerLeftAt`, so
+  // replicas share the clock. See docs/memory/love_one_person_two_meetings.md.
+  private async closeRoomIfAgentsOnly (
+    room: Room,
+    state: RoomState,
+    humans: Map<string, LiveKitParticipant>,
+    all: Map<string, LiveKitParticipant>
+  ): Promise<void> {
+    // Nobody at all - LiveKit drops an empty room on its own.
+    if (all.size === 0) return
+
+    const humansLeftAt = parseMetadata(room.metadata).humansLeftAt
+
+    if (humans.size > 0) {
+      if (humansLeftAt !== undefined) {
+        await updateMetadata(this.ctx, this.roomClient, state.roomName, { humansLeftAt: undefined })
+      }
+      return
+    }
+
+    // A room is created by `/getToken`, and the agent is dispatched into it before the joiner's
+    // WebSocket is up (that connect allows 20s). Stamping right away would race the very first
+    // join, so leave a fresh room alone for one grace period.
+    const createdMs = Number(room.creationTime ?? 0) * 1000
+    if (createdMs > 0 && Date.now() - createdMs < this.config.ownerRejoinGraceMs) {
+      this.nextGraceDeadline = Math.min(this.nextGraceDeadline, createdMs + this.config.ownerRejoinGraceMs)
+      return
+    }
+
+    if (humansLeftAt === undefined) {
+      await updateMetadata(this.ctx, this.roomClient, state.roomName, { humansLeftAt: Date.now() })
+      this.nextGraceDeadline = Math.min(this.nextGraceDeadline, Date.now() + this.config.ownerRejoinGraceMs)
+      return
+    }
+
+    const missingMs = Date.now() - humansLeftAt
+    if (missingMs < this.config.ownerRejoinGraceMs) {
+      this.nextGraceDeadline = Math.min(this.nextGraceDeadline, humansLeftAt + this.config.ownerRejoinGraceMs)
+      return
+    }
+
+    try {
+      await this.roomClient.deleteRoom(state.roomName)
+      this.ctx.info('[PollingService] Only agents left past the grace, closed the room', {
+        meetingId: state.meetingId,
+        missingMs
+      })
+      this.roomStates.delete(state.roomName)
+    } catch (err: any) {
+      this.ctx.warn('[PollingService] Failed to close the agent-only room', {
         roomName: state.roomName,
         error: err?.message ?? String(err)
       })

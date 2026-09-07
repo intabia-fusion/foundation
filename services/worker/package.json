@@ -30,16 +30,16 @@
     "_phase:validate": "compile validate"
   },
   "devDependencies": {
-    "@tsconfig/node16": "^1.0.4",
+    "@tsconfig/node16": "^16.1.9",
     "cross-env": "~7.0.3",
-    "@types/node": "^22.18.1",
+    "@types/node": "^24.13.3",
     "@types/ws": "^8.5.12",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@hcengineering/platform-rig": "workspace:^0.7.19",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",
     "@types/jest": "^29.5.5",
-    "@types/uuid": "^8.3.1",
+    "@types/uuid": "^11.0.0",
     "@typescript-eslint/parser": "^6.21.0",
     "esbuild": "^0.25.10",
     "eslint": "^8.54.0",
@@ -58,7 +58,7 @@
     "@hcengineering/process": "workspace:^0.7.0",
     "@hcengineering/core": "workspace:^0.7.24",
     "@hcengineering/server-core": "workspace:^0.7.18",
-    "postgres": "^3.4.7",
-    "dotenv": "^16.4.5"
+    "postgres": "^3.4.9",
+    "dotenv": "^16.6.1"
   }
 }

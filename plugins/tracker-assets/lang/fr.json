@@ -306,7 +306,13 @@
     "CreateAndOpen": "Créer et ouvrir",
     "CreateAndNew": "Créer et en commencer une autre",
     "ExportToCSV": "Exporter en CSV",
-    "ExportToCSVTooltip": "Exporter les tâches visibles vers un fichier CSV"
+    "ExportToCSVTooltip": "Exporter les tâches visibles vers un fichier CSV",
+    "EstimationTask": "Estimation",
+    "EstimationSubtask": "Sous-tâches",
+    "EstimationTotalTime": "Total",
+    "ReportedTaskTime": "Temps passé",
+    "ReportedSubtaskTime": "Sous-tâches",
+    "ReportedTotalTime": "Total"
   },
   "status": {},
   "emailTemplate": {

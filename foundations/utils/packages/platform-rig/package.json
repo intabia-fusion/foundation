@@ -10,7 +10,7 @@
     "./profiles/*": "./profiles/*"
   },
   "dependencies": {
-    "@node-rs/xxhash": "^1.7.6",
+    "@node-rs/xxhash": "^1.7.7",
     "typescript": "^5.9.3",
     "esbuild": "^0.25.10",
     "esbuild-plugin-copy": "~2.1.1",

@@ -58,7 +58,7 @@
     "@hcengineering/view": "workspace:^0.7.0",
     "@hcengineering/view-resources": "workspace:^0.7.0",
     "@hcengineering/workbench": "workspace:^0.7.0",
-    "filesize": "^8.0.3",
+    "filesize": "^11.0.23",
     "svelte": "^4.2.20"
   },
   "repository": "https://github.com/hcengineering/platform",

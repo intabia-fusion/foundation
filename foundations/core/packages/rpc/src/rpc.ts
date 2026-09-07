@@ -90,14 +90,16 @@ export function rpcJSONReplacer (key: string, value: any): any {
 
 export function rpcJSONReceiver (key: string, value: any): any {
   if (typeof value === 'object' && value !== null) {
-    if (value.dataType === 'TotalArray') {
+    // Array check: a document holding the same dataType must not be boxed by Object.assign.
+    if (value.dataType === 'TotalArray' && Array.isArray(value.value)) {
       return Object.assign(value.value, { total: value.total, lookupMap: value.lookupMap })
     } else if (
       'domain' in value &&
       typeof value.domain === 'string' &&
       'value' in value &&
       value.value != null &&
-      value.value.dataType === 'TotalArray'
+      value.value.dataType === 'TotalArray' &&
+      Array.isArray(value.value.value)
     ) {
       return {
         ...value,

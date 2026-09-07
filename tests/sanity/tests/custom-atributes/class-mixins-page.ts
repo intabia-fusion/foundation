@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { retry } from '../retry'
 
 export class ClassMixinsPage {
   readonly page: Page
@@ -9,8 +10,11 @@ export class ClassMixinsPage {
 
   classNavItem = (name: string): Locator => this.page.getByRole('button', { name, exact: true })
   createMixinButton = (): Locator => this.page.getByRole('button', { name: 'Create Mixin' })
-  mixinNameInput = (): Locator => this.page.getByPlaceholder('Name')
-  createPopupButton = (): Locator => this.page.getByRole('button', { name: 'Create', exact: true })
+  // Scoped to the popup: unscoped, `Name` also matches fields on the class panel behind it, so a
+  // popup that never opened was filled silently and the wait for its Create button burned a minute.
+  createMixinPopup = (): Locator => this.page.locator('form.antiCard')
+  mixinNameInput = (): Locator => this.createMixinPopup().getByPlaceholder('Name')
+  createPopupButton = (): Locator => this.createMixinPopup().getByRole('button', { name: 'Create', exact: true })
   mixinChip = (name: string): Locator => this.page.getByRole('button', { name: `Mixin: ${name}`, exact: true })
   mixinCard = (name: string): Locator => this.page.locator('.mixinItem', { hasText: `Mixin: ${name}` })
   mixinDeleteButton = (name: string): Locator => this.mixinCard(name).locator('button.button').last()
@@ -30,6 +34,18 @@ export class ClassMixinsPage {
 
   async clickCreatePopupButton (): Promise<void> {
     await this.createPopupButton().click()
+  }
+
+  /** Retried as a whole - the popup can be closed by a re-render of the freshly created workspace. */
+  async createMixin (name: string): Promise<void> {
+    await retry(async () => {
+      if (await this.mixinChip(name).isVisible()) return
+      await this.createMixinButton().click()
+      await expect(this.mixinNameInput()).toBeVisible({ timeout: 5000 })
+      await this.mixinNameInput().fill(name)
+      await this.createPopupButton().click({ timeout: 5000 })
+      await expect(this.mixinChip(name)).toBeVisible({ timeout: 10000 })
+    }, 45000)
   }
 
   async checkMixinExists (name: string): Promise<void> {

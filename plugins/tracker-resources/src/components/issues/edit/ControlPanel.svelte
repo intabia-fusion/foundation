@@ -18,8 +18,8 @@
   import { AttributeBarEditor, getClient, KeyedAttribute } from '@hcengineering/presentation'
   import { Person } from '@hcengineering/contact'
   import tags from '@hcengineering/tags'
-  import type { Issue } from '@hcengineering/tracker'
-  import { Component, Label } from '@hcengineering/ui'
+  import { Issue, reduceChildInfoTree } from '@hcengineering/tracker'
+  import { Component, Label, floorFractionDigits } from '@hcengineering/ui'
   import { getDocMixins, getFiltredKeys, isCollectionAttr, ObjectBox } from '@hcengineering/view-resources'
 
   import tracker from '../../../plugin'
@@ -29,6 +29,9 @@
   import DueDateEditor from '../DueDateEditor.svelte'
   import PriorityEditor from '../PriorityEditor.svelte'
   import StatusEditor from '../StatusEditor.svelte'
+  import EstimationValueEditor from '../timereport/EstimationValueEditor.svelte'
+  import ReportedTimeEditor from '../timereport/ReportedTimeEditor.svelte'
+  import TimePresenter from '../timereport/TimePresenter.svelte'
 
   export let issue: Issue
   export let showAllMixins: boolean = false
@@ -48,7 +51,10 @@
     'milestone',
     'relations',
     'blockedBy',
-    'identifier'
+    'identifier',
+    'estimation',
+    'reportedTime',
+    'remainingTime'
   ]
 
   const allowedCollections = ['collaborators']
@@ -71,7 +77,7 @@
     const filtredKeys = getFiltredKeys(
       hierarchy,
       mixin,
-      [],
+      ignoreKeys,
       hierarchy.isMixin(mixinClass.extends as Ref<Class<Doc>>) ? mixinClass.extends : issue._class
     )
     return filtredKeys.filter((key) => !isCollectionAttr(hierarchy, key) || allowedCollections.includes(key.key))
@@ -85,6 +91,18 @@
     })
   } else {
     creatorPersonRef = undefined
+  }
+
+  $: childInfos = issue.childInfo ?? []
+  $: treeInfo = reduceChildInfoTree(childInfos, 0, 0)
+  $: hasSubtasks = (issue.subIssues ?? 0) > 0
+  $: estimationTotal = floorFractionDigits((issue.estimation ?? 0) + (treeInfo?.totalEstimation ?? 0), 3)
+  $: reportedTotal = floorFractionDigits((issue.reportedTime ?? 0) + (treeInfo?.totalReportedTime ?? 0), 3)
+  $: remainingTotal = floorFractionDigits(estimationTotal - reportedTotal, 3)
+
+  function updateEstimation (val: number | undefined): void {
+    if (val === undefined) return
+    void client.update(issue, { estimation: val })
   }
 </script>
 
@@ -168,6 +186,85 @@
     <DueDateEditor value={issue} width={'100%'} editable={!readonly} />
   {/if}
 
+  {#if hasSubtasks}
+    <div class="divider" />
+    <span class="labelOnPanel"><Label label={tracker.string.EstimationTask} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <EstimationValueEditor
+        placeholder={tracker.string.EstimationTask}
+        value={issue.estimation}
+        object={issue}
+        onChange={updateEstimation}
+        kind={'link'}
+        {readonly}
+      />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.EstimationSubtask} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <TimePresenter value={treeInfo.totalEstimation} />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.EstimationTotalTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <TimePresenter value={estimationTotal} />
+    </div>
+
+    <div class="divider" />
+
+    <span class="labelOnPanel"><Label label={tracker.string.ReportedTaskTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <ReportedTimeEditor
+        placeholder={tracker.string.ReportedTime}
+        object={issue}
+        value={issue.reportedTime}
+        showChildIssues={false}
+        kind={'link'}
+        {readonly}
+      />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.ReportedSubtaskTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <TimePresenter value={floorFractionDigits(treeInfo.totalReportedTime, 3)} />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.ReportedTotalTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <TimePresenter value={reportedTotal} />
+    </div>
+  {:else}
+    <div class="divider" />
+    <span class="labelOnPanel"><Label label={tracker.string.Estimation} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <EstimationValueEditor
+        placeholder={tracker.string.Estimation}
+        value={issue.estimation}
+        object={issue}
+        onChange={updateEstimation}
+        kind={'link'}
+        {readonly}
+      />
+    </div>
+
+    <span class="labelOnPanel"><Label label={tracker.string.ReportedTime} /></span>
+    <div class="flex flex-grow min-w-0 time-value">
+      <ReportedTimeEditor
+        placeholder={tracker.string.ReportedTime}
+        object={issue}
+        value={issue.reportedTime}
+        kind={'link'}
+        {readonly}
+      />
+    </div>
+  {/if}
+
+  <div class="divider" />
+  <span class="labelOnPanel"><Label label={tracker.string.RemainingTime} /></span>
+  <div class="flex flex-grow min-w-0 time-value">
+    <TimePresenter value={hasSubtasks ? remainingTotal : issue.remainingTime} />
+  </div>
+
   {#if keys.length > 0}
     <div class="divider" />
     {#each keys as key (typeof key === 'string' ? key : key.key)}
@@ -216,3 +313,13 @@
     {/if}
   {/each}
 </div>
+
+<style lang="scss">
+  .time-value {
+    padding: 0 0.75rem;
+
+    :global(.link-container) {
+      padding: 0;
+    }
+  }
+</style>

@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
 import { Issue, NewIssue } from './types'
 import { convertEstimation } from '../../tracker/tracker.utils'
-import { retry, retryIntervals } from '../../retry'
+import { retry, retryIntervals, waitStable } from '../../retry'
 
 export class IssuesDetailsPage extends CommonTrackerPage {
   readonly page: Page
@@ -125,9 +125,23 @@ export class IssuesDetailsPage extends CommonTrackerPage {
     await this.buttonRemoveBlocking().click()
   }
 
+  // The panel binds the document after the input mounts, so an early fill is overwritten by the
+  // stored title with nothing failing until a later check.
+  async setTitle (title: string): Promise<void> {
+    await expect(async () => {
+      await this.inputTitle().fill(title)
+      const settled = await waitStable(async () => await this.inputTitle().inputValue(), {
+        stableFor: 1000,
+        interval: 100,
+        timeout: 5000
+      })
+      expect(settled).toBe(title)
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
+  }
+
   async editIssue (data: Issue): Promise<void> {
     if (data.title != null) {
-      await this.inputTitle().fill(data.title)
+      await this.setTitle(data.title)
     }
     if (data.status != null) {
       const status = data.status
@@ -136,8 +150,14 @@ export class IssuesDetailsPage extends CommonTrackerPage {
       await expect(async () => {
         await this.buttonStatus().click()
         await this.selectFromDropdown(this.page, status)
+        // Wait for the value to stop changing, not for one matching read: the stored status arrives
+        // over the fresh one a moment later, and the check at the end of the test sees that one.
         // Case-insensitive on purpose: callers pass labels like "ToDo" while the UI renders "Todo".
-        await expect(this.buttonStatus()).toHaveText(status, { timeout: 3000, ignoreCase: true })
+        const settled = await waitStable(
+          async () => ((await this.buttonStatus().textContent()) ?? '').trim().toLowerCase(),
+          { stableFor: 1000, interval: 200, timeout: 8000 }
+        )
+        expect(settled).toBe(status.toLowerCase())
       }).toPass({ intervals: retryIntervals, timeout: 20000 })
     }
     if (data.priority != null) {
@@ -299,7 +319,14 @@ export class IssuesDetailsPage extends CommonTrackerPage {
     // hits a strict-mode violation or links the wrong issue, and the relation check fails later.
     const item = this.popupListItems(issueTitle)
     await expect(item).toHaveCount(1, { timeout: 15000 })
-    await item.click()
+    // The popup closing is the receipt for the click: a click that lands while the list is still
+    // re-rendering leaves it open, and the relation this was supposed to create never appears -
+    // which only shows up much later, as a missing row on the issue.
+    await retry(async () => {
+      if ((await this.page.locator('div.popup').count()) === 0) return
+      await item.click()
+      await expect(this.page.locator('div.popup')).toHaveCount(0, { timeout: 3000 })
+    }, 20000)
   }
 
   async moreActionOnIssueWithSecondLevel (actionFirst: string, actionSecond: string): Promise<void> {

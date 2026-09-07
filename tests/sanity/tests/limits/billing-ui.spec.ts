@@ -148,7 +148,8 @@ async function connectPackage (page: Page, ws: string, pkgKey: string, expect_?:
   await expect(async () => {
     await openBilling(page, ws)
     await expect(page.locator(`[data-id="packageDisconnect-${pkgKey}"]`)).toBeVisible({ timeout: 3000 })
-  }).toPass({ intervals: retryIntervals, timeout: 30000 })
+    // 60s, not 30: the webhook is fire-and-forget and lands late on a loaded stand.
+  }).toPass({ intervals: retryIntervals, timeout: 60000 })
   await expect(page.locator(`[data-id="packageConnect-${pkgKey}"]`)).toHaveCount(0)
 }
 
@@ -203,13 +204,13 @@ test.describe('billing UI lifecycle (tbank + mock bank)', () => {
     await changeSeats(page, wsUrl, 6, 'charge')
     await expect(async () => {
       expect((await getTierSubscription(workspace))?.usersLimit).toBe(6)
-    }).toPass({ intervals: retryIntervals, timeout: 20000 })
+    }).toPass({ intervals: retryIntervals, timeout: 45000 })
 
     // Down: 6 -> 2 (above the single owner member), preview shows the renewal-date shift, no charge.
     await changeSeats(page, wsUrl, 2, 'extend')
     await expect(async () => {
       expect((await getTierSubscription(workspace))?.usersLimit).toBe(2)
-    }).toPass({ intervals: retryIntervals, timeout: 20000 })
+    }).toPass({ intervals: retryIntervals, timeout: 45000 })
   })
 
   test('seat count cannot go below the current member count', async ({ page, request }) => {

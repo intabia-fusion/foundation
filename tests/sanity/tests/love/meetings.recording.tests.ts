@@ -73,9 +73,10 @@ export function registerRecordingTests (): void {
       try {
         const roomName = await firstAvailableRoom(page)
         test.skip(roomName === null, 'No regular room available')
+        const since = Date.now()
         await joinRoom(page, roomName as string)
 
-        const meeting = await waitRoomMeeting(roomName as string)
+        const meeting = await waitRoomMeeting(roomName as string, 30000, since)
         const button = recordButton(page)
         // The button only renders when the service reports storage configured (`/checkRecordAvailable`).
         test.skip((await button.count()) === 0, 'Recording is not configured on this stand')
@@ -111,9 +112,10 @@ export function registerRecordingTests (): void {
         await openLove(page)
         const roomName = await firstAvailableRoom(page)
         test.skip(roomName === null, 'No regular room available')
+        const since = Date.now()
         await joinRoom(page, roomName as string)
 
-        meeting = await waitRoomMeeting(roomName as string)
+        meeting = await waitRoomMeeting(roomName as string, 30000, since)
         // Gate on the service, not on the button: this test never touches the UI control.
         const available = await (await fetch(`${loveEndpoint()}/checkRecordAvailable`)).json()
         test.skip(available !== true, 'Recording is not configured on this stand')
@@ -158,9 +160,10 @@ export function registerRecordingTests (): void {
       try {
         const roomName = await firstAvailableRoom(page)
         test.skip(roomName === null, 'No regular room available')
+        const since = Date.now()
         await joinRoom(page, roomName as string)
 
-        const meeting = await waitRoomMeeting(roomName as string)
+        const meeting = await waitRoomMeeting(roomName as string, 30000, since)
 
         // Straight at love's endpoint: the button routes through ai-bot, whose transcription
         // provider is not deployed on the stand, and that has nothing to do with what is asserted.

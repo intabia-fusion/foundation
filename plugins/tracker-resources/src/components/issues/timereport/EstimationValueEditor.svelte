@@ -30,10 +30,10 @@
   export let size: ButtonSize = 'small'
   export let justify: 'left' | 'center' = 'left'
   export let width: string | undefined = '100%'
-  export let attributeKey: string
+  // export let attributeKey: string | undefined = undefined
 
-  $: childInfos = object?.childInfo ?? []
-  $: treeResult = reduceChildInfoTree(childInfos, 0, 0)
+  // $: childInfos = object?.childInfo ?? []
+  // $: treeResult = reduceChildInfoTree(childInfos, 0, 0)
 
   function openEditor (ev: MouseEvent): void {
     ev.stopPropagation()
@@ -54,14 +54,7 @@
   on:click={readonly ? undefined : openEditor}
 >
   {#if value != null}
-    <span class="flex-row-center">
-      {#if childInfos.length > 0 && attributeKey === 'estimation'}
-        <TimePresenter {value} /><span>/</span>
-        <TimePresenter value={treeResult.totalEstimation} />
-      {:else}
-        <TimePresenter {value} />
-      {/if}
-    </span>
+    <TimePresenter {value} />
   {:else}
     <span class="content-dark-color"><Label label={placeholder} /></span>
   {/if}

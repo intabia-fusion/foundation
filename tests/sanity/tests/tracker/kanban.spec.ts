@@ -84,7 +84,9 @@ async function dragUntilStatus (
     .toBe(target)
 }
 
-test.use({ storageState: PlatformSetting })
+// Wide on purpose: with the statuses other specs add the board needs ~2000px, and at 1440 a drag
+// has to scroll the board while the pointer is down - the source card unmounts and the drop is lost.
+test.use({ storageState: PlatformSetting, viewport: { width: 2200, height: 1000 } })
 
 test.describe('Kanban board', () => {
   let client: TxOperations
@@ -795,15 +797,15 @@ test.describe('Kanban board', () => {
 
     await openTrackerBoard(page, ctx.project._id)
 
+    const board = new KanbanBoardPage(page)
     // Switch ordering to Modified date so dontUpdateRank=true.
-    await page.locator('button[data-id="btn-viewOptions"]').click()
+    await board.openViewOptions()
     const orderingRow = page.locator('.antiCard-menu__item', { hasText: 'Ordering' })
     await orderingRow.waitFor({ state: 'visible', timeout: 5000 })
     await orderingRow.locator('button').click()
     await page.locator('.menu-item').filter({ hasText: 'Modified date' }).first().click()
     await page.keyboard.press('Escape')
 
-    const board = new KanbanBoardPage(page)
     const todo = ctx.statuses.get('Todo') as string
     await board.revealCard(c1)
     await board.revealCard(c2)

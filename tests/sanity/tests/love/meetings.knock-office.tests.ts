@@ -82,5 +82,43 @@ export function registerKnockOfficeTests (): void {
         ])
       }
     })
+
+    test('repeated knocks from one person never stack in the owner list', async ({ browser }) => {
+      test.setTimeout(90000)
+
+      const { ctx: ownerCtx, page: owner } = await loveWindow(browser, 'second')
+      const { ctx: knockerCtx, page: knocker } = await loveWindow(browser, 'third')
+
+      try {
+        const ownerLast = 'Dirak'
+        await connectToOwnOffice(owner, ownerLast)
+
+        await clickOfficeOf(knocker, ownerLast)
+        await expect(knocker.locator('[data-id="meeting-knock"]').first()).toBeVisible({ timeout: 30000 })
+
+        // Knock/cancel cycles race the trigger: the invite-response of a cancelled
+        // request may still be in flight while the next request fans out.
+        const cancelBtn = knocker.locator('[data-id="meeting-knock-pending"]').first()
+        for (let i = 0; i < 4; i++) {
+          await knockAndWaitPending(knocker)
+          if (i < 3) {
+            await cancelBtn.click()
+            await expect(knocker.locator('[data-id="meeting-knock"]').first()).toBeVisible({ timeout: 15000 })
+          }
+        }
+
+        const items = owner.locator('[data-id="knocking-item"]')
+        await expect(items).toHaveCount(1, { timeout: 30000 })
+        // Duplicates would only die on the 30s TTL, so re-check after the dust settles.
+        await owner.waitForTimeout(5000)
+        await expect(items).toHaveCount(1)
+        await expect(owner.locator('[data-id="knocking-list"] .counter')).toHaveText('1')
+      } finally {
+        await closeMeetingContexts([
+          { ctx: ownerCtx, pages: [owner] },
+          { ctx: knockerCtx, pages: [knocker] }
+        ])
+      }
+    })
   })
 }

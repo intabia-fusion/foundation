@@ -13,13 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Issue, reduceChildInfoTree } from '@hcengineering/tracker'
+  import { Issue } from '@hcengineering/tracker'
   import { floorFractionDigits, Label, tooltip } from '@hcengineering/ui'
   import { FixedColumn } from '@hcengineering/view-resources'
   import tracker from '../../plugin'
   import EstimationProgressCircle from '../issues/timereport/EstimationProgressCircle.svelte'
   import TimePresenter from '../issues/timereport/TimePresenter.svelte'
-  import { getEmbeddedLabel } from '@hcengineering/platform'
   export let docs: Issue[] | undefined = undefined
   export let itemsProj: Issue[] | undefined = undefined
   export let capacity: number | undefined = undefined
@@ -29,27 +28,14 @@
 
   $: noParents = docs?.filter((it) => !ids.has(it.attachedTo))
 
+  const fallback: Issue[] = [{ reportedTime: 0, childInfo: [], estimation: 0 } as unknown as Issue]
+
   $: totalEstimation = floorFractionDigits(
-    (noParents ?? [{ reportedTime: 0, childInfo: [], estimation: 0 } as unknown as Issue])
-      .map((it) => {
-        const tree = reduceChildInfoTree(it.childInfo ?? [], it.estimation, it.reportedTime)
-        return Math.max(it.estimation ?? 0, tree.totalEstimation ?? 0)
-      })
-      .reduce((it, cur) => {
-        return it + cur
-      }, 0),
+    (docs ?? []).reduce((sum, it) => sum + (it.estimation ?? 0), 0),
     3
   )
-
   $: totalReported = floorFractionDigits(
-    (noParents ?? [{ reportedTime: 0, childInfo: [], estimation: 0 } as unknown as Issue])
-      .map((it) => {
-        const tree = reduceChildInfoTree(it.childInfo ?? [], it.estimation, it.reportedTime)
-        return tree.totalReportedTime
-      })
-      .reduce((it, cur) => {
-        return it + cur
-      }, 0),
+    (docs ?? []).reduce((sum, it) => sum + (it.reportedTime ?? 0), 0),
     3
   )
 </script>

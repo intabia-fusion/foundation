@@ -41,6 +41,7 @@
   import workflow from '@hcengineering/workflow'
 
   import TaskTypeTiedWorkflows from './TaskTypeTiedWorkflows.svelte'
+  import ExportTaskTypePopup from './ExportTaskTypePopup.svelte'
   import { taskTypeStore } from '../..'
   import plugin from '../../plugin'
   import StatesProjectEditor from '../state/StatesProjectEditor.svelte'
@@ -217,6 +218,11 @@
     }
   }
 
+  function handleExport (): void {
+    if (taskType == null) return
+    showPopup(ExportTaskTypePopup, { taskType, taskTypes }, 'center')
+  }
+
   onDestroy(() => {
     clearSettingsStore()
   })
@@ -242,7 +248,7 @@
                   />
                 {/if}
               </div>
-              <div class="flex-row">
+              <div class="flex-row gap-1">
                 <ModernButton
                   icon={IconSquareExpand}
                   label={plugin.string.CountTasks}
@@ -254,6 +260,13 @@
                   on:click={() => {
                     showIssuesOfTaskType()
                   }}
+                />
+                <ButtonIcon
+                  icon={task.icon.Export}
+                  tooltip={{ label: plugin.string.Export }}
+                  kind="secondary"
+                  size="small"
+                  on:click={handleExport}
                 />
                 {#if canDelete}
                   <ButtonIcon

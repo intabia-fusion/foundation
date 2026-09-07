@@ -16,12 +16,14 @@
 import { expect, test } from '@playwright/test'
 
 import {
+  roomPanelConnect,
   clickFirstAvailableRoom,
   clickRoomByName,
   closeMeetingContexts,
   loveWindow,
   openMeetingMinutes,
   startOrJoin,
+  connectedMarker,
   waitConnected,
   waitForActiveMeetingsToFinish
 } from './meeting-helpers'
@@ -58,17 +60,18 @@ export function registerWorkspaceOwnerTests (): void {
 
         // user1 opens the same room. As workspace owner they must see the
         // Connect button (not Knock) because middleware grants them access.
-        const connect = page1.locator('[data-id="meeting-connect"]').getByRole('button').first()
+        const connect = roomPanelConnect(page1)
         // Until the privacy flip reaches user1 the panel renders Knock and Connect does not exist,
         // so waiting on it alone only burns the timeout. Re-open the room until the view settles.
+        // The click belongs inside the retry: the MeetingMinutes page of a meeting finished in the
+        // previous test carries its own Connect button, and pressing that one connects to nothing.
         await retry(async () => {
           await clickRoomByName(page1, room as string)
           await expect(connect).toBeVisible({ timeout: 3000 })
-        }, 30000)
-        await connect.click()
-
-        // The widget proves LiveKit accepted the token; a broken owner-bypass would give 403.
-        await waitConnected(page1)
+          await connect.click()
+          // The widget proves LiveKit accepted the token; a broken owner-bypass would give 403.
+          await expect.poll(async () => await connectedMarker(page1).count(), { timeout: 10000 }).toBeGreaterThan(0)
+        }, 45000)
         // user2's widget must still be present — joining the same meeting
         // must not kick the original owner out.
         await expect(page2.locator('[data-id="meeting-widget"]')).toBeVisible()

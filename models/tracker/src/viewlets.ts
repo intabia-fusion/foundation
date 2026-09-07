@@ -220,6 +220,13 @@ export function issueConfig (
       props: { kind: 'list' }
     },
     {
+      key: 'reportedTime',
+      label: tracker.string.ReportedTime,
+      presenter: tracker.component.ReportedTimeListPresenter,
+      props: { kind: 'list', size: 'small' },
+      displayProps: { key: key + 'reportedTime', fixed: 'left', optional: true, dividerBefore: true }
+    },
+    {
       key: '',
       label: tracker.string.Estimation,
       presenter: tracker.component.EstimationEditor,
@@ -267,7 +274,6 @@ export function defineViewlets (builder: Builder): void {
           'relations',
           'description',
           'number',
-          'reportedTime',
           'reports',
           'priority',
           'component',

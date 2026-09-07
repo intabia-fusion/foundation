@@ -13,12 +13,14 @@
   limitations under the License.
 */
 
-import { type Ref, type TxOperations } from '@hcengineering/core'
+import { generateId, type Ref, type TxOperations, type WorkspaceUuid } from '@hcengineering/core'
 import workflow, {
   importWorkflowConfig,
   removeTransition,
   setWorkflow,
-  type TransitionConfig,
+  type RequestConfig,
+  type ValidatorConfig,
+  type PostFunctionConfig,
   type Workflow,
   type WorkflowTransition
 } from '@hcengineering/workflow'
@@ -38,6 +40,16 @@ import {
 } from './workflow.fixtures'
 
 const Statuses = ['Backlog', 'Todo', 'InProgress', 'InReview', 'Done', 'Cancelled']
+const wsUuid = 'test-workspace-uuid' as unknown as WorkspaceUuid
+
+interface TransitionSpec {
+  name: string
+  from: string[] | null
+  to: string
+  requests?: RequestConfig[]
+  validators?: ValidatorConfig[]
+  postFunctions?: PostFunctionConfig[]
+}
 
 describe('workflow transitions', () => {
   let client: TxOperations
@@ -53,7 +65,7 @@ describe('workflow transitions', () => {
 
   /** Creates a project, imports one workflow and binds it to the given task types. */
   async function withWorkflow (
-    transitions: TransitionConfig[],
+    transitions: TransitionSpec[],
     opts: {
       initialStatuses?: string[]
       defaultStatus?: string
@@ -65,12 +77,40 @@ describe('workflow transitions', () => {
     const ctx = await createProject(type, opts.defaultStatus ?? 'Backlog')
     const taskType = opts.taskType ?? 'Issue'
     const bindTo = opts.bindTo ?? [taskType]
+    const wfId = generateId<Workflow>()
     const res = await importWorkflowConfig(client, type.projectTypeId, {
       version: 1,
-      workflows: [{ name, taskType, initialStatuses: opts.initialStatuses, transitions }],
-      projects: [{ identifier: ctx.identifier, workflows: Object.fromEntries(bindTo.map((t) => [t, name])) }]
+      exportDate: new Date().toISOString(),
+      workspace: wsUuid,
+      projectTypeId: type.projectTypeId,
+      statuses: Statuses.map((s) => ({ id: type.statuses[s], name: s, color: 0 })),
+      workflows: [
+        {
+          id: wfId,
+          name,
+          taskTypeName: taskType,
+          taskTypeId: type.taskTypes[taskType],
+          initialStatuses: opts.initialStatuses?.map((s) => type.statuses[s]),
+          transitions: transitions.map((t) => ({
+            id: generateId(),
+            name: t.name,
+            from: t.from == null ? null : t.from.map((s) => type.statuses[s]),
+            to: type.statuses[t.to],
+            requests: t.requests,
+            validators: t.validators,
+            postFunctions: t.postFunctions
+          }))
+        }
+      ],
+      projects: [
+        {
+          project: ctx.projectId,
+          identifier: ctx.identifier,
+          workflows: Object.fromEntries(bindTo.map((t) => [t, name]))
+        }
+      ]
     })
-    return { ctx, workflowId: res.workflows[name], name }
+    return { ctx, workflowId: res.workflows[wfId], name }
   }
 
   it('allows any transition when no workflow is bound', async () => {
@@ -265,11 +305,29 @@ describe('workflow transitions', () => {
     const ctx = await createProject(type, 'Backlog')
     await importWorkflowConfig(client, type.projectTypeId, {
       version: 1,
+      exportDate: new Date().toISOString(),
+      workspace: wsUuid,
+      projectTypeId: type.projectTypeId,
+      statuses: Statuses.map((s) => ({ id: type.statuses[s], name: s, color: 0 })),
       workflows: [
-        { name: `${name} I`, taskType: 'Issue', transitions: [{ name: 'Start', from: ['Backlog'], to: 'Todo' }] },
-        { name: `${name} B`, taskType: 'Bug', transitions: [{ name: 'Start', from: ['Backlog'], to: 'Todo' }] }
+        {
+          id: generateId(),
+          name: `${name} I`,
+          taskTypeName: 'Issue',
+          taskTypeId: type.taskTypes.Issue,
+          transitions: [{ id: generateId(), name: 'Start', from: [type.statuses.Backlog], to: type.statuses.Todo }]
+        },
+        {
+          id: generateId(),
+          name: `${name} B`,
+          taskTypeName: 'Bug',
+          taskTypeId: type.taskTypes.Bug,
+          transitions: [{ id: generateId(), name: 'Start', from: [type.statuses.Backlog], to: type.statuses.Todo }]
+        }
       ],
-      projects: [{ identifier: ctx.identifier, workflows: { Issue: `${name} I`, Bug: `${name} B` } }]
+      projects: [
+        { project: ctx.projectId, identifier: ctx.identifier, workflows: { Issue: `${name} I`, Bug: `${name} B` } }
+      ]
     })
     for (const taskType of ['Issue', 'Bug']) {
       const issue = await createIssue(ctx, { status: 'Backlog', taskType })
@@ -331,8 +389,12 @@ describe('workflow transitions', () => {
     const other = await createProject(type, 'Backlog')
     await importWorkflowConfig(client, type.projectTypeId, {
       version: 1,
-      workflows: [{ name, taskType: 'Issue' }],
-      projects: [{ identifier: other.identifier, workflows: { Issue: name } }]
+      exportDate: new Date().toISOString(),
+      workspace: wsUuid,
+      projectTypeId: type.projectTypeId,
+      statuses: Statuses.map((s) => ({ id: type.statuses[s], name: s, color: 0 })),
+      workflows: [{ id: generateId(), name, taskTypeName: 'Issue', taskTypeId: type.taskTypes.Issue }],
+      projects: [{ project: other.projectId, identifier: other.identifier, workflows: { Issue: name } }]
     })
     for (const project of [ctx, other]) {
       const issue = await createIssue(project, { status: 'Backlog' })
@@ -444,8 +506,20 @@ describe('workflow transitions', () => {
     const name = `WF ${uniqueSuffix()}`
     await importWorkflowConfig(client, type.projectTypeId, {
       version: 1,
-      workflows: [{ name, taskType: 'Issue', transitions: [{ name: 'Only', from: ['Backlog'], to: 'Todo' }] }],
-      projects: [{ identifier: ctx.identifier, workflows: { Issue: name } }]
+      exportDate: new Date().toISOString(),
+      workspace: wsUuid,
+      projectTypeId: type.projectTypeId,
+      statuses: Statuses.map((s) => ({ id: type.statuses[s], name: s, color: 0 })),
+      workflows: [
+        {
+          id: generateId(),
+          name,
+          taskTypeName: 'Issue',
+          taskTypeId: type.taskTypes.Issue,
+          transitions: [{ id: generateId(), name: 'Only', from: [type.statuses.Backlog], to: type.statuses.Todo }]
+        }
+      ],
+      projects: [{ project: ctx.projectId, identifier: ctx.identifier, workflows: { Issue: name } }]
     })
     const err = await expectRejected(async () => {
       await setStatus(ctx, issue, 'Done')

@@ -15,7 +15,7 @@
   import { Label, tooltip } from '@hcengineering/ui'
   import type { IntlString } from '@hcengineering/platform'
   import billingPlugin from '@hcengineering/billing'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
 
   interface TypeStats {
     type: string

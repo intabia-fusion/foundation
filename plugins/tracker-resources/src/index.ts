@@ -130,6 +130,7 @@ import ComponentSelector from './components/components/ComponentSelector.svelte'
 
 import IssueTemplatePresenter from './components/templates/IssueTemplatePresenter.svelte'
 import IssueTemplates from './components/templates/IssueTemplates.svelte'
+import ReportedTimeListPresenter from './components/issues/timereport/ReportedTimeListPresenter.svelte'
 
 import {
   AggregationManager,
@@ -519,7 +520,8 @@ export default async (): Promise<Resources> => ({
     ParentIssuePresenter,
     ParentIssueSelector,
     TimeSpendReportList,
-    RemoveRelationButton
+    RemoveRelationButton,
+    ReportedTimeListPresenter
   },
   completion: {
     IssueQuery: async (client: Client, query: string, filter?: { in?: RelatedDocument[], nin?: RelatedDocument[] }) =>

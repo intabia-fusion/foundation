@@ -36,6 +36,7 @@ import { plugin } from '@hcengineering/platform'
 import type { AnyComponent, ComponentExtensionId } from '@hcengineering/ui'
 import { Action, IconProps, ViewletDescriptor } from '@hcengineering/view'
 
+export * from './transfer'
 export * from './utils'
 export type { Rank } from '@hcengineering/rank'
 
@@ -265,7 +266,9 @@ const task = plugin(taskId, {
     ManageTemplates: '' as Asset,
     TaskState: '' as Asset,
     Dashboard: '' as Asset,
-    TypeHierarchy: '' as Asset
+    TypeHierarchy: '' as Asset,
+    Export: '' as Asset,
+    Import: '' as Asset
   },
   global: {
     // Global task root, if not attached to some other object.

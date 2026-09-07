@@ -87,8 +87,9 @@ export function registerHostRefreshTests (): void {
         // shouldn't treat as "left for good".
         await owner.reload({ waitUntil: 'load' })
 
-        // Give the departureTimeout (3s) + webhook round-trip room to fire.
-        await guest.waitForTimeout(8000)
+        // Past OWNER_REJOIN_GRACE_SEC (8s on the stand): the room closes only when the owner is
+        // still missing when the grace expires, so a shorter wait would pass without proving it.
+        await guest.waitForTimeout(10000)
 
         // Defect: the guest gets disconnected because the host's refresh
         // closed the whole LiveKit room (owner-office leave -> deleteRoom).

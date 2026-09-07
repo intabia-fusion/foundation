@@ -1,15 +1,10 @@
-FROM intabiafusion/base:v20251218
+FROM intabiafusion/love-agent-base:v20260309
 WORKDIR /usr/src/app
-
-RUN npm install -g pnpm
-
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-ENV PNPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS=true
 
 COPY package.json package.json
 COPY pnpm-lock.yaml pnpm-lock.yaml
 
+# No-op when the lock matches the base image; pulls only the delta when it drifted.
 RUN pnpm install --ignore-scripts=false
 
 # @livekit/local-inference (pulled in by @livekit/agents >= 1.6.4 for local audio EOT) is built

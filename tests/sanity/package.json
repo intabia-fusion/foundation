@@ -19,9 +19,10 @@
     "format": "format tests",
     "ci": "playwright install --with-deps chromium",
     "test": "",
-    "uitest": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts --grep-invert @llm",
+    "uitest": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts --grep-invert \"@llm|@network\"",
     "uitest:telemetry": "telemetry/run.sh",
     "run-uitests": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts --grep @llm",
+    "uitest-network": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts --grep @network",
     "staging-uitest": "cross-env PLATFORM_URI=https://front.hc.engineering/ playwright test -c ./tests/playwright.config.ts --grep @staging",
     "dev-uitest": "cross-env PLATFORM_URI=http://localhost:8080 PLATFORM_TRANSACTOR=ws://localhost:3332 WORKSPACE_REGION=cockroach DEV_URL=http://localhost:8080/account playwright test -c ./tests/playwright.config.ts",
     "debug": "cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= playwright test -c ./tests/playwright.config.ts --debug --headed",
@@ -33,7 +34,7 @@
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",
     "@types/jest": "^29.5.5",
-    "@types/node": "^22.18.1",
+    "@types/node": "^24.13.3",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-promise": "^6.1.1",
@@ -49,7 +50,7 @@
     "@faker-js/faker": "^8.4.1"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "cross-env": "~7.0.3",
     "@hcengineering/core": "workspace:^0.7.24",
     "@hcengineering/client-resources": "workspace:^0.7.18",
@@ -61,6 +62,7 @@
     "@hcengineering/tracker": "workspace:^0.7.0",
     "@hcengineering/task": "workspace:^0.7.0",
     "@hcengineering/rank": "workspace:^0.7.17",
-    "pdf-parse": "~2.4.5"
+    "pdf-parse": "~2.4.5",
+    "livekit-server-sdk": "^2.18.0"
   }
 }

@@ -11,7 +11,7 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Currently the latest version available for both amd64 and arm64 on Debian 12
 # see https://pptr.dev/supported-browsers
-ARG CHROMIUM_VERSION="147.0.7727.137-1~deb12u1"
+ARG CHROMIUM_VERSION="151.0.7922.173-1~deb12u1"
 
 # Install Chromium and fonts
 # https://github.com/puppeteer/puppeteer/blob/main/docs/troubleshooting.md?plain=1#L397

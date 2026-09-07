@@ -61,6 +61,7 @@
     {icon}
     {size}
     {kind}
+    {loading}
     disabled={disabled || loading}
     shape={hasDropdown ? 'rectangle-right' : undefined}
     {justify}
@@ -90,8 +91,7 @@
       borderStyle="none"
       on:click={openDropdown}
       {size}
-      {disabled}
-      {loading}
+      disabled={disabled || loading}
       {noFocus}
     >
       <div slot="icon">

@@ -14,24 +14,36 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import core, { notEmpty, Ref, Status, WithLookup } from '@hcengineering/core'
-  import { Asset } from '@hcengineering/platform'
-  import { createQuery, getClient, MessageBox } from '@hcengineering/presentation'
+  import { Asset, Severity, Status as PlatformStatus, setPlatformStatus } from '@hcengineering/platform'
+  import {
+    copyTextToClipboard,
+    createQuery,
+    getClient,
+    getCurrentWorkspaceUuid,
+    MessageBox
+  } from '@hcengineering/presentation'
   import { clearSettingsStore } from '@hcengineering/setting-resources'
-  import { ProjectType, TaskType } from '@hcengineering/task'
+  import task, { ProjectType, TaskType } from '@hcengineering/task'
   import { taskTypeStore } from '@hcengineering/task-resources'
   import {
     ButtonIcon,
+    ButtonMenu,
+    type DropdownIntlItem,
     EditBox,
+    IconCopy,
     IconDelete,
+    IconEdit,
+    IconShare,
     IconTableOfContents,
     Loading,
+    Modal,
     Scroller,
     showPopup,
     Switcher,
     TabItem
   } from '@hcengineering/ui'
   import view from '@hcengineering/view'
-  import { removeWorkflow, Workflow, WorkflowTransition } from '@hcengineering/workflow'
+  import { exportWorkflow, removeWorkflow, type Workflow, type WorkflowTransition } from '@hcengineering/workflow'
 
   import { navigateToWorkflow } from '../../location'
   import plugin from '../../plugin'
@@ -169,6 +181,62 @@
     }
   }
 
+  const exportActions: DropdownIntlItem[] = [
+    {
+      id: 'file',
+      label: plugin.string.ExportToFile,
+      icon: task.icon.Export
+    },
+    {
+      id: 'clipboard',
+      label: plugin.string.CopyToClipboard,
+      icon: IconCopy
+    }
+  ]
+
+  async function handleExportAction (event?: CustomEvent): Promise<void> {
+    if (event == null || workflow == null) return
+    const actionId = event.detail
+    if (actionId === 'file') {
+      try {
+        const config = await exportWorkflow(client, workflow._id, {
+          workspace: getCurrentWorkspaceUuid(),
+          projectTypeId: spaceType._id
+        })
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${workflow.name}.workflow.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        console.error('Failed to export workflow', err)
+        await setPlatformStatus(
+          new PlatformStatus(Severity.ERROR, plugin.string.InvalidWorkflowFile, {}, undefined, { timeout: 5000 })
+        )
+      }
+    } else if (actionId === 'clipboard') {
+      try {
+        const config = await exportWorkflow(client, workflow._id, {
+          workspace: getCurrentWorkspaceUuid(),
+          projectTypeId: spaceType._id
+        })
+        await copyTextToClipboard(JSON.stringify(config, null, 2))
+        await setPlatformStatus(
+          new PlatformStatus(Severity.INFO, plugin.string.CopiedToClipboard, {}, undefined, { timeout: 3000 })
+        )
+      } catch (err) {
+        console.error('Failed to copy workflow to clipboard', err)
+        await setPlatformStatus(
+          new PlatformStatus(Severity.ERROR, plugin.string.ClipboardReadError, {}, undefined, { timeout: 5000 })
+        )
+      }
+    }
+  }
+
   $: loading = isWorkflowLoading || isStatusesLoading
 </script>
 
@@ -214,6 +282,16 @@
                 name="workflowViewMode"
                 onlyIcons={true}
                 on:select={handleViewModeSelect}
+              />
+              <ButtonMenu
+                icon={task.icon.Export}
+                dataId="btnExportWorkflow"
+                tooltip={{ label: plugin.string.Export, direction: 'bottom' }}
+                size="small"
+                kind="secondary"
+                noSelection
+                items={exportActions}
+                on:selected={handleExportAction}
               />
               <ButtonIcon
                 icon={IconDelete}

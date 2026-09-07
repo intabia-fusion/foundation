@@ -306,7 +306,13 @@
     "CreateAndOpen": "Oluştur ve aç",
     "CreateAndNew": "Oluştur ve yenisine başla",
     "ExportToCSV": "CSV'ye Aktar",
-    "ExportToCSVTooltip": "Görünen görevleri CSV dosyasına aktar"
+    "ExportToCSVTooltip": "Görünen görevleri CSV dosyasına aktar",
+    "EstimationTask": "Tahmin",
+    "EstimationSubtask": "Alt görevler",
+    "EstimationTotalTime": "Toplam",
+    "ReportedTaskTime": "Harcanan süre",
+    "ReportedSubtaskTime": "Alt görevler",
+    "ReportedTotalTime": "Toplam"
   },
   "status": {},
   "emailTemplate": {

@@ -13,8 +13,14 @@
   limitations under the License.
 */
 
-import { type TxOperations } from '@hcengineering/core'
-import workflow, { importWorkflowConfig, type RuleConfig, type TransitionConfig } from '@hcengineering/workflow'
+import { generateId, type AnyAttribute, type Ref, type TxOperations, type WorkspaceUuid } from '@hcengineering/core'
+import workflow, {
+  importWorkflowConfig,
+  type RequestConfig,
+  type ValidatorConfig,
+  type PostFunctionConfig,
+  type WorkflowRule
+} from '@hcengineering/workflow'
 import tracker, { type Issue } from '@hcengineering/tracker'
 
 import {
@@ -31,6 +37,16 @@ import {
 } from './workflow.fixtures'
 
 const Statuses = ['Backlog', 'Todo', 'InProgress', 'Done']
+const wsUuid = 'test-workspace-uuid' as unknown as WorkspaceUuid
+
+interface TransitionSpec {
+  name: string
+  from: string[] | null
+  to: string
+  requests?: RequestConfig[]
+  validators?: ValidatorConfig[]
+  postFunctions?: PostFunctionConfig[]
+}
 
 describe('workflow validators', () => {
   let client: TxOperations
@@ -44,56 +60,112 @@ describe('workflow validators', () => {
     ])
   }, 60000)
 
-  function field (key: string): { attribute: string, fieldKey: string } {
+  function field (key: string): { attribute: Ref<AnyAttribute>, fieldKey: string } {
     const attr = client.getHierarchy().getAttribute(tracker.class.Issue, key)
     return { attribute: attr._id, fieldKey: key }
   }
 
-  function fieldRequired (...keys: string[]): RuleConfig {
+  function fieldRequired (...keys: string[]): ValidatorConfig {
     return {
+      id: generateId(),
       rule: workflow.validator.FieldRequired,
       ruleClass: workflow.class.WorkflowValidator,
       props: { fields: keys.map(field) }
     }
   }
 
-  function statusRule (rule: string, statuses: Record<string, string[] | null>): RuleConfig {
+  function statusRule (rule: Ref<WorkflowRule>, statuses: Record<string, string[] | null>): ValidatorConfig {
     const mapped: Record<string, string[] | null> = {}
     for (const [taskType, values] of Object.entries(statuses)) {
       mapped[`$taskType:${taskType}`] = values === null ? null : values.map((s) => `$status:${s}`)
     }
     return {
+      id: generateId(),
       rule,
       ruleClass: workflow.class.WorkflowValidator,
       props: { statuses: mapped }
     }
   }
 
-  async function withWorkflow (transitions: TransitionConfig[]): Promise<ProjectContext> {
+  async function withWorkflow (transitions: TransitionSpec[]): Promise<ProjectContext> {
     const name = `WF ${uniqueSuffix()}`
     const ctx = await createProject(type, 'Backlog')
     await importWorkflowConfig(client, type.projectTypeId, {
       version: 1,
-      workflows: [{ name, taskType: 'Issue', transitions }],
-      projects: [{ identifier: ctx.identifier, workflows: { Issue: name } }]
+      exportDate: new Date().toISOString(),
+      workspace: wsUuid,
+      projectTypeId: type.projectTypeId,
+      statuses: Statuses.map((s) => ({ id: type.statuses[s], name: s, color: 0 })),
+      workflows: [
+        {
+          id: generateId(),
+          name,
+          taskTypeName: 'Issue',
+          taskTypeId: type.taskTypes.Issue,
+          transitions: transitions.map((t) => ({
+            id: generateId(),
+            name: t.name,
+            from: t.from == null ? null : t.from.map((s) => type.statuses[s]),
+            to: type.statuses[t.to],
+            requests: t.requests,
+            validators: t.validators,
+            postFunctions: t.postFunctions
+          }))
+        }
+      ],
+      projects: [{ project: ctx.projectId, identifier: ctx.identifier, workflows: { Issue: name } }]
     })
     return ctx
   }
 
   /** Same, but both task types are bound so subtask/parent rules can span them. */
   async function withWorkflows (
-    issueTransitions: TransitionConfig[],
-    bugTransitions: TransitionConfig[] = [{ name: 'Any', from: null, to: 'Done' }]
+    issueTransitions: TransitionSpec[],
+    bugTransitions: TransitionSpec[] = [{ name: 'Any', from: null, to: 'Done' }]
   ): Promise<ProjectContext> {
     const name = `WF ${uniqueSuffix()}`
     const ctx = await createProject(type, 'Backlog')
     await importWorkflowConfig(client, type.projectTypeId, {
       version: 1,
+      exportDate: new Date().toISOString(),
+      workspace: wsUuid,
+      projectTypeId: type.projectTypeId,
+      statuses: Statuses.map((s) => ({ id: type.statuses[s], name: s, color: 0 })),
       workflows: [
-        { name: `${name} I`, taskType: 'Issue', transitions: issueTransitions },
-        { name: `${name} B`, taskType: 'Bug', transitions: bugTransitions }
+        {
+          id: generateId(),
+          name: `${name} I`,
+          taskTypeName: 'Issue',
+          taskTypeId: type.taskTypes.Issue,
+          transitions: issueTransitions.map((t) => ({
+            id: generateId(),
+            name: t.name,
+            from: t.from == null ? null : t.from.map((s) => type.statuses[s]),
+            to: type.statuses[t.to],
+            requests: t.requests,
+            validators: t.validators,
+            postFunctions: t.postFunctions
+          }))
+        },
+        {
+          id: generateId(),
+          name: `${name} B`,
+          taskTypeName: 'Bug',
+          taskTypeId: type.taskTypes.Bug,
+          transitions: bugTransitions.map((t) => ({
+            id: generateId(),
+            name: t.name,
+            from: t.from == null ? null : t.from.map((s) => type.statuses[s]),
+            to: type.statuses[t.to],
+            requests: t.requests,
+            validators: t.validators,
+            postFunctions: t.postFunctions
+          }))
+        }
       ],
-      projects: [{ identifier: ctx.identifier, workflows: { Issue: `${name} I`, Bug: `${name} B` } }]
+      projects: [
+        { project: ctx.projectId, identifier: ctx.identifier, workflows: { Issue: `${name} I`, Bug: `${name} B` } }
+      ]
     })
     return ctx
   }

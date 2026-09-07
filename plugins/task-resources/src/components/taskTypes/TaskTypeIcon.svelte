@@ -27,7 +27,7 @@
   import view from '@hcengineering/view'
   import { createEventDispatcher, onMount } from 'svelte'
 
-  export let value: TaskType | undefined
+  export let value: Pick<TaskType, 'icon' | 'color' | 'name'> | undefined
   export let size: IconSize = 'small'
   export let inline: boolean = false
 

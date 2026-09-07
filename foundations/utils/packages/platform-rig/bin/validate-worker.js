@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { parentPort, threadId } = require('worker_threads')
-const { join, basename, dirname, relative } = require('path')
+const { join, basename, dirname, relative, sep } = require('path')
 const {
   existsSync,
   mkdirSync,
@@ -186,6 +186,47 @@ function syncDirectory(srcDir, destDir) {
   cleanEmptyDirs(destDir)
 
   return { copied, unchanged, removed }
+}
+
+/**
+ * Drops declarations in the emit dir whose source is gone. tsc writes there incrementally and never
+ * cleans up, so a deleted `x.ts` left `x.d.ts` behind forever - and `syncDirectory` faithfully
+ * copied that ghost back into types/ on every run. A ghost `transfer.d.ts` next to a real
+ * `transfer/` directory then shadows it for `export * from './transfer'`, and every consumer sees
+ * the API as it was before the split.
+ */
+function pruneEmitDir(emitDir, parsedConfig) {
+  if (!existsSync(emitDir)) return 0
+  const sources = parsedConfig.fileNames.filter((f) => !f.endsWith('.d.ts'))
+  // `ts.getOutputFileNames` throws Debug Failure without an explicit rootDir, so the output paths
+  // are derived here instead - an empty set would wipe the whole emit dir.
+  const root = parsedConfig.options.rootDir ?? commonDirOf(sources)
+  if (root === null) return 0
+  const expected = new Set(sources.map((f) => relative(root, f).replace(/\.[cm]?[jt]sx?$/, '')))
+  if (expected.size === 0) return 0
+  let removed = 0
+  for (const file of collectAllFiles(emitDir)) {
+    const rel = relative(emitDir, file).replace(/\.d\.[cm]?ts(\.map)?$/, '')
+    if (expected.has(rel)) continue
+    try {
+      unlinkSync(file)
+      removed++
+    } catch {}
+  }
+  if (removed > 0) cleanEmptyDirs(emitDir)
+  return removed
+}
+
+function commonDirOf(files) {
+  if (files.length === 0) return null
+  let common = dirname(files[0]).split(sep)
+  for (const file of files.slice(1)) {
+    const parts = dirname(file).split(sep)
+    let i = 0
+    while (i < common.length && i < parts.length && common[i] === parts[i]) i++
+    common = common.slice(0, i)
+  }
+  return common.length === 0 ? null : common.join(sep)
 }
 
 function cleanEmptyDirs(dir) {
@@ -405,7 +446,9 @@ function validateTSC(cwd, options = {}) {
     throw new Error('TypeScript emit was skipped')
   }
 
+  const prunedFromEmit = pruneEmitDir(emitDir, parsedConfig)
   const syncResult = syncDirectory(emitDir, typesDir)
+  syncResult.removed += prunedFromEmit
 
   return { syncResult }
 }

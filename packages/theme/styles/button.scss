@@ -84,7 +84,7 @@
   }
 
   &.primary {
-    border-color: var(--button-primary-BorderColor);
+    border-color: var(--button-primary-BorderColor, transparent);
     background-color: var(--button-primary-BackgroundColor);
 
     .icon { color: var(--button-accent-IconColor); }
@@ -93,8 +93,6 @@
     &:not(.disabled, :disabled):hover { background-color: var(--button-primary-hover-BackgroundColor); }
     &:not(.disabled, :disabled):active,
     &.pressed:not(.disabled, :disabled) { background-color: var(--button-primary-active-BackgroundColor); }
-    &.menu:not(.disabled, :disabled):active,
-    &.pressed:not(.disabled, :disabled) { border-color: var(--button-menu-active-BorderColor); }
     &:disabled:not(.loading),
     &.disabled:not(.loading) { background-color: var(--button-disabled-BackgroundColor); }
     &.loading {
@@ -114,8 +112,6 @@
     &:not(.disabled, :disabled):hover { background-color: var(--button-secondary-hover-BackgroundColor); }
     &:not(.disabled, :disabled):active,
     &.pressed:not(.disabled, :disabled) { background-color: var(--button-secondary-active-BackgroundColor); }
-    &.menu:not(.disabled, :disabled):active,
-    &.pressed:not(.disabled, :disabled) { border-color: var(--button-menu-active-BorderColor); }
     &:disabled:not(.loading),
     &.disabled:not(.loading) { background-color: var(--button-disabled-BackgroundColor); }
     &.loading {
@@ -140,8 +136,6 @@
     &:not(.disabled, :disabled):hover { background-color: var(--button-tertiary-hover-BackgroundColor); }
     &:not(.disabled, :disabled):active,
     &.pressed:not(.disabled, :disabled) { background-color: var(--button-tertiary-active-BackgroundColor); }
-    &.menu:not(.disabled, :disabled):active,
-    &.pressed:not(.disabled, :disabled) { border-color: var(--button-menu-active-BorderColor); }
     &.loading {
       background-color: var(--button-tertiary-active-BackgroundColor);
 
@@ -159,8 +153,6 @@
     &:not(.disabled, :disabled):hover { background-color: var(--button-negative-hover-BackgroundColor); }
     &:not(.disabled, :disabled):active,
     &.pressed:not(.disabled, :disabled) { background-color: var(--button-negative-active-BackgroundColor); }
-    &.menu:not(.disabled, :disabled):active,
-    &.pressed:not(.disabled, :disabled) { border-color: var(--button-menu-active-BorderColor); }
     &:disabled:not(.loading),
     &.disabled:not(.loading) { background-color: var(--button-disabled-BackgroundColor); }
     &.loading {
@@ -370,9 +362,9 @@
     transition: color .15s;
     pointer-events: none;
   }
-  &.gap-large:not(.only-icon, .gap-medium) .btn-icon:not(.spinner) { margin-right: .5rem; }
+  &.gap-large:not(.only-icon, .gap-medium) .btn-icon { margin-right: .5rem; }
   &.gap-large:not(.only-icon, .gap-medium) .btn-right-icon { margin-left: .5rem; }
-  &.gap-medium:not(.only-icon, .gap-large) .btn-icon:not(.spinner) { margin-right: .375rem; }
+  &.gap-medium:not(.only-icon, .gap-large) .btn-icon { margin-right: .375rem; }
   &.gap-medium:not(.only-icon, .gap-large) .btn-right-icon { margin-left: .375rem; }
 
   &.short { max-width: 8.5rem; }
@@ -533,7 +525,7 @@
   &.negative {
     padding: 0 1.5rem;
     color: var(--primary-button-content-color);
-    border-color: var(--primary-button-border);
+    border-color: var(--primary-button-border, var(--button-primary-BorderColor, transparent));
 
     .btn-icon,
     .btn-right-icon { color: var(--primary-button-content-color); }
@@ -945,7 +937,7 @@
   &.primary {
     color: var(--primary-button-content-color);
     background-color: var(--primary-button-default);
-    border-color: var(--primary-button-border);
+    border-color: var(--primary-button-border, var(--button-primary-BorderColor, transparent));
 
     button {
       color: var(--primary-button-color);

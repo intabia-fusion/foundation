@@ -22,7 +22,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 import type { Class, Doc, Ref } from '@hcengineering/core'
 
 import { toolBudgets } from '../../utils/budget'

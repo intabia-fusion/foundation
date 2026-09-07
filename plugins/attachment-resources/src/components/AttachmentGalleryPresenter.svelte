@@ -16,7 +16,7 @@
   import type { Attachment } from '@hcengineering/attachment'
   import type { WithLookup } from '@hcengineering/core'
   import { getFileUrl } from '@hcengineering/presentation'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
   import { getType, showAttachmentPreviewPopup } from '../utils'
 
   export let value: WithLookup<Attachment>

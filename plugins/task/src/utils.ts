@@ -15,25 +15,25 @@
 //
 
 import core, {
+  type AnyAttribute,
   Class,
   ClassifierKind,
   Data,
   Doc,
-  DocumentQuery,
   Hierarchy,
   IdMap,
-  Ref,
-  Status,
-  TxOperations,
-  type AnyAttribute,
   type Rank,
-  type RefTo
+  Ref,
+  type RefTo,
+  Status,
+  TxOperations
 } from '@hcengineering/core'
-import { PlatformError, getEmbeddedLabel, unknownStatus } from '@hcengineering/platform'
-import task, { Project, ProjectStatus, ProjectType, Task, TaskType } from '.'
+import { getEmbeddedLabel, PlatformError, unknownStatus } from '@hcengineering/platform'
 import { makeRank } from '@hcengineering/rank'
+import task, { Project, ProjectStatus, ProjectType, Task, TaskType } from '.'
 
 export { genRanks, makeRank } from '@hcengineering/rank'
+export * from './transfer'
 
 /**
  * @deprecated Prefer {@link makeRank}
@@ -115,18 +115,18 @@ export function getStatusIndex (type: ProjectType, taskTypes: IdMap<TaskType>, s
 export async function createState<T extends Status> (
   client: TxOperations,
   _class: Ref<Class<T>>,
-  data: Data<T>
+  data: Data<T>,
+  _id?: Ref<T>
 ): Promise<Ref<T>> {
-  const query: DocumentQuery<Status> = { name: data.name, ofAttribute: data.ofAttribute }
-  if (data.category !== undefined) {
-    query.category = data.category
+  if (_id !== undefined) {
+    const byId = await client.findOne<Status>(_class, { _id })
+    if (byId !== undefined) {
+      return byId._id as Ref<T>
+    }
+    return await client.createDoc(_class, core.space.Model, data, _id)
   }
-  const exists = await client.findOne(_class, query)
-  if (exists !== undefined) {
-    return exists._id as Ref<T>
-  }
-  const res = await client.createDoc(_class, core.space.Model, data)
-  return res
+
+  return await client.createDoc(_class, core.space.Model, data)
 }
 
 /**

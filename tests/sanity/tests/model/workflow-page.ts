@@ -14,7 +14,7 @@
 //
 
 import { expect, type Locator, type Page } from '@playwright/test'
-import { retry } from '../retry'
+import { retry, waitStable } from '../retry'
 
 export type RuleCategory = 'requests' | 'validators' | 'postFunctions'
 
@@ -133,22 +133,37 @@ export class WorkflowPage {
     })
   }
 
+  // The aside re-renders while the name settles and detaches the button mid-click; short timeouts
+  // send us back to a freshly resolved one.
   private async clickAsideCreate (): Promise<void> {
     const create = this.asideButton('Create')
-    await expect(create).toBeEnabled({ timeout: 15000 })
-    await create.click()
+    await retry(async () => {
+      await expect(create).toBeEnabled({ timeout: 5000 })
+      await create.click({ timeout: 5000 })
+    })
   }
 
   // Both asides carry a Create button, so a leftover one from the previous step cannot be told
   // apart by the footer - close whatever is open and open ours from scratch.
   private async openAside (button: Locator): Promise<void> {
     await retry(async () => {
-      if (await this.asideModal().isVisible()) {
+      // Escape closes the topmost layer only: a dropdown popup left open by the previous step eats
+      // the first press, and the aside behind it keeps blocking the click that follows.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const layers = await this.page.locator('div.hulyPopup-container, div.hulyModal-container').count()
+        if (layers === 0) break
         await this.page.keyboard.press('Escape')
-        await expect(this.asideModal()).toHaveCount(0, { timeout: 3000 })
+        await this.asideModal()
+          .waitFor({ state: 'detached', timeout: 2000 })
+          .catch(() => undefined)
       }
       await button.click()
       await expect(this.asideButton('Create')).toBeVisible({ timeout: 3000 })
+      // The close Escape started lands a beat later and tears down the aside we just opened, so the
+      // name input goes away right after the first fill. Make sure the one on screen stays.
+      await expect(this.asideNameInput()).toBeVisible({ timeout: 3000 })
+      await this.page.waitForTimeout(200)
+      await expect(this.asideNameInput()).toBeVisible({ timeout: 2000 })
     })
   }
 
@@ -167,9 +182,19 @@ export class WorkflowPage {
   }
 
   async renameWorkflow (newName: string): Promise<void> {
-    await this.workflowTitleInput().fill(newName)
-    // The title editbox saves on change, so move the focus out to commit it.
-    await this.workflowTitleInput().press('Tab')
+    await retry(async () => {
+      await this.workflowTitleInput().fill(newName)
+      // The title editbox saves on change, so move the focus out to commit it.
+      await this.workflowTitleInput().press('Tab')
+      // Wait for the field to stop changing: the stored name can arrive over the fresh one, and the
+      // row in the list behind then still carries the old title.
+      const settled = await waitStable(async () => await this.workflowTitleInput().inputValue(), {
+        stableFor: 1000,
+        interval: 200,
+        timeout: 10000
+      })
+      expect(settled).toBe(newName)
+    })
   }
 
   async deleteWorkflow (): Promise<void> {

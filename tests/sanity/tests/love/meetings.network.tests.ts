@@ -79,7 +79,10 @@ async function setOffline (ctx: BrowserContext, page: Page, offline: boolean): P
 // config.json and CDP puts the context offline. Both outlive the test on a reused window and
 // would pin every later test to a proxy that is already closed.
 export function registerNetworkTests (): void {
-  test.describe('meeting minutes - degraded link to LiveKit', () => {
+  // @network: the outage simulations are 58s of the love lane - a quarter of it - and they probe
+  // LiveKit reconnects, not the product's own code. `rushx uitest` skips them; `rushx uitest-network`
+  // is the way to run them.
+  test.describe('meeting minutes - degraded link to LiveKit @network', () => {
     // The shared windows hold a live session for the same accounts this test signs in as, and two
     // sessions per user break presence and departure checks. Drop them; the next shared test pays
     // one boot to get its window back.

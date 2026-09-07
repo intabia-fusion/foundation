@@ -50,6 +50,6 @@
     "@hcengineering/presence": "workspace:^0.7.0",
     "@hcengineering/pulse": "workspace:^0.7.0",
     "svelte": "^4.2.20",
-    "fast-equals": "^5.2.2"
+    "fast-equals": "^6.0.3"
   }
 }

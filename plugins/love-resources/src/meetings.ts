@@ -33,7 +33,8 @@ import { getCurrentEmployee, type Person } from '@hcengineering/contact'
 import { getPersonByPersonRef } from '@hcengineering/contact-resources'
 import { getMetadata } from '@hcengineering/platform'
 import { sendInvites } from './invites'
-import { lkIsConnecting, lkSessionConnected } from './liveKitClient'
+import { lkIsConnecting, lkSessionConnected, lkSessionEnded } from './liveKitClient'
+import { findOtherLiveSession } from './otherSession'
 
 export let currentMeetingRoom: Ref<Room> | undefined
 export let currentMeeting: Ref<MeetingMinutes> | undefined
@@ -234,7 +235,7 @@ export async function kick (person: Ref<Person>): Promise<void> {
   await client.update(participantInfo, { room: participantOffice?._id ?? love.ids.Reception, x: 0, y: 0 })
 }
 
-async function connectToMeeting (mm: MeetingMinutes, room?: Room): Promise<void> {
+async function connectToMeeting (mm: MeetingMinutes, room?: Room, silent = false): Promise<void> {
   if (getCurrentAccount().role === AccountRole.ReadOnlyGuest) {
     return
   }
@@ -242,6 +243,21 @@ async function connectToMeeting (mm: MeetingMinutes, room?: Room): Promise<void>
   // `leaveMeeting()`), and a stale ref would silently reject every rejoin of the same meeting.
   if (currentMeeting === mm._id && get(lkSessionConnected)) {
     return
+  }
+
+  // A seat of mine elsewhere is another tab or device, not this one - joining here evicts it
+  // server-side, so let the user keep the meeting they are actually talking in. An automatic
+  // reconnect asks nothing: nobody clicked, so a modal would just appear on its own.
+  const otherSession = findOtherLiveSession(mm._id, currentMeeting)
+  if (!silent && otherSession !== undefined) {
+    // The row alone is not proof: it outlives a closed tab, and prompting about a meeting nobody
+    // is in is worse than not prompting at all. Ask the server what LiveKit actually holds.
+    const live = await loveClient.liveSessions([otherSession.meeting])
+    if (live.includes(otherSession.meeting)) {
+      // Loaded on demand: this module must not pull `@hcengineering/ui` at import time.
+      const { confirmLeaveOtherMeeting } = await import('./loveGuards')
+      if (!(await confirmLeaveOtherMeeting(otherSession))) return
+    }
   }
 
   if (currentMeeting !== undefined) {
@@ -286,6 +302,9 @@ async function connectToMeeting (mm: MeetingMinutes, room?: Room): Promise<void>
   // the meeting so a page refresh can reconnect directly via /getToken.
   myConnectingSessionId.set(null)
   rememberActiveMeeting(mm._id)
+  // Now that this session is live, let the server drop my sessions in other meetings. Not awaited:
+  // housekeeping must not hold up the caller, which has already navigated.
+  void loveClient.claimSession(mm)
 }
 
 const LIVE_MEETING_STATUSES = [MeetingStatus.Active, MeetingStatus.Pending]
@@ -432,7 +451,7 @@ export async function reconnectToCurrentMeeting (): Promise<void> {
   reconnectingToMeeting.set(true)
   try {
     const room = mm.roomId !== undefined ? getRoomById(mm.roomId) : undefined
-    await connectToMeeting(mm, room)
+    await connectToMeeting(mm, room, true)
   } catch (err) {
     console.warn('[reconnectToCurrentMeeting] failed', err)
     forgetActiveMeeting()
@@ -452,6 +471,24 @@ export function cancelReconnect (): void {
 }
 
 onClient(() => {
+  // Inside onClient: at module scope this runs while `liveKitClient` is still evaluating - the two
+  // modules import each other - and reading the store then throws before the office ever renders.
+  //
+  // A server-side end is final: the room is gone. Keeping the anchor sends the client back into a
+  // meeting that no longer exists on the next store tick, and `connectToMeeting` navigates it to
+  // that meeting's minutes page on the way - out of the office, with nothing to connect to.
+  let lastSessionEnd: number | undefined
+  lkSessionEnded.subscribe((value) => {
+    if (lastSessionEnd === undefined || value === lastSessionEnd) {
+      lastSessionEnd = value
+      return
+    }
+    lastSessionEnd = value
+    currentMeeting = undefined
+    currentMeetingRoom = undefined
+    forgetActiveMeeting()
+  })
+
   void waitForOfficeLoaded().then(() => {
     void reconnectToCurrentMeeting()
     // Either store may populate after `officeLoaded` resolves; the loop is guarded

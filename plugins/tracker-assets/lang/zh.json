@@ -306,7 +306,12 @@
     "CreateAndOpen": "创建并打开",
     "CreateAndNew": "创建并新建下一个",
     "ExportToCSV": "出导为 CSV",
-    "ExportToCSVTooltip": "将可见任务导出为 CSV 文件"
+    "EstimationTask": "估算",
+    "EstimationSubtask": "子任务",
+    "EstimationTotalTime": "总计",
+    "ReportedTaskTime": "耗时",
+    "ReportedSubtaskTime": "子任务",
+    "ReportedTotalTime": "总计"
   },
   "status": {},
   "emailTemplate": {

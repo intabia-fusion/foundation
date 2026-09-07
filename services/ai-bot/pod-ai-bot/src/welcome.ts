@@ -15,7 +15,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 
 export type WelcomeMessages = Record<string, string>
 
@@ -35,7 +35,12 @@ export function pickWelcome (messages: WelcomeMessages, lang: string): string | 
 export function loadWelcomeMessages (filePath?: string): WelcomeMessages {
   const resolved = filePath ?? defaultWelcomePath()
   if (!fs.existsSync(resolved)) return {}
-  const raw = yaml.load(fs.readFileSync(resolved, 'utf8'))
+  let raw: unknown
+  try {
+    raw = yaml.load(fs.readFileSync(resolved, 'utf8'))
+  } catch (err) {
+    return {}
+  }
   if (raw === null || typeof raw !== 'object') return {}
   const result: WelcomeMessages = {}
   for (const [lang, text] of Object.entries(raw as Record<string, unknown>)) {

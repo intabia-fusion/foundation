@@ -79,6 +79,7 @@ import { formatDuration } from '@hcengineering/tracker'
 import { getPersonRefByPersonIdCb } from '@hcengineering/contact-resources'
 import { defaultMilestoneStatuses, defaultPriorities, issuePriorities } from './types'
 import { type DraftTimeReportPayload } from './components/issues/timereport/service'
+import tags from '@hcengineering/tags'
 
 export const activeProjects = derived(taskActiveProjects, (projects) => {
   const client = getClient()
@@ -821,8 +822,14 @@ export async function exportIssuesToCSV (query: DocumentQuery<Issue>): Promise<v
     label: await translateIntlString(tracker.string.SubIssues, lang)
   })
 
+  headers.push({
+    key: 'labelsList',
+    label: await translateIntlString(tracker.string.Labels, lang)
+  })
+
   const refCache = await preloadRefValues(issues, headers, client)
   const createdByName = await preloadCreatedByNames(issues, client)
+  const labelTitles = await preloadLabelTitles(issues, client)
 
   const csvRows: string[] = []
   csvRows.push(headers.map((h) => escapeCsv(h.label)).join(','))
@@ -838,6 +845,9 @@ export async function exportIssuesToCSV (query: DocumentQuery<Issue>): Promise<v
         }
         if (key === 'subIssuesList') {
           return await getSubIssuesNumbers(issue, refCache)
+        }
+        if (key === 'labelsList') {
+          return labelTitles.get(issue._id) ?? ''
         }
 
         const value = (issue as any)[key]
@@ -869,7 +879,7 @@ async function translateIntlString (intlStr: IntlString, lang: string): Promise<
 function escapeCsv (value: any): string {
   if (value == null || value === '') return ''
   const str = String(value)
-  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+  if (str.includes(',') || str.includes(';') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
     return `"${str.replace(/"/g, '""')}"`
   }
   return str
@@ -986,7 +996,7 @@ async function getParentIssuesNumbers (issue: Issue, refCache: Map<string, Map<R
     }
   }
 
-  return parents.join('; ')
+  return parents.join(', ')
 }
 
 async function getSubIssuesNumbers (issue: Issue, refCache: Map<string, Map<Ref<any>, any>>): Promise<string> {
@@ -1003,7 +1013,7 @@ async function getSubIssuesNumbers (issue: Issue, refCache: Map<string, Map<Ref<
     }
   }
 
-  return subIssues.join('; ')
+  return subIssues.join(', ')
 }
 
 async function formatValue (
@@ -1101,4 +1111,22 @@ function isExportableCustomAttr (attr: AnyAttribute): boolean {
   }
 
   return false
+}
+
+async function preloadLabelTitles (issues: Issue[], client: any): Promise<Map<Ref<Issue>, string>> {
+  const refs = await client.findAll(tags.class.TagReference, {
+    attachedTo: { $in: issues.map((i) => i._id) }
+  })
+
+  const byIssue = new Map<Ref<Issue>, string[]>()
+  for (const r of refs) {
+    if (r.title == null || r.title === '') continue
+    byIssue.set(r.attachedTo, [...(byIssue.get(r.attachedTo) ?? []), r.title])
+  }
+
+  const result = new Map<Ref<Issue>, string>()
+  for (const [issueId, list] of byIssue) {
+    result.set(issueId, list.join(', '))
+  }
+  return result
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   //
   // © 2025 Hardcore Engineering, Inc. All Rights Reserved.
+  // Copyright © 2026 Intabia Fusion.
   // Licensed under the Eclipse Public License v2.0 (SPDX: EPL-2.0).
   //
   import { createEventDispatcher } from 'svelte'
@@ -96,7 +97,7 @@
     }
 
     &.selected {
-      border-color: var(--button-primary-BorderColor);
+      border-color: var(--button-primary-BorderColor, transparent);
       background-color: var(--button-primary-BackgroundColor);
 
       &:not(.disabled, :disabled):hover {

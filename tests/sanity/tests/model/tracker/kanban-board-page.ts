@@ -74,12 +74,16 @@ export class KanbanBoardPage extends CommonTrackerPage {
       target =
         (await cardInCell.count()) > 0 && (await cardInCell.getAttribute('data-card-id')) !== cardId ? cardInCell : cell
     }
+    // Cards past the cell's initial limit are not rendered, and issues other specs create in the
+    // same project push ours out - `scrollIntoViewIfNeeded` then waits for a node that is not there.
+    await this.revealCard(cardId)
     await this.ensureVisible(this.card(cardId))
     await this.dragPointer(this.card(cardId), target)
   }
 
   async dragCardToSwimLaneCell (cardId: string, laneId: string, targetState: string): Promise<void> {
     const cell = this.swimLaneCell(laneId, targetState)
+    await this.revealCard(cardId)
     await this.ensureVisible(this.card(cardId))
     // Prefer dropping onto an existing card inside the cell — Svelte's drop handler
     // fires reliably on card-container, while empty cells sometimes miss CDP drag.
@@ -107,8 +111,15 @@ export class KanbanBoardPage extends CommonTrackerPage {
     // leaving the caller's retry loop no turn at all.
     await target.waitFor({ state: 'attached', timeout: 5000 })
     await source.hover()
+    const sourceBox = await source.boundingBox()
     await this.page.mouse.down()
     try {
+      // Start the drag before anything else moves: `move()` bails out when `dragCard` is unset, so
+      // a lost dragstart makes the drop a silent no-op.
+      if (sourceBox !== null) {
+        await this.page.mouse.move(sourceBox.x + sourceBox.width / 2 + 8, sourceBox.y + sourceBox.height / 2 + 8)
+        await expect(source).toHaveClass(/dragged/, { timeout: 3000 })
+      }
       // The board scrolls horizontally and does not fit five columns, so bring the target into view
       // only after the card is grabbed: hovering the source scrolls it back and a box measured
       // before that points outside the viewport. Scroll through the DOM - scrollIntoViewIfNeeded
@@ -129,6 +140,9 @@ export class KanbanBoardPage extends CommonTrackerPage {
       const y = box.y + box.height / 2
 
       await this.page.mouse.move(x, y, { steps: 10 })
+      // The column becomes the drop target only once its dragover ran, and dragover only fires on
+      // movement - so pause, then move again, and release while that last one is still fresh.
+      await this.page.waitForTimeout(150)
       await this.page.mouse.move(x + 2, y + 2)
       await this.page.mouse.move(x, y)
     } finally {
@@ -153,10 +167,17 @@ export class KanbanBoardPage extends CommonTrackerPage {
     })
   }
 
+  // The Board button's tooltip opens to the right, straight over btn-viewOptions, and stays up
+  // while the pointer rests on Board after the board was opened by a click. Park the pointer first.
+  async openViewOptions (): Promise<void> {
+    await this.page.mouse.move(0, 0)
+    await this.page.locator('button[data-id="btn-viewOptions"]').click()
+  }
+
   async setSwimLane (
     option: 'None' | 'Assignee' | 'Priority' | 'Component' | 'Milestone' | 'Parent' | 'Project'
   ): Promise<void> {
-    await this.page.locator('button[data-id="btn-viewOptions"]').click()
+    await this.openViewOptions()
     const swimRow = this.page.locator('.antiCard-menu__item', { hasText: 'Swim lane' })
     await swimRow.waitFor({ state: 'visible', timeout: 5000 })
     await swimRow.locator('button').click()
@@ -202,14 +223,23 @@ export class KanbanBoardPage extends CommonTrackerPage {
   async revealCard (cardId: string, attempts: number = 30): Promise<void> {
     for (let i = 0; i < attempts; i++) {
       if ((await this.card(cardId).count()) > 0) return
-      const showMore = this.page.locator('button[data-id="btn-kanban-show-more"]').first()
-      if ((await showMore.count()) === 0) {
+      // Every Show more on the board per pass, not one: the card can sit behind any column's limit
+      // and other specs leave hundreds of issues in the shared project, so round-robin spent two
+      // thirds of its clicks on columns that did not hold the card.
+      const buttons = this.page.locator('button[data-id="btn-kanban-show-more"]')
+      const count = await buttons.count()
+      if (count === 0) {
         // No more "Show more" buttons left. Wait briefly for live-query to land
         // and check again.
         await this.page.waitForTimeout(300)
         continue
       }
-      await showMore.click().catch(() => {})
+      for (let b = 0; b < count; b++) {
+        await buttons
+          .nth(b)
+          .click({ timeout: 2000 })
+          .catch(() => {})
+      }
       await this.page.waitForTimeout(150)
     }
   }

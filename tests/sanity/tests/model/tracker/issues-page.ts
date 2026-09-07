@@ -158,6 +158,8 @@ export class IssuesPage extends CommonTrackerPage {
   timeReportCreationArea = (): Locator =>
     this.page.locator('[id="tracker\\:string\\:TimeSpendReportAdd"] >> text=Add time report')
 
+  reportedTimeSpan = (): Locator => this.page.locator('.reported-container >> span').first()
+
   estimationSpan = (): Locator => this.page.locator('.estimation-container >> span').first()
   okButton = (): Locator => this.page.getByRole('button', { name: 'Ok', exact: true })
   newIssueButton = (): Locator => this.page.locator('#tracker-string-NewIssue')
@@ -180,6 +182,10 @@ export class IssuesPage extends CommonTrackerPage {
   async navigateToIssues (): Promise<void> {
     await this.page.click('text="Issues"')
     await this.page.keyboard.press('Escape')
+  }
+
+  async checkReportedTime (count: number): Promise<void> {
+    await expect(this.reportedTimeSpan()).toContainText(await toTime(count))
   }
 
   async createAndOpenIssue (name: string, assignee: string, status: string, taskType?: string): Promise<void> {
@@ -530,9 +536,13 @@ export class IssuesPage extends CommonTrackerPage {
     }).toPass(retryOptions)
   }
 
+  // The list re-renders as other specs touch issues and detaches the row mid-click; a short timeout
+  // sends us back to a freshly resolved one.
   async openIssueByName (issueName: string): Promise<void> {
     await this.expandCollapsedCategories()
-    await this.issueByName(issueName).click()
+    await retry(async () => {
+      await this.issueByName(issueName).click({ timeout: 5000 })
+    })
   }
 
   async checkIssueNotExist (issueName: string): Promise<void> {
@@ -570,9 +580,15 @@ export class IssuesPage extends CommonTrackerPage {
     await this.selectFromDropdown(this.page, action)
   }
 
+  // Retried whole: the submenu opens on hover alone, and a nudge landing before the menu listens
+  // leaves the caller filling a popup that is not there.
   async openSubmenuOnIssue (issueName: string, action: string): Promise<void> {
-    await this.issueByName(issueName).click({ button: 'right' })
-    await this.openSubmenu(action)
+    await expect(async () => {
+      await this.page.keyboard.press('Escape')
+      await this.issueByName(issueName).click({ button: 'right' })
+      await this.openSubmenu(action)
+      await expect(this.page.locator('div.selectPopup')).toBeVisible({ timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 20000 })
   }
 
   async checkAllIssuesByPriority (priorityName: string): Promise<void> {
@@ -678,8 +694,18 @@ export class IssuesPage extends CommonTrackerPage {
     await expect(this.commentCountLocator(issueName)).toHaveText(count)
   }
 
+  // The row re-renders when its comment counter arrives and takes the popup anchored to it with it,
+  // so the popup can vanish mid-upload. Retried until it is on screen and stays.
   async openCommentPopupForIssueByName (issueName: string): Promise<void> {
-    await this.commentButton(issueName).click()
+    const popup = this.page.locator('div[class*="commentPopup"]')
+    await retry(async () => {
+      if ((await popup.count()) === 0) {
+        await this.commentButton(issueName).click({ timeout: 5000 })
+      }
+      await expect(popup).toBeVisible({ timeout: 3000 })
+      await this.page.waitForTimeout(300)
+      await expect(popup).toBeVisible({ timeout: 2000 })
+    })
   }
 
   async verifyCategoryHeadersVisibility (): Promise<void> {

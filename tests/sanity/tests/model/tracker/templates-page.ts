@@ -1,6 +1,7 @@
 import { expect, type Locator } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
 import { NewIssue } from './types'
+import { retry } from '../../retry'
 
 export class TemplatePage extends CommonTrackerPage {
   buttonNewTemplate = (): Locator => this.page.getByRole('button', { name: 'Template', exact: true })
@@ -83,8 +84,20 @@ export class TemplatePage extends CommonTrackerPage {
     await this.buttonSaveTemplate().click()
   }
 
+  // Templates group by assignee and the group stays collapsed, so the row is not in the DOM at all -
+  // and it can join the group after the expand, which is why the wait is retried around it.
   async openTemplate (templateName: string): Promise<void> {
-    await this.directTemplateLocator(templateName).click()
+    const row = this.directTemplateLocator(templateName)
+    await retry(async () => {
+      await this.expandCollapsedCategories()
+      // The expanded group is virtualised, so a row further down is not in the DOM until scrolled to.
+      if ((await row.count()) === 0) {
+        await this.page.mouse.move(700, 500)
+        await this.page.mouse.wheel(0, 1200)
+      }
+      await expect(row).toBeVisible({ timeout: 2000 })
+    })
+    await row.click()
   }
 
   async checkTemplateNotExist (templateName: string): Promise<void> {

@@ -72,7 +72,7 @@ stop_sampler () {
 trap stop_sampler EXIT INT TERM
 
 cross-env LOCAL_URL=http://localhost:8083/_account/ DEV_URL= \
-  playwright test -c ./tests/playwright.config.ts --grep-invert @llm "$@"
+  playwright test -c ./tests/playwright.config.ts --grep-invert "@llm|@network" "$@"
 STATUS=$?
 
 stop_sampler

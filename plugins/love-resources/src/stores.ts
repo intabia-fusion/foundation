@@ -45,6 +45,9 @@ export const myOffice = derived(rooms, (val) => {
   return val.find((p) => (p as Office).person === personId) as Office | undefined
 })
 export const infos = writable<ParticipantInfo[]>([])
+// `infos` keeps one row per person, so a second session of mine is invisible there. Keep the raw
+// list too: it is the only place that knows I am still seated in a meeting I left open elsewhere.
+export const allInfos = writable<ParticipantInfo[]>([])
 export const aiBotPerson = writable<Ref<Person> | undefined>(undefined)
 
 aiBotSocialIdentityStore.subscribe((sid) => {
@@ -59,6 +62,12 @@ aiBotSocialIdentityStore.subscribe((sid) => {
 export const myInfo = derived(infos, (val) => {
   const personId = getCurrentEmployee()
   return val.find((p) => p.person === personId)
+})
+
+/** Every seat of mine, including the ones `infos` collapses away - a second tab or device. */
+export const myInfos = derived(allInfos, (all) => {
+  const personId = getCurrentEmployee()
+  return all.filter((p) => p.person === personId)
 })
 
 export const currentMeetingMinutes = derived([meetings, myInfo], ([meetings, myInfo]) => {
@@ -167,6 +176,7 @@ onClient(() => {
   )
   const infoPromise = new Promise<void>((resolve) =>
     statusQuery.query(love.class.ParticipantInfo, {}, async (res) => {
+      allInfos.set(res)
       infos.set(await filterParticipantInfo(res))
       resolve()
     })

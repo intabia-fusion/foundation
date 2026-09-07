@@ -306,7 +306,13 @@
     "CreateAndOpen": "作成して開く",
     "CreateAndNew": "作成して次を開始",
     "ExportToCSV": "CSV エクスポート",
-    "ExportToCSVTooltip": "表示中のタスクを CSV ファイルにエクスポート"
+    "ExportToCSVTooltip": "表示中のタスクを CSV ファイルにエクスポート",
+    "EstimationTask": "見積もり",
+    "EstimationSubtask": "サブタスク",
+    "EstimationTotalTime": "合計",
+    "ReportedTaskTime": "消費時間",
+    "ReportedSubtaskTime": "サブタスク",
+    "ReportedTotalTime": "合計"
   },
   "status": {},
   "emailTemplate": {

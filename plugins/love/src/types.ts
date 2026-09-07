@@ -91,6 +91,9 @@ export interface RoomMetadata {
 
   /** When the office owner left. Set by the love webhook, cleared once they are back. */
   ownerLeftAt?: number
+
+  /** When the last human left an agent-only room. Set by the love polling, cleared once anyone is back. */
+  humansLeftAt?: number
 }
 
 export interface ParticipantMetadata {
@@ -268,4 +271,10 @@ export interface UserMeetingInvite extends Doc {
    * auto-joins the meeting.
    */
   acceptedSessionId?: string
+  /**
+   * Sender's browser session ID set when the request is created. Multi-tab
+   * guard for the sender: only the tab that started the call reacts to the
+   * accept (joins, or creates the A2 meeting).
+   */
+  senderSessionId?: string
 }

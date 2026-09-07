@@ -27,6 +27,17 @@ covered. `playwright-report.json` gives per-test totals (`analyze_failures.js`).
   objects stay in the list. Match the whole name when an item carries it; `selectAssignee` delegates
   to it for that reason.
 - **`hasText` matches a substring**, so a strict locator throws on a grouped copy — `.first()`.
+- **The pointer stays where the previous step dropped it.** A tooltip then covers the next control
+  (`tooltip right` over `btn-viewOptions` after the Board click), and a second `hover()` on the
+  element the pointer already rests on fires no mousemove, so a retried hover reopens nothing. Park
+  the pointer (`mouse.move(0, 0)`) before the click.
+- **An action that silently never starts.** Chromium raises dragstart on the first move after
+  `mouse.down()`; anything between the two (scrolling, a settle wait) means `dragCard` is never set
+  and every drop is a no-op that only the state check notices, a minute later. Assert the app saw it
+  (the card takes `dragged`) before moving on.
+- **Escape does not close a panel the app opened through the url**, and the close it *did* start
+  lands a beat later and tears down whatever opened after it. Wait for the new panel's own content
+  and re-check it (`workflow-page.openAside`).
 
 ## Product-side causes
 
@@ -40,6 +51,10 @@ covered. `playwright-report.json` gives per-test totals (`analyze_failures.js`).
 | Live query assigns server values into an open editor | `EditToDo.svelte` | Un-round-tripped edit is wiped |
 | Estimation renders optimistically, falls back ~70ms later | `issues-details-page.setEstimation` | Write lost; needs the 500ms settle (200ms is not enough) |
 | Calendar keeps a stale event after a slot change | UBERF-4273 | Slot added right after a delete never appears |
+| Calendar block under 44px renders no body | `EventElement.svelte` (`empty`) | `hasText` finds no title once ~6 events share an hour |
+| Tag popup renders 50 tags per category | `TagsPopup.svelte` (`slice(0, 50)`) | A fresh tag past the cut is invisible; search for it instead |
+| `move()` returns silently when `dragCard` is unset | `packages/kanban/src/components/Kanban.svelte:210` | A drop with no dragstart changes nothing and reports nothing |
+| Templates group by assignee, group stays collapsed and virtualised | Templates list | A fresh template is absent from the DOM (`expandCollapsedCategories` + scroll) |
 
 ## Stand state
 
@@ -53,6 +68,12 @@ covered. `playwright-report.json` gives per-test totals (`analyze_failures.js`).
   Repeat without restore: 3 failed, every time.
 - love tests share rooms in `meetings-ws`. `waitForActiveMeetingsToFinish` gives up after 20s and now
   logs what was left; the next test used to fail 15s later on an unrelated locator.
+
+- **Accumulated data crosses product render limits.** Measured 2026-09-03 on a stand nobody had
+  restored: 431 issues, 91 tags, 48 components, 62 todos, 28 templates. That is past `TagsPopup`'s
+  50 and enough to bury a fresh template below the fold - tests that passed for months start failing
+  with no code change. `plan.spec.ts` and `template.spec.ts` now drop their own leftovers in
+  `beforeAll`; the real fix is running `tests/restore-pg.sh` on a schedule.
 
 **Recreating one container breaks nginx** — it resolves upstreams at startup. `docker restart
 sanity-nginx-1` after any `--force-recreate`.
@@ -93,6 +114,19 @@ sanity-nginx-1` after any `--force-recreate`.
 | `kanban.spec` drag sequences | `expect.poll` read the status *before* the drag and returned it, so every successful drop still cost one more interval; `retryIntervals` then fell back to its 3s tail. A drop that lands while findOne still reports the old status also leaves the card out of the DOM, and the throw from `ensureVisible` killed the whole poll | `dragUntilStatus` reads after the drag, swallows its error, and polls at `[100, 200, 300, 500]` - 45.9s to 3.0s |
 | `todos.spec` Edit a ToDo | The todo list re-orders while another worker adds slots, so the click opened a neighbouring row and every check read that card | `openToDoByName` asserts the panel title and retries the click |
 | `meetings.scenarios` knock / re-entry | `sendKnockRequest` silently no-ops; ParticipantInfo outlives the drain | Retry the click; drain again on seeing Knock |
+| `kanban.spec` drag between columns | Six status columns (workflow specs add one) need ~2000px; at 1440 the drag had to scroll the board with the pointer down and the source card unmounted | `test.use({ viewport: { width: 2200, height: 1000 } })` |
+| `kanban.spec` drags, all | dragstart lost while the helper scrolled and settled the target box before its first move | Nudge 8px right after `mouse.down()`, assert the `dragged` class, pause a frame before release |
+| `kanban.spec` swim lanes ×3 | Board-button tooltip covered `btn-viewOptions` | `openViewOptions()` parks the pointer first |
+| `kanban.spec` multi-column drag | `revealCard` always clicked the *first* Show more, expanding the leftmost column forever | Round-robin over all Show more buttons |
+| `issues.spec` context submenu | Hover nudge landed before the menu listened; `selectMenuItem`'s `fill` has no timeout and burnt the 30s action timeout | `openSubmenuOnIssue` retries right-click + hover and asserts `selectPopup`. A generic "one more popup" check breaks chat's Change icon, where the palette *replaces* the menu |
+| `issues.spec` Delete an issue, `component.spec` | Row detached mid-click; create form still settling on submit | Retry with a 5s bound instead of one 30s action |
+| `issues-duplicate.spec` | The panel binds the document after the input mounts, so an early `fill` is overwritten by the stored title | `IssuesDetailsPage.setTitle` waits for the value to settle |
+| `inbox.spec` assign someone else | `selectMenuItem` fell back to the first row and picked another employee sharing the faker surname | Wait up to 5s for the exact row when the list has more than one item |
+| `plan.spec` drag ToDo | Six runs' worth of blocks in one slot pushed each under 44px, so the title was not rendered and each retry added another block | `beforeAll` drops stale `time:class:ToDo` + `WorkSlot` |
+| `template.spec` | Fresh template below the fold of a collapsed, virtualised assignee group | `expandCollapsedCategories` + scroll inside a retry; `beforeAll` drops old templates |
+| `template-details` labels | New tag past `TagsPopup`'s 50-item cut | Type it into the popup search |
+| `billing-ui.spec` seats / packages | Bank webhook is fire-and-forget and lands late on a loaded stand | 20/30s waits raised to 45/60s |
+| `workflow-settings.spec` second workflow | The close Escape started tore down the aside opened right after it - the first `fill` landed, then the input was gone | `openAside` waits for the name input and re-checks it after 200ms |
 
 ## Open, do not retry these
 
@@ -191,5 +225,7 @@ Use `expect.poll` over both conditions. **`step-reporter.ts` is not a cost** (18
   `rushx uitest -g "<part of the title>"`.
 - `workflow-settings.spec.ts` is a serial describe — one flake re-runs the whole block, so every test
   in the file gets a `-retry1` folder while only one is reported flaky.
+- `--repeat-each` on `kanban.spec.ts` gives false failures: `setSwimLane` stores view options per
+  user and the storage state is shared, so parallel copies fight over the board layout.
 - `love/*` timings swing by tens of seconds run to run (LiveKit on the Mac host); compare per-file
   deltas, not totals.

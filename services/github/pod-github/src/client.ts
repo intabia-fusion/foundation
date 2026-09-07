@@ -30,7 +30,7 @@ export async function createPlatformClient (
   })
 
   const token = generateToken(systemAccountUuid, workspace, { service: 'github', mode: 'github' })
-  setMetadata(client.metadata.UseBinaryProtocol, true)
+  setMetadata(client.metadata.UseBinaryProtocol, process.env.USE_BINARY_PROTOCOL !== 'false')
   setMetadata(client.metadata.UseProtocolCompression, true)
   setMetadata(client.metadata.ConnectionTimeout, timeout)
   setMetadata(client.metadata.FilterModel, 'client')

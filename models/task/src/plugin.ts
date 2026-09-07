@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -71,7 +72,6 @@ export default mergeIds(taskId, task, {
     ManageProjects: '' as IntlString,
     StateBacklog: '' as IntlString,
     StateActive: '' as IntlString,
-    StateUnstarted: '' as IntlString,
-    Export: '' as IntlString
+    StateUnstarted: '' as IntlString
   }
 })

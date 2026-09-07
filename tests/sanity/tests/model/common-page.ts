@@ -145,6 +145,14 @@ export class CommonPage {
       // and stay in the list. Take the item carrying the whole name when there is one - "first"
       // picked a teamspace from a parallel test and the document was moved into it.
       const exact = this.selectPopupListItemFirst().filter({ hasText: name })
+      // Ambiguous list: an employee that just joined arrives late, and the first row was another
+      // person sharing the filtered word.
+      if ((await exact.count()) === 0 && (await this.selectPopupListItemFirst().count()) > 1) {
+        await exact
+          .first()
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .catch(() => undefined)
+      }
       if ((await exact.count()) > 0) {
         await exact.first().click()
         return
@@ -168,6 +176,8 @@ export class CommonPage {
   // Opens submenu of a context menu item: MouseSpeedTracker enables submenu only after slow mouse moves
   async openSubmenu (point: string): Promise<void> {
     const item = this.popupSpanLabel(point)
+    // Park first: a hover where the pointer already rests fires no mousemove.
+    await this.page.mouse.move(0, 0)
     await item.hover()
     const box = await item.boundingBox()
     if (box != null) {

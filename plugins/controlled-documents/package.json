@@ -48,7 +48,7 @@
     "@hcengineering/request": "workspace:^0.7.0",
     "@hcengineering/tags": "workspace:^0.7.0",
     "@hcengineering/training": "workspace:^0.7.0",
-    "lexorank": "~1.0.4",
+    "lexorank": "~1.0.5",
     "@hcengineering/activity": "workspace:^0.7.0",
     "@hcengineering/chunter": "workspace:^0.7.0",
     "@hcengineering/rank": "workspace:^0.7.17"

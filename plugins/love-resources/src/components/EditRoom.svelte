@@ -167,7 +167,9 @@
   }
 </script>
 
-<div class="flex flex-col">
+<!-- data-id: the MeetingMinutes page carries its own `meeting-connect`, so tests need to say which
+     Connect they mean - the one on the floor's room panel is this one. -->
+<div class="flex flex-col" data-id="room-panel">
   <div class="flex flex-row">
     <div class="flex flex-grow space-between gap-2 mb-4">
       <div class="name">

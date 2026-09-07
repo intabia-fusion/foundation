@@ -193,7 +193,7 @@ export interface Config {
   STATS_URL?: string
   PRESENCE_URL?: string
   LANDING_URL?: string
-  USE_BINARY_PROTOCOL?: boolean
+  USE_BINARY_PROTOCOL?: boolean | string
   TRANSACTOR_OVERRIDE?: string
   BACKUP_URL?: string
   STREAM_URL?: string
@@ -767,11 +767,11 @@ export async function configurePlatform() {
   setMetadata(client.metadata.ExtraPlugins, ['preference' as Plugin, pulseId as Plugin])
   setMetadata(login.metadata.TransactorOverride, config.TRANSACTOR_OVERRIDE)
 
-  // Use binary response transfer for faster performance and small transfer sizes.
+  // msgpack+snappy by default; localStorage or USE_BINARY_PROTOCOL=false switches json on.
   const binaryOverride = localStorage.getItem(client.metadata.UseBinaryProtocol)
   setMetadata(
     client.metadata.UseBinaryProtocol,
-    binaryOverride != null ? binaryOverride === 'true' : (config.USE_BINARY_PROTOCOL ?? true)
+    binaryOverride != null ? binaryOverride === 'true' : String(config.USE_BINARY_PROTOCOL ?? true) !== 'false'
   )
 
   // Disable for now, since it causes performance issues on linux/docker/kubernetes boxes for now.

@@ -19,7 +19,7 @@
   import type { DatalakeStatsByType } from '@hcengineering/billing-client'
   import love from '@hcengineering/love'
   import view from '@hcengineering/view'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
   import StatsCard from './StatsCard.svelte'
   import drivePlugin from '@hcengineering/drive'
   import Category from './Category.svelte'

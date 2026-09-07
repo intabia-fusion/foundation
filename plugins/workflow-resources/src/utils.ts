@@ -77,23 +77,72 @@ export function getAttributeIcon (
     icon?: Asset
     iconProps?: Record<string, any>
   } {
+  if (attr?.type == null) {
+    return {
+      icon: attr?.icon ?? core.icon.TypeString,
+      iconProps: attr?.iconProps
+    }
+  }
+
+  const typeClass = hierarchy.findClass(attr.type._class)
+
   if (hierarchy.isDerived(attr.type._class, core.class.RefTo)) {
     const refTo = attr.type as RefTo<Doc>
     const toClass = hierarchy.findClass(refTo.to)
     return {
-      icon: attr.icon ?? toClass?.icon ?? attr.type?.icon,
+      icon: attr.icon ?? toClass?.icon ?? attr.type.icon ?? typeClass?.icon ?? core.icon.TypeRef,
+      iconProps: attr.iconProps
+    }
+  } else if (hierarchy.isDerived(attr.type._class, core.class.ArrOf)) {
+    const arrOf = attr.type as any
+    if (arrOf.of != null && hierarchy.isDerived(arrOf.of._class, core.class.RefTo)) {
+      const toClass = hierarchy.findClass((arrOf.of as RefTo<Doc>).to)
+      return {
+        icon: attr.icon ?? toClass?.icon ?? arrOf.of.icon ?? core.icon.TypeRef ?? core.icon.TypeArray,
+        iconProps: attr.iconProps
+      }
+    }
+    const ofClass = arrOf.of != null ? hierarchy.findClass(arrOf.of._class) : undefined
+    return {
+      icon: attr.icon ?? ofClass?.icon ?? arrOf.of?.icon ?? typeClass?.icon ?? core.icon.TypeArray,
       iconProps: attr.iconProps
     }
   } else if (hierarchy.isDerived(attr.type._class, core.class.Collection)) {
     const refTo = attr.type as Collection<AttachedDoc>
     const ofClass = hierarchy.findClass(refTo.of)
     return {
-      icon: attr.icon ?? ofClass?.icon ?? attr.type?.icon,
+      icon: attr.icon ?? ofClass?.icon ?? attr.type.icon ?? typeClass?.icon ?? core.icon.TypeCollection,
+      iconProps: attr.iconProps
+    }
+  } else if (hierarchy.isDerived(attr.type._class, core.class.EnumOf)) {
+    return {
+      icon: attr.icon ?? attr.type.icon ?? typeClass?.icon ?? core.icon.TypeEnumOf,
+      iconProps: attr.iconProps
+    }
+  } else if (hierarchy.isDerived(attr.type._class, core.class.TypeString)) {
+    return {
+      icon: attr.icon ?? attr.type.icon ?? typeClass?.icon ?? core.icon.TypeString,
+      iconProps: attr.iconProps
+    }
+  } else if (hierarchy.isDerived(attr.type._class, core.class.TypeNumber)) {
+    return {
+      icon: attr.icon ?? attr.type.icon ?? typeClass?.icon ?? core.icon.TypeNumber,
+      iconProps: attr.iconProps
+    }
+  } else if (hierarchy.isDerived(attr.type._class, core.class.TypeDate)) {
+    return {
+      icon: attr.icon ?? attr.type.icon ?? typeClass?.icon ?? core.icon.TypeDate,
+      iconProps: attr.iconProps
+    }
+  } else if (hierarchy.isDerived(attr.type._class, core.class.TypeBoolean)) {
+    return {
+      icon: attr.icon ?? attr.type.icon ?? typeClass?.icon ?? core.icon.TypeBoolean,
       iconProps: attr.iconProps
     }
   }
+
   return {
-    icon: attr.icon ?? attr.type?.icon,
+    icon: attr.icon ?? attr.type.icon ?? typeClass?.icon ?? core.icon.TypeString,
     iconProps: attr.iconProps
   }
 }

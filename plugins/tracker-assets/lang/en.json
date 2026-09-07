@@ -325,7 +325,13 @@
     "CreateAndOpen": "Create and open",
     "CreateAndNew": "Create and start new",
     "ExportToCSV": "Export to CSV",
-    "ExportToCSVTooltip": "Export visible issues to CSV file"
+    "ExportToCSVTooltip": "Export visible issues to CSV file",
+    "EstimationTask": "Estimation",
+    "EstimationSubtask": "Subtasks",
+    "EstimationTotalTime": "Total",
+    "ReportedTaskTime": "Reported time",
+    "ReportedSubtaskTime": "Subtasks",
+    "ReportedTotalTime": "Total"
   },
   "status": {},
   "emailTemplate": {

@@ -25,5 +25,7 @@ loadMetadata(task.icon, {
   ManageTemplates: `${icons}#manage-templates`,
   TaskState: `${icons}#task-state`,
   Dashboard: `${icons}#dashboard`,
-  TypeHierarchy: `${icons}#type-hierarchy`
+  TypeHierarchy: `${icons}#type-hierarchy`,
+  Export: `${icons}#export`,
+  Import: `${icons}#import`
 })

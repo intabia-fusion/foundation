@@ -36,12 +36,12 @@
     "ts-jest": "^29.1.1",
     "@types/jest": "^29.5.5",
     "prettier-plugin-svelte": "^3.4.0",
-    "@types/node": "^22.18.1"
+    "@types/node": "^24.13.3"
   },
   "dependencies": {
     "@hcengineering/core": "workspace:^0.7.24",
     "@hcengineering/platform": "workspace:^0.7.19",
-    "openai": "^4.56.0",
-    "js-tiktoken": "^1.0.14"
+    "openai": "^7.10.0",
+    "js-tiktoken": "^1.0.21"
   }
 }

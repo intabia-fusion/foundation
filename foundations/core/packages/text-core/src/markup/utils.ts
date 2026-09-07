@@ -16,7 +16,7 @@
 import { Markup } from '@hcengineering/core'
 
 import { deepEqual } from 'fast-equals'
-import hashIt from 'hash-it'
+import { hash as hashIt } from 'hash-it'
 
 import { nodeDoc, nodeParagraph, nodeText } from './dsl'
 import { MarkupMark, MarkupMarkType, MarkupNode, MarkupNodeType, emptyMarkupNode } from './model'

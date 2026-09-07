@@ -336,7 +336,13 @@ export default mergeIds(trackerId, tracker, {
     ClassicIssues: '' as IntlString,
     Parent: '' as IntlString,
     ExportToCSV: '' as IntlString,
-    ExportToCSVTooltip: '' as IntlString
+    ExportToCSVTooltip: '' as IntlString,
+    EstimationTask: '' as IntlString,
+    EstimationSubtask: '' as IntlString,
+    ReportedTaskTime: '' as IntlString,
+    ReportedSubtaskTime: '' as IntlString,
+    ReportedTotalTime: '' as IntlString,
+    EstimationTotalTime: '' as IntlString
   },
   component: {
     NopeComponent: '' as AnyComponent,
@@ -394,6 +400,7 @@ export default mergeIds(trackerId, tracker, {
     TimeSpendReport: '' as AnyComponent,
     TimeSpendReportList: '' as AnyComponent,
     EstimationEditor: '' as AnyComponent,
+    ReportedTimeListPresenter: '' as AnyComponent,
     TemplateEstimationEditor: '' as AnyComponent,
     DeleteComponentPresenter: '' as AnyComponent,
 

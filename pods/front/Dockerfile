@@ -1,4 +1,4 @@
-FROM intabiafusion/front-base:v20251218
+FROM intabiafusion/front-base:v20260309
 WORKDIR /app
 
 COPY bundle/bundle.js ./

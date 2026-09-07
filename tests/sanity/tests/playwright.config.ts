@@ -38,6 +38,10 @@ const platformUse: PlaywrightTestConfig['use'] = {
       }
     ]
   },
+  // Without it an action inherits the test timeout: a click on a covered element - a panel over the
+  // floor, a stale overlay - hangs for the full minute and reports nothing useful. 30s, not less:
+  // under five workers a button can legitimately take twenty to become clickable.
+  actionTimeout: 30000,
   testIdAttribute: 'data-id',
   permissions: ['clipboard-read', 'clipboard-write', 'microphone', 'camera'],
   launchOptions: {

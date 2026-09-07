@@ -306,7 +306,13 @@
     "CreateAndOpen": "Vytvořit a otevřít",
     "CreateAndNew": "Vytvořit a začít další",
     "ExportToCSV": "Export do CSV",
-    "ExportToCSVTooltip": "Exportovat viditelné úkoly do souboru CSV"
+    "ExportToCSVTooltip": "Exportovat viditelné úkoly do souboru CSV",
+    "EstimationTask": "Odhad",
+    "EstimationSubtask": "Podúlohy",
+    "EstimationTotalTime": "Celkem",
+    "ReportedTaskTime": "Strávený čas",
+    "ReportedSubtaskTime": "Podúlohy",
+    "ReportedTotalTime": "Celkem"
   },
   "status": {},
   "emailTemplate": {

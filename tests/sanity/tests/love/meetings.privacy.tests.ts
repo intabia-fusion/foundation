@@ -48,7 +48,9 @@ export function registerPrivacyTests (): void {
         // Click each room and ensure the toggle never appears for user2.
         for (let i = 0; i < count; i++) {
           await rooms.nth(i).click()
-          await page2.waitForTimeout(300)
+          // The panel opening is what says the click landed - asserting "hidden" before it opens
+          // passes for the wrong reason, and a fixed sleep paid for every room.
+          await expect(mm2.panelHeader()).toBeVisible({ timeout: 5000 })
           await expect(mm2.togglePrivateButton()).toBeHidden({ timeout: 1500 })
           await page2.keyboard.press('Escape')
         }

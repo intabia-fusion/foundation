@@ -32,6 +32,9 @@ export class TemplateDetailsPage extends CommonTrackerPage {
     }
     if (data.labels != null) {
       await this.buttonAddLabel().click()
+      // TagsPopup renders only the first 50 tags of a category, and the stand holds far more than
+      // that - type into its search instead of looking for the label in the list.
+      await this.page.locator('div.selectPopup input').fill(data.labels)
       await expect(this.textLabels(data.labels)).toBeVisible()
       await this.inputTitle().click({ force: true })
     }

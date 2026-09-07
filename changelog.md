@@ -2,6 +2,22 @@
 
 Changelog.
 
+## [0.8.37] - 2026-09-03
+
+* 🐛 BUG FIXES: · FUSIO-1316 Fix access checks ([#403](https://github.com/hcengineering/platform/issues/403)) · FUSIO-1266 Fixing logic for backfill ([#404](https://github.com/hcengineering/platform/issues/404))
+* 🧩 OTHER: · FUSIO-1311 Export/import for task types and workflow ([#402](https://github.com/hcengineering/platform/issues/402)) · FUSIO-1303 Show all task types in kanban ([#399](https://github.com/hcengineering/platform/issues/399)) · Improve ModelDb/Hierarchy ([#336](https://github.com/hcengineering/platform/issues/336)) · FUSIO-358 - Удаление родительской задачи ([#372](https://github.com/hcengineering/platform/issues/372)) · FUSIO-205 - Выгрузка задач в csv ([#355](https://github.com/hcengineering/platform/issues/355))
+
+## [0.8.36] - 2026-09-02
+
+* 🚀 FEATURES: · Shared context for love tests ([#401](https://github.com/hcengineering/platform/issues/401))
+* 🧩 OTHER: · Clist + protocol selection ([#398](https://github.com/hcengineering/platform/issues/398)) · FUSIO-970/971/1309 ([#400](https://github.com/hcengineering/platform/issues/400)) · Update meeting tests + reporting ([#393](https://github.com/hcengineering/platform/issues/393))
+
+## [0.8.35] - 2026-09-01
+
+* 🚀 FEATURES: · Add specific validator for reportedTime ([#397](https://github.com/hcengineering/platform/issues/397))
+* 🐛 BUG FIXES: · Fix y metrika ([#396](https://github.com/hcengineering/platform/issues/396))
+* 🧩 OTHER: · FUSIO-1242 Office updates ([#367](https://github.com/hcengineering/platform/issues/367)) · FUSIO-1287 Admin operations hardening ([#390](https://github.com/hcengineering/platform/issues/390)) · FUSIO-812 - Ограничение длины названия и описания меток ([#382](https://github.com/hcengineering/platform/issues/382)) · FUSIO-1266 Changing AI token backfill logic ([#395](https://github.com/hcengineering/platform/issues/395))
+
 ## [0.8.34] - 2026-08-31
 
 * 🚀 FEATURES: · ASR quality ([#391](https://github.com/hcengineering/platform/issues/391))

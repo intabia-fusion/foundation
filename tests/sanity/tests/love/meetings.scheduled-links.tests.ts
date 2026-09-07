@@ -24,8 +24,11 @@ import love, {
 } from '@hcengineering/love'
 import { expect, test, type Page } from '@playwright/test'
 import { PlatformURI, PlatformUserSecond } from '../utils'
-import { retryIntervals } from '../retry'
+import { retry, retryIntervals } from '../retry'
 import {
+  connectedMarker,
+  clickRoomByName,
+  roomPanelConnect,
   closeMeetingContexts,
   getSystemRestClient,
   loveWindow,
@@ -122,14 +125,17 @@ async function getGuestUrlViaApi (client: RestClient, meetingId: Ref<MeetingMinu
   return isShortId ? `${front}/meetings/${shortIdOrToken}` : `${front}/meetings?guestToken=${shortIdOrToken}`
 }
 
-async function clickRoom (page: Page, name: string): Promise<void> {
-  await page.locator(`[data-id="room-${name}"]`).first().click()
-}
-
-async function startMeeting (page: Page): Promise<void> {
-  const connect = page.locator('[data-id="meeting-connect"]').getByRole('button').first()
-  await expect(connect).toBeVisible({ timeout: 10000 })
-  await connect.click()
+// Retried with the room click: the panel can render Knock instead of Connect while the previous
+// meeting is still being cleaned up, and re-opening the room is what settles it.
+async function startMeeting (page: Page, room: string): Promise<void> {
+  await retry(async () => {
+    await clickRoomByName(page, room)
+    const connect = roomPanelConnect(page)
+    // Connect is hidden while we are in that very room, and then there is nothing left to do.
+    if (!(await connect.isVisible().catch(() => false)) && (await connectedMarker(page).count()) > 0) return
+    await expect(connect).toBeVisible({ timeout: 10000 })
+    await connect.click({ timeout: 10000 })
+  }, 30000)
 }
 
 export function registerScheduledLinksTests (): void {
@@ -158,8 +164,7 @@ export function registerScheduledLinksTests (): void {
       // Same account as the REST client above (PlatformUserSecond).
       const { ctx, page } = await loveWindow(browser, 'second')
       try {
-        await clickRoom(page, 'Meeting Room 1')
-        await startMeeting(page)
+        await startMeeting(page, 'Meeting Room 1')
         await waitConnected(page)
 
         // Leave: room_finished webhook must re-arm the future-dated meeting to Scheduled.
@@ -178,8 +183,7 @@ export function registerScheduledLinksTests (): void {
 
         // Re-open and confirm it is joinable again (not stuck Finished).
         await openLove(page)
-        await clickRoom(page, 'Meeting Room 1')
-        await startMeeting(page)
+        await startMeeting(page, 'Meeting Room 1')
         await waitConnected(page)
       } finally {
         await closeMeetingContexts([{ ctx, pages: [page] }])

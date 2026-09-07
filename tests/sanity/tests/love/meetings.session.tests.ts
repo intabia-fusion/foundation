@@ -17,6 +17,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { retryIntervals } from '../retry'
 import {
+  roomPanelConnect,
   clickFirstAvailableRoom,
   clickRoomByName,
   closeMeetingContexts,
@@ -28,7 +29,7 @@ import {
 } from './meeting-helpers'
 
 async function startOrJoin (page: Page): Promise<void> {
-  const connect = page.locator('[data-id="meeting-connect"]').getByRole('button').first()
+  const connect = roomPanelConnect(page)
   const knock = page.locator('[data-id="meeting-knock"]')
   // Knock instead of Connect means a foreign ParticipantInfo is back - a webhook can
   // recreate one right after the drain in `beforeEach`.

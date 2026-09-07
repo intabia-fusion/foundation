@@ -1,5 +1,6 @@
 import {
   ConnectionState,
+  DisconnectReason,
   type RemoteParticipant,
   Room as LKRoom,
   RoomEvent,
@@ -41,7 +42,32 @@ export const screenSharingState = writable<ScreenSharingState>(ScreenSharingStat
 export const lkSessionConnected = writable<boolean>(false)
 export const lkReconnected = writable<number>(0)
 
+// Bumped when the server ended this session for good - the room was deleted or we were removed.
+// Reconnecting then lands in a meeting that no longer exists.
+export const lkSessionEnded = writable<number>(0)
+
 export const lkIsConnecting = writable<boolean>(false)
+// Sticky across disconnects AND reloads: a ParticipantInfo row still carrying it is this tab's own
+// leftover, not a second session. sessionStorage is per-tab, so another tab never reads this one.
+const MY_SID_KEY = 'love.lastSessionSid'
+export const myLastSessionSid = writable<string | undefined>(readMySid())
+
+function readMySid (): string | undefined {
+  try {
+    return window.sessionStorage.getItem(MY_SID_KEY) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+function rememberMySid (sid: string): void {
+  myLastSessionSid.set(sid)
+  try {
+    window.sessionStorage.setItem(MY_SID_KEY, sid)
+  } catch {
+    // Private mode or storage disabled - the store still covers this tab until it reloads.
+  }
+}
 
 const LAST_PARTICIPANT_NOTIFICATION_DELAY_MS = 60 * 1000
 const AUTO_DISCONNECT_DELAY_MS = 10 * 60 * 1000 // set 10 minutes
@@ -214,6 +240,7 @@ export class LiveKitClient {
   onConnected = (): void => {
     console.log('[LiveKitClient.onConnected] Connected event fired')
     lkSessionConnected.set(true)
+    rememberMySid(this.liveKitRoom.localParticipant.sid)
     lkIsConnecting.set(false)
 
     this.liveKitRoom.on(RoomEvent.ParticipantConnected, this.onParticipantConnected)
@@ -236,9 +263,18 @@ export class LiveKitClient {
     lkReconnected.update((v) => v + 1)
   }
 
-  onDisconnected = (): void => {
+  onDisconnected = (reason?: DisconnectReason): void => {
     lkSessionConnected.set(false)
     lkIsConnecting.set(false)
+    // A network drop or a refresh is transient and must stay reconnectable; these three mean the
+    // meeting is over on the server side.
+    if (
+      reason === DisconnectReason.ROOM_DELETED ||
+      reason === DisconnectReason.ROOM_CLOSED ||
+      reason === DisconnectReason.PARTICIPANT_REMOVED
+    ) {
+      lkSessionEnded.update((v) => v + 1)
+    }
     this.liveKitRoom.off(RoomEvent.ParticipantConnected, this.onParticipantConnected)
     this.liveKitRoom.off(RoomEvent.ParticipantDisconnected, this.onParticipantDisconnected)
     this.liveKitRoom.off(RoomEvent.TrackSubscribed, this.onTrackSubscribed)

@@ -13,11 +13,12 @@
   limitations under the License.
 */
 
-import { type Ref, type TxOperations } from '@hcengineering/core'
+import { generateId, type Ref, type TxOperations, type WorkspaceUuid } from '@hcengineering/core'
 import workflow, {
   importWorkflowConfig,
-  type RuleConfig,
-  type TransitionConfig,
+  type RequestConfig,
+  type ValidatorConfig,
+  type PostFunctionConfig,
   type WorkflowFieldValue,
   type WorkflowTransformCall
 } from '@hcengineering/workflow'
@@ -36,6 +37,16 @@ import {
 } from './workflow.fixtures'
 
 const Statuses = ['Backlog', 'Todo', 'InProgress', 'Done']
+const wsUuid = 'test-workspace-uuid' as unknown as WorkspaceUuid
+
+interface TransitionSpec {
+  name: string
+  from: string[] | null
+  to: string
+  requests?: RequestConfig[]
+  validators?: ValidatorConfig[]
+  postFunctions?: PostFunctionConfig[]
+}
 
 describe('workflow post-functions', () => {
   let client: TxOperations
@@ -51,24 +62,27 @@ describe('workflow post-functions', () => {
     return { attribute: attr._id, fieldKey: key }
   }
 
-  function updateField (key: string, value: WorkflowFieldValue): RuleConfig {
+  function updateField (key: string, value: WorkflowFieldValue): PostFunctionConfig {
     return {
+      id: generateId(),
       rule: workflow.postFunction.UpdateFieldValue,
       ruleClass: workflow.class.WorkflowPostFunction,
       props: { fields: [{ ...field(key), value }] }
     }
   }
 
-  function updateFields (entries: Array<[string, WorkflowFieldValue]>): RuleConfig {
+  function updateFields (entries: Array<[string, WorkflowFieldValue]>): PostFunctionConfig {
     return {
+      id: generateId(),
       rule: workflow.postFunction.UpdateFieldValue,
       ruleClass: workflow.class.WorkflowPostFunction,
       props: { fields: entries.map(([key, value]) => ({ ...field(key), value })) }
     }
   }
 
-  function clearFields (...keys: string[]): RuleConfig {
+  function clearFields (...keys: string[]): PostFunctionConfig {
     return {
+      id: generateId(),
       rule: workflow.postFunction.ClearFieldValue,
       ruleClass: workflow.class.WorkflowPostFunction,
       props: { fields: keys.map(field) }
@@ -89,13 +103,33 @@ describe('workflow post-functions', () => {
     return value
   }
 
-  async function withWorkflow (transitions: TransitionConfig[]): Promise<ProjectContext> {
+  async function withWorkflow (transitions: TransitionSpec[]): Promise<ProjectContext> {
     const name = `WF ${uniqueSuffix()}`
     const ctx = await createProject(type, 'Backlog')
     await importWorkflowConfig(client, type.projectTypeId, {
       version: 1,
-      workflows: [{ name, taskType: 'Issue', transitions }],
-      projects: [{ identifier: ctx.identifier, workflows: { Issue: name } }]
+      exportDate: new Date().toISOString(),
+      workspace: wsUuid,
+      projectTypeId: type.projectTypeId,
+      statuses: Statuses.map((s) => ({ id: type.statuses[s], name: s, color: 0 })),
+      workflows: [
+        {
+          id: generateId(),
+          name,
+          taskTypeName: 'Issue',
+          taskTypeId: type.taskTypes.Issue,
+          transitions: transitions.map((t) => ({
+            id: generateId(),
+            name: t.name,
+            from: t.from == null ? null : t.from.map((s) => type.statuses[s]),
+            to: type.statuses[t.to],
+            requests: t.requests,
+            validators: t.validators,
+            postFunctions: t.postFunctions
+          }))
+        }
+      ],
+      projects: [{ project: ctx.projectId, identifier: ctx.identifier, workflows: { Issue: name } }]
     })
     return ctx
   }
@@ -428,6 +462,7 @@ describe('workflow post-functions', () => {
           to: 'Todo',
           postFunctions: [
             {
+              id: generateId(),
               rule: workflow.postFunction.UpdateFieldValue,
               ruleClass: workflow.class.WorkflowPostFunction,
               props: { fields: [] }
@@ -554,6 +589,7 @@ describe('workflow post-functions', () => {
           to: 'Todo',
           validators: [
             {
+              id: generateId(),
               rule: workflow.validator.FieldRequired,
               ruleClass: workflow.class.WorkflowValidator,
               props: { fields: [field('dueDate')] }
@@ -576,6 +612,7 @@ describe('workflow post-functions', () => {
           to: 'Todo',
           validators: [
             {
+              id: generateId(),
               rule: workflow.validator.FieldRequired,
               ruleClass: workflow.class.WorkflowValidator,
               props: { fields: [field('dueDate')] }

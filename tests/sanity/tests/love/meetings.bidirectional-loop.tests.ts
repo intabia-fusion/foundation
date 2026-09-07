@@ -16,6 +16,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import {
+  closeLiveKitRooms,
   closeMeetingContexts,
   loveWindow,
   openLove,
@@ -81,6 +82,9 @@ export function registerBidirectionalLoopTests (): void {
           // The server closes the room on the office owner leaving, so Muram drops with no
           // manual leave.
           await leaveMeeting(page2)
+          // What the love poller does once the owner-rejoin grace runs out - the peer is dropped
+          // either way, so doing it now saves the whole grace.
+          await closeLiveKitRooms()
           await waitDisconnected(page3)
           await waitForActiveMeetingsToFinish()
           // After leaving, both clients land on the Summary panel, which covers the floor grid.
@@ -99,6 +103,7 @@ export function registerBidirectionalLoopTests (): void {
           // Reverse: meeting is hosted in Muram's office (caller).
           // Muram leaves → server closes room → Dirak disconnects.
           await leaveMeeting(page3)
+          await closeLiveKitRooms()
           await waitDisconnected(page2)
           await waitForActiveMeetingsToFinish()
         })

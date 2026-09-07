@@ -1,6 +1,7 @@
 <script lang="ts">
   //
   // © 2023 Hardcore Engineering, Inc. All Rights Reserved.
+  // Copyright © 2026 Intabia Fusion.
   // Licensed under the Eclipse Public License v2.0 (SPDX: EPL-2.0).
   //
 
@@ -10,7 +11,7 @@
   import { registerFocus } from '../focus'
   import Label from './Label.svelte'
 
-  export let label: IntlString
+  export let label: IntlString | undefined = undefined
   export let value: string | undefined = undefined
   export let kind: 'default' | 'ghost' | 'secondary' | 'transparent' = 'default'
   export let size: 'small' | 'medium' | 'large' = 'small'
@@ -29,9 +30,13 @@
   $: maxlength = limit === 0 ? null : limit
 
   let placeholderStr: string = ''
-  $: translateCB(label, {}, $themeStore.language, (r) => {
-    placeholderStr = r
-  })
+  $: if (label !== undefined) {
+    translateCB(label, {}, $themeStore.language, (r) => {
+      placeholderStr = r
+    })
+  } else {
+    placeholderStr = ''
+  }
   $: labeled = kind === 'default' && size === 'large'
   $: placeholder = labeled ? ' ' : placeholderStr
 
@@ -120,7 +125,7 @@
     />
   {/if}
   <slot name="after" />
-  {#if labeled}<div class="font-regular-14 label"><Label {label} /></div>{/if}
+  {#if labeled && label !== undefined}<div class="font-regular-14 label"><Label {label} /></div>{/if}
 </svelte:element>
 
 <style lang="scss">

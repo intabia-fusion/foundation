@@ -48,6 +48,10 @@ export class ApiEndpoint {
     password: string
   ): Promise<WorkspaceLoginInfo> {
     const token = await this.loginAndGetToken(username, password)
+    return await this.createWorkspaceInternal(workspaceName, token)
+  }
+
+  private async createWorkspaceInternal (workspaceName: string, token: string): Promise<WorkspaceLoginInfo> {
     const url = this.baseUrl
     const payload = {
       method: 'createWorkspace',
@@ -106,7 +110,9 @@ export class ApiEndpoint {
       if (wsInfo.status.mode === 'active') {
         break
       }
-      await new Promise((resolve) => setTimeout(resolve, 250))
+      // 100ms, not 250: a workspace is ready ~500ms after the call, and every test that creates one
+      // pays a quarter of a second of pure polling granularity on top.
+      await new Promise((resolve) => setTimeout(resolve, 100))
     }
   }
 

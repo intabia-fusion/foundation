@@ -144,7 +144,7 @@ test.describe('Tracker tests', () => {
       await issuesPage.expectCreateEnabled()
       await issuesPage.clickCreate()
       await issuesPage.clickOkButton()
-      await issuesPage.checkEstimation(count)
+      await issuesPage.checkReportedTime(count)
     }
   })
 

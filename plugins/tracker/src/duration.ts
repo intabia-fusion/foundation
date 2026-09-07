@@ -131,9 +131,7 @@ export function formatDuration (hours: number, language: string = 'en'): string 
   const totalMin = Math.round(hours * MINUTES_IN_HOUR)
 
   const units: Array<[number, number]> = [
-    [Math.floor(totalMin / MINUTES_IN_WEEK), MINUTES_IN_WEEK],
-    [Math.floor((totalMin % MINUTES_IN_WEEK) / MINUTES_IN_DAY), MINUTES_IN_DAY],
-    [Math.floor((totalMin % MINUTES_IN_DAY) / MINUTES_IN_HOUR), MINUTES_IN_HOUR],
+    [Math.floor(totalMin / MINUTES_IN_HOUR), MINUTES_IN_HOUR],
     [totalMin % MINUTES_IN_HOUR, 1]
   ]
 

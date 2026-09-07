@@ -14,7 +14,7 @@
 <script lang="ts">
   import { Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { TaskType } from '@hcengineering/task'
+  import { TaskType, getConnectedTaskTypes } from '@hcengineering/task'
   import {
     Button,
     ButtonIcon,
@@ -89,66 +89,6 @@
       allowAnyParent: false,
       allowedAsChildOf: []
     })
-  }
-
-  function getConnectedTaskTypes (target: TaskType, allTypes: TaskType[]): TaskType[] {
-    const typeMap = new Map<Ref<TaskType>, TaskType>()
-    for (const t of allTypes) {
-      typeMap.set(t._id, t)
-    }
-
-    const connectedIds = new Set<Ref<TaskType>>()
-    connectedIds.add(target._id)
-
-    // 1. Ancestors: all types that target or its ancestors can be a child of
-    const upQueue: Ref<TaskType>[] = [target._id]
-    const visitedUp = new Set<Ref<TaskType>>([target._id])
-
-    while (upQueue.length > 0) {
-      const currentId = upQueue.shift()
-      if (currentId === undefined) continue
-      const current = typeMap.get(currentId)
-      if (current === undefined) continue
-
-      const parents = (current.allowedAsChildOf ?? []).filter((p) => p !== current._id)
-      for (const parentId of parents) {
-        if (typeMap.has(parentId)) {
-          connectedIds.add(parentId)
-          if (!visitedUp.has(parentId)) {
-            visitedUp.add(parentId)
-            upQueue.push(parentId)
-          }
-        }
-      }
-    }
-
-    // 2. Descendants: all types that can be a child of target or its descendants
-    const downQueue: Ref<TaskType>[] = [target._id]
-    const visitedDown = new Set<Ref<TaskType>>([target._id])
-
-    while (downQueue.length > 0) {
-      const currentId = downQueue.shift()
-      if (currentId === undefined) continue
-
-      for (const candidate of allTypes) {
-        if (candidate._id === currentId) continue
-
-        const isDirectChild = (candidate.allowedAsChildOf ?? []).includes(currentId)
-        const isUniversalChild = candidate.allowAnyParent === true
-
-        if (isDirectChild || isUniversalChild) {
-          connectedIds.add(candidate._id)
-          if (!visitedDown.has(candidate._id)) {
-            visitedDown.add(candidate._id)
-            if (!isUniversalChild) {
-              downQueue.push(candidate._id)
-            }
-          }
-        }
-      }
-    }
-
-    return allTypes.filter((t) => connectedIds.has(t._id))
   }
 
   function handleShowDiagram (): void {

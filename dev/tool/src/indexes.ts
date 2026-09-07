@@ -24,7 +24,7 @@ import {
 } from '@hcengineering/postgres'
 import { existsSync, readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 import type postgres from 'postgres'
 import { buildModel } from './mdiff'
 
@@ -152,7 +152,12 @@ export async function syncIndexes (
   if (!existsSync(inFile)) {
     throw new Error(`file not found: ${inFile}`)
   }
-  const parsed = yaml.load(readFileSync(inFile, 'utf8')) as IndexesFile | undefined
+  let parsed: IndexesFile | undefined
+  try {
+    parsed = yaml.load(readFileSync(inFile, 'utf8')) as IndexesFile | undefined
+  } catch (err) {
+    throw new Error(`invalid YAML in ${inFile}`)
+  }
   if (parsed == null || typeof parsed !== 'object') {
     throw new Error(`invalid YAML in ${inFile}`)
   }

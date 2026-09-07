@@ -18,7 +18,7 @@
   import { IntlString } from '@hcengineering/platform'
   import { createQuery, deleteFile, getClient, uploadFile } from '@hcengineering/presentation'
   import { Icon, IconAdd, IconClose, Label, Spinner } from '@hcengineering/ui'
-  import filesize from 'filesize'
+  import { filesize } from 'filesize'
 
   import { createAttachment, openAttachmentInSidebar, showAttachmentPreviewPopup, savedBlobs } from '../utils'
   import IconAttachments from './icons/Attachments.svelte'

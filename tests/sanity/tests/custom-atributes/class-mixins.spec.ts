@@ -34,10 +34,7 @@ test.describe('Class mixins tests', () => {
     await userProfilePage.clickSettings()
     await workspaceSettingsPage.selectWorkspaceSettingsTab(ButtonType.Classes)
     await classMixinsPage.selectClass('Company')
-    await classMixinsPage.clickCreateMixin()
-    await classMixinsPage.fillMixinName(mixinName)
-    await classMixinsPage.clickCreatePopupButton()
-    await classMixinsPage.checkMixinExists(mixinName)
+    await classMixinsPage.createMixin(mixinName)
   })
 
   test('delete mixin', async () => {
@@ -46,10 +43,7 @@ test.describe('Class mixins tests', () => {
     await userProfilePage.clickSettings()
     await workspaceSettingsPage.selectWorkspaceSettingsTab(ButtonType.Classes)
     await classMixinsPage.selectClass('Company')
-    await classMixinsPage.clickCreateMixin()
-    await classMixinsPage.fillMixinName(mixinName)
-    await classMixinsPage.clickCreatePopupButton()
-    await classMixinsPage.checkMixinExists(mixinName)
+    await classMixinsPage.createMixin(mixinName)
 
     await classMixinsPage.deleteMixin(mixinName)
     await expect(classMixinsPage.mixinChip(mixinName)).not.toBeVisible()

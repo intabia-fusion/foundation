@@ -1,6 +1,7 @@
 import { IssuesPage } from './issues-page'
 import { type Locator, expect } from '@playwright/test'
 import path from 'path'
+import { retryIntervals } from '../../retry'
 
 export class IssueCommentPopup extends IssuesPage {
   inputCommentText = (): Locator => this.page.locator('div[class*="commentPopup"] div.tiptap')
@@ -18,6 +19,15 @@ export class IssueCommentPopup extends IssuesPage {
       await expect(this.textAttachFileName()).toHaveText(attachmentFileName, { timeout: 45000 })
     }
 
+    // `disabled={!canSubmit}` while the attachment uploads (ReferenceInput.svelte): clicking a
+    // disabled button waits out the whole test timeout and reports nothing about the upload.
+    // A popup that goes away instead of enabling means the row under it re-rendered - say so.
+    await expect(async () => {
+      if ((await this.page.locator('div[class*="commentPopup"]').count()) === 0) {
+        throw new Error('comment popup closed before the send button became enabled')
+      }
+      await expect(this.buttonSendComment()).toBeEnabled({ timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
     await this.buttonSendComment().click()
   }
 }

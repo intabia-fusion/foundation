@@ -162,6 +162,8 @@
     "SpeakingWhileMutedAlert": "Mikrofon kapalıyken konuştuğumda uyar",
     "SwitchWorkspaceInMeeting": "Bir toplantıdasınız",
     "SwitchWorkspaceLeaveMeeting": "Çalışma alanını değiştirmek sizi mevcut toplantıdan koparacak.",
+    "AlreadyInAnotherMeeting": "Zaten bir toplantıdasınız",
+    "LeaveOtherMeeting": "Başka bir sekmede veya cihazda \"{meeting}\" toplantısına bağlısınız. Devam edip oradan çıkılsın mı?",
     "SwitchWorkspaceEndsMeeting": "Burası sizin ofisiniz: çalışma alanını değiştirmek sizi koparır ve toplantıyı herkes için sonlandırır."
   }
 }

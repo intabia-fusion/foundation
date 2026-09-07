@@ -348,6 +348,10 @@ export class TUserMeetingInvite extends TDoc implements UserMeetingInvite {
   @Prop(TypeString(), getEmbeddedLabel('AcceptedSessionId'))
   @Hidden()
     acceptedSessionId?: string
+
+  @Prop(TypeString(), getEmbeddedLabel('SenderSessionId'))
+  @Hidden()
+    senderSessionId?: string
 }
 
 export default love

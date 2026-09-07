@@ -61,8 +61,8 @@
     "@hcengineering/view": "workspace:^0.7.0",
     "@hcengineering/view-resources": "workspace:^0.7.0",
     "@hcengineering/workbench": "workspace:^0.7.0",
-    "fast-copy": "^3.0.2",
-    "fast-equals": "^5.2.2",
+    "fast-copy": "^3.1.0",
+    "fast-equals": "^6.0.3",
     "snappyjs": "^0.7.0",
     "svelte": "^4.2.20"
   }

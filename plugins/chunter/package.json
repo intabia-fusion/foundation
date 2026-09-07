@@ -46,7 +46,7 @@
     "@hcengineering/view": "workspace:^0.7.0",
     "@hcengineering/workbench": "workspace:^0.7.0",
     "@hcengineering/retry": "workspace:^0.7.17",
-    "fast-equals": "^5.2.2"
+    "fast-equals": "^6.0.3"
   },
   "repository": "https://github.com/hcengineering/platform",
   "publishConfig": {

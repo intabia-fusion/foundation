@@ -69,6 +69,6 @@
     "@hcengineering/workbench": "workspace:^0.7.0",
     "@hcengineering/hls": "workspace:^0.7.0",
     "@hcengineering/audio-dsp": "workspace:^0.7.0",
-    "fast-equals": "^5.2.2"
+    "fast-equals": "^6.0.3"
   }
 }

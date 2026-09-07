@@ -2,9 +2,7 @@ import { test, expect } from '../fixtures'
 import { generateToken } from '@hcengineering/server-token'
 import { systemAccountUuid } from '@hcengineering/core'
 import { ApiEndpoint } from '../API/Api'
-import { generateTestData, PlatformURI } from '../utils'
-import { LoginPage } from '../model/login-page'
-import { SelectWorkspacePage } from '../model/select-workspace-page'
+import { generateTestData, loginByToken } from '../utils'
 
 const BILLING_URL = process.env.BILLING_URL ?? 'http://localhost:8083/_billing'
 
@@ -41,11 +39,10 @@ test.describe('Billing API — data that UI displays', () => {
     ownerToken = wsInfo.token
     workspaceUuid = wsInfo.workspace
 
-    await page.goto(PlatformURI)
-    const loginPage = new LoginPage(page)
-    await loginPage.login(data.userName, '1234')
-    const swp = new SelectWorkspacePage(page)
-    await swp.selectWorkspace(data.workspaceName)
+    // Straight in on the account token: the login form plus the workspace picker are two more page
+    // loads, and this hook runs before every test in the file.
+    const token = await api.loginAndGetToken(data.userName, '1234')
+    await loginByToken(page, token, wsInfo)
   })
 
   // ── AI section ───────────────────────────────────────────────────────────────

@@ -246,7 +246,7 @@
     <div class="antiStatusBar">
       <div class="flex-row-center h-full content-color gap-3 px-4 py-2">
         {#if desktopPlatform}
-          <div class="history-box flex-row-center gap-3">
+          <div class="history-box flex-row-center gap-1">
             <button
               id="statusbar-back"
               class="antiButton ghost jf-center bs-none no-focus resetIconSize statusButton square"
@@ -360,7 +360,7 @@
 
       .history-box {
         -webkit-app-region: no-drag;
-        margin-left: var(--huly-history-box-left-indent, 4.625rem);
+        margin-left: var(--huly-history-box-left-indent, 5.75rem);
       }
       .maintenanceScheduled {
         padding: 0 0.5rem;

@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 import { type Sql, type TransactionSql } from 'postgres'
+
 import {
   type Data,
   type Version,
@@ -77,6 +78,9 @@ import type {
   AccountActivityStats
 } from '../../types'
 
+// postgres 3.4.8 narrowed TransactionSql: it no longer satisfies Sql, so query helpers take both
+type SqlClient = Sql | TransactionSql
+
 function toSnakeCase (str: string): string {
   // Preserve leading underscore
   const hasLeadingUnderscore = str.startsWith('_')
@@ -134,7 +138,7 @@ export interface PostgresDbCollectionOptions<T extends Record<string, any>, K ex
   ns?: string
   fieldTypes?: Record<string, string>
   timestampFields?: Array<keyof T>
-  withRetryClient?: <R>(callback: (client: Sql) => Promise<R>) => Promise<R>
+  withRetryClient?: <R>(callback: (client: TransactionSql) => Promise<R>) => Promise<R>
 }
 
 export class PostgresDbCollection<T extends Record<string, any>, K extends keyof T | undefined = undefined>
@@ -292,7 +296,7 @@ implements DbCollection<T> {
     return res as T
   }
 
-  async unsafe (sql: string, values: any[], client?: Sql): Promise<any[]> {
+  async unsafe (sql: string, values: any[], client?: SqlClient): Promise<any[]> {
     if (client !== undefined) {
       return await client.unsafe(sql, values)
     } else if (this.options.withRetryClient !== undefined) {
@@ -302,7 +306,7 @@ implements DbCollection<T> {
     }
   }
 
-  async exists (query: Query<T>, client?: Sql): Promise<boolean> {
+  async exists (query: Query<T>, client?: SqlClient): Promise<boolean> {
     const [whereClause, whereValues] = this.buildWhereClause(query)
     const sql = `SELECT EXISTS (SELECT 1 FROM ${this.getTableName()} ${whereClause})`
 
@@ -311,7 +315,7 @@ implements DbCollection<T> {
     return result[0]?.exists === true
   }
 
-  async find (query: Query<T>, sort?: Sort<T>, limit?: number, client?: Sql): Promise<T[]> {
+  async find (query: Query<T>, sort?: Sort<T>, limit?: number, client?: SqlClient): Promise<T[]> {
     const sqlChunks: string[] = [this.buildSelectClause()]
     const [whereClause, whereValues] = this.buildWhereClause(query)
 
@@ -333,11 +337,11 @@ implements DbCollection<T> {
     return result.map((row) => this.convertToObj(row))
   }
 
-  async findOne (query: Query<T>, client?: Sql): Promise<T | null> {
+  async findOne (query: Query<T>, client?: SqlClient): Promise<T | null> {
     return (await this.find(query, undefined, 1, client))[0] ?? null
   }
 
-  async insertOne (data: Partial<T>, client?: Sql): Promise<K extends keyof T ? T[K] : undefined> {
+  async insertOne (data: Partial<T>, client?: SqlClient): Promise<K extends keyof T ? T[K] : undefined> {
     const snakeData = convertKeysToSnakeCase(data)
     const keys: string[] = Object.keys(snakeData)
     const values = Object.values(snakeData) as any
@@ -354,7 +358,7 @@ implements DbCollection<T> {
     return res[0][idKey]
   }
 
-  async insertMany (data: Array<Partial<T>>, client?: Sql): Promise<K extends keyof T ? Array<T[K]> : undefined> {
+  async insertMany (data: Array<Partial<T>>, client?: SqlClient): Promise<K extends keyof T ? Array<T[K]> : undefined> {
     const snakeData = convertKeysToSnakeCase(data)
     const columns = new Set<string>()
     for (const record of snakeData) {
@@ -420,7 +424,7 @@ implements DbCollection<T> {
     return [`SET ${updateChunks.join(', ')}`, values]
   }
 
-  async update (query: Query<T>, ops: Operations<T>, client?: Sql): Promise<void> {
+  async update (query: Query<T>, ops: Operations<T>, client?: SqlClient): Promise<void> {
     const sqlChunks: string[] = [`UPDATE ${this.getTableName()}`]
     const [updateClause, updateValues] = this.buildUpdateClause(ops)
     const [whereClause, whereValues] = this.buildWhereClause(query, updateValues.length)
@@ -434,7 +438,7 @@ implements DbCollection<T> {
     await this.unsafe(finalSql, [...updateValues, ...whereValues], client)
   }
 
-  async deleteMany (query: Query<T>, client?: Sql): Promise<void> {
+  async deleteMany (query: Query<T>, client?: SqlClient): Promise<void> {
     const sqlChunks: string[] = [`DELETE FROM ${this.getTableName()}`]
     const [whereClause, whereValues] = this.buildWhereClause(query)
 
@@ -485,7 +489,7 @@ export class AccountPostgresDbCollection
     )`
   }
 
-  async find (query: Query<Account>, sort?: Sort<Account>, limit?: number, client?: Sql): Promise<Account[]> {
+  async find (query: Query<Account>, sort?: Sort<Account>, limit?: number, client?: SqlClient): Promise<Account[]> {
     if (Object.keys(query).some((k) => this.passwordKeys.includes(k))) {
       throw new Error('Passwords are not allowed in find query conditions')
     }
@@ -504,7 +508,7 @@ export class AccountPostgresDbCollection
     return result
   }
 
-  async insertOne (data: Partial<Account>, client?: Sql): Promise<Account['uuid']> {
+  async insertOne (data: Partial<Account>, client?: SqlClient): Promise<Account['uuid']> {
     if (Object.keys(data).some((k) => this.passwordKeys.includes(k))) {
       throw new Error('Passwords are not allowed in insert query')
     }
@@ -512,7 +516,7 @@ export class AccountPostgresDbCollection
     return await super.insertOne(data, client)
   }
 
-  async update (query: Query<Account>, ops: Operations<Account>, client?: Sql): Promise<void> {
+  async update (query: Query<Account>, ops: Operations<Account>, client?: SqlClient): Promise<void> {
     if (Object.keys({ ...ops, ...query }).some((k) => this.passwordKeys.includes(k))) {
       throw new Error('Passwords are not allowed in update query')
     }
@@ -520,7 +524,7 @@ export class AccountPostgresDbCollection
     await super.update(query, ops, client)
   }
 
-  async deleteMany (query: Query<Account>, client?: Sql): Promise<void> {
+  async deleteMany (query: Query<Account>, client?: SqlClient): Promise<void> {
     if (Object.keys(query).some((k) => this.passwordKeys.includes(k))) {
       throw new Error('Passwords are not allowed in delete query')
     }
@@ -721,7 +725,7 @@ export class PostgresAccountDB implements AccountDB {
       return
     }
 
-    const executeMigration = async (client: Sql): Promise<void> => {
+    const executeMigration = async (client: SqlClient): Promise<void> => {
       updateInterval = setInterval(() => {
         this.client`
           UPDATE ${this.client(this.ns)}._account_applied_migrations

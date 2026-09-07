@@ -56,14 +56,18 @@ export async function addTransition (
   workflowId: Ref<Workflow>,
   name: string,
   from: Ref<Status>[] | null,
-  to: Ref<Status>
+  to: Ref<Status>,
+  rank?: string
 ): Promise<Ref<WorkflowTransition>> {
-  const last = await client.findOne(
-    workflow.class.WorkflowTransition,
-    { attachedTo: workflowId },
-    { sort: { rank: SortingOrder.Descending } }
-  )
-  const rank = makeRank(last?.rank, undefined)
+  let r = rank
+  if (r === undefined) {
+    const last = await client.findOne(
+      workflow.class.WorkflowTransition,
+      { attachedTo: workflowId },
+      { sort: { rank: SortingOrder.Descending } }
+    )
+    r = makeRank(last?.rank, undefined)
+  }
   return await client.addCollection(
     workflow.class.WorkflowTransition,
     core.space.Workspace,
@@ -74,7 +78,7 @@ export async function addTransition (
       name,
       from,
       to,
-      rank
+      rank: r
     }
   )
 }
@@ -269,13 +273,21 @@ export function hasSelfTransition (transition: Pick<WorkflowTransition, 'from' |
   return transition.from.includes(transition.to)
 }
 
-export async function addScreenTab (client: TxOperations, screenId: Ref<Screen>, name: string): Promise<Ref<ScreenTab>> {
-  const last = await client.findOne(
-    workflow.class.ScreenTab,
-    { attachedTo: screenId },
-    { sort: { rank: SortingOrder.Descending } }
-  )
-  const rank = makeRank(last?.rank, undefined)
+export async function addScreenTab (
+  client: TxOperations,
+  screenId: Ref<Screen>,
+  name: string,
+  rank?: string
+): Promise<Ref<ScreenTab>> {
+  let r = rank
+  if (r === undefined) {
+    const last = await client.findOne(
+      workflow.class.ScreenTab,
+      { attachedTo: screenId },
+      { sort: { rank: SortingOrder.Descending } }
+    )
+    r = makeRank(last?.rank, undefined)
+  }
   return await client.addCollection(
     workflow.class.ScreenTab,
     core.space.Workspace,
@@ -284,7 +296,7 @@ export async function addScreenTab (client: TxOperations, screenId: Ref<Screen>,
     'tabs',
     {
       name,
-      rank
+      rank: r
     }
   )
 }
@@ -307,14 +319,18 @@ export async function removeScreenTab (
 export async function addScreenField (
   client: TxOperations,
   tabId: Ref<ScreenTab>,
-  data: Omit<Data<ScreenField>, 'collection' | 'attachedTo' | 'attachedToClass' | 'rank'>
+  data: Omit<Data<ScreenField>, 'collection' | 'attachedTo' | 'attachedToClass' | 'rank'>,
+  rank?: string
 ): Promise<Ref<ScreenField>> {
-  const last = await client.findOne(
-    workflow.class.ScreenField,
-    { attachedTo: tabId },
-    { sort: { rank: SortingOrder.Descending } }
-  )
-  const rank = makeRank(last?.rank, undefined)
+  let r = rank
+  if (r === undefined) {
+    const last = await client.findOne(
+      workflow.class.ScreenField,
+      { attachedTo: tabId },
+      { sort: { rank: SortingOrder.Descending } }
+    )
+    r = makeRank(last?.rank, undefined)
+  }
   return await client.addCollection(
     workflow.class.ScreenField,
     core.space.Workspace,
@@ -323,7 +339,7 @@ export async function addScreenField (
     'fields',
     {
       ...data,
-      rank
+      rank: r
     }
   )
 }

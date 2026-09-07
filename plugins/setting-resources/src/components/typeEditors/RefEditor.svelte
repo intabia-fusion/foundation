@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -57,9 +58,9 @@
       if (excluded.has(desc)) continue
       const domain = hierarchy.findDomain(desc)
       if (domain === DOMAIN_STATUS || domain === undefined) continue
+      const _class = hierarchy.findClass(desc)
+      if (_class?.label === undefined) continue
       if (hierarchy.classHierarchyMixin(desc, view.mixin.AttributeEditor) === undefined) continue
-      const _class = hierarchy.getClass(desc)
-      if (_class.label === undefined) continue
       res.push({ id: _class._id, label: _class.label })
     }
     return res
@@ -71,7 +72,10 @@
 
   $: refClass !== undefined && dispatch('change', { type: TypeRef(refClass) })
 
-  $: editor = refClass !== undefined && hierarchy.classHierarchyMixin(refClass, view.mixin.TypeEditor)?.editor
+  $: editor =
+    refClass !== undefined &&
+    hierarchy.findClass(refClass) !== undefined &&
+    hierarchy.classHierarchyMixin(refClass, view.mixin.TypeEditor)?.editor
 </script>
 
 <span class="label">

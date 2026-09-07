@@ -338,20 +338,12 @@ export function convertEstimation (estimation: number | string): string {
   if (hours === 0 || Number.isNaN(hours)) return '0m'
 
   const totalMin = Math.round(hours * 60)
-  // Mirrors formatDurationCompact: the largest non-zero unit plus the next one down.
-  const units: Array<[number, string]> = [
-    [Math.floor(totalMin / 2400), 'w'],
-    [Math.floor((totalMin % 2400) / 480), 'd'],
-    [Math.floor((totalMin % 480) / 60), 'h'],
-    [totalMin % 60, 'm']
-  ]
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
 
-  const first = units.findIndex(([value]) => value > 0)
-  if (first === -1) return '0m'
+  const parts: string[] = []
+  if (h > 0) parts.push(`${h}h`)
+  if (m > 0) parts.push(`${m}m`)
 
-  return units
-    .slice(first, first + 2)
-    .filter(([value]) => value > 0)
-    .map(([value, unit]) => `${value}${unit}`)
-    .join(' ')
+  return parts.length > 0 ? parts.join(' ') : '0m'
 }

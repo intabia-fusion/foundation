@@ -14,8 +14,11 @@
 //
 
 import { expect, test, type Page } from '@playwright/test'
+import { retry } from '../retry'
 
 import {
+  connectedMarker,
+  roomPanelConnect,
   clickFirstAvailableRoom,
   clickRoomByName,
   closeLoveWindows,
@@ -25,10 +28,17 @@ import {
   waitForActiveMeetingsToFinish
 } from './meeting-helpers'
 
-async function startMeeting (page: Page): Promise<void> {
-  const connect = page.locator('[data-id="meeting-connect"]').first()
-  await expect(connect).toBeVisible({ timeout: 10000 })
-  await connect.click()
+// Retried with the room click: the panel can render Knock instead of Connect while the previous
+// meeting is still being cleaned up, and re-opening the room is what settles it.
+async function startMeeting (page: Page, room: string): Promise<void> {
+  await retry(async () => {
+    await clickRoomByName(page, room)
+    const connect = roomPanelConnect(page)
+    // Connect is hidden while we are in that very room, and then there is nothing left to do.
+    if (!(await connect.isVisible().catch(() => false)) && (await connectedMarker(page).count()) > 0) return
+    await expect(connect).toBeVisible({ timeout: 10000 })
+    await connect.click({ timeout: 10000 })
+  }, 30000)
 }
 
 // Own contexts, not the shared windows: these tests reload the page and assert on the
@@ -63,12 +73,12 @@ export function registerRefreshReconnectTests (): void {
         const room = await clickFirstAvailableRoom(page)
         test.skip(room === null, 'No regular room available')
 
-        await startMeeting(page)
+        await startMeeting(page, room as string)
         await waitConnected(page)
 
         await openLove(otherPage)
         await clickRoomByName(otherPage, room as string)
-        await startMeeting(otherPage)
+        await startMeeting(otherPage, room as string)
         await waitConnected(otherPage)
 
         const anchorBefore = await page.evaluate(() => sessionStorage.getItem('love.activeMeeting'))
@@ -101,7 +111,7 @@ export function registerRefreshReconnectTests (): void {
         const room = await clickFirstAvailableRoom(page)
         test.skip(room === null, 'No regular room available')
 
-        await startMeeting(page)
+        await startMeeting(page, room as string)
         await waitConnected(page)
 
         await page.locator('[data-id="meeting-leave"]').first().click()
@@ -131,7 +141,7 @@ export function registerRefreshReconnectTests (): void {
         const room = await clickFirstAvailableRoom(page)
         test.skip(room === null, 'No regular room available')
 
-        await startMeeting(page)
+        await startMeeting(page, room as string)
         await waitConnected(page)
 
         // Leave through the UI — should clear the reconnect anchor.

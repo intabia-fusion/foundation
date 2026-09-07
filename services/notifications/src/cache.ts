@@ -851,6 +851,18 @@ class WorkspaceCache {
   }
 
   private updatePerson (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
+    const accountUuid = this.employeeToAccountMap.get(tx.objectId as Ref<Employee>)
+    if (accountUuid !== undefined) {
+      const employee = this.employeesByAccountCache.get(accountUuid)
+      if (employee !== undefined) {
+        const updated = this.updateEmployeeInfo(tx, employee)
+        if (updated.personUuid != null) {
+          this.employeesByAccountCache.set(updated.personUuid, updated)
+          this.employeeToAccountMap.set(updated._id, updated.personUuid)
+        }
+      }
+    }
+
     const socialIds = this.personToSocialIdsMap.get(tx.objectId as Ref<Person>)
     if (socialIds !== undefined) {
       for (const socialId of socialIds) {
@@ -972,11 +984,31 @@ class WorkspaceCache {
     return TxProcessor.updateMixin4Doc(doc, tx as TxMixin<Doc, Doc>) as T
   }
 
+  /**
+   * Applies a tx to a cached {@link EmployeeInfo}.
+   *
+   * Employee is a mixin over Person, and cached records are stored flattened —
+   * the way `hierarchy.as` returns them at load time. `updateMixin4Doc` instead
+   * writes into a nested `doc[tx.mixin]` object, so a TxMixin toggling `active`
+   * would otherwise leave the flattened value stale.
+   */
+  private updateEmployeeInfo (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>, employee: EmployeeInfo): EmployeeInfo {
+    const updated = this.updateOrMixin(tx, employee as Employee) as EmployeeInfo & Record<string, any>
+    if (tx._class === core.class.TxMixin) {
+      const mixin = updated[(tx as TxMixin<Doc, Doc>).mixin]
+      if (mixin != null && typeof mixin === 'object') {
+        return { ...updated, ...(mixin as Partial<EmployeeInfo>) }
+      }
+    }
+
+    return updated
+  }
+
   private async getEmployeesInfo (collaborators: AccountUuid[]): Promise<EmployeeInfo[]> {
     const existing = collaborators.map((it) => this.employeesByAccountCache.get(it)).filter(notEmpty)
 
     const toLoad = collaborators.filter((it) => !this.employeesByAccountCache.has(it))
-    if (toLoad.length === 0) return existing
+    if (toLoad.length === 0) return existing.filter((it) => it.active)
 
     const employees: Pick<Employee, '_id' | 'personUuid' | 'role' | 'active'>[] = await this.client.findAll(
       contact.mixin.Employee,
@@ -990,7 +1022,7 @@ class WorkspaceCache {
       this.employeeToAccountMap.set(employee._id, employee.personUuid)
     }
 
-    return existing.concat(employees)
+    return existing.concat(employees).filter((it) => it.active)
   }
 
   private async getSocialIds (persons: Ref<Employee>[]): Promise<SocialIdentityInfo[]> {

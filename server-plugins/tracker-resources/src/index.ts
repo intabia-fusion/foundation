@@ -51,7 +51,10 @@ import {
 
 import { formatDuration } from '@hcengineering/tracker'
 
-const timeSpendReportTitlePresenter: StringPresenterFn<TimeSpendReport> = async (doc: TimeSpendReport, control: PresenterControl) => {
+const timeSpendReportTitlePresenter: StringPresenterFn<TimeSpendReport> = async (
+  doc: TimeSpendReport,
+  control: PresenterControl
+) => {
   const language = control.branding?.defaultLanguage ?? 'en'
   return formatDuration(doc.value, language)
 }

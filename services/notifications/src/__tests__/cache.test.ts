@@ -1179,4 +1179,141 @@ describe('WorkspaceCache', () => {
       expect(mockClient.findAll).toHaveBeenCalled()
     })
   })
+
+  describe('getReceivers active employee filtering', () => {
+    const ACC = 'acc-1' as AccountUuid
+
+    /** Wires the four sequential findAll calls getReceivers performs. */
+    const mockReceiverLookups = (employees: unknown[]): void => {
+      mockClient.findAll
+        .mockResolvedValue([] as unknown as FindResult<Doc>)
+        .mockResolvedValueOnce(employees as unknown as FindResult<Employee>)
+        .mockResolvedValueOnce([
+          { _id: 'space-1', person: 'emp-1', account: ACC }
+        ] as unknown as FindResult<PersonSpace>)
+        .mockResolvedValueOnce([{ _id: 'social-1', attachedTo: 'emp-1' }] as unknown as FindResult<SocialIdentity>)
+        .mockResolvedValueOnce([] as unknown as FindResult<UserStatus>)
+    }
+
+    it('requests the active flag so cached records can be re-checked later', async () => {
+      mockReceiverLookups([{ _id: 'emp-1', personUuid: ACC, role: 'USER', active: true }])
+
+      await cache.getReceivers([ACC])
+
+      expect(mockClient.findAll).toHaveBeenCalledWith(
+        contact.mixin.Employee,
+        { personUuid: { $in: [ACC] }, active: true },
+        { projection: { _id: 1, personUuid: 1, role: 1, active: 1 } }
+      )
+    })
+
+    it('returns a receiver for an active employee', async () => {
+      mockReceiverLookups([{ _id: 'emp-1', personUuid: ACC, role: 'USER', active: true }])
+
+      const receivers = await cache.getReceivers([ACC])
+
+      expect(receivers).toHaveLength(1)
+      expect(receivers[0].account).toBe(ACC)
+      expect(receivers[0].employeeRef).toBe('emp-1')
+    })
+
+    it('drops an employee that is inactive in the freshly loaded batch', async () => {
+      mockReceiverLookups([{ _id: 'emp-1', personUuid: ACC, role: 'USER', active: false }])
+
+      expect(await cache.getReceivers([ACC])).toEqual([])
+    })
+
+    it('treats a deactivating TxMixin as removing the receiver', async () => {
+      jest
+        .mocked(mockIsDerived)
+        .mockImplementation((cls: unknown, target: unknown) => cls === 'PersonClass' && target === contact.class.Person)
+
+      mockReceiverLookups([{ _id: 'emp-1', personUuid: ACC, role: 'USER', active: true }])
+      expect(await cache.getReceivers([ACC])).toHaveLength(1)
+
+      // The employee is deactivated. The mixin tx carries the Person class,
+      // since Employee is a mixin over Person.
+      cache.tx({
+        _id: 'tx-deactivate',
+        _class: core.class.TxMixin,
+        objectId: 'emp-1',
+        objectClass: 'PersonClass',
+        mixin: contact.mixin.Employee,
+        attributes: { active: false }
+      } as unknown as TxCUD<Doc>)
+
+      // Served from cache: no further lookups are issued, and the
+      // deactivated employee must not come back as a receiver.
+      mockClient.findAll.mockClear()
+      expect(await cache.getReceivers([ACC])).toEqual([])
+      expect(mockClient.findAll).not.toHaveBeenCalledWith(contact.mixin.Employee, expect.anything(), expect.anything())
+    })
+
+    it('treats a deactivating TxUpdateDoc on the mixin as removing the receiver', async () => {
+      jest
+        .mocked(mockIsDerived)
+        .mockImplementation(
+          (cls: unknown, target: unknown) => cls === contact.mixin.Employee && target === contact.class.Person
+        )
+
+      mockReceiverLookups([{ _id: 'emp-1', personUuid: ACC, role: 'USER', active: true }])
+      expect(await cache.getReceivers([ACC])).toHaveLength(1)
+
+      cache.tx({
+        _id: 'tx-deactivate-update',
+        _class: core.class.TxUpdateDoc,
+        objectId: 'emp-1',
+        objectClass: contact.mixin.Employee,
+        operations: { active: false }
+      } as unknown as TxCUD<Doc>)
+
+      expect(await cache.getReceivers([ACC])).toEqual([])
+    })
+
+    it('keeps the receiver when an unrelated field changes', async () => {
+      jest
+        .mocked(mockIsDerived)
+        .mockImplementation((cls: unknown, target: unknown) => cls === 'PersonClass' && target === contact.class.Person)
+
+      mockReceiverLookups([{ _id: 'emp-1', personUuid: ACC, role: 'USER', active: true }])
+      expect(await cache.getReceivers([ACC])).toHaveLength(1)
+
+      cache.tx({
+        _id: 'tx-rename',
+        _class: core.class.TxUpdateDoc,
+        objectId: 'emp-1',
+        objectClass: 'PersonClass',
+        operations: { name: 'NewName' }
+      } as unknown as TxCUD<Doc>)
+
+      expect(await cache.getReceivers([ACC])).toHaveLength(1)
+    })
+
+    it('reactivates the receiver when active is set back to true', async () => {
+      jest
+        .mocked(mockIsDerived)
+        .mockImplementation((cls: unknown, target: unknown) => cls === 'PersonClass' && target === contact.class.Person)
+
+      mockReceiverLookups([{ _id: 'emp-1', personUuid: ACC, role: 'USER', active: true }])
+      expect(await cache.getReceivers([ACC])).toHaveLength(1)
+
+      cache.tx({
+        _id: 'tx-off',
+        _class: core.class.TxUpdateDoc,
+        objectId: 'emp-1',
+        objectClass: 'PersonClass',
+        operations: { active: false }
+      } as unknown as TxCUD<Doc>)
+      expect(await cache.getReceivers([ACC])).toEqual([])
+
+      cache.tx({
+        _id: 'tx-on',
+        _class: core.class.TxUpdateDoc,
+        objectId: 'emp-1',
+        objectClass: 'PersonClass',
+        operations: { active: true }
+      } as unknown as TxCUD<Doc>)
+      expect(await cache.getReceivers([ACC])).toHaveLength(1)
+    })
+  })
 })

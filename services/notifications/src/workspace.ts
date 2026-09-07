@@ -140,7 +140,7 @@ class Workspace {
     }
 
     if (!isEmptyResult(result)) {
-      // if (tx.meta?.inboxOnly === true) this.keepInboxProviderOnly(res)
+      if (tx.meta?.inboxOnly === true) this.keepInboxProviderOnly(result)
       this.lastUpdate = tx.createdOn ?? tx.modifiedOn
       await this.applyResult(result)
     }
@@ -148,20 +148,11 @@ class Workspace {
     this.inProgress = false
   }
 
-
-
-  //TODO: refactor
-  // // Push/sound/email/telegram senders filter by allowedProviders, so trimming them leaves the inbox entry alone.
-  // private keepInboxProviderOnly (txes: TxCUD<Doc>[]): void {
-  //   for (const tx of txes) {
-  //     if (tx._class !== core.class.TxCreateDoc) continue
-  //     if (!this.hierarchy.isDerived(tx.objectClass, notification.class.InboxNotification)) continue
-  //     const attrs = (tx as TxCreateDoc<InboxNotification>).attributes
-  //     const types = attrs.allowedProviders?.[notification.providers.InboxNotificationProvider]
-  //     attrs.allowedProviders = types !== undefined ? { [notification.providers.InboxNotificationProvider]: types } : {}
-  //   }
-  // }
-
+  // Push/sound/email/telegram senders filter by allowedProviders, so trimming them leaves the inbox entry alone.
+  private keepInboxProviderOnly (res: Result): void {
+    res.queueMessages = []
+    res.createAppPushNotificationTx = []
+  }
 
   private async applyResult (result: Result): Promise<void> {
     const txes = getResultTxes(result)

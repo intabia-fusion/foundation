@@ -21,7 +21,8 @@ import core, {
   Doc,
   getTxOperations,
   type Hierarchy,
-  matchQuery, MeasureContext,
+  matchQuery,
+  MeasureContext,
   PersonId,
   Ref,
   type RefTo,
@@ -344,7 +345,12 @@ function isFieldUpdated (field: string, message: DocUpdateMessage, doc: Doc): bo
 /**
  * Checks isDerived between base classes of two class refs.
  */
-function isDerivedBase (ctx: MeasureContext, hierarchy: Hierarchy, actual: Ref<Class<Doc>>, expected: Ref<Class<Doc>>): boolean {
+function isDerivedBase (
+  ctx: MeasureContext,
+  hierarchy: Hierarchy,
+  actual: Ref<Class<Doc>>,
+  expected: Ref<Class<Doc>>
+): boolean {
   const actualBaseClass = safeGetBaseClass(hierarchy, actual)
   if (actualBaseClass === undefined) {
     ctx.error('base class not found in hierarchy', { _class: actual })

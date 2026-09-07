@@ -261,7 +261,10 @@ async function getReceivers (client: Client, cache: Cache, reference: MentionRef
         .map((it) => it.collaborator)
     )
   } else {
-    const employee = await client.findOne(contact.mixin.Employee, { _id: reference.mentionId as Ref<Employee> })
+    const employee = await client.findOne(contact.mixin.Employee, {
+      _id: reference.mentionId as Ref<Employee>,
+      active: true
+    })
 
     if (employee?.personUuid != null && (!space.private || space.members.includes(employee.personUuid))) {
       return await cache.getReceivers([employee.personUuid])

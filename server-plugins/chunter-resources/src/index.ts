@@ -249,15 +249,15 @@ export async function syncChat (control: TriggerControl, status: UserStatus, dat
 
   if (!shouldSync) return []
 
-  const chats = (await control.ctx
-    .with('syncChat:findChats', {}, () =>
+  const chats = (
+    await control.ctx.with('syncChat:findChats', {}, () =>
       control.findAll(control.ctx, chunter.class.Chat, {
         user: status.user,
         hidden: false,
         isPinned: false
       })
-    ))
-    .filter((chat) => !hierarchy.isDerived(chat.attachedToClass, chunter.class.Channel))
+    )
+  ).filter((chat) => !hierarchy.isDerived(chat.attachedToClass, chunter.class.Channel))
 
   const { hierarchy } = control
   const res: Tx[] = []
@@ -321,7 +321,7 @@ export async function syncChat (control: TriggerControl, status: UserStatus, dat
   control.ctx.info(`Hidden ${res.length} chats for ${status.user}`)
 
   if (syncInfo === undefined) {
-    const personSpace = (await getPersonSpaces(control)).find(it => it.account === status.user)
+    const personSpace = (await getPersonSpaces(control)).find((it) => it.account === status.user)
     if (personSpace !== undefined) {
       res.push(
         control.txFactory.createTxCreateDoc(chunter.class.ChatSyncInfo, personSpace._id, {

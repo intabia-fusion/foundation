@@ -128,17 +128,23 @@ function parseRanges(range: string, size: number): ByteRange[] | undefined {
  * every other in-flight download.
  */
 function pipeToResponse(stream: fs.ReadStream, res: http.ServerResponse): void {
+  const onResponseError = (err: Error): void => {
+    console.log(`[desktop-server] response error: ${String(err)}`)
+    stream.destroy()
+  }
+  const onResponseClose = (): void => {
+    stream.destroy()
+  }
   stream.on('error', (err) => {
     console.log(`[desktop-server] read error: ${String(err)}`)
     res.destroy()
   })
-  res.on('error', (err) => {
-    console.log(`[desktop-server] response error: ${String(err)}`)
-    stream.destroy()
+  stream.once('close', () => {
+    res.off('error', onResponseError)
+    res.off('close', onResponseClose)
   })
-  res.on('close', () => {
-    stream.destroy()
-  })
+  res.once('error', onResponseError)
+  res.once('close', onResponseClose)
   stream.pipe(res)
 }
 
@@ -149,34 +155,106 @@ async function writeMultipart(
   terminator: Buffer
 ): Promise<void> {
   const crlf = Buffer.from('\r\n')
-  const write = async (chunk: Buffer): Promise<void> => {
-    if (!res.write(chunk)) {
-      await new Promise<void>((resolve) => res.once('drain', resolve))
-    }
+
+  let closed = false
+  const onClose = (): void => {
+    closed = true
   }
+  const onError = (err: Error): void => {
+    closed = true
+    console.log(`[desktop-server] multipart response error: ${String(err)}`)
+  }
+  res.once('close', onClose)
+  res.on('error', onError)
+
+  /**
+   * Write one chunk, waiting for backpressure to clear. Returns false once the
+   * response is gone: a client that stops reading and then disappears never emits
+   * 'drain', so waiting on it alone leaks this promise and the open file handle.
+   */
+  const write = async (chunk: Buffer): Promise<boolean> => {
+    if (closed || res.destroyed) return false
+    if (res.write(chunk)) return true
+    return await new Promise<boolean>((resolve) => {
+      const done = (drained: boolean) => (): void => {
+        res.off('drain', onDrain)
+        res.off('close', onGone)
+        res.off('error', onGone)
+        resolve(drained)
+      }
+      const onDrain = done(true)
+      const onGone = done(false)
+      res.once('drain', onDrain)
+      res.once('close', onGone)
+      res.once('error', onGone)
+    })
+  }
+
+  // Copy each part by hand instead of stream.pipe(res, { end: false }): pipe registers
+  // its own 'close'/'drain'/'error' listeners on the response and only removes them on
+  // unpipe, so a 1000-part batch would leave thousands behind.
   try {
+    let bodyBytes = 0
+    const expectedBytes = parts.reduce((sum, p) => sum + (p.end - p.start + 1), 0)
+
     for (let i = 0; i < parts.length; i++) {
-      if (res.destroyed) return
       const part = parts[i]
-      await write(i === 0 ? part.header : Buffer.concat([crlf, part.header]))
+      if (!(await write(i === 0 ? part.header : Buffer.concat([crlf, part.header])))) {
+        res.destroy()
+        return
+      }
+
       const stream = createReadStream(filePath, { start: part.start, end: part.end })
-      await new Promise<void>((resolve, reject) => {
-        stream.on('error', reject)
-        stream.on('end', resolve)
-        res.on('close', () => {
-          stream.destroy()
-          resolve()
-        })
-        stream.pipe(res, { end: false })
-      })
+      try {
+        for await (const chunk of stream) {
+          const buf = chunk as Buffer
+          bodyBytes += buf.length
+          if (!(await write(buf))) {
+            res.destroy()
+            return
+          }
+        }
+      } finally {
+        stream.destroy()
+      }
     }
-    if (!res.destroyed) {
-      res.end(terminator)
+
+    if (bodyBytes !== expectedBytes) {
+      // Content-Length was computed from stat(); the file changed underneath us and
+      // holding the connection open would just hang the client until it times out.
+      console.log(`[desktop-server] multipart short read: ${bodyBytes} of ${expectedBytes} bytes`)
+      res.destroy()
+      return
     }
+    if (!(await write(terminator))) {
+      res.destroy()
+      return
+    }
+    res.end()
   } catch (err) {
     console.log(`[desktop-server] multipart error: ${String(err)}`)
     res.destroy()
+  } finally {
+    res.off('close', onClose)
+    res.off('error', onError)
   }
+}
+
+/**
+ * Resolve a request path inside DIST_DIR, or undefined when it would escape.
+ * Checked with path.relative rather than a prefix test so a sibling directory
+ * ("/app/distX") cannot pass as a match for "/app/dist".
+ */
+function resolveWithinDist(requestPath: string): string | undefined {
+  const root = path.resolve(DIST_DIR)
+  // Leading separators would make path.resolve treat the rest as absolute.
+  const relative = requestPath.replace(/^[/\\]+/, '')
+  if (relative === '') return undefined
+  const filePath = path.resolve(root, relative)
+  const rel = path.relative(root, filePath)
+  // '..foo.yml' is a legitimate name; only '..' itself and '../' escape.
+  if (rel === '' || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return undefined
+  return filePath
 }
 
 function sendFile(req: http.IncomingMessage, res: http.ServerResponse, filePath: string, range?: string): void {
@@ -643,7 +721,14 @@ function handleRequest (req: http.IncomingMessage, res: http.ServerResponse): vo
   }
 
   // Route handling
-  const pathname = decodeURIComponent(url.split('?')[0])
+  let pathname: string
+  try {
+    pathname = decodeURIComponent(url.split('?')[0])
+  } catch {
+    // A malformed escape ("/%zz") throws URIError; unhandled it kills the process.
+    sendJson(req, res, 400, { error: 'Malformed URL' })
+    return
+  }
 
   if (pathname === '/health') {
     sendJson(req, res, 200, { status: 'ok' })
@@ -749,14 +834,10 @@ function handleRequest (req: http.IncomingMessage, res: http.ServerResponse): vo
   }
 
   // Serve static files
-  const filename = pathname === '/' ? 'index.html' : pathname.slice(1)
+  const filename = pathname === '/' ? 'index.html' : pathname
 
-  // Security: prevent directory traversal
-  const safePath = path.normalize(filename).replace(/^(\.\.[/\\])+/, '')
-  const filePath = path.join(DIST_DIR, safePath)
-
-  // Ensure file is within DIST_DIR
-  if (!filePath.startsWith(path.resolve(DIST_DIR))) {
+  const filePath = resolveWithinDist(filename)
+  if (filePath === undefined) {
     sendJson(req, res, 403, { error: 'Forbidden' })
     return
   }

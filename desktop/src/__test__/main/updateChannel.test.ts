@@ -61,6 +61,18 @@ describe('resolveUpdateFeed', () => {
     expect(feed).toEqual({ url: 'https://env.example/_dist', channel: 'from-env' })
   })
 
+  it('honours DESKTOP_UPDATES_CHANNELS from env, not just from config', () => {
+    const config = { DESKTOP_UPDATES_CHANNELS: 'from-config' }
+    expect(resolveUpdateFeed(config, { DESKTOP_UPDATES_CHANNELS: 'dev;tracex:dev-tracex' }, 'tracex').channel).toBe(
+      'dev-tracex'
+    )
+  })
+
+  it('prefers the plural env key over the singular one', () => {
+    const feed = resolveUpdateFeed({}, { DESKTOP_UPDATES_CHANNELS: 'plural', DESKTOP_UPDATES_CHANNEL: 'singular' })
+    expect(feed.channel).toBe('plural')
+  })
+
   it('prefers DESKTOP_UPDATES_CHANNELS over the deprecated singular key', () => {
     const feed = resolveUpdateFeed({ DESKTOP_UPDATES_CHANNELS: 'new', DESKTOP_UPDATES_CHANNEL: 'old' }, {})
     expect(feed.channel).toBe('new')

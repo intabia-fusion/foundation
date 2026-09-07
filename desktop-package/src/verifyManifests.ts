@@ -30,10 +30,26 @@ export interface VerifyOptions {
   checkHashes?: boolean
 }
 
+// Matches what the tag build actually produces (--linux --x64, --windows --x64,
+// --macos --x64 --arm64). Add '-linux-arm64' here the day that target is built,
+// otherwise every build fails on a manifest nobody generates.
 const DEFAULT_SUFFIXES = ['', '-mac', '-linux']
 
+/** Streamed so a 240MB artifact never lands in memory in one piece. */
 function sha512 (file: string): string {
-  return crypto.createHash('sha512').update(fs.readFileSync(file)).digest('base64')
+  const hash = crypto.createHash('sha512')
+  const fd = fs.openSync(file, 'r')
+  try {
+    const buf = Buffer.allocUnsafe(1024 * 1024)
+    let read = fs.readSync(fd, buf, 0, buf.length, null)
+    while (read > 0) {
+      hash.update(buf.subarray(0, read))
+      read = fs.readSync(fd, buf, 0, buf.length, null)
+    }
+  } finally {
+    fs.closeSync(fd)
+  }
+  return hash.digest('base64')
 }
 
 /**

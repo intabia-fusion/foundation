@@ -58,7 +58,12 @@ export function resolveUpdateFeed (
   channelKey?: string
 ): UpdateFeed {
   const url = env.DESKTOP_UPDATES_URL ?? config.DESKTOP_UPDATES_URL ?? DEFAULT_UPDATES_URL
-  const spec = env.DESKTOP_UPDATES_CHANNEL ?? config.DESKTOP_UPDATES_CHANNELS ?? config.DESKTOP_UPDATES_CHANNEL ?? ''
+  const spec =
+    env.DESKTOP_UPDATES_CHANNELS ??
+    env.DESKTOP_UPDATES_CHANNEL ??
+    config.DESKTOP_UPDATES_CHANNELS ??
+    config.DESKTOP_UPDATES_CHANNEL ??
+    ''
   const channels = parseUpdateChannels(spec)
   const key = channelKey ?? 'default'
   const channel = channels[key] ?? channels.default ?? DEFAULT_UPDATES_CHANNEL

@@ -16,6 +16,7 @@
 
 const mockGetClassCollaborators = jest.fn()
 const mockIsDerived = jest.fn()
+const mockHasClass = jest.fn()
 
 let actualCore: any
 const getActualCore = (): any => {
@@ -125,6 +126,7 @@ describe('WorkspaceCache', () => {
       model: {} as unknown as Client['model'],
       hierarchy: {
         isDerived: mockIsDerived,
+        hasClass: mockHasClass,
         getBaseClass: jest.fn().mockImplementation((cls) => cls)
       } as unknown as Client['hierarchy'],
       txFactory: {} as unknown as Client['txFactory'],
@@ -135,6 +137,9 @@ describe('WorkspaceCache', () => {
 
     mockIsDerived.mockReset()
     mockIsDerived.mockReturnValue(false)
+
+    mockHasClass.mockReset()
+    mockHasClass.mockReturnValue(true)
 
     cache = new WorkspaceCache(mockCtx, mockClient)
     jest.clearAllMocks()
@@ -203,6 +208,15 @@ describe('WorkspaceCache', () => {
       const doc2 = await cache.getDoc('doc-1' as Ref<Doc>, 'DocClass' as Ref<Class<Doc>>)
       expect(mockClient.findOne).not.toHaveBeenCalled()
       expect(doc2).toEqual(mockDoc)
+    })
+
+    it('returns undefined without querying when class is unknown to hierarchy', async () => {
+      mockHasClass.mockReturnValue(false)
+
+      const doc = await cache.getDoc('doc-1' as Ref<Doc>, 'MissingClass' as Ref<Class<Doc>>)
+
+      expect(doc).toBeUndefined()
+      expect(mockClient.findOne).not.toHaveBeenCalled()
     })
   })
 

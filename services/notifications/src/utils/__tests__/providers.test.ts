@@ -77,6 +77,7 @@ describe('providers utils', () => {
     mockClient = {
       hierarchy: {
         isDerived: jest.fn(),
+        hasClass: jest.fn().mockReturnValue(true),
         getBaseClass: jest.fn().mockImplementation((cls) => cls),
         hasMixin: jest.fn().mockReturnValue(false),
         findAttribute: jest.fn()
@@ -85,7 +86,7 @@ describe('providers utils', () => {
         findAllSync: jest.fn()
       },
       txFactory: 'tx-factory-mock',
-      ctx: 'ctx-mock',
+      ctx: { error: jest.fn(), info: jest.fn(), warn: jest.fn() },
       branding: null,
       findAll: jest.fn()
     } as unknown as Client
@@ -238,7 +239,13 @@ describe('providers utils', () => {
       ;(mockClient.model.findAllSync as jest.Mock).mockImplementation((cls: any) => {
         if (cls === notification.class.MessageNotificationType) {
           return [
-            { _id: 'msg-type-1', messageClass: 'MessageClass', attachedToClass: 'AttachClass', defaultEnabled: true }
+            {
+              _id: 'msg-type-1',
+              messageClass: 'MessageClass',
+              attachedToClass: 'AttachClass',
+              objectClass: 'ObjClass',
+              defaultEnabled: true
+            }
           ]
         }
         if (cls === notification.class.NotificationProvider) {
@@ -248,7 +255,11 @@ describe('providers utils', () => {
       })
       ;(mockClient.hierarchy.isDerived as jest.Mock).mockReturnValue(true)
 
-      const message = { _class: 'MessageClass', attachedToClass: 'AttachClass' } as unknown as ActivityMessage
+      const message = {
+        _class: 'MessageClass',
+        attachedToClass: 'AttachClass',
+        objectClass: 'ObjClass'
+      } as unknown as ActivityMessage
       const doc = { _id: 'doc-1' } as unknown as Doc
       const receiver = { socialIds: ['receiver-social-1' as PersonId] } as unknown as Receiver
       const settings = {
@@ -271,6 +282,7 @@ describe('providers utils', () => {
               _id: 'msg-type-1',
               messageClass: 'MessageClass',
               attachedToClass: 'AttachClass',
+              objectClass: 'ObjClass',
               isMention: false,
               defaultEnabled: true
             }
@@ -283,7 +295,11 @@ describe('providers utils', () => {
       })
       ;(mockClient.hierarchy.isDerived as jest.Mock).mockReturnValue(true)
 
-      const message = { _class: 'MessageClass', attachedToClass: 'AttachClass' } as unknown as ActivityMessage
+      const message = {
+        _class: 'MessageClass',
+        attachedToClass: 'AttachClass',
+        objectClass: 'ObjClass'
+      } as unknown as ActivityMessage
       const doc = { _id: 'doc-1' } as unknown as Doc
       const receiver = { socialIds: ['receiver-social-1' as PersonId] } as unknown as Receiver
       const settings = {

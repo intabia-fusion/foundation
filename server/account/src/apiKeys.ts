@@ -51,7 +51,7 @@ export const apiKeyKind = 'webhook' as IntegrationKind
 /** Lifetime of a token minted from the key. Rotation is manual: no auto-refresh once it expires. */
 export const minApiKeyTokenTtlMs = 24 * 60 * 60 * 1000 // 1 day
 export const maxApiKeyTokenTtlMs = 90 * 24 * 60 * 60 * 1000 // 90 days
-export const defaultApiKeyTokenTtlMs = 7 * 24 * 60 * 60 * 1000 // 7 days
+export const defaultApiKeyTokenTtlMs = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 /** Recognizable in leaks: secret scanners and our own log checks match on it. */
 export const apiKeyPrefix = 'fus'

@@ -20,7 +20,6 @@
     Button,
     ButtonIcon,
     Chip,
-    DatePresenter,
     IconAdd,
     Label,
     Modal,
@@ -44,6 +43,7 @@
   // Mirrors minApiKeyTokenTtlMs/maxApiKeyTokenTtlMs/defaultApiKeyTokenTtlMs in server/account/src/apiKeys.ts
   const minTokenTtlDays = 1
   const maxTokenTtlDays = 90
+  const defaultTokenTtlDays = 30
   const dayMs = 24 * 60 * 60 * 1000
 
   const hierarchy = getClient().getHierarchy()
@@ -51,8 +51,7 @@
   let name = ''
   let ops = new Set<ApiKeyOperation>()
   let spaces: Ref<Space>[] = []
-  let expiresOn: number | null = null
-  let tokenTtlDays = 7
+  let tokenTtlDays = defaultTokenTtlDays
   let incoming = false
   let loading = false
   let error: string | undefined
@@ -79,12 +78,9 @@
 
   const dispatch = createEventDispatcher()
 
-  // A token must not outlive the key: the expiry date, when set, caps the lifetime.
-  $: daysUntilExpiry = expiresOn == null ? maxTokenTtlDays : Math.ceil((expiresOn - Date.now()) / dayMs)
-  $: effectiveMaxTtlDays = Math.max(minTokenTtlDays, Math.min(maxTokenTtlDays, daysUntilExpiry))
-  $: if (tokenTtlDays > effectiveMaxTtlDays) tokenTtlDays = effectiveMaxTtlDays
-  $: validTtl =
-    Number.isInteger(tokenTtlDays) && tokenTtlDays >= minTokenTtlDays && tokenTtlDays <= effectiveMaxTtlDays
+  // The key dies together with the token it issues, so the date is derived, not picked.
+  $: expiresOn = Date.now() + tokenTtlDays * dayMs
+  $: validTtl = Number.isInteger(tokenTtlDays) && tokenTtlDays >= minTokenTtlDays && tokenTtlDays <= maxTokenTtlDays
   $: canSave = !loading && name.trim().length > 0 && validTtl
 
   function removeOp (op: ApiKeyOperation): void {
@@ -136,7 +132,7 @@
         name: name.trim(),
         ops: personal ? [] : Array.from(ops),
         spaces: showSpaces ? spaces : [],
-        expiresOn: expiresOn ?? undefined,
+        expiresOn,
         tokenTtlMs: tokenTtlDays * dayMs,
         personal,
         unrestricted,
@@ -259,21 +255,21 @@
           <div class="hint">
             <Label
               label={settingsRes.string.ApiKeyTokenTtlHint}
-              params={{ min: minTokenTtlDays, max: effectiveMaxTtlDays }}
+              params={{ min: minTokenTtlDays, max: maxTokenTtlDays }}
             />
           </div>
         </div>
         <NumberInput
           bind:value={tokenTtlDays}
           minValue={minTokenTtlDays}
-          maxValue={effectiveMaxTtlDays}
+          maxValue={maxTokenTtlDays}
           maxWidth="4rem"
           focusable
         />
       </div>
       <div class="settingsRow">
         <Label label={settingsRes.string.ApiKeyExpiresOn} />
-        <DatePresenter bind:value={expiresOn} editable kind="regular" size="medium" />
+        <span class="expiresOn">{new Date(expiresOn).toLocaleDateString()}</span>
       </div>
       <div class="settingsRow">
         <div class="flex-col flex-gap-1">
@@ -299,6 +295,10 @@
   .hint {
     color: var(--theme-dark-color);
     font-size: 0.8125rem;
+  }
+  .expiresOn {
+    color: var(--theme-dark-color);
+    white-space: nowrap;
   }
   .chips {
     display: flex;

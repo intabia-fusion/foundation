@@ -1,4 +1,4 @@
-# Platform is an evolution of hcengineering/platform - extended and improved, with a focus on stability and enhancements in Tracker and other components.
+# Intabia Platform is an evolution of hcengineering/platform - extended and improved, with a focus on stability and enhancements in Tracker and other components.
 
 ![GitHub License](https://img.shields.io/github/license/intabia-fusion/foundation?style=for-the-badge)
 
@@ -6,14 +6,14 @@
 
 ## About
 
-An evolution of hcengineering/platform - extended, improved, and maintained by a group of developers.
+An evolution of hcengineering/platform - extended, improved, and maintained by a Intabia and ex-hcengineering primary owners and engineers.
 
 ## Overview
-The Platform is a robust framework designed to accelerate the development of business applications, such as CRM systems.
-This repository includes several applications, such as Chat, Project Management, CRM, HRM, and ATS.
+The Intabia Platform is a robust framework and a team platform designed to accelerate the development of business applications, such as CRM systems.
+This repository includes several applications, such as Chat, Issue Tracking, Project Management and various other services.
 
 ## Differences
-Foundation evolves the Platform. For a concise list of how this branch differs from the original repository, see the `features.md` file at the repository root. It lists the main changes: new packages for media and streaming (for example, `foundations/hulylake`, `packages/audio-dsp`), updates to Docker images and local build scripts, removal of some legacy plugins, and other improvements.
+Intabia Platform evolves the hcengineering Platform. For a concise list of how this branch differs from the original repository, see the `features.md` file at the repository root. It lists the main changes: new packages for media and streaming (for example, `foundations/hulylake`, `packages/audio-dsp`), updates to Docker images and local build scripts, removal of some legacy plugins, and other improvements.
 
 ## Self-Hosting
 

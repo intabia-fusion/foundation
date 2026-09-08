@@ -518,19 +518,6 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
 
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: node
-        with:
-          path: |
-            common/temp
-          key:
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('pnpm-lock.yaml')
-            }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('pnpm-lock.yaml') }}
-
       - name: Installing...
         run: pnpm install --frozen-lockfile
       - name: Model version from git tags

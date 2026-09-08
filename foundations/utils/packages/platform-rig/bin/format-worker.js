@@ -146,11 +146,17 @@ async function formatPackage(cwd, options = {}) {
           const first = r.messages.find((m) => m.ruleId == null)
           const lines = content.split('\n')
           // Does the unformatted source parse? Separates a prettier problem from a parser one.
-          let originalParseErrors = -1
+          let originalParseErrors = 'threw'
           try {
             const orig = await eslint.lintText(original, { filePath: file })
             originalParseErrors = orig[0].messages.filter((m) => m.ruleId == null).length
-          } catch {}
+          } catch (e) { originalParseErrors = 'threw: ' + e.message }
+          // Same parser, no program: tells whether parserOptions.project is what breaks it.
+          let bareParse = 'ok'
+          try {
+            const p = require(resolved.parser)
+            p.parseForESLint(content, { filePath: file, sourceType: 'module', ecmaVersion: 2022, range: true, loc: true })
+          } catch (e) { bareParse = 'threw: ' + e.message.slice(0, 120) }
           let tsVersion = 'unknown'
           try {
             tsVersion = require(require.resolve('typescript/package.json', { paths: [cwd] })).version
@@ -167,6 +173,7 @@ async function formatPackage(cwd, options = {}) {
                 bytes: content.length,
                 prettierChanged: content !== original,
                 originalParseErrors,
+                bareParse,
                 tsVersion,
                 parser: resolved.parser ?? '(eslint default)',
                 project: resolved.parserOptions?.project,

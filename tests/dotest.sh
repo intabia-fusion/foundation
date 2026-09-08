@@ -3,8 +3,8 @@
 set -euo pipefail
 
 pnpm install --frozen-lockfile
-pnpm build
-pnpm docker
+pnpm -w build
+pnpm -w docker
 ./prepare-pg.sh
 ./tool-pg.sh sync-indexes indexes.yaml --apply
 pushd sanity

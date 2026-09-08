@@ -1,17 +1,29 @@
 # Webhook test mocks (FUSIO-1151)
 
-`services/webhook/pod-webhook/src/__tests__/`: `webhookSender.ts` (incoming - drives the pod's real
-express app on a random port via fetch) + `mockReceiver.ts` (outgoing - plain `http` server capturing
-raw request bytes, for when delivery ships). Kept in the pod's own `__tests__`, not a new package -
-receiver has no other consumer yet; move it if a second package needs it.
+`services/webhook/pod-webhook/src/__tests__/`: `webhookSender.ts` (incoming - гоняет настоящее
+express-приложение пода на случайном порту через fetch) + `mockReceiver.ts` (outgoing - голый `http`
+сервер, ловит сырые байты запроса для проверки подписи). Живут в `__tests__` пода, не отдельным
+пакетом - у receiver пока нет второго потребителя.
 
-- `server.test.ts` refactored to use `webhookSender.ts` instead of its own local `startServer`/
-  `postAction`/`postPathKey` - avoids two near-identical helpers in one file.
-- `internal_error` is NOT reachable through the public HTTP path in tests: it only fires when
-  `producer.send()` throws, which requires mocking the producer to reject - not something an external
-  caller can trigger through the API surface. Skipped, per task instruction not to force it.
-- `no-confusing-void-expression` (standard-with-typescript) flags `server.close(() => resolve())` -
-  `resolve()` returns void, arrow shorthand implicitly returning it is an error. Fix: braces,
-  `() => { resolve() }`.
-- `mockReceiver.close()` destroys tracked sockets before `server.close()` - otherwise a keep-alive
-  connection (undici's default) leaves `close()`'s callback waiting and jest hangs.
+- `server.test.ts` переписан на `webhookSender.ts` вместо своих
+  `startServer`/`postAction`/`postPathKey`.
+- `internal_error` через публичный HTTP недостижим: он срабатывает только когда кидает
+  `producer.send()`, а это требует мока продюсера - внешним вызовом не спровоцировать. Не тестируем.
+- `no-confusing-void-expression` (standard-with-typescript) ругается на `server.close(() =>
+  resolve())`: стрелка неявно возвращает void. Фикс - фигурные скобки, `() => { resolve() }`.
+- `mockReceiver.close()` убивает отслеживаемые сокеты ДО `server.close()`: иначе keep-alive
+  соединение (дефолт undici) держит колбэк `close()` и jest висит.
+
+## `pod-webhook-mock` (отдельный под, dev-стенд)
+
+Express-приложение (`PORT` 4044, `WEBHOOK_URL` -> `http://webhook:4043`), наружу через
+`/_webhook-mock` в `dev/nginx.conf`. Судьба пода - открытый хвост TSK-2026-09-01-076.
+
+- `POST /receive` - ловит доставки, сохраняя СЫРОЕ тело (нужно для сверки подписи).
+- `GET /api/deliveries`, `POST /api/deliveries/clear`, `POST /api/deliveries/:id/verify`
+  (пере-подписывает настоящим `signStandard` из пода и сравнивает; `webhook-signature` режется по
+  пробелам - там несколько подписей при ротации).
+- `GET/POST /api/response-mode` - переключение ответа 200/500/429, чтобы гонять ретраи.
+- `POST /api/send`, `POST /api/job` - реле в настоящий `pod-webhook`, чтобы браузеру не нужен был
+  CORS и прямой доступ.
+- UI на `/` держит открытые блоки доставок при автообновлении списка.

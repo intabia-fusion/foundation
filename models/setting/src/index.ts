@@ -325,7 +325,7 @@ export function createModel (builder: Builder): void {
     core.space.Model,
     {
       name: 'integrations',
-      label: setting.string.Integrations,
+      label: setting.string.ApiAndWebhooks,
       icon: setting.icon.Setting,
       component: setting.component.ApiKeys,
       order: 975,

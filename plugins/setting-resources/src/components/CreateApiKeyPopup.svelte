@@ -79,7 +79,12 @@
 
   const dispatch = createEventDispatcher()
 
-  $: validTtl = Number.isInteger(tokenTtlDays) && tokenTtlDays >= minTokenTtlDays && tokenTtlDays <= maxTokenTtlDays
+  // A token must not outlive the key: the expiry date, when set, caps the lifetime.
+  $: daysUntilExpiry = expiresOn == null ? maxTokenTtlDays : Math.ceil((expiresOn - Date.now()) / dayMs)
+  $: effectiveMaxTtlDays = Math.max(minTokenTtlDays, Math.min(maxTokenTtlDays, daysUntilExpiry))
+  $: if (tokenTtlDays > effectiveMaxTtlDays) tokenTtlDays = effectiveMaxTtlDays
+  $: validTtl =
+    Number.isInteger(tokenTtlDays) && tokenTtlDays >= minTokenTtlDays && tokenTtlDays <= effectiveMaxTtlDays
   $: canSave = !loading && name.trim().length > 0 && validTtl
 
   function removeOp (op: ApiKeyOperation): void {
@@ -163,7 +168,13 @@
 
     {#if personal}
       <RadioGroup items={grantItems} bind:selected={personalGrant} gap="large" />
-      <div class="hint"><Label label={settingsRes.string.PersonalApiKeyHint} /></div>
+      <div class="hint">
+        <Label
+          label={personalGrant === 'full'
+            ? settingsRes.string.PersonalApiKeyHint
+            : settingsRes.string.PersonalApiKeyReadOnlyHint}
+        />
+      </div>
     {/if}
 
     {#if showOps}
@@ -248,14 +259,14 @@
           <div class="hint">
             <Label
               label={settingsRes.string.ApiKeyTokenTtlHint}
-              params={{ min: minTokenTtlDays, max: maxTokenTtlDays }}
+              params={{ min: minTokenTtlDays, max: effectiveMaxTtlDays }}
             />
           </div>
         </div>
         <NumberInput
           bind:value={tokenTtlDays}
           minValue={minTokenTtlDays}
-          maxValue={maxTokenTtlDays}
+          maxValue={effectiveMaxTtlDays}
           maxWidth="4rem"
           focusable
         />

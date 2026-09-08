@@ -292,6 +292,7 @@ services:
       - PRINT_URL=http://localhost:8083/_print
       - BILLING_URL=http://localhost:8083/_billing
       - PAYMENT_URL=http://localhost:8083/_payment
+      - WEBHOOK_SERVICE_URL=http://localhost:8083/_webhook
       - AI_URL=http://localhost:8083/_ai
       - USE_OTP=false
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318

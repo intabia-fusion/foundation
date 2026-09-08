@@ -58,10 +58,12 @@
     </button>
   </td>
   <td class="nameCell">
-    <span class="name">{apiKey.name}</span>
-    {#if revoked}
-      <span class="badge"><Label label={settingsRes.string.ApiKeyRevoked} /></span>
-    {/if}
+    <div class="nameBox">
+      <span class="name">{apiKey.name}</span>
+      {#if revoked}
+        <span class="badge"><Label label={settingsRes.string.ApiKeyRevoked} /></span>
+      {/if}
+    </div>
   </td>
   <td class="masked">{apiKey.masked}</td>
   <td class="center">
@@ -150,8 +152,9 @@
     opacity: 0.5;
   }
   .chevronCell {
-    width: 1.5rem;
+    padding-left: 0 !important;
     padding-right: 0 !important;
+    text-align: center;
   }
   .chevron {
     background: none;
@@ -159,13 +162,15 @@
     cursor: pointer;
     color: var(--theme-dark-color);
     padding: 0;
+    line-height: 1;
     transition: transform 0.1s;
 
     &.open {
       transform: rotate(90deg);
     }
   }
-  .nameCell {
+  // Flex lives here, not on the <td>: a flex table-cell drops out of the fixed column layout.
+  .nameBox {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -175,6 +180,8 @@
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
+    // `overflow: hidden` zeroes the flex auto-minimum; without this the badge crushes the name to 0.
+    min-width: 3ch;
   }
   .masked {
     font-family: monospace;
@@ -204,7 +211,12 @@
     white-space: nowrap;
   }
   .badge {
-    flex-shrink: 0;
+    // Shrinks with the cell instead of overflowing it and being clipped mid-word.
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.75rem;
     padding: 0.125rem 0.5rem;
     border-radius: 0.5rem;

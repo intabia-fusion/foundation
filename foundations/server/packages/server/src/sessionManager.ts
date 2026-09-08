@@ -527,7 +527,10 @@ export class TSessionManager implements SessionManager {
         role = AccountRole.DocGuest
         break
       default:
-        primarySocialId = pickPrimarySocialId(info.socialIds)._id
+        // The token names the key's own social id; resolved against the account's confirmed ids, so a
+        // deleted or unverified one falls back.
+        primarySocialId =
+          info.socialIds.find((it) => it._id === token.extra?.apisid)?._id ?? pickPrimarySocialId(info.socialIds)._id
     }
 
     return new ClientSession(

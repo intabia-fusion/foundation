@@ -30,6 +30,7 @@ import { type AccountDB } from '../types'
 interface SocialIdRow {
   _id: string
   type: string
+  value?: string
   personUuid: AccountUuid
   verifiedOn?: number
 }
@@ -67,10 +68,11 @@ describe('webhook key identity (FUSIO-1151)', () => {
       }),
       socialId: {
         insertOne: jest.fn().mockImplementation(async (data: Partial<SocialIdRow>) => {
-          const id = `huly-social-${nextId++}`
+          const id = `social-${nextId++}`
           socialIdRows.set(id, {
             _id: id,
             type: data.type as string,
+            value: data.value,
             personUuid: data.personUuid as AccountUuid,
             verifiedOn: data.verifiedOn
           })
@@ -84,6 +86,7 @@ describe('webhook key identity (FUSIO-1151)', () => {
         find: jest.fn().mockResolvedValue([])
       },
       account: { insertOne: jest.fn() },
+      person: { findOne: jest.fn().mockResolvedValue({ uuid: owner, firstName: 'Jane', lastName: 'Doe' }) },
       accountEvent: { insertOne: jest.fn() },
       userProfile: { insertOne: jest.fn() },
       assignWorkspace: jest.fn(),
@@ -152,5 +155,43 @@ describe('webhook key identity (FUSIO-1151)', () => {
     const integrationAccounts = await getApiKeyAccounts(mockCtx, db, null, transactorToken, { workspace })
 
     expect(integrationAccounts).toEqual([webhookRow?.personUuid])
+  })
+  test('a personal key gets its own webhook social id on the caller own person', async () => {
+    const { db, socialIdRows } = makeDb()
+
+    const created = await createApiKey(mockCtx, db, null, ownerToken, {
+      name: 'my script',
+      ops: [],
+      personal: true,
+      unrestricted: true
+    })
+
+    const row = socialIdRows.get(created.info.socialId)
+    // Same person as the human, but a distinct verified id - the key's writes are told apart.
+    expect(row?.type).toBe(SocialIdType.WEBHOOK)
+    expect(row?.personUuid).toBe(owner)
+    expect(row?.value).toBe(created.info.keyId)
+    expect(row?.verifiedOn).toBeGreaterThan(0)
+    expect(db.assignWorkspace).not.toHaveBeenCalled()
+  })
+
+  test('two personal keys of the same user do not share a social id', async () => {
+    const { db } = makeDb()
+
+    const first = await createApiKey(mockCtx, db, null, ownerToken, { name: 'a', ops: [], personal: true })
+    const second = await createApiKey(mockCtx, db, null, ownerToken, { name: 'b', ops: [], personal: true })
+
+    expect(first.info.socialId).not.toBe(second.info.socialId)
+    // One `integration` row per key now that each owns its social id - the pair no longer collides.
+    expect(db.integration.insertOne).toHaveBeenCalledTimes(2)
+  })
+
+  test('revoking a personal key leaves the human in the workspace', async () => {
+    const { db } = makeDb()
+    const created = await createApiKey(mockCtx, db, null, ownerToken, { name: 'a', ops: [], personal: true })
+
+    await revokeApiKey(mockCtx, db, null, ownerToken, { keyId: created.info.keyId })
+
+    expect(db.unassignWorkspace).not.toHaveBeenCalled()
   })
 })

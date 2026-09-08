@@ -473,6 +473,7 @@ export default plugin(settingId, {
     Spaces: '' as IntlString,
     WorkspaceSettings: '' as IntlString,
     Integrations: '' as IntlString,
+    ApiAndWebhooks: '' as IntlString,
     Support: '' as IntlString,
     Privacy: '' as IntlString,
     Terms: '' as IntlString,

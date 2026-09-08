@@ -166,6 +166,7 @@ export default mergeIds(settingId, setting, {
     CreatePersonalApiKey: '' as IntlString,
     CreateIntegrationApiKey: '' as IntlString,
     PersonalApiKeyHint: '' as IntlString,
+    PersonalApiKeyReadOnlyHint: '' as IntlString,
     ApiKeyFullRights: '' as IntlString,
     ApiKeySpaces: '' as IntlString,
     ApiKeyAddAll: '' as IntlString,

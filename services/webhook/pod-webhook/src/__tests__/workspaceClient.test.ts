@@ -39,6 +39,7 @@ function grant (overrides: Partial<KeyGrant> = {}): KeyGrant {
     keyId: 'key_1',
     name: 'ci',
     personUuid: '33333333-3333-4333-8333-333333333333' as any,
+    socialId: 'webhook:key_1' as any,
     ops: ['chat:post'],
     spaces: [],
     ...overrides

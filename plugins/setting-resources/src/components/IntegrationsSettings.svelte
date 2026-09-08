@@ -15,22 +15,15 @@
 <script lang="ts">
   import { type ApiKeyInfo, type CreatedApiKey } from '@hcengineering/account-client'
   import core, { AccountRole, type Ref, type Space, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
-  import type { IntlString } from '@hcengineering/platform'
   import { MessageBox, createQuery } from '@hcengineering/presentation'
   import setting, { type WebhookEndpoint, type WebhookStat } from '@hcengineering/setting'
   import {
     Breadcrumbs,
-    ButtonIcon,
     Header,
-    IconDescription,
-    NavItem,
     Scroller,
-    Separator,
-    defineSeparators,
     getCurrentResolvedLocation,
     navigate,
     resolvedLocationStore,
-    secondNavSeparators,
     showPopup
   } from '@hcengineering/ui'
   import { onMount } from 'svelte'
@@ -191,26 +184,12 @@
     })
   }
 
-  const sections: Array<{ id: string, label: IntlString }> = [
-    { id: 'personalKeys', label: settingsRes.string.PersonalApiKeys },
-    ...(isOwner
-      ? [
-          { id: 'integrationKeys', label: settingsRes.string.IntegrationApiKeys },
-          { id: 'outgoing', label: settingsRes.string.WebhookAccess }
-        ]
-      : []),
-    { id: 'examples', label: settingsRes.string.WebhookExamples }
-  ]
-  const sectionRefs: Record<string, HTMLElement | undefined> = {}
-
-  defineSeparators('integrationsSettings', secondNavSeparators)
-
   $: exampleLabel =
     selectedExample === 'incoming'
       ? settingsRes.string.WebhookExamplesIncoming
       : settingsRes.string.WebhookExamplesOutgoing
   $: bcItems = [
-    { icon: settingsRes.icon.Setting, label: settingsRes.string.Integrations },
+    { icon: settingsRes.icon.Setting, label: settingsRes.string.ApiAndWebhooks },
     ...(selectedEndpoint !== undefined ? [{ title: selectedName ?? selectedEndpoint }] : []),
     ...(selectedExample !== undefined ? [{ label: exampleLabel }] : [])
   ]
@@ -242,28 +221,11 @@
   {:else if selectedExample === 'outgoing'}
     <WebhookOutgoingExample />
   {:else}
-    <div class="hulyComponent-content__container columns">
-      <div class="hulyComponent-content__column">
-        <div class="hulyComponent-content__navHeader">
-          <div class="hulyComponent-content__navHeader-menu">
-            <ButtonIcon kind="tertiary" icon={IconDescription} size="small" inheritColor />
-          </div>
-        </div>
-        {#each sections as section (section.id)}
-          <NavItem
-            type="type-anchor-link"
-            label={section.label}
-            on:click={() => {
-              sectionRefs[section.id]?.scrollIntoView()
-            }}
-          />
-        {/each}
-      </div>
-      <Separator name="integrationsSettings" index={0} color="transparent" />
+    <div class="hulyComponent-content__container">
       <div class="hulyComponent-content__column content">
         <Scroller align={'center'} padding={'var(--spacing-3)'} bottomPadding={'var(--spacing-3)'}>
           <div class="hulyComponent-content gap">
-            <div id="personalKeys" bind:this={sectionRefs.personalKeys} class="hulyTableAttr-container">
+            <div id="personalKeys" class="hulyTableAttr-container">
               <ApiKeysSection
                 personal
                 keys={personalKeys}
@@ -278,7 +240,7 @@
             </div>
 
             {#if isOwner}
-              <div id="integrationKeys" bind:this={sectionRefs.integrationKeys} class="hulyTableAttr-container">
+              <div id="integrationKeys" class="hulyTableAttr-container">
                 <ApiKeysSection
                   personal={false}
                   keys={integrationKeys}
@@ -292,7 +254,7 @@
                 />
               </div>
 
-              <div id="outgoing" bind:this={sectionRefs.outgoing} class="hulyTableAttr-container">
+              <div id="outgoing" class="hulyTableAttr-container">
                 <WebhookEndpointsSection
                   {endpoints}
                   loading={endpointsLoading}
@@ -302,7 +264,7 @@
               </div>
             {/if}
 
-            <div id="examples" bind:this={sectionRefs.examples} class="hulyTableAttr-container">
+            <div id="examples" class="hulyTableAttr-container">
               <WebhookExamplesSection
                 onOpen={(id) => {
                   openSub('examples', id)

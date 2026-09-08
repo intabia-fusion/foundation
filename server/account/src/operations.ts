@@ -3475,15 +3475,9 @@ export async function createApiKey (
 
   let socialId: PersonId
   if (personal) {
-    // No new identity: the key logs in as the caller's own account. Oldest confirmed social id, so the
-    // choice is stable - linking or unlinking a github/telegram id later must not break a live key.
-    const own = (await getSocialIds(ctx, db, branding, token, { confirmed: true, includeDeleted: false })).sort(
-      (a, b) => (a.createdOn ?? 0) - (b.createdOn ?? 0)
-    )[0]
-    if (own == null) {
-      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
-    }
-    socialId = own._id
+    // Own social id on the caller's own person: same membership and seat, but the key's writes are
+    // told apart from hand-typed ones.
+    socialId = await addSocialIdBase(db, account, SocialIdType.WEBHOOK, keyId, true)
   } else {
     // Own person per key: the key, not its issuer, is the author of what it does.
     const ensured = await db.ensurePerson(SocialIdType.WEBHOOK, keyId, name.trim(), '')
@@ -3525,12 +3519,8 @@ export async function createApiKey (
     secret.expiresOn = expiresOn
   }
 
-  if (!personal) {
-    // Personal keys reuse the caller's existing socialId - `integrations` is keyed on (socialId, kind,
-    // workspace) so a second personal key by the same user would collide on this row; skip it, nothing reads
-    // `integration` rows for kind=webhook, only `integrationSecret` (keyed additionally on the key hash).
-    await db.integration.insertOne({ socialId, kind: apiKeyKind, workspaceUuid: workspace })
-  }
+  // Keyed on (socialId, kind, workspace) - every key owns its social id now, so nothing collides.
+  await db.integration.insertOne({ socialId, kind: apiKeyKind, workspaceUuid: workspace })
   await db.integrationSecret.insertOne({
     socialId,
     kind: apiKeyKind,
@@ -3659,7 +3649,8 @@ export async function loginWithApiKey (
 
   // Compact form (comma-joined) so the token stays small; the default (no writes / whole
   // workspace) is expressed by omitting the key, not by an empty value.
-  const extra: Record<string, string> = { apikey: secret.keyId }
+  // apisid names the key's own social id - without it the transactor falls back to the human's Huly id.
+  const extra: Record<string, string> = { apikey: secret.keyId, apisid: row.socialId }
   if (secret.unrestricted === true) {
     // No operation list: the key writes through any API, with the user's own rights (see client.ts).
     extra.apiall = '1'

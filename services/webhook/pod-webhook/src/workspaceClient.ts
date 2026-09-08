@@ -20,6 +20,7 @@ import {
   systemAccountUuid,
   type AccountUuid,
   type MeasureContext,
+  type PersonId,
   type PersonUuid,
   type Ref,
   type Space,
@@ -33,6 +34,8 @@ export interface KeyGrant {
   keyId: string
   name: string
   personUuid: PersonUuid
+  /** The key's own social id - the transactor authors with it. */
+  socialId: PersonId
   ops: string[]
   spaces: Ref<Space>[]
 }
@@ -41,6 +44,7 @@ export interface KeyGrant {
 function issueKeyToken (grant: KeyGrant, workspace: WorkspaceUuid): string {
   return generateToken(grant.personUuid as unknown as AccountUuid, workspace, {
     apikey: grant.keyId,
+    apisid: grant.socialId,
     ...(grant.ops.length > 0 ? { apiops: grant.ops.join(',') } : {}),
     ...(grant.spaces.length > 0 ? { apispaces: grant.spaces.join(',') } : {})
   })

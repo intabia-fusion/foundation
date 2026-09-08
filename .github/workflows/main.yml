@@ -31,30 +31,6 @@ on:
         type: boolean
 
 env:
-  CacheFolders: |
-    common
-    desktop
-    desktop-package
-    foundations
-    dev
-    models
-    packages
-    plugins
-    pods
-    server
-    server-plugins
-    templates
-    services
-    workers
-    tests
-    pnpm-workspace.yaml
-    pnpm-lock.yaml
-    package.json
-    .prettierrc
-    tools
-    workers
-    ws-tests
-    qms-tests
   PublishTempFolder: publish_artifacts
   INIT_SCRIPTS_BRANCH: "main"
 
@@ -109,16 +85,7 @@ jobs:
           path: dev/api/bundle/intabia-fusion-api-*.tgz
           if-no-files-found: error
 
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
   svelte-check:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -134,22 +101,16 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
 
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
 
+      - name: Building...
+        run: pnpm build
+
       - name: Checking svelte sources...
         run: pnpm svelte-check
   formatting:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -162,17 +123,12 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
+
+      - name: Building...
+        run: pnpm build
 
       - name: Formatting...
         run: pnpm format:branch --branch ${{
@@ -186,7 +142,6 @@ jobs:
           [ -z "$(git diff --name-only '*.js' '*.ts' '*.svelte' '*.json' '*.yaml' | cat)" ]
           echo '================================================================'
   test:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -200,17 +155,12 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
+
+      - name: Building...
+        run: pnpm build
 
       - name: Prepare server (with rate limit retry)
         run: |

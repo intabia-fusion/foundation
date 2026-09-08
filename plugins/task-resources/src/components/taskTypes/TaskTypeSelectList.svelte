@@ -20,7 +20,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import { Label, ModernCheckbox, tooltip } from '@hcengineering/ui'
+  import { IconError, Label, ModernCheckbox, tooltip } from '@hcengineering/ui'
 
   import plugin from '../../plugin'
   import TaskTypeIcon from './TaskTypeIcon.svelte'
@@ -109,9 +109,9 @@
         </span>
 
         {#if item.exists === true}
-          <span class="collision-badge font-normal-11">
-            <Label label={plugin.string.TaskTypeAlreadyExists} />
-          </span>
+          <div class="collision-warning flex-center" use:tooltip={{ label: plugin.string.TaskTypeAlreadyExists }}>
+            <IconError size="small" />
+          </div>
         {/if}
 
         <div class="relations-wrap">
@@ -222,6 +222,9 @@
     box-sizing: border-box;
     padding: 0.5rem 1rem;
     min-height: 2.875rem;
+    // a tall row (several relation badges) must not leave the checkbox, name and warning
+    // floating in its vertical middle
+    align-items: flex-start;
     // the list is a flex column: without this a row with several relation badges gets squeezed
     // back to min-height and its content spills over the neighbouring rows
     height: auto;
@@ -251,6 +254,7 @@
   .checkbox-slot {
     display: flex;
     align-items: center;
+    min-height: 1.875rem;
     margin-right: 0.25rem;
     flex-shrink: 0;
   }
@@ -258,28 +262,39 @@
   .icon-slot {
     display: flex;
     align-items: center;
+    min-height: 1.875rem;
     margin-right: 0.125rem;
     flex-shrink: 0;
   }
 
   .type-name {
     color: var(--theme-content-color);
-    flex: 1 1 auto;
-    min-width: 4rem;
+    line-height: 1.875rem;
+    flex: 0 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     transition: color 0.12s ease;
   }
 
-  .collision-badge {
-    padding: 0.1rem 0.4rem;
-    border-radius: 0.25rem;
-    white-space: nowrap;
+  .collision-warning {
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-top: 0.1875rem;
+    border-radius: 0.375rem;
+    color: #e36209;
+    background-color: rgba(227, 98, 9, 0.12);
+    border: 1px solid rgba(227, 98, 9, 0.35);
+    cursor: default;
     flex-shrink: 0;
-    background: rgba(230, 160, 0, 0.12);
-    color: var(--theme-warning-color, #c88a00);
-    border: 1px solid rgba(230, 160, 0, 0.25);
+    opacity: 1 !important;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background-color: rgba(227, 98, 9, 0.2);
+      border-color: rgba(227, 98, 9, 0.6);
+    }
   }
 
   .relations-wrap {

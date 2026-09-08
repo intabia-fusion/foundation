@@ -436,9 +436,9 @@
               {mainEntry.name}
             </span>
             {#if existingTypeNames.has(mainEntry.name.trim().toLowerCase())}
-              <span class="collision-badge font-normal-11">
-                <Label label={plugin.string.TaskTypeAlreadyExists} />
-              </span>
+              <div class="collision-warning flex-center" use:tooltip={{ label: plugin.string.TaskTypeAlreadyExists }}>
+                <IconError size="small" />
+              </div>
             {/if}
           </div>
         </div>
@@ -585,14 +585,22 @@
     white-space: nowrap;
   }
 
-  .collision-badge {
-    padding: 0.1rem 0.4rem;
-    border-radius: 0.25rem;
-    background: rgba(230, 160, 0, 0.12);
-    color: var(--theme-warning-color, #c88a00);
-    border: 1px solid rgba(230, 160, 0, 0.25);
-    white-space: nowrap;
+  // Same treatment as the skipped-screen warning in the workflow import wizard
+  .collision-warning {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 0.375rem;
+    color: #e36209;
+    background-color: rgba(227, 98, 9, 0.12);
+    border: 1px solid rgba(227, 98, 9, 0.35);
+    cursor: default;
     flex-shrink: 0;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background-color: rgba(227, 98, 9, 0.2);
+      border-color: rgba(227, 98, 9, 0.6);
+    }
   }
 
   .warning-banner {

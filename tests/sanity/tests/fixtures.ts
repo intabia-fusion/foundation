@@ -20,7 +20,8 @@ export interface SharedWorkspace {
   token: string
 }
 
-// The free plan gives 5 seats, so the owner plus this many guests fit before a join is refused.
+// The free plan gives 5 seats and the AI bot takes none, so the owner plus 4 guests fit. One stays
+// spare: an invite that skips the `@invite` tag is uncounted, and past the cap a guest goes read-only.
 const SEATS_PER_WORKSPACE = 3
 
 // @playwright/test's `test`, plus a flush of client counters before a context closes.

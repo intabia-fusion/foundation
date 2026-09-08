@@ -8,10 +8,14 @@ service plus model building for every plugin), and in the 20260907-163654 profil
 
 ## Why it needs seats accounting
 
-`tests/plan-config.yaml` gives a fresh workspace the free tier: `usersLimit: 5`. Tests that invite a
-guest through `getSecondPageByInvite` spend a seat permanently, so the fixture recycles the
-workspace after `SEATS_PER_WORKSPACE` (3) invites. Callers declare the need with the `@invite` tag
-on the test and `sharedWorkspace(testInfo.tags.includes('@invite') ? 1 : 0)` in `beforeEach`.
+`tests/plan-config.yaml` gives a fresh workspace the free tier: `usersLimit: 5`. The AI bot is
+excluded from the count (`getSeatMembers` in `server/account/src/utils.ts`), so the owner plus 4
+guests fit. Tests that invite a guest through `getSecondPageByInvite` spend a seat permanently, so
+the fixture recycles the workspace after `SEATS_PER_WORKSPACE` (3) invites - one below the cap,
+because an uncounted invite (a test that forgot the tag) does not fail loudly: `assertSeatAvailable`
+only refuses the join that has no seat left, while an over-limit member that got in is turned
+read-only by `SeatLimitsMiddleware`. Callers declare the need with the `@invite` tag on the test and
+`sharedWorkspace(testInfo.tags.includes('@invite') ? 1 : 0)` in `beforeEach`.
 
 ## What a shared workspace breaks, and what it does not
 

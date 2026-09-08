@@ -55,7 +55,9 @@ jobs:
       #   run: node common/scripts/check_model_version.js
 
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Checking layer boundaries...
         run: node common/scripts/check-layers.js
@@ -204,7 +206,9 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
@@ -258,7 +262,9 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
@@ -314,7 +320,9 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
@@ -369,7 +377,9 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
         run: pnpm install --frozen-lockfile

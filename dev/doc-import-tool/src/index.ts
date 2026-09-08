@@ -50,7 +50,7 @@ export function docImportTool (): void {
     process.exit(1)
   }
 
-  const collaborator = process.env.COLLABORATOR
+  const collaboratorUrl = process.env.COLLABORATOR ?? ''
 
   const uploadUrl = process.env.UPLOAD_URL ?? '/files'
 
@@ -104,7 +104,6 @@ export function docImportTool (): void {
             uploadURL: uploadUrl,
             storageAdapter,
             collaboratorURL: collaboratorUrl,
-            collaborator,
             token: generateToken(systemAccountUuid, workspaceId, { service: 'import-tool' })
           }
 

@@ -29,28 +29,28 @@
     "_phase:format": "format src"
   },
   "devDependencies": {
-    "@tsconfig/node16": "^16.1.9",
-    "@types/node": "^24.13.3",
-    "@types/ws": "^8.5.12",
-    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@tsconfig/node16": "catalog:",
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
     "@hcengineering/platform-rig": "workspace:^0.7.19",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.1.1",
-    "@types/jest": "^29.5.5",
-    "@types/uuid": "^11.0.0",
-    "@typescript-eslint/parser": "^8.70.0",
-    "esbuild": "^0.25.10",
-    "eslint": "^8.54.0",
-    "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-n": "^15.4.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^6.1.1",
-    "prettier": "^3.6.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3",
-    "eslint-config-standard": "^17.1.0",
-    "eslint-plugin-svelte": "^2.46.1",
-    "@stylistic/eslint-plugin": "^3.1.0"
+    "jest": "catalog:",
+    "ts-jest": "catalog:",
+    "@types/jest": "catalog:",
+    "@types/uuid": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "esbuild": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-n": "catalog:",
+    "eslint-plugin-node": "catalog:",
+    "eslint-plugin-promise": "catalog:",
+    "prettier": "catalog:",
+    "ts-node": "catalog:",
+    "typescript": "catalog:",
+    "eslint-config-standard": "catalog:",
+    "eslint-plugin-svelte": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:"
   },
   "dependencies": {
     "@hcengineering/analytics": "workspace:^0.7.17",
@@ -67,6 +67,6 @@
     "@hcengineering/server-core": "workspace:^0.7.18",
     "@hcengineering/server-token": "workspace:^0.7.17",
     "@hcengineering/account-client": "workspace:^0.7.21",
-    "dotenv": "^16.6.1"
+    "dotenv": "catalog:"
   }
 }

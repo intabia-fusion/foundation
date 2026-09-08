@@ -143,9 +143,13 @@ async function formatPackage(cwd, options = {}) {
         parserReported = true
         try {
           const resolved = await eslint.calculateConfigForFile(file)
+          const first = r.messages.find((m) => m.ruleId == null)
+          const srcLine = content.split('\n')[(first?.line ?? 1) - 1] ?? ''
           errors.push(
             `${relative(cwd, file)}: parse error with parser=${resolved.parser ?? '(eslint default)'} ` +
-              `project=${JSON.stringify(resolved.parserOptions?.project)}`
+              `project=${JSON.stringify(resolved.parserOptions?.project)}\n` +
+              `  at ${first?.line}:${first?.column} ${first?.message}\n` +
+              `  source: ${JSON.stringify(srcLine.slice(0, 160))}`
           )
         } catch (e) {
           errors.push(`${relative(cwd, file)}: parse error; could not resolve config: ${e.message}`)

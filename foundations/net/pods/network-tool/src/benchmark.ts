@@ -29,9 +29,9 @@ class BenchmarkContainer implements Container {
     console.log('Stopping bench container')
   }
 
-  async connect (clientId: ClientUuid, broadcast: (data: any) => Promise<void>): Promise<void> {}
+  connect (clientId: ClientUuid, broadcast: (data: any) => Promise<void>): void {}
 
-  async disconnect (clientId: ClientUuid): Promise<void> {}
+  disconnect (clientId: ClientUuid): void {}
 }
 
 export function registerBenchmark (): void {

@@ -91,7 +91,6 @@
     if (isAttachment(attachment)) {
       actions.push({
         label: saveAttachmentAction.label,
-        icon: saveAttachmentAction.icon,
         action: async (props: any, evt: Event) => {
           if (isAttachment(attachment)) {
             const impl = await getResource(saveAttachmentAction.action)

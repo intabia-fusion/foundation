@@ -164,6 +164,10 @@ jobs:
       - name: Building...
         run: pnpm build
 
+      # pods/server's compression test reads bundle/model.json, which only the bundle phase writes.
+      - name: Generating model...
+        run: pnpm --filter @hcengineering/pod-server run get-model
+
       - name: Prepare server (with rate limit retry)
         run: |
           set -o pipefail

@@ -196,7 +196,9 @@ export class Hierarchy {
     return Hierarchy.hasMixin(doc, mixin)
   }
 
-  classHierarchyMixin<D extends Doc, M extends D>(
+  // M is a mixin on the class, not on the document, so it is not bound to D: mixins such as
+  // ObjectPresenter extend Class<Doc>, which never extends the document type D.
+  classHierarchyMixin<D extends Doc, M extends Doc>(
     _class: Ref<Class<D>>,
     mixin: Ref<Mixin<M>>,
     filter?: (value: M) => boolean

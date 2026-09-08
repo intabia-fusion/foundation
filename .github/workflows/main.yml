@@ -610,17 +610,8 @@ jobs:
           APPLE_ID_APP_PASS: ${{ secrets.APPLE_ID_APP_PASS }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
-          # electron-builder 26 collects production deps by shelling out to the package
-          # manager named in desktop-package/package.json ("packageManager": "pnpm@..").
-          # Rush installs pnpm below but never puts it on PATH, so without this the
-          # build dies with `spawn pnpm ENOENT`. If Rush ever moves this directory,
-          # the `pnpm --version` below is what fails, not electron-builder 4 minutes in.
-          RUSH_PNPM_BIN="$GITHUB_WORKSPACE/common/temp/pnpm-local/node_modules/.bin"
-          if [ ! -x "$RUSH_PNPM_BIN/pnpm" ]; then
-            echo "pnpm not found at $RUSH_PNPM_BIN - check where rush installs it now" >&2
-            exit 1
-          fi
-          export PATH="$RUSH_PNPM_BIN:$PATH"
+          # electron-builder 26 shells out to the package manager from
+          # desktop-package/package.json ("packageManager": "pnpm@..").
           pnpm --version
           cd desktop-package
           pnpm run dist --linux --x64

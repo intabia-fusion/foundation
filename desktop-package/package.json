@@ -4,7 +4,7 @@
   "main": "dist/main/electron.js",
   "author": "Intabia Fusion <platform@intabia.ru>",
   "template": "@hcengineering/default-package",
-  "packageManager": "pnpm@10.28.0",
+  "packageManager": "pnpm@12.3.4",
   "scripts": {
     "_phase:package": "pnpm run package",
     "package": "rm -rf ./dist && cp -r ../desktop/dist . && cp ../desktop/.env ./dist && echo 'done'",

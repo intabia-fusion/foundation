@@ -32,6 +32,13 @@ import {
   type TxMiddlewareResult
 } from '@hcengineering/server-core'
 
+// PlatformError builds `.message` from the status code; overwrite it so the reason reaches logs too.
+function forbidden (reason: string): PlatformError {
+  const err = new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, { reason }))
+  err.message = reason
+  return err
+}
+
 /** Writes carried by an API key token: allowed at all, through which route, into which spaces.
  * Membership and reads stay with SpaceSecurityMiddleware. */
 export class ApiKeyPermissionsMiddleware extends BaseMiddleware implements Middleware {
@@ -69,19 +76,15 @@ export class ApiKeyPermissionsMiddleware extends BaseMiddleware implements Middl
       return
     }
     if (!apiKey.canWrite) {
-      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+      throw forbidden('The API key is read-only')
     }
     // Raw CUD carries no operation name, so a key granted operations writes only via /api/v1/ops.
     if (apiKey.opsOnly && !opsApi) {
-      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+      throw forbidden('A key granted named operations may write only through /api/v1/ops')
     }
     const cudTx = tx as TxCUD<Doc>
-    // Derived tx come from triggers, not from the key - the same exemption GuestPermissionsMiddleware makes.
-    if (cudTx.space === core.space.DerivedTx) {
-      return
-    }
     if (apiKey.spaces.length > 0 && !apiKey.spaces.includes(cudTx.objectSpace)) {
-      throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+      throw forbidden(`The API key is not granted the space ${cudTx.objectSpace}`)
     }
   }
 }

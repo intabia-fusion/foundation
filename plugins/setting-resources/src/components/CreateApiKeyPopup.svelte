@@ -32,6 +32,7 @@
     showPopup,
     type RadioItem
   } from '@hcengineering/ui'
+  import { getCurrentLanguage } from '@hcengineering/theme'
   import { createEventDispatcher } from 'svelte'
   import settingsRes from '../plugin'
   import { formatApiKeyError, getAccountClient, isApiKeyPickableSpace } from '../utils'
@@ -269,7 +270,7 @@
       </div>
       <div class="settingsRow">
         <Label label={settingsRes.string.ApiKeyExpiresOn} />
-        <span class="expiresOn">{new Date(expiresOn).toLocaleDateString()}</span>
+        <span class="expiresOn">{new Date(expiresOn).toLocaleDateString(getCurrentLanguage())}</span>
       </div>
       <div class="settingsRow">
         <div class="flex-col flex-gap-1">

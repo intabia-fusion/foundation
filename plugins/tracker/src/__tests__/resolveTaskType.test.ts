@@ -110,4 +110,33 @@ describe('createIssue task type resolution', () => {
 
     await expect(createIssue(client, makeProject(), { title: 'Hello' })).rejects.toThrow(/task type/i)
   })
+  it('refuses a non-root task type for a root issue instead of falling back to it', async () => {
+    const child = makeTaskType('tracker:taskTypes:Sub', { isRootTaskType: false })
+    const { client } = makeClient([child])
+
+    await expect(createIssue(client, makeProject(), { title: 'Hello' })).rejects.toThrow(/root task type/i)
+  })
+
+  it('picks the type the parent admits for a sub-issue, not the root one', async () => {
+    const root = makeTaskType('tracker:taskTypes:Root', { isRootTaskType: true })
+    const sub = makeTaskType('tracker:taskTypes:Sub', {
+      isRootTaskType: false,
+      allowedAsChildOf: [root._id]
+    })
+    const { client, capturedKind } = makeClient([root, sub])
+    const parent = { _id: 'issue-1', _class: 'tracker:class:Issue', kind: root._id, identifier: 'TST-1', parents: [] }
+
+    await createIssue(client, makeProject(), { title: 'Hello', parent: parent as any })
+    expect(capturedKind()).toBe(sub._id)
+  })
+
+  it('refuses a sub-issue when no task type is allowed under the parent', async () => {
+    const root = makeTaskType('tracker:taskTypes:Root', { isRootTaskType: true })
+    const { client } = makeClient([root])
+    const parent = { _id: 'issue-1', _class: 'tracker:class:Issue', kind: root._id, identifier: 'TST-1', parents: [] }
+
+    await expect(createIssue(client, makeProject(), { title: 'Hello', parent: parent as any })).rejects.toThrow(
+      /allowed under/i
+    )
+  })
 })

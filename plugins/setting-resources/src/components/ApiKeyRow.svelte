@@ -16,6 +16,7 @@
   import { type ApiKeyInfo } from '@hcengineering/account-client'
   import { type Ref, type Space } from '@hcengineering/core'
   import { Button, Label } from '@hcengineering/ui'
+  import { getCurrentLanguage } from '@hcengineering/theme'
   import settingsRes from '../plugin'
 
   export let apiKey: ApiKeyInfo
@@ -27,7 +28,7 @@
   let expanded = false
 
   function formatDate (timestamp: number): string {
-    return new Date(timestamp).toLocaleString()
+    return new Date(timestamp).toLocaleString(getCurrentLanguage())
   }
 
   const dayMs = 24 * 60 * 60 * 1000

@@ -38,6 +38,7 @@
     eventToHTMLElement,
     showPopup
   } from '@hcengineering/ui'
+  import { getCurrentLanguage } from '@hcengineering/theme'
   import { createEventDispatcher } from 'svelte'
   import view from '@hcengineering/view'
   import settingsRes from '../plugin'
@@ -204,7 +205,7 @@
   }
 
   function formatDate (timestamp: number): string {
-    return new Date(timestamp).toLocaleString()
+    return new Date(timestamp).toLocaleString(getCurrentLanguage())
   }
 
   function remove (): void {

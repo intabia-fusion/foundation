@@ -50,7 +50,7 @@ export async function createIssue (
   data: NewIssue,
   uploadMarkup?: UploadMarkup
 ): Promise<CreatedIssue> {
-  const taskType = await resolveTaskType(client, project)
+  const taskType = await resolveTaskType(client, project, data.parent)
   const issueClass: Ref<Class<Issue>> = client.getHierarchy().hasClass(taskType.targetClass)
     ? (taskType.targetClass as Ref<Class<Issue>>)
     : tracker.class.Issue
@@ -125,14 +125,20 @@ export async function createIssue (
   return { _id, _class: issueClass, identifier: value.identifier }
 }
 
-// Same rule as the create dialog's TaskKindSelector: task types of the project's type, root
-// ones preferred, first match wins. Query by `parent`, not `_id` - LookupMiddleware strips a
-// field from the result when the query matched it by exact value, `_id` included.
-async function resolveTaskType (client: TxOperations, project: Project): Promise<TaskType> {
+// Same two lists TaskKindSelector uses: a root issue takes a root type, a sub-issue one the parent
+// admits. Query by `parent`, not `_id` - LookupMiddleware strips a field matched by exact value.
+async function resolveTaskType (client: TxOperations, project: Project, parent?: Issue): Promise<TaskType> {
   const taskTypes = await client.findAll(task.class.TaskType, { parent: project.type })
-  const taskType = taskTypes.find((t) => t.isRootTaskType !== false) ?? taskTypes[0]
+  const taskType =
+    parent === undefined
+      ? taskTypes.find((t) => t.isRootTaskType !== false)
+      : taskTypes.find((t) => t.allowAnyParent === true || (t.allowedAsChildOf ?? []).includes(parent.kind))
   if (taskType === undefined) {
-    throw new Error(`Project "${project.identifier}" has no task type configured for issues`)
+    throw new Error(
+      parent === undefined
+        ? `Project "${project.identifier}" has no root task type configured for issues`
+        : `Project "${project.identifier}" has no task type allowed under "${parent.identifier}"`
+    )
   }
   return taskType
 }

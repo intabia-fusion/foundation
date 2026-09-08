@@ -274,3 +274,33 @@ alongside, 4 of 8 failed before fix, 8 of 8 passed after (Love project 66 passed
 Reproducing love flakes: `--project=Love -g "<title>" --repeat-each 8 --workers 1 --retries 0
 --trace on` while `--project=Platform --workers 5` load machine. Trace console entries identify
 client-side disconnect; JSON reporter carry no steps, `error-context.md` no page snapshot.
+## Kanban drop lost to a late dragover (2026-09-08)
+
+Run 20260908-135958: `drag child between parent lanes` failed with `drop was not delivered ...
+(landed on "null")` - `null`, not `outside`, so no `drop` event fired at all. Geometry was right;
+`elementFromPoint` had the wanted cell. Chromium turns a synthesized mousemove into `dragover` a
+tick later, and `mouse.up()` issued right after the move ends the drag with no drop. `panelDragOver`
+always calls `preventDefault()`, so a cell that saw a dragover always accepts. `dragPointer` now
+records the cell each `dragover` reaches (capture phase) and nudges up to 10 x 50ms until the wanted
+cell has seen one, then releases.
+
+## Popup that ignores Escape (2026-09-08)
+
+Run 20260908-143050: `Add comment by popup` spent 30s in `locator('.modal-overlay').hover()` -
+"intercepts pointer events", then "element was detached from the DOM": the attachment landing in the
+popup replaces the overlay under the pointer. The hover bought nothing, the click after it did the
+work. `closePopups()` alone does not help - the comment popup keeps its editor focused and ignores
+Escape, the overlay survives all 15s. It now falls back to a capped click on the overlay when Escape
+leaves it standing, and the test calls the helper instead of hover + click.
+
+## Account API answered HTML mid-poll (2026-09-08)
+
+Run 20260908-145911: `dynamic-issues-chats` died in `beforeEach` after 1.5s with `SyntaxError:
+Unexpected token '<', "<html>..."` from `Api.waitWorkspaceReady` - the `getWorkspaceInfo` poll got
+an HTML body. nginx logged no 5xx on `/_account` that second, so what served the page stays unknown;
+`json()` named neither the method nor the status.
+
+`Api.ts` now posts through one private `post()` that reads the body as text and throws
+`<method> answered <status> with <first 120 chars>`. `selectWorkspace` and the `getWorkspaceInfo`
+poll are retried (both are reads, 15s / 60s bounded), so one bad answer costs a poll instead of the
+test; the poll also has a deadline now instead of `while (true)`.

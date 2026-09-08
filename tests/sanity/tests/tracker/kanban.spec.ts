@@ -64,16 +64,19 @@ async function dragUntilStatus (
     .poll(
       async () => {
         if ((await status()) === target) return target
+        let threw = false
         try {
           await drag()
         } catch (err) {
           // The drop can already have landed while findOne still reports the old status - the card
           // is then gone from the DOM and the drag throws. Let the next read settle it.
+          threw = true
           console.error('drag failed:', err)
         }
         // The drop shows up optimistically; wait for the tx before paying for another drag, which
-        // would otherwise start from the card's new position and cost seconds of scrolling.
-        for (const wait of retryIntervals) {
+        // would otherwise start from the card's new position and cost seconds of scrolling. A drag
+        // that threw usually sent nothing, so it waits out only the short end of the ladder.
+        for (const wait of threw ? retryIntervals.slice(0, 3) : retryIntervals) {
           if ((await status()) === target) return target
           await new Promise((resolve) => setTimeout(resolve, wait))
         }

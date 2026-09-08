@@ -175,10 +175,31 @@ export class KanbanBoardPage extends CommonTrackerPage {
           ? null
           : `${cell.getAttribute('data-swimlane-id') ?? ''}|${cell.getAttribute('data-state') ?? ''}`
       }, DROP_ZONE)
-      // A drop that never reaches the board is the whole flake: no error, no status change.
+      // A drop that never reaches the board is the whole flake: no error, no status change. The
+      // browser fires it only after a dragover on the cell, so the release below waits for one.
       await this.page.evaluate((zone) => {
         const w = window as any
         w.__dropSeen = null
+        w.__dragOverCell = null
+        w.__dragOvers = 0
+        w.__dragEnded = false
+        w.__dragOverHandler = (e: Event): void => {
+          const cell = (e.target as HTMLElement)?.closest?.(zone)
+          w.__dragOvers++
+          w.__dragOverCell =
+            cell == null
+              ? 'outside'
+              : `${cell.getAttribute('data-swimlane-id') ?? ''}|${cell.getAttribute('data-state') ?? ''}`
+        }
+        document.addEventListener('dragover', w.__dragOverHandler, true)
+        // A drag the browser has already ended cannot deliver a drop however long we nudge.
+        document.addEventListener(
+          'dragend',
+          () => {
+            w.__dragEnded = true
+          },
+          { capture: true, once: true }
+        )
         document.addEventListener(
           'drop',
           (e) => {
@@ -226,14 +247,36 @@ export class KanbanBoardPage extends CommonTrackerPage {
       if (await target.evaluate((el) => el.closest('.drop-disabled') !== null)) {
         throw new Error(`cell "${String(wanted)}" is disabled for this card - its task type does not allow the status`)
       }
+      // The browser turns a synthesized mousemove into dragover a tick later, and a release that
+      // overtakes it ends the drag with no drop at all. Nudge until the cell has really seen one.
+      for (let attempt = 0; attempt < (wanted === null ? 0 : 20); attempt++) {
+        const state = await this.page.evaluate(() => {
+          const w = window as any
+          return { cell: w.__dragOverCell, ended: w.__dragEnded }
+        })
+        if (state.cell === wanted || state.ended === true) break
+        await this.page.mouse.move(x + (attempt % 2 === 0 ? 2 : -2), y)
+        await this.page.mouse.move(x, y)
+        await this.page.waitForTimeout(50)
+      }
       await this.page.mouse.up()
       released = true
-      const seen = await this.page.evaluate(() => (window as any).__dropSeen)
-      if (seen !== wanted) {
-        // A lost drop leaves the board mid-drag: the card keeps its `dragged` class, no dragend ever
-        // arrives and every later mouse.down starts no drag at all. Only a reload clears that.
-        await this.page.reload()
-        throw new Error(`drop was not delivered to cell "${String(wanted)}" (landed on "${String(seen)}")`)
+      const after = await this.page.evaluate(() => {
+        const w = window as any
+        document.removeEventListener('dragover', w.__dragOverHandler, true)
+        return { seen: w.__dropSeen, cell: w.__dragOverCell, overs: w.__dragOvers, ended: w.__dragEnded }
+      })
+      if (after.seen !== wanted) {
+        // A lost drop leaves the board mid-drag: the card keeps its `dragged` class and every later
+        // mouse.down starts no drag at all. Escape clears that in ms, a reload costs seconds.
+        await this.page.keyboard.press('Escape')
+        if ((await this.page.locator('[data-id="kanban-card"].dragged').count()) > 0) {
+          await this.page.reload()
+        }
+        throw new Error(
+          `drop was not delivered to cell "${String(wanted)}" (landed on "${String(after.seen)}", ` +
+            `last dragover "${String(after.cell)}" of ${String(after.overs)}, dragend ${String(after.ended)})`
+        )
       }
     } finally {
       if (!released) await this.page.mouse.up()

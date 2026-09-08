@@ -123,12 +123,7 @@
       // Only a ParticipantInfo from *this* LiveKit session proves we were moved out:
       // the row from the previous meeting lingers until its participant_left lands.
       const mySid = liveKitClient.liveKitRoom.localParticipant.sid
-      if (
-        currentMeeting !== undefined &&
-        myRoom !== undefined &&
-        myRoom !== room &&
-        $myInfo?.sessionId === mySid
-      ) {
+      if (currentMeeting !== undefined && myRoom !== undefined && myRoom !== room && $myInfo?.sessionId === mySid) {
         void leaveMeeting()
         return
       }

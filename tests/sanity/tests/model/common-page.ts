@@ -271,13 +271,17 @@ export class CommonPage {
     await item.click()
   }
 
-  // A single Escape can be swallowed while a popup is re-rendering, leaving a modal-overlay that
-  // silently eats every later click. Press until no overlay is left.
+  // Escape is swallowed while a popup re-renders and ignored outright by one holding its editor
+  // focused, so press until no overlay is left and fall back to a click outside.
   async closePopups (): Promise<void> {
     const overlay = this.page.locator('div.modal-overlay')
     await expect(async () => {
       while ((await overlay.count()) > 0) {
         await this.page.keyboard.press('Escape')
+        if ((await overlay.count()) > 0) {
+          // Capped: an attachment landing in the popup replaces the overlay under the pointer.
+          await overlay.last().click({ position: { x: 10, y: 10 }, timeout: 5000 })
+        }
         await expect(overlay).toHaveCount(0, { timeout: 2000 })
       }
     }).toPass({ intervals: retryIntervals, timeout: 15000 })

@@ -259,7 +259,7 @@
     {:else if selectedStep === 'statuses'}
       <ImportStatusesStep {projectType} {selectedTaskTypeId} {report} bind:statusMap bind:createMissingStatuses />
     {:else if selectedStep === 'screens'}
-      <ImportScreensStep {projectType} {selectedTaskTypeId} {parsedConfig} bind:screenResolutions {report} />
+      <ImportScreensStep {selectedTaskTypeId} {parsedConfig} bind:screenResolutions {report} />
     {:else if selectedStep === 'attributes'}
       <ImportAttributesStep
         {projectType}

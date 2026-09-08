@@ -95,6 +95,7 @@ async function formatPackage(cwd, options = {}) {
   }
 
   let eslint = new ESLint({ fix: true, cwd, cache: false, resolvePluginsRelativeTo: rigDir(cwd) })
+  let parserReported = false
 
   const errors = []
   let changedCount = 0
@@ -136,6 +137,20 @@ async function formatPackage(cwd, options = {}) {
     try {
       const lintResults = await eslint.lintText(content, { filePath: file })
       const r = lintResults[0]
+      // A parse error says nothing on its own: report which parser eslint actually resolved, once
+      // per package, so a config that failed to reach the files is visible in the log.
+      if (!parserReported && r?.messages.some((m) => m.ruleId == null)) {
+        parserReported = true
+        try {
+          const resolved = await eslint.calculateConfigForFile(file)
+          errors.push(
+            `${relative(cwd, file)}: parse error with parser=${resolved.parser ?? '(eslint default)'} ` +
+              `project=${JSON.stringify(resolved.parserOptions?.project)}`
+          )
+        } catch (e) {
+          errors.push(`${relative(cwd, file)}: parse error; could not resolve config: ${e.message}`)
+        }
+      }
       if (r) {
         errorCount += r.errorCount
         warningCount += r.warningCount

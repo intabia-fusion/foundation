@@ -461,7 +461,14 @@ function printErrorSummary(allErrors) {
   console.error(`=== ERROR SUMMARY (${allErrors.length} error(s)) ===`)
   console.error(`${'='.repeat(60)}`)
   for (const err of allErrors) {
-    const errMsg = err.error?.stderr || err.error?.stdout || err.error?.message || err.error || 'Unknown error'
+    // Both streams: webpack and friends report the actual failure on stdout while stderr only
+    // carries the runner's own noise, so picking one hides the reason.
+    const tail = (text, lines = 200) => text.trim().split('\n').slice(-lines).join('\n')
+    const parts = []
+    if (err.error?.stderr?.trim()) parts.push(tail(err.error.stderr))
+    if (err.error?.stdout?.trim()) parts.push(tail(err.error.stdout))
+    if (parts.length === 0) parts.push(String(err.error?.message || err.error || 'Unknown error'))
+    const errMsg = parts.join('\n')
     const output = err.output || ''
     console.error(`\n[${err.phase}] ${error(err.package)}:`)
     console.error(errMsg)

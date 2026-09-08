@@ -1,8 +1,16 @@
 /**
   Copyright © 2026 Intabia Fusion.
+
   Licensed under the Eclipse Public License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  See https://www.eclipse.org/legal/epl-2.0
+  you may not use this file except in compliance with the License. You may
+  obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 
 // Runs the unit tests package by package under --cpu-prof and reports where the time went.
@@ -10,7 +18,7 @@
 // and a CPU profile alone reports that as idle.
 
 const { spawn } = require('child_process')
-const { readFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } = require('fs')
+const { readFileSync, existsSync, mkdirSync, rmSync, readdirSync } = require('fs')
 const { join } = require('path')
 const { listWorkspaceProjects, findWorkspaceRoot } = require('../../foundations/utils/packages/platform-rig/bin/libs/workspace')
 
@@ -34,13 +42,23 @@ function hasTestFiles (dir) {
   return false
 }
 
+// A zero or negative concurrency would leave the chunk loop stepping nowhere, so refuse it here.
+function positiveInt (raw, flag) {
+  const n = parseInt(raw, 10)
+  if (!Number.isFinite(n) || n < 1) {
+    console.error(`${flag} expects a positive integer, got ${JSON.stringify(raw)}`)
+    process.exit(1)
+  }
+  return n
+}
+
 function parseArgs (argv) {
   const args = { to: [], concurrency: 1, top: 20, out: '.profile-tests', inBand: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--to') args.to.push(...argv[++i].split(','))
-    else if (a === '--concurrency') args.concurrency = parseInt(argv[++i], 10)
-    else if (a === '--top') args.top = parseInt(argv[++i], 10)
+    else if (a === '--concurrency') args.concurrency = positiveInt(argv[++i], '--concurrency')
+    else if (a === '--top') args.top = positiveInt(argv[++i], '--top')
     else if (a === '--out') args.out = argv[++i]
     else if (a === '--in-band') args.inBand = true
     else if (a === '--help' || a === '-h') args.help = true
@@ -167,6 +185,10 @@ Writes a .cpuprofile per process; open them in Chrome DevTools for the full tree
   }
 
   const root = findWorkspaceRoot()
+  if (root == null) {
+    console.error('pnpm-workspace.yaml not found; run this from inside the repository')
+    process.exit(1)
+  }
   const outRoot = join(root, args.out)
   mkdirSync(outRoot, { recursive: true })
 

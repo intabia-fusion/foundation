@@ -448,8 +448,16 @@ export class WorkspaceManager {
   async shutdown (deleteTopics: boolean = false): Promise<void> {
     clearInterval(this.shutdownInterval)
     clearTimeout(this.txInformer)
-    // Sequentially each disconnect waits out its own fetch long-poll (maxWaitTimeInMs).
-    await Promise.all([this.txConsumer?.close(), this.workspaceConsumer?.close(), this.fulltextConsumer?.close()])
+    // Sequentially each disconnect waits out its own fetch long-poll (maxWaitTimeInMs). Best effort:
+    // a consumer that fails to disconnect must not strand the topics and adapters closed below.
+    const closed = await Promise.allSettled([
+      this.txConsumer?.close(),
+      this.workspaceConsumer?.close(),
+      this.fulltextConsumer?.close()
+    ])
+    for (const r of closed) {
+      if (r.status === 'rejected') this.ctx.error('failed to close consumer', { err: r.reason })
+    }
     await this.fulltextProducer.close()
 
     for (const v of this.indexers.values()) {

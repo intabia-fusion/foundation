@@ -120,6 +120,12 @@ function buildSharedConfig (shared) {
       testTimeout = Math.max(testTimeout ?? 0, config.testTimeout)
     }
     for (const key of GLOBAL_ONLY_KEYS) delete config[key]
+    // ts-jest looks for tsconfig.json on its own and silently falls back to its defaults
+    // (moduleResolution node10, which TS 6 rejects) when it misses. Point it at the package's own.
+    const tsconfig = join(pkg.cwd, 'tsconfig.json')
+    if (config.preset === 'ts-jest' && config.transform === undefined && existsSync(tsconfig)) {
+      config.transform = { '^.+\\.[cm]?[jt]sx?$': ['ts-jest', { tsconfig }] }
+    }
     projects.push({ ...config, rootDir: pkg.cwd, displayName: pkg.name })
   }
   return { projects, testTimeout }

@@ -95,7 +95,7 @@ async function formatPackage(cwd, options = {}) {
   }
 
   let eslint = new ESLint({ fix: true, cwd, cache: false, resolvePluginsRelativeTo: rigDir(cwd) })
-  let parserReported = false
+  let parseReports = 0
 
   const errors = []
   let changedCount = 0
@@ -139,20 +139,32 @@ async function formatPackage(cwd, options = {}) {
       const r = lintResults[0]
       // A parse error says nothing on its own: report which parser eslint actually resolved, once
       // per package, so a config that failed to reach the files is visible in the log.
-      if (!parserReported && r?.messages.some((m) => m.ruleId == null)) {
-        parserReported = true
+      if (parseReports < 3 && r?.messages.some((m) => m.ruleId == null)) {
+        parseReports++
         try {
           const resolved = await eslint.calculateConfigForFile(file)
           const first = r.messages.find((m) => m.ruleId == null)
-          const srcLine = content.split('\n')[(first?.line ?? 1) - 1] ?? ''
-          errors.push(
-            `${relative(cwd, file)}: parse error with parser=${resolved.parser ?? '(eslint default)'} ` +
-              `project=${JSON.stringify(resolved.parserOptions?.project)}\n` +
-              `  at ${first?.line}:${first?.column} ${first?.message}\n` +
-              `  source: ${JSON.stringify(srcLine.slice(0, 160))}`
+          const lines = content.split('\n')
+          console.error(
+            'PARSE-DIAG ' +
+              JSON.stringify({
+                file: relative(cwd, file),
+                at: `${first?.line}:${first?.column}`,
+                message: first?.message,
+                line: (lines[(first?.line ?? 1) - 1] ?? '').slice(0, 200),
+                prev: (lines[(first?.line ?? 1) - 2] ?? '').slice(0, 200),
+                head: content.slice(0, 120),
+                bytes: content.length,
+                prettierChanged: content !== original,
+                parser: resolved.parser ?? '(eslint default)',
+                project: resolved.parserOptions?.project,
+                tsconfigRootDir: resolved.parserOptions?.tsconfigRootDir,
+                ecmaVersion: resolved.parserOptions?.ecmaVersion,
+                sourceType: resolved.parserOptions?.sourceType
+              })
           )
         } catch (e) {
-          errors.push(`${relative(cwd, file)}: parse error; could not resolve config: ${e.message}`)
+          console.error(`PARSE-DIAG ${relative(cwd, file)}: could not resolve config: ${e.message}`)
         }
       }
       if (r) {

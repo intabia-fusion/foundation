@@ -27,14 +27,16 @@
     IconInfo,
     Label,
     Modal,
-    ModernCheckbox,
-    ModernDropdown
+    ModernDropdown,
+    tooltip
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
-  import { Severity, Status, setPlatformStatus } from '@hcengineering/platform'
+  import { Severity, Status, getEmbeddedLabel, setPlatformStatus } from '@hcengineering/platform'
 
   import plugin from '../../plugin'
   import TaskTypeIcon from './TaskTypeIcon.svelte'
+  import TaskTypeSelectList from './TaskTypeSelectList.svelte'
+  import { type TaskTypeRelation, type TaskTypeSelectItem } from './types'
 
   export let taskType: TaskType
   export let taskTypes: TaskType[] = []
@@ -74,11 +76,25 @@
   $: selectedCount = exportMode === 'hierarchy' ? 1 + selectedRelatedIds.size : 1
   $: taskTypesMap = new Map<Ref<TaskType>, TaskType>([taskType, ...(taskTypes ?? [])].map((t) => [t._id, t]))
 
-  function toggleRelated (typeId: Ref<TaskType>): void {
-    if (selectedRelatedIds.has(typeId)) {
-      selectedRelatedIds.delete(typeId)
+  $: listItems = relatedItems.map((it) => {
+    const grp = groupReasons(it.reasons)
+    return {
+      id: it.taskType._id,
+      name: it.taskType.name,
+      icon: it.taskType,
+      parentOf: toRelations(grp.parentOf, taskTypesMap),
+      childOf: toRelations(grp.childOf, taskTypesMap),
+      universalChild: grp.universalChild
+    } satisfies TaskTypeSelectItem
+  })
+
+  // The shared list is key-agnostic and reports string ids; every row here is keyed by a task type ref.
+  function toggleRelated (rowId: string): void {
+    const id = rowId as Ref<TaskType>
+    if (selectedRelatedIds.has(id)) {
+      selectedRelatedIds.delete(id)
     } else {
-      selectedRelatedIds.add(typeId)
+      selectedRelatedIds.add(id)
     }
     selectedRelatedIds = new Set(selectedRelatedIds)
   }
@@ -130,8 +146,15 @@
     }
   }
 
-  function formatTypeNames (ids: Ref<TaskType>[]): string {
-    return ids.map((id) => taskTypesMap.get(id)?.name ?? id).join(', ')
+  // Resolve refs to relations, dropping anything not present in the dialog: showing a raw
+  // Ref<TaskType> in the UI is worse than omitting the relation.
+  function toRelations (ids: Ref<TaskType>[], types: Map<Ref<TaskType>, TaskType>): TaskTypeRelation[] {
+    return ids
+      .map((id) => {
+        const name = types.get(id)?.name
+        return name !== undefined ? { id, name } : undefined
+      })
+      .filter((r): r is TaskTypeRelation => r !== undefined)
   }
 
   function groupReasons (reasons: TaskTypeDependencyItem['reasons']): GroupedReasons {
@@ -201,8 +224,7 @@
 
 <Modal
   type="type-popup"
-  width="medium"
-  maxWidth="36rem"
+  width="large"
   label={plugin.string.ExportTaskTypeDialogTitle}
   labelProps={{ name: taskType.name }}
   hideFooter={true}
@@ -250,84 +272,35 @@
       </div>
     </div>
 
+    <!-- The type being exported: always included, so it sits outside the selectable list -->
+    <div class="exported-type-card flex-col flex-gap-1-5">
+      <span class="section-caption font-medium-11">
+        <Label label={plugin.string.ExportedTaskType} />
+      </span>
+      <div class="exported-type-row flex-row-center flex-gap-2">
+        <TaskTypeIcon value={taskType} size="small" />
+        <span class="exported-type-name font-medium-13" use:tooltip={{ label: getEmbeddedLabel(taskType.name) }}>
+          {taskType.name}
+        </span>
+      </div>
+    </div>
+
     <!-- Connected Task Types (when Hierarchy is selected) -->
     {#if exportMode === 'hierarchy' && hasHierarchy}
-      <div class="hierarchy-card flex-col">
-        <div class="hierarchy-header flex-row-center justify-between">
-          <span class="hierarchy-title font-medium-11">
-            <Label label={plugin.string.TaskTypes} />
-            <span class="count-pill font-normal-11">
-              {selectedRelatedIds.size} / {relatedItems.length}
-            </span>
-          </span>
-          <div class="header-actions flex-row-center flex-gap-1">
-            <button
-              type="button"
-              class="btn-link font-normal-12"
-              class:disabled={selectedRelatedIds.size === relatedItems.length}
-              disabled={selectedRelatedIds.size === relatedItems.length}
-              on:click={selectAll}
-            >
-              <Label label={plugin.string.SelectAll} />
-            </button>
-            <span class="dot-sep">•</span>
-            <button
-              type="button"
-              class="btn-link font-normal-12"
-              class:disabled={selectedRelatedIds.size === 0}
-              disabled={selectedRelatedIds.size === 0}
-              on:click={deselectAll}
-            >
-              <Label label={plugin.string.DeselectAll} />
-            </button>
-          </div>
-        </div>
-
-        <div class="hierarchy-list flex-col">
-          {#each relatedItems as item (item.taskType._id)}
-            {@const isChecked = selectedRelatedIds.has(item.taskType._id)}
-            {@const grp = groupReasons(item.reasons)}
-            <div
-              class="type-row flex-row-center"
-              class:checked={isChecked}
-              class:unchecked={!isChecked}
-              on:click={() => {
-                toggleRelated(item.taskType._id)
-              }}
-            >
-              <div class="checkbox-slot" on:click|stopPropagation>
-                <ModernCheckbox
-                  checked={isChecked}
-                  on:change={() => {
-                    toggleRelated(item.taskType._id)
-                  }}
-                />
-              </div>
-              <div class="icon-slot">
-                <TaskTypeIcon value={item.taskType} size="small" />
-              </div>
-              <span class="type-name font-medium-13">{item.taskType.name}</span>
-              <div class="relations-wrap">
-                {#if grp.parentOf.length > 0}
-                  <span class="relation-badge">
-                    <span class="badge-role"><Label label={plugin.string.ParentOf} />:</span>
-                    <span class="badge-names">{formatTypeNames(grp.parentOf)}</span>
-                  </span>
-                {/if}
-                {#if grp.universalChild}
-                  <span class="relation-badge">
-                    ↳ <Label label={plugin.string.UniversalChildRelation} />
-                  </span>
-                {:else if grp.childOf.length > 0}
-                  <span class="relation-badge">
-                    <span class="badge-role">↳ <Label label={plugin.string.ChildOf} />:</span>
-                    <span class="badge-names">{formatTypeNames(grp.childOf)}</span>
-                  </span>
-                {/if}
-              </div>
-            </div>
-          {/each}
-        </div>
+      <div class="flex-col flex-gap-1-5">
+        <span class="section-caption font-medium-11">
+          <Label label={plugin.string.ConnectedTaskTypes} />
+        </span>
+        <TaskTypeSelectList
+          showTitle={false}
+          items={listItems}
+          selectedIds={selectedRelatedIds}
+          on:toggle={(e) => {
+            toggleRelated(e.detail)
+          }}
+          on:selectAll={selectAll}
+          on:deselectAll={deselectAll}
+        />
       </div>
     {/if}
   </div>
@@ -402,6 +375,36 @@
     }
   }
 
+  .section-caption {
+    color: var(--theme-caption-color);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .exported-type-card {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .exported-type-row {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 1rem;
+    // matches a TaskTypeSelectList row, so the two blocks read as one scale
+    min-height: 2.875rem;
+    border-radius: var(--border-radius-1, 0.75rem);
+    border: 1px solid var(--theme-divider-color);
+    background: var(--theme-card-bg);
+  }
+
+  .exported-type-name {
+    color: var(--theme-content-color);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .mode-hint {
     display: flex;
     align-items: center;
@@ -428,163 +431,5 @@
     color: var(--theme-secondary-color);
     flex: 1;
     min-width: 0;
-  }
-
-  .hierarchy-card {
-    width: 100%;
-    box-sizing: border-box;
-    border-radius: var(--border-radius-1, 0.75rem);
-    border: 1px solid var(--theme-divider-color);
-    background: var(--theme-card-bg);
-    overflow: hidden;
-  }
-
-  .hierarchy-header {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.55rem 1rem;
-    background: var(--theme-table-row-color, var(--theme-item-hover-bg));
-    border-bottom: 1px solid var(--theme-divider-color);
-  }
-
-  .hierarchy-title {
-    color: var(--theme-caption-color);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .count-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.05rem 0.4rem;
-    border-radius: 0.4rem;
-    background: var(--theme-card-bg);
-    color: var(--theme-secondary-color);
-    border: 1px solid var(--theme-divider-color);
-    text-transform: none;
-    letter-spacing: normal;
-  }
-
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .btn-link {
-    background: none;
-    border: none;
-    padding: 0.15rem 0.4rem;
-    border-radius: 0.25rem;
-    color: var(--theme-accent-color);
-    cursor: pointer;
-    transition: all 0.1s ease;
-
-    &:hover:not(.disabled) {
-      background: rgba(var(--theme-accent-rgb, 100, 80, 240), 0.08);
-    }
-
-    &.disabled {
-      color: var(--theme-caption-color);
-      cursor: default;
-      opacity: 0.6;
-    }
-  }
-
-  .dot-sep {
-    color: var(--theme-divider-color);
-    font-size: 8px;
-  }
-
-  .hierarchy-list {
-    width: 100%;
-    box-sizing: border-box;
-    max-height: 14rem;
-    overflow-y: auto;
-  }
-
-  .type-row {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.5rem 1rem;
-    min-height: 2.875rem;
-    border-bottom: 1px solid var(--theme-divider-color);
-    cursor: pointer;
-    transition: all 0.12s ease;
-
-    &:hover {
-      background: var(--theme-item-hover-bg);
-    }
-
-    &.unchecked {
-      opacity: 0.5;
-
-      .type-name {
-        color: var(--theme-secondary-color);
-      }
-    }
-
-    &:last-child {
-      border-bottom: none;
-    }
-  }
-
-  .checkbox-slot {
-    display: flex;
-    align-items: center;
-    margin-right: 0.75rem;
-    flex-shrink: 0;
-  }
-
-  .icon-slot {
-    display: flex;
-    align-items: center;
-    margin-right: 0.625rem;
-    flex-shrink: 0;
-  }
-
-  .type-name {
-    color: var(--theme-content-color);
-    flex-shrink: 0;
-    margin-right: 0.75rem;
-    transition: color 0.12s ease;
-  }
-
-  .relations-wrap {
-    margin-left: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 0.25rem;
-    max-width: 65%;
-  }
-
-  .relation-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.15rem 0.55rem;
-    border-radius: 0.375rem;
-    font-size: 11px;
-    line-height: 1.3;
-    white-space: nowrap;
-    border: 1px solid var(--theme-divider-color);
-    background: var(--theme-card-bg);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-    flex-shrink: 0;
-  }
-
-  .badge-role {
-    font-weight: 600;
-    color: var(--theme-secondary-color);
-  }
-
-  .badge-names {
-    color: var(--theme-content-color);
-    font-weight: 400;
   }
 </style>

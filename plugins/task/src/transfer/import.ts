@@ -251,9 +251,9 @@ export async function importTaskTypeConfig (
 
   // Filter entries if selective inclusion is configured
   let entriesToImport = config.taskTypes
-  if (options?.selectedTypeNames !== undefined && options.selectedTypeNames.length > 0) {
-    const selectedSet = new Set(options.selectedTypeNames)
-    entriesToImport = entriesToImport.filter((entry) => selectedSet.has(entry.name))
+  if (options?.selectedTypeIds !== undefined && options.selectedTypeIds.length > 0) {
+    const selectedSet = new Set(options.selectedTypeIds)
+    entriesToImport = entriesToImport.filter((entry) => selectedSet.has(entry.id))
   }
 
   const createdTaskTypes: TaskType[] = []

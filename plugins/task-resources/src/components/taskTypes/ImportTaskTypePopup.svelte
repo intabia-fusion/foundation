@@ -14,8 +14,9 @@
 -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte'
+  import { type Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Severity, Status, setPlatformStatus, translateCB } from '@hcengineering/platform'
+  import { Severity, Status, getEmbeddedLabel, setPlatformStatus, translateCB } from '@hcengineering/platform'
   import task, {
     ProjectType,
     TaskType,
@@ -24,15 +25,16 @@
     findIncompatibleAttributes,
     importTaskTypeConfig
   } from '@hcengineering/task'
-  import { Icon, IconCheck, IconError, IconInfo, Label, Modal, ModernCheckbox, themeStore } from '@hcengineering/ui'
+  import { Icon, IconError, type IWizardStep, Label, ModernWizardDialog, themeStore, tooltip } from '@hcengineering/ui'
 
   import plugin from '../../plugin'
   import TaskTypeIcon from './TaskTypeIcon.svelte'
+  import TaskTypeSelectList from './TaskTypeSelectList.svelte'
+  import { type TaskTypeRelation, type TaskTypeSelectItem } from './types'
 
   export let projectType: ProjectType
   export let taskTypes: TaskType[] = []
   export let initialConfig: TaskTypeExportConfig | null = null
-  export let initialFileName: string = ''
   export let initialText: string = ''
 
   const client = getClient()
@@ -42,12 +44,21 @@
   let textAreaEl: HTMLTextAreaElement | undefined
   let rawJsonText = initialText
   let placeholderText = ''
-  let selectedFileName = initialFileName
   let parsedConfig: TaskTypeExportConfig | null = initialConfig
   let parseError: string | null = initialText.trim().length > 0 && initialConfig == null ? 'InvalidFormat' : null
 
-  let selectedNames = new Set<string>(initialConfig?.taskTypes?.map((t) => t.name) ?? [])
+  // Keyed by entry id: a hand-edited or API-produced file may repeat a name.
+  let selectedIds = new Set<Ref<TaskType>>(initialConfig?.taskTypes?.map((t) => t.id) ?? [])
   let isImporting = false
+
+  let selectedStep: string = initialConfig != null ? 'types' : 'source'
+  // Text the current parsedConfig was produced from; lets us tell an edited source apart from an untouched one
+  let appliedText: string = initialConfig != null ? initialText : ''
+
+  const steps: IWizardStep[] = [
+    { id: 'source', title: plugin.string.StepSelectSource },
+    { id: 'types', title: plugin.string.StepSelectTaskTypes }
+  ]
 
   $: translateCB(plugin.string.PasteJsonPlaceholder, {}, $themeStore.language, (res) => {
     placeholderText = res
@@ -64,41 +75,79 @@
   $: existingTypeNames = new Set(taskTypes.filter((t) => t.name != null).map((t) => t.name.trim().toLowerCase()))
 
   $: entries = parsedConfig?.taskTypes ?? []
-  $: selectedCount = selectedNames.size
-  $: canImport = (parsedConfig == null ? rawJsonText.trim().length > 0 : selectedCount > 0) && !isImporting
+  $: selectedCount = selectedIds.size
+  $: canProceed = (parsedConfig != null && rawJsonText === appliedText) || rawJsonText.trim().length > 0
+  $: canImport = parsedConfig != null && selectedCount > 0 && !isImporting
   $: incompatibleAttrs =
-    parsedConfig != null ? findIncompatibleAttributes(client, parsedConfig, Array.from(selectedNames)) : []
+    parsedConfig != null ? findIncompatibleAttributes(client, parsedConfig, Array.from(selectedIds)) : []
 
   interface GroupedReasons {
-    parentOf: string[]
-    childOf: string[]
+    parentOf: Array<Ref<TaskType>>
+    childOf: Array<Ref<TaskType>>
     universalChild?: boolean
   }
 
+  // allowedAsChildOf holds refs from the source workspace, so resolve through the file's own entries
+  // first and fall back to existing types for refs that happen to match.
   $: typeNameById = new Map<string, string>([
     ...(taskTypes ?? []).filter((t) => t.name != null).map((t) => [t._id, t.name] as [string, string]),
-    ...(entries ?? []).filter((e) => e.id != null).map((e) => [e.id as string, e.name] as [string, string]),
-    ...(entries ?? []).map((e) => [e.name, e.name] as [string, string])
+    ...(entries ?? []).filter((e) => e.id != null).map((e) => [e.id as string, e.name] as [string, string])
   ])
 
-  function formatTypeNames (ids: string[]): string {
-    return ids.map((id) => typeNameById.get(id) ?? id).join(', ')
+  // Same as the export dialog: an unresolved id is dropped rather than rendered as a name.
+  function toRelations (ids: Array<Ref<TaskType>>, names: Map<string, string>): TaskTypeRelation[] {
+    return ids
+      .map((id) => {
+        const name = names.get(id)
+        return name !== undefined ? { id, name } : undefined
+      })
+      .filter((r): r is TaskTypeRelation => r !== undefined)
   }
 
+  // The file records which type the export was started from; it is always imported,
+  // so it is shown above the list and cannot be unchecked.
+  $: mainEntry = ((): TaskTypeConfigEntry | undefined => {
+    if (parsedConfig == null || entries.length === 0) return undefined
+    const byId = entries.find((e) => e.id === parsedConfig?.taskTypeId)
+    if (byId !== undefined) return byId
+    return entries.find((e) => e.name === parsedConfig?.taskTypeName)
+  })()
+
+  $: relatedEntries = entries.filter((e) => e !== mainEntry)
+
+  $: selectedRelatedIds = new Set<string>([...selectedIds].filter((id) => id !== mainEntry?.id))
+
+  $: listItems = relatedEntries.map((entry) => {
+    const grp = computeEntryReasons(entry, entries)
+    return {
+      id: entry.id,
+      name: entry.name,
+      icon: entry,
+      parentOf: toRelations(grp.parentOf, typeNameById),
+      childOf: toRelations(grp.childOf, typeNameById),
+      universalChild: grp.universalChild,
+      exists: existingTypeNames.has(entry.name.trim().toLowerCase())
+    } satisfies TaskTypeSelectItem
+  })
+
   function computeEntryReasons (entry: TaskTypeConfigEntry, allEntries: TaskTypeConfigEntry[]): GroupedReasons {
-    const parentOf: string[] = []
-    const childOf: string[] = []
+    const parentOf: Array<Ref<TaskType>> = []
+    const childOf: Array<Ref<TaskType>> = []
     let universalChild = false
 
     if (allEntries.length <= 1) {
       return { parentOf, childOf, universalChild }
     }
 
+    // Mirrors computeDependencyReasons() used by the export dialog, so both show the same relations.
     if (entry.allowAnyParent === true) {
       universalChild = true
-    } else if (entry.allowedAsChildOf !== undefined) {
+    }
+    if (entry.allowedAsChildOf !== undefined) {
       for (const pId of entry.allowedAsChildOf) {
-        if (!childOf.includes(pId)) {
+        // the export only names parents present in the same file; ids from outside would render raw
+        const known = allEntries.some((e) => e.id === pId)
+        if (known && !childOf.includes(pId)) {
           childOf.push(pId)
         }
       }
@@ -106,7 +155,7 @@
 
     // Check if this entry is an allowed parent for other entries in the file
     for (const other of allEntries) {
-      if (other.name !== entry.name && other.allowedAsChildOf !== undefined && other.allowAnyParent !== true) {
+      if (other.name !== entry.name && other.allowedAsChildOf !== undefined) {
         const isParent = other.allowedAsChildOf.some(
           (pId) => pId === entry.id || (entry.id == null && pId === (entry.name as any))
         )
@@ -144,8 +193,9 @@
       return false
     }
 
-    const validEntries = json.taskTypes.filter(
-      (t: any) => t != null && typeof t.name === 'string' && t.name.trim() !== ''
+    // json comes from a user-supplied file, so entries are narrowed here rather than trusted
+    const validEntries: TaskTypeConfigEntry[] = json.taskTypes.filter(
+      (t: any): t is TaskTypeConfigEntry => t != null && typeof t.name === 'string' && t.name.trim() !== ''
     )
     if (validEntries.length === 0) {
       parseError = 'InvalidFormat'
@@ -155,8 +205,9 @@
 
     parsedConfig = json as TaskTypeExportConfig
     parseError = null
-    selectedFileName = sourceName
-    selectedNames = new Set(validEntries.map((t: any) => t.name))
+    selectedIds = new Set(validEntries.map((t) => t.id))
+    appliedText = text
+    selectedStep = 'types'
     return true
   }
 
@@ -175,7 +226,9 @@
     try {
       const text = await file.text()
       const ok = processJsonText(text, file.name)
-      if (!ok) {
+      if (ok) {
+        rawJsonText = text
+      } else {
         parseError = 'InvalidTaskTypeFile'
       }
     } catch {
@@ -202,40 +255,45 @@
     }, 0)
   }
 
-  function resetFile (): void {
-    parsedConfig = null
-    parseError = null
-    selectedFileName = ''
-    selectedNames.clear()
-    if (fileInput !== undefined) {
-      fileInput.value = ''
-    }
-    setTimeout(() => {
-      if (textAreaEl !== undefined) {
-        textAreaEl.focus()
-        textAreaEl.scrollTop = 0
-        textAreaEl.setSelectionRange(0, 0)
+  function handleStepChanged (e: CustomEvent<string>): void {
+    const target = e.detail
+    if (target === 'types') {
+      // Re-parse only when the pasted text differs from what the current config was built from,
+      // so returning from "Change file" without edits keeps the previously chosen source.
+      if (parsedConfig == null || rawJsonText !== appliedText) {
+        if (rawJsonText.trim().length === 0) {
+          parseError = 'InvalidFormat'
+          return
+        }
+        // processJsonText advances the step itself on success
+        processJsonText(rawJsonText, 'Clipboard')
+        return
       }
-    }, 0)
+      parseError = null
+    }
+    selectedStep = target
   }
 
-  function toggleEntry (name: string): void {
-    if (selectedNames.has(name)) {
-      selectedNames.delete(name)
+  // The shared list is key-agnostic and reports string ids; every row here is keyed by an entry id.
+  function toggleEntry (rowId: string): void {
+    const id = rowId as Ref<TaskType>
+    if (id === mainEntry?.id) return
+    if (selectedIds.has(id)) {
+      selectedIds.delete(id)
     } else {
-      selectedNames.add(name)
+      selectedIds.add(id)
     }
-    selectedNames = new Set(selectedNames)
+    selectedIds = new Set(selectedIds)
   }
 
   function selectAll (): void {
     if (parsedConfig == null) return
-    selectedNames = new Set(parsedConfig.taskTypes.map((t) => t.name))
+    selectedIds = new Set(parsedConfig.taskTypes.map((t) => t.id))
   }
 
   function deselectAll (): void {
-    selectedNames.clear()
-    selectedNames = new Set()
+    // the main type is always imported
+    selectedIds = new Set(mainEntry !== undefined ? [mainEntry.id] : [])
   }
 
   async function handleImport (): Promise<void> {
@@ -244,7 +302,7 @@
     isImporting = true
     try {
       await importTaskTypeConfig(client, projectType._id, parsedConfig, {
-        selectedTypeNames: Array.from(selectedNames),
+        selectedTypeIds: Array.from(selectedIds),
         renameDuplicates: true
       })
       dispatch('close')
@@ -259,24 +317,8 @@
     }
   }
 
-  async function handleOkAction (): Promise<void> {
-    if (parsedConfig == null) {
-      if (rawJsonText.trim().length === 0) {
-        parseError = 'InvalidFormat'
-        return
-      }
-      const ok = processJsonText(rawJsonText, 'Clipboard')
-      if (!ok) {
-        parseError = 'InvalidFormat'
-      }
-      return
-    }
-
-    await handleImport()
-  }
-
   function handleWindowPaste (event: ClipboardEvent): void {
-    if (parsedConfig != null || isImporting) return
+    if (selectedStep !== 'source' || isImporting) return
     if (document.activeElement !== textAreaEl) {
       const text = event.clipboardData?.getData('text')
       if (text != null && text.trim().length > 0) {
@@ -299,21 +341,23 @@
 
 <svelte:window on:paste={handleWindowPaste} />
 
-<Modal
-  type="type-popup"
-  width="medium"
-  maxWidth="36rem"
+<ModernWizardDialog
+  width="56rem"
+  loading={isImporting}
   label={plugin.string.ImportTaskTypesDialogTitle}
-  okLabel={plugin.string.Import}
-  okAction={handleOkAction}
-  okLoading={isImporting}
-  canSave={canImport}
-  onCancel={handleClose}
+  submitLabel={plugin.string.Import}
+  canSubmit={canImport}
+  {canProceed}
+  {steps}
+  {selectedStep}
+  on:stepChanged={handleStepChanged}
+  on:submit={handleImport}
+  on:close={handleClose}
 >
   <div class="import-dialog-body flex-col flex-gap-4">
     <input type="file" accept=".json" bind:this={fileInput} style="display: none;" on:change={handleFileChange} />
 
-    {#if parsedConfig == null}
+    {#if selectedStep === 'source'}
       <!-- Step 1: Text Area for pasting JSON + file selection link -->
       <div class="json-input-card flex-col flex-gap-3">
         <div class="textarea-wrapper">
@@ -361,41 +405,7 @@
         </div>
       </div>
     {:else}
-      <!-- Step 2: File/Clipboard Selected + Task Types Checklist -->
-      <div class="file-selected-card flex-row-center justify-between">
-        <div class="flex-row-center flex-gap-2">
-          <div class="success-icon flex-center">
-            <IconCheck size="small" />
-          </div>
-          <div class="file-meta flex-col">
-            <span class="font-medium-13">
-              {#if selectedFileName === 'Clipboard'}
-                <Label label={plugin.string.ClipboardSource} />
-              {:else}
-                {selectedFileName}
-              {/if}
-            </span>
-            <span class="font-normal-11 text-secondary">
-              {entries.length}
-              {entries.length === 1 ? 'тип' : 'типов'}
-            </span>
-          </div>
-        </div>
-        <button type="button" class="btn-change-file font-medium-12" on:click={resetFile}>
-          <Label label={plugin.string.ChangeFile} />
-        </button>
-      </div>
-
-      <!-- Hint banner styled like workflow validators -->
-      <div class="mode-hint">
-        <div class="mode-hint-icon">
-          <IconInfo size="small" />
-        </div>
-        <span class="mode-hint-text">
-          <Label label={plugin.string.ImportTaskTypesHint} />
-        </span>
-      </div>
-
+      <!-- Step 2: Task Types Checklist -->
       {#if incompatibleAttrs.length > 0}
         <div class="warning-banner flex-col">
           <div class="warning-header flex-row-center flex-gap-2">
@@ -414,107 +424,48 @@
         </div>
       {/if}
 
-      <!-- Task Types Checklist Card -->
-      <div class="hierarchy-card flex-col">
-        <div class="hierarchy-header flex-row-center justify-between">
-          <span class="hierarchy-title font-medium-11">
-            <Label label={plugin.string.TaskTypes} />
-            <span class="count-pill font-normal-11">
-              {selectedCount} / {entries.length}
-            </span>
+      {#if mainEntry !== undefined}
+        <!-- The type the export was started from: always imported, so it sits outside the list -->
+        <div class="flex-col flex-gap-1-5">
+          <span class="section-caption font-medium-11">
+            <Label label={plugin.string.ImportedTaskType} />
           </span>
-          <div class="header-actions flex-row-center flex-gap-1">
-            <button
-              type="button"
-              class="btn-link font-normal-12"
-              class:disabled={selectedCount === entries.length}
-              disabled={selectedCount === entries.length}
-              on:click={selectAll}
-            >
-              <Label label={plugin.string.SelectAll} />
-            </button>
-            <span class="dot-sep">•</span>
-            <button
-              type="button"
-              class="btn-link font-normal-12"
-              class:disabled={selectedCount === 0}
-              disabled={selectedCount === 0}
-              on:click={deselectAll}
-            >
-              <Label label={plugin.string.DeselectAll} />
-            </button>
+          <div class="main-type-row flex-row-center flex-gap-2">
+            <TaskTypeIcon value={mainEntry} size="small" />
+            <span class="main-type-name font-medium-13" use:tooltip={{ label: getEmbeddedLabel(mainEntry.name) }}>
+              {mainEntry.name}
+            </span>
+            {#if existingTypeNames.has(mainEntry.name.trim().toLowerCase())}
+              <span class="collision-badge font-normal-11">
+                <Label label={plugin.string.TaskTypeAlreadyExists} />
+              </span>
+            {/if}
           </div>
         </div>
+      {/if}
 
-        <div class="hierarchy-list flex-col">
-          {#each entries as entry (entry.name)}
-            {@const isChecked = selectedNames.has(entry.name)}
-            {@const isExisting = existingTypeNames.has(entry.name.trim().toLowerCase())}
-            {@const grp = computeEntryReasons(entry, entries)}
-            <div
-              class="type-row flex-row-center"
-              class:checked={isChecked}
-              class:unchecked={!isChecked}
-              on:click={() => {
-                toggleEntry(entry.name)
-              }}
-            >
-              <div class="checkbox-slot" on:click|stopPropagation>
-                <ModernCheckbox
-                  checked={isChecked}
-                  on:change={() => {
-                    toggleEntry(entry.name)
-                  }}
-                />
-              </div>
-              <div class="icon-slot">
-                <TaskTypeIcon value={entry} size="small" />
-              </div>
-              <span class="type-name font-medium-13">{entry.name}</span>
-
-              {#if isExisting}
-                <span class="collision-badge font-normal-11">
-                  <Label label={plugin.string.TaskTypeAlreadyExists} />
-                </span>
-              {/if}
-
-              {#if entries.length > 1}
-                <div class="relations-wrap">
-                  {#if grp.parentOf.length > 0}
-                    <span class="relation-badge">
-                      <span class="badge-role"><Label label={plugin.string.ParentOf} />:</span>
-                      <span class="badge-names">{formatTypeNames(grp.parentOf)}</span>
-                    </span>
-                  {/if}
-                  {#if grp.universalChild}
-                    <span class="relation-badge">
-                      ↳ <Label label={plugin.string.UniversalChildRelation} />
-                    </span>
-                  {:else if grp.childOf.length > 0}
-                    <span class="relation-badge">
-                      <span class="badge-role">↳ <Label label={plugin.string.ChildOf} />:</span>
-                      <span class="badge-names">{formatTypeNames(grp.childOf)}</span>
-                    </span>
-                  {/if}
-                </div>
-              {/if}
-            </div>
-          {/each}
+      {#if listItems.length > 0}
+        <div class="flex-col flex-gap-1-5">
+          <span class="section-caption font-medium-11">
+            <Label label={plugin.string.ConnectedTaskTypes} />
+          </span>
+          <TaskTypeSelectList
+            showTitle={false}
+            items={listItems}
+            selectedIds={selectedRelatedIds}
+            on:toggle={(e) => {
+              toggleEntry(e.detail)
+            }}
+            on:selectAll={selectAll}
+            on:deselectAll={deselectAll}
+          />
         </div>
-      </div>
+      {/if}
     {/if}
   </div>
-</Modal>
+</ModernWizardDialog>
 
 <style lang="scss">
-  :global(.hulyModal-container.type-popup) {
-    height: auto;
-
-    textarea.json-textarea {
-      color: var(--theme-caption-color, var(--global-primary-TextColor, #000)) !important;
-    }
-  }
-
   .import-dialog-body {
     width: 100%;
     box-sizing: border-box;
@@ -594,44 +545,6 @@
     }
   }
 
-  .file-selected-card {
-    width: 100%;
-    padding: 0.625rem 0.875rem;
-    border-radius: var(--border-radius-1, 0.5rem);
-    border: 1px solid var(--theme-divider-color);
-    background: var(--theme-card-bg);
-    box-sizing: border-box;
-  }
-
-  .success-icon {
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 50%;
-    background: rgba(46, 160, 67, 0.15);
-    color: #2ea043;
-  }
-
-  .file-meta {
-    gap: 0.125rem;
-  }
-
-  .text-secondary {
-    color: var(--theme-secondary-color);
-  }
-
-  .btn-change-file {
-    background: none;
-    border: none;
-    color: var(--theme-accent-color);
-    cursor: pointer;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-
-    &:hover {
-      background: rgba(var(--theme-accent-rgb, 100, 80, 240), 0.08);
-    }
-  }
-
   .error-banner {
     display: inline-flex;
     align-items: center;
@@ -647,16 +560,39 @@
     }
   }
 
-  .mode-hint {
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-    padding: 0.55rem 0.875rem;
-    border: 1px solid var(--theme-divider-color);
-    border-radius: var(--border-radius-1, 0.5rem);
-    background-color: var(--global-ui-highlight-BackgroundColor, var(--theme-table-row-color, var(--theme-card-bg)));
-    box-sizing: border-box;
+  .section-caption {
+    color: var(--theme-caption-color);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .main-type-row {
     width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 1rem;
+    // matches a TaskTypeSelectList row, so the two blocks read as one scale
+    min-height: 2.875rem;
+    border-radius: var(--border-radius-1, 0.75rem);
+    border: 1px solid var(--theme-divider-color);
+    background: var(--theme-card-bg);
+  }
+
+  .main-type-name {
+    color: var(--theme-content-color);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .collision-badge {
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    background: rgba(230, 160, 0, 0.12);
+    color: var(--theme-warning-color, #c88a00);
+    border: 1px solid rgba(230, 160, 0, 0.25);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .warning-banner {
@@ -689,189 +625,5 @@
     font-size: 0.75rem;
     line-height: 1.35;
     color: var(--theme-secondary-color);
-  }
-
-  .mode-hint-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--theme-secondary-color);
-    flex-shrink: 0;
-  }
-
-  .mode-hint-text {
-    font-size: 0.8125rem;
-    line-height: 1.35;
-    color: var(--theme-secondary-color);
-    flex: 1;
-    min-width: 0;
-  }
-
-  .hierarchy-card {
-    width: 100%;
-    box-sizing: border-box;
-    border-radius: var(--border-radius-1, 0.75rem);
-    border: 1px solid var(--theme-divider-color);
-    background: var(--theme-card-bg);
-    overflow: hidden;
-  }
-
-  .hierarchy-header {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.55rem 1rem;
-    background: var(--theme-table-row-color, var(--theme-item-hover-bg));
-    border-bottom: 1px solid var(--theme-divider-color);
-  }
-
-  .hierarchy-title {
-    color: var(--theme-caption-color);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .count-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.05rem 0.4rem;
-    border-radius: 0.4rem;
-    background: var(--theme-card-bg);
-    color: var(--theme-secondary-color);
-    border: 1px solid var(--theme-divider-color);
-    text-transform: none;
-    letter-spacing: normal;
-  }
-
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .btn-link {
-    background: none;
-    border: none;
-    padding: 0.15rem 0.4rem;
-    border-radius: 0.25rem;
-    color: var(--theme-accent-color);
-    cursor: pointer;
-    transition: all 0.1s ease;
-
-    &:hover:not(.disabled) {
-      background: rgba(var(--theme-accent-rgb, 100, 80, 240), 0.08);
-    }
-
-    &.disabled {
-      color: var(--theme-caption-color);
-      cursor: default;
-      opacity: 0.6;
-    }
-  }
-
-  .dot-sep {
-    color: var(--theme-divider-color);
-    font-size: 8px;
-  }
-
-  .hierarchy-list {
-    width: 100%;
-    box-sizing: border-box;
-    max-height: 14rem;
-    overflow-y: auto;
-  }
-
-  .type-row {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.5rem 1rem;
-    min-height: 2.875rem;
-    border-bottom: 1px solid var(--theme-divider-color);
-    cursor: pointer;
-    transition: all 0.12s ease;
-
-    &:hover {
-      background: var(--theme-item-hover-bg);
-    }
-
-    &.unchecked {
-      opacity: 0.5;
-
-      .type-name {
-        color: var(--theme-secondary-color);
-      }
-    }
-
-    &:last-child {
-      border-bottom: none;
-    }
-  }
-
-  .checkbox-slot {
-    display: flex;
-    align-items: center;
-    margin-right: 0.75rem;
-    flex-shrink: 0;
-  }
-
-  .icon-slot {
-    display: flex;
-    align-items: center;
-    margin-right: 0.625rem;
-    flex-shrink: 0;
-  }
-
-  .type-name {
-    color: var(--theme-content-color);
-    flex-shrink: 0;
-    margin-right: 0.5rem;
-    transition: color 0.12s ease;
-  }
-
-  .collision-badge {
-    padding: 0.1rem 0.4rem;
-    border-radius: 0.25rem;
-    background: rgba(230, 160, 0, 0.12);
-    color: var(--theme-warning-color, #c88a00);
-    border: 1px solid rgba(230, 160, 0, 0.25);
-    white-space: nowrap;
-    margin-right: 0.5rem;
-  }
-
-  .relations-wrap {
-    margin-left: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 0.25rem;
-    max-width: 55%;
-  }
-
-  .relation-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.15rem 0.55rem;
-    border-radius: 0.375rem;
-    font-size: 11px;
-    line-height: 1.3;
-    white-space: nowrap;
-    border: 1px solid var(--theme-divider-color);
-    background: var(--theme-card-bg);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-    flex-shrink: 0;
-  }
-
-  .badge-role {
-    font-weight: 600;
-    color: var(--theme-secondary-color);
-  }
-
-  .badge-names {
-    color: var(--theme-content-color);
-    font-weight: 400;
   }
 </style>

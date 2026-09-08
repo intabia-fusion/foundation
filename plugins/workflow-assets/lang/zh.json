@@ -206,7 +206,7 @@
     "StepGeneral": "常规",
     "StepStatuses": "状态映射",
     "StepGeneralAndStatuses": "常规与状态",
-    "StepSelectFile": "选择文件",
+    "StepSelectSource": "选择来源",
     "StepTaskTypeAndStatuses": "任务类型与状态",
     "StepScreens": "界面",
     "StepAttributes": "属性与规则",

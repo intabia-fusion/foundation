@@ -94,7 +94,7 @@
   // --- Step Configuration ---
   $: steps = ((): IWizardStep[] => {
     const res: IWizardStep[] = [
-      { id: 'file', title: plugin.string.StepSelectFile },
+      { id: 'file', title: plugin.string.StepSelectSource },
       { id: 'general', title: plugin.string.StepGeneral },
       { id: 'statuses', title: plugin.string.StepStatuses }
     ]

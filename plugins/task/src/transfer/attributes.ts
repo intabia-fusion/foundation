@@ -26,6 +26,7 @@ import core, {
   TxOperations,
   Type
 } from '@hcengineering/core'
+import type { TaskType } from '../index'
 import type { IncompatibleAttributeItem, TaskTypeAttributeConfig, TaskTypeExportConfig } from './types'
 
 /**
@@ -116,16 +117,16 @@ export function isAttributeClassMissing (client: TxOperations, type: Type<Proper
 export function findIncompatibleAttributes (
   client: TxOperations,
   config: TaskTypeExportConfig,
-  selectedTypeNames?: string[]
+  selectedTypeIds?: Array<Ref<TaskType>>
 ): IncompatibleAttributeItem[] {
   if (typeof client.getHierarchy !== 'function') return []
 
   const hierarchy = client.getHierarchy()
   const result: IncompatibleAttributeItem[] = []
-  const selectedSet = selectedTypeNames !== undefined ? new Set(selectedTypeNames) : undefined
+  const selectedSet = selectedTypeIds !== undefined ? new Set(selectedTypeIds) : undefined
 
   for (const entry of config.taskTypes) {
-    if (selectedSet !== undefined && !selectedSet.has(entry.name)) continue
+    if (selectedSet !== undefined && !selectedSet.has(entry.id)) continue
 
     const checkAttr = (attr: TaskTypeAttributeConfig): void => {
       const refClass = getRefToClassFromType(attr.type)

@@ -69,7 +69,7 @@ function createSessionData (account: Account, overrides: Partial<SessionData> = 
     workspace: { uuid: 'test-workspace' as any, url: 'test', dataId: 'test' as any },
     socialStringsToUsers: new Map(),
     ...overrides
-  } as any
+  }
 }
 
 function createSpace (
@@ -132,7 +132,7 @@ describe('SpaceSecurityMiddleware', () => {
       workspace: { uuid: 'test-workspace' as any, url: 'test', dataId: 'test' as any },
       hierarchy,
       modelDb,
-      branding: null as any,
+      branding: null,
       adapterManager: {} as any,
       storageAdapter: {} as any,
       contextVars: {},
@@ -548,8 +548,8 @@ describe('SpaceSecurityMiddleware', () => {
 
       const account = createAccount('user1')
       const socialStringsToUsers = new Map<string, { accountUuid: AccountUuid, role: AccountRole }>()
-      socialStringsToUsers.set('social:user1' as any, { accountUuid: 'user1' as AccountUuid, role: AccountRole.User })
-      socialStringsToUsers.set('social:user2' as any, { accountUuid: 'user2' as AccountUuid, role: AccountRole.User })
+      socialStringsToUsers.set('social:user1', { accountUuid: 'user1' as AccountUuid, role: AccountRole.User })
+      socialStringsToUsers.set('social:user2', { accountUuid: 'user2' as AccountUuid, role: AccountRole.User })
 
       ctx.contextData = createSessionData(account, { socialStringsToUsers } as any)
 
@@ -641,7 +641,7 @@ describe('SpaceSecurityMiddleware', () => {
       jest.spyOn(modelDb, 'findAllSync').mockReturnValue(toFindResult([]))
 
       // Mock getAncestors to avoid 'ancestors not found' error
-      jest.spyOn(hierarchy, 'getAncestors').mockReturnValue([testSpaceClass, core.class.Doc as any])
+      jest.spyOn(hierarchy, 'getAncestors').mockReturnValue([testSpaceClass, core.class.Doc])
 
       await mw.handleBroadcast(ctx)
 
@@ -737,7 +737,7 @@ describe('SpaceSecurityMiddleware', () => {
         return _class === from
       })
       jest.spyOn(modelDb, 'findAllSync').mockReturnValue(toFindResult([]))
-      jest.spyOn(hierarchy, 'getAncestors').mockReturnValue([testSpaceClass, core.class.Doc as any])
+      jest.spyOn(hierarchy, 'getAncestors').mockReturnValue([testSpaceClass, core.class.Doc])
       ;(nextMiddleware.findAll as jest.Mock).mockImplementation(async () => toFindResult([]))
 
       await mw.handleBroadcast(ctx)
@@ -2205,7 +2205,7 @@ describe('SpaceSecurityMiddleware', () => {
 
   describe('write access into non-space objects', () => {
     const docTx = (space: string): TxCreateDoc<Doc> =>
-      txFactory.createTxCreateDoc(core.class.Doc, space as Ref<Space>, {} as any, 'doc1' as Ref<Doc>)
+      txFactory.createTxCreateDoc(core.class.Doc, space as Ref<Space>, {}, 'doc1' as Ref<Doc>)
 
     it('rejects a non-member write into a private space', async () => {
       const mw = await createMiddleware([createSpace('private1', ['user1'], { private: true, owners: ['user1'] })])

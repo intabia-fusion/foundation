@@ -1810,8 +1810,8 @@ describe('upsertSubscription - AI package token grant', () => {
     )
 
     // Tier upserts may still publish a plan limitsChanged event, but never purchaseActivated.
-    const purchaseCalls = mockProducer.send.mock.calls.filter(([, , events]) =>
-      events.some((e: any) => e.type === QueueWorkspaceEvent.PurchaseActivated)
+    const purchaseCalls = mockProducer.send.mock.calls.filter(
+      ([, , events]) => events.some((e: any) => e.type === QueueWorkspaceEvent.PurchaseActivated) === true
     )
     expect(purchaseCalls).toHaveLength(0)
   })

@@ -154,7 +154,7 @@
 </Header>
 <FilterBar {_class} query={searchQuery} space={undefined} {viewOptions} on:change={(e) => (resultQuery = e.detail)} />
 
-{#if loading || !viewlet || !viewlet?.$lookup?.descriptor?.component}
+{#if loading || !viewlet?.$lookup?.descriptor?.component}
   <Loading />
 {:else}
   <Component

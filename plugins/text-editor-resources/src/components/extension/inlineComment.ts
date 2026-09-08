@@ -285,13 +285,8 @@ function buildCommentDecoratorState (
   const isUpdateRequested = meta !== undefined
 
   const pointer: PointerState = {
-    focus:
-      meta?.pointer?.focus !== undefined
-        ? meta.pointer.focus
-        : !isSelectionChanged
-            ? prev.pointer.focus
-            : new Set<string>(),
-    hover: meta?.pointer?.hover !== undefined ? meta.pointer.hover : prev.pointer.hover
+    focus: meta?.pointer?.focus ?? (!isSelectionChanged ? prev.pointer.focus : new Set<string>()),
+    hover: meta?.pointer?.hover ?? prev.pointer.hover
   }
 
   let pendingComment: InlineCommentDecoratorState['pendingComment'] = isNewCommentRequested
@@ -535,14 +530,12 @@ class InlineCommentView {
     const prevprops = this.props
     if (props !== undefined) this.props = props
 
-    if (this.handlers === null) {
-      this.handlers = {
-        handleResolveThread: () => {
-          resolveThread(this.pluginOptions, view, this.props.thread._id)
-        },
-        handleSubmit: (text: string, _id?: string) => {
-          updateThreadComment(this.pluginOptions, view, { _id, thread: this.props.thread._id, message: text })
-        }
+    this.handlers ??= {
+      handleResolveThread: () => {
+        resolveThread(this.pluginOptions, view, this.props.thread._id)
+      },
+      handleSubmit: (text: string, _id?: string) => {
+        updateThreadComment(this.pluginOptions, view, { _id, thread: this.props.thread._id, message: text })
       }
     }
 

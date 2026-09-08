@@ -353,7 +353,7 @@ async function execute (execution: Execution, transition: Transition, control: P
   }
 
   const fresh = await control.client.findOne(process.class.Execution, { _id: execution._id })
-  if (fresh === undefined || fresh.currentState !== execution.currentState) {
+  if (fresh?.currentState !== execution.currentState) {
     control.ctx.info('Skipping stale transition execution', {
       execution: execution._id,
       expectedState: execution.currentState,

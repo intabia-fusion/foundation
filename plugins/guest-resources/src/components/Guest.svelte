@@ -266,7 +266,7 @@
     <div class="workbench-container" style:flex-direction={'row'}>
       <div class="workbench-container inner">
         <div class="antiPanel-component antiComponent" bind:this={contentPanel}>
-          {#if currentApplication && currentApplication.component}
+          {#if currentApplication?.component}
             <Component is={currentApplication.component} props={{ currentSpace }} />
           {:else if specialComponent}
             <Component

@@ -297,7 +297,7 @@ export interface GithubReviewComment extends AttachedDoc {
 /**
  * @public
  */
-export interface GithubPatch extends Attachment {}
+export type GithubPatch = Attachment
 
 /**
  * @public

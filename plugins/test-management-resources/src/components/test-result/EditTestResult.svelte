@@ -29,7 +29,7 @@
 
   let object: WithLookup<TestResult> | undefined
 
-  const testCase = object?.$lookup?.testCase as TestCase | undefined
+  const testCase = object?.$lookup?.testCase
 
   const dispatch = createEventDispatcher()
 

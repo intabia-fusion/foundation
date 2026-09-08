@@ -150,9 +150,7 @@ export class InboxNotificationsClientImpl implements InboxNotificationsClient {
   }
 
   static getClient (): InboxNotificationsClientImpl {
-    if (InboxNotificationsClientImpl._instance === undefined) {
-      InboxNotificationsClientImpl._instance = new InboxNotificationsClientImpl()
-    }
+    InboxNotificationsClientImpl._instance ??= new InboxNotificationsClientImpl()
     return InboxNotificationsClientImpl._instance
   }
 

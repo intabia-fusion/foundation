@@ -166,7 +166,7 @@
         const clazz = hierarchy.getClass(_class)
         const sectionObjects: { doc: Doc, chat?: Chat }[] = [...docs]
 
-        if (!isObjectPushed && pushObject !== undefined && _class === pushObject.object._class) {
+        if (!isObjectPushed && _class === pushObject?.object._class) {
           isObjectPushed = true
           sectionObjects.push({ doc: pushObject.object, chat: pushObject.chat })
         }

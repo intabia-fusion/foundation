@@ -104,7 +104,7 @@ describe('ydoc', () => {
       const restoredDoc = yDocFromBuffer(buffer)
       const restoredText = restoredDoc.getText('note')
 
-      expect(String(restoredText)).toBe('Hello World')
+      expect(restoredText.toJSON()).toBe('Hello World')
     })
   })
 

@@ -151,7 +151,7 @@ export function isCollaborator (doc: ControlledDocument, person: Ref<Employee>):
 }
 
 export function isFolder (doc: ProjectDocument | undefined): boolean {
-  return doc !== undefined && doc.document === documents.ids.Folder
+  return doc?.document === documents.ids.Folder
 }
 
 function getDocumentSortSequence (doc: ControlledDocument | undefined): number[] {

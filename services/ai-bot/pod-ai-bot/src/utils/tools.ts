@@ -159,14 +159,14 @@ async function getFoldersForDocuments (
 
 type ChangeFields<T, R> = Omit<T, keyof R> & R
 type PredefinedTool<T extends object | string> = ChangeFields<
-RunnableToolFunction<T>,
-{
-  function: PredefinedToolFunction<T>
-}
+  RunnableToolFunction<T>,
+  {
+    function: PredefinedToolFunction<T>
+  }
 >
 type PredefinedToolFunction<T extends object | string> = Omit<
-T extends string ? RunnableFunctionWithoutParse : RunnableFunctionWithParse<any>,
-'function'
+  T extends string ? RunnableFunctionWithoutParse : RunnableFunctionWithParse<any>,
+  'function'
 >
 /**
  * Proposal a tool produced during the tool loop. Not posted on the spot: it is carried here and

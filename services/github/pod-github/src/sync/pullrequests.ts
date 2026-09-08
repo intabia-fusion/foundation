@@ -73,7 +73,7 @@ import {
 } from './utils'
 
 type GithubPullRequestData = GithubIssueData &
-Omit<GithubPullRequest, keyof Issue | 'commits' | 'reviews' | 'reviewComments'>
+  Omit<GithubPullRequest, keyof Issue | 'commits' | 'reviews' | 'reviewComments'>
 
 type GithubPullRequestUpdate = DocumentUpdate<WithMarkup<GithubPullRequest>>
 
@@ -611,8 +611,8 @@ export class PullRequestSyncManager extends IssueSyncManagerBase implements DocS
     ctx: MeasureContext,
     client: TxOperations,
     pullRequest: Pick<
-    GithubPullRequest,
-    '_id' | 'identifier' | 'reviewers' | 'title' | 'state' | 'space' | '_class' | 'modifiedBy'
+      GithubPullRequest,
+      '_id' | 'identifier' | 'reviewers' | 'title' | 'state' | 'space' | '_class' | 'modifiedBy'
     >,
     external: PullRequestExternalData,
     info: DocSyncInfo,
@@ -849,8 +849,8 @@ export class PullRequestSyncManager extends IssueSyncManagerBase implements DocS
   private async requestFix (
     client: TxOperations,
     pullRequest: Pick<
-    GithubPullRequest,
-    '_id' | 'identifier' | 'reviewers' | 'title' | 'space' | 'state' | 'space' | '_class'
+      GithubPullRequest,
+      '_id' | 'identifier' | 'reviewers' | 'title' | 'space' | 'state' | 'space' | '_class'
     >,
     external: PullRequestExternalData,
     todoUser: Ref<Person>,

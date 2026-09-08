@@ -501,9 +501,7 @@ export async function rejectRequest (
   })
 }
 
-export type ControlledStatesTags = {
-  [K in ControlledDocumentState]: DocumentStateTagType
-}
+export type ControlledStatesTags = Record<ControlledDocumentState, DocumentStateTagType>
 
 export const controlledStatesTags: ControlledStatesTags = {
   [ControlledDocumentState.InReview]: 'inProgress',
@@ -514,9 +512,7 @@ export const controlledStatesTags: ControlledStatesTags = {
   [ControlledDocumentState.ToReview]: 'effective'
 }
 
-export type StatesTags = {
-  [K in DocumentState]: DocumentStateTagType
-}
+export type StatesTags = Record<DocumentState, DocumentStateTagType>
 
 export const statesTags: StatesTags = {
   [DocumentState.Draft]: 'draft',
@@ -800,9 +796,7 @@ export function getProjectDocsHierarchy (projectMeta: Array<WithLookup<ProjectMe
   for (const meta of projectMeta) {
     const parentId = meta.path[0] ?? documents.ids.NoParent
 
-    if (childrenByParent[parentId] === undefined) {
-      childrenByParent[parentId] = []
-    }
+    childrenByParent[parentId] ??= []
 
     childrenByParent[parentId].push(meta)
 

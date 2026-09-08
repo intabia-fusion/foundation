@@ -131,7 +131,7 @@
     const models = (
       await Promise.all(
         Array.from(groups.entries()).map(([targetClass, keys]) =>
-          buildModel({ client, _class: targetClass as Ref<Class<Doc>>, keys, ignoreMissing: true, lookup })
+          buildModel({ client, _class: targetClass, keys, ignoreMissing: true, lookup })
         )
       )
     ).flat()
@@ -149,7 +149,7 @@
 
   $: currentSpace = space ?? tracker.project.DefaultProject
   let currentProject: Project | undefined
-  $: currentProject = $activeProjects.get(currentSpace) as Project
+  $: currentProject = $activeProjects.get(currentSpace)
 
   let resultQuery: DocumentQuery<any> = { ...query }
   const client = getClient()
@@ -429,7 +429,10 @@
         return { key: 'component:' + label.toLowerCase().trim(), value: v, empty: false, title: label }
       }
     }
-    return { key: String(v), value: v, empty: false }
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      return { key: String(v), value: v, empty: false }
+    }
+    return { key: JSON.stringify(v), value: v, empty: false }
   }
 
   function buildGenericLanes (field: string, tasks: DocWithRank[]): SwimLane[] {
@@ -504,7 +507,7 @@
       if (match === undefined) return undefined
       value = match
     }
-    const update: DocumentUpdate<Item> = { [swimLaneBy]: value } as unknown as DocumentUpdate<Item>
+    const update: DocumentUpdate<Item> = { [swimLaneBy]: value }
     if (swimLaneBy === 'attachedTo') {
       ;(update as any).attachedToClass = tracker.class.Issue
     }

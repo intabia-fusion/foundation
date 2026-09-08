@@ -190,7 +190,7 @@ export class S3Service implements StorageAdapter {
         })
         const buckets = await this.client.listBuckets()
         return (buckets.Buckets ?? [])
-          .filter((it) => it.Name !== undefined && it.Name.endsWith(productPostfix))
+          .filter((it) => it.Name?.endsWith(productPostfix) === true)
           .map((it) => {
             let name = (it.Name ?? '') as WorkspaceDataId
             name = name.slice(0, name.length - productPostfix.length) as WorkspaceDataId

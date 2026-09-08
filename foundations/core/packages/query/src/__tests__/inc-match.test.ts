@@ -74,7 +74,7 @@ async function createSpace (factory: TxOperations, priv: boolean, extra?: Partia
     members: [],
     archived: false,
     ...(extra ?? {})
-  } as any)
+  })
 }
 
 const settle = async (): Promise<void> => {
@@ -95,7 +95,7 @@ async function subscribe<T extends Doc> (
       _class,
       query,
       (res) => {
-        last = res as T[]
+        last = res
         updates++
         resolve(null)
       },
@@ -114,7 +114,7 @@ describe('$inc match handling — doc outside the result (matchQuery)', () => {
     const updatesBefore = q.updates()
 
     for (let i = 0; i < 5; i++) {
-      await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, outsideId, { $inc: { rate: 1 } } as any)
+      await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, outsideId, { $inc: { rate: 1 } })
     }
     await settle()
 
@@ -128,7 +128,7 @@ describe('$inc match handling — doc outside the result (matchQuery)', () => {
     const q = await subscribe<CounterSpace>(liveQuery, core.class.Space, { rate: 2 } as any)
     expect(q.last().length).toBe(0)
 
-    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 2 } } as any)
+    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 2 } })
     await settle()
 
     expect(q.last().length).toBe(1) // rate reached 2 -> doc enters the result
@@ -140,7 +140,7 @@ describe('$inc match handling — doc outside the result (matchQuery)', () => {
     await subscribe<CounterSpace>(liveQuery, core.class.Space, { private: false }, { sort: { rate: 1 } as any })
     const callsBefore = serverCalls()
 
-    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, outsideId, { $inc: { rate: 1 } } as any)
+    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, outsideId, { $inc: { rate: 1 } })
     await settle()
 
     expect(serverCalls()).toBeGreaterThan(callsBefore)
@@ -154,7 +154,7 @@ describe('$inc match handling — doc outside the result (matchQuery)', () => {
 
     await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, outsideId, {
       $inc: { rate: 1, hits: 3 }
-    } as any)
+    })
     await settle()
 
     expect(serverCalls()).toBe(callsBefore)
@@ -168,7 +168,7 @@ describe('$inc match handling — doc outside the result (matchQuery)', () => {
 
     await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, outsideId, {
       $inc: { rate: 1, hits: 3 }
-    } as any)
+    })
     await settle()
 
     expect(serverCalls()).toBeGreaterThan(callsBefore)
@@ -184,7 +184,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     const callsBefore = serverCalls()
 
     await new Promise((resolve) => setTimeout(resolve, 5))
-    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 4 } } as any)
+    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 4 } })
     await settle()
 
     expect(q.last()[0]?.rate).toBe(5)
@@ -208,7 +208,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
         members: [],
         archived: false,
         rate: 10
-      } as any,
+      },
       undefined,
       sameTs
     )
@@ -223,7 +223,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
       core.class.Space,
       core.space.Model,
       createTx.objectId,
-      { $inc: { rate: 5 } } as any,
+      { $inc: { rate: 5 } },
       false,
       sameTs
     )
@@ -245,8 +245,8 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     const tx = txFactory.createTxUpdateDoc<CounterSpace>(
       core.class.Space,
       core.space.Model,
-      insideId as Ref<CounterSpace>,
-      { name: 'renamed' } as any,
+      insideId,
+      { name: 'renamed' },
       false,
       sameTs
     )
@@ -266,8 +266,8 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     const tx = txFactory.createTxUpdateDoc<CounterSpace>(
       core.class.Space,
       core.space.Model,
-      insideId as Ref<CounterSpace>,
-      { name: 'x', $inc: { rate: 1 } } as any,
+      insideId,
+      { name: 'x', $inc: { rate: 1 } },
       false,
       sameTs
     )
@@ -285,7 +285,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
 
     for (let i = 0; i < 10; i++) {
       await new Promise((resolve) => setTimeout(resolve, 2))
-      await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 2 } } as any)
+      await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 2 } })
     }
     await settle()
 
@@ -300,7 +300,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     const callsBefore = serverCalls()
 
     await new Promise((resolve) => setTimeout(resolve, 5))
-    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: -3 } } as any)
+    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: -3 } })
     await settle()
 
     expect(q.last()[0]?.rate).toBe(2)
@@ -315,7 +315,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     const callsBefore = serverCalls()
 
     await new Promise((resolve) => setTimeout(resolve, 5))
-    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 7 } } as any)
+    await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, insideId, { $inc: { rate: 7 } })
     await settle()
 
     expect(q.last()[0]?.rate).toBe(7)
@@ -331,7 +331,7 @@ describe('$inc match handling — doc inside the result (handleDocUpdate)', () =
     await factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, outsideId, {
       private: false,
       $inc: { rate: 1 }
-    } as any)
+    })
     await settle()
 
     expect(q.last().length).toBe(before + 1) // private:false makes it match; $inc rides along
@@ -346,16 +346,16 @@ describe('$inc on a doc shared by several queries', () => {
     count: number,
     extra?: Partial<CounterSpace>
   ): Promise<{
-      ctx: Awaited<ReturnType<typeof getCountingClient>>
-      id: Ref<CounterSpace>
-      qs: Array<{ last: () => CounterSpace[] }>
-    }> {
+    ctx: Awaited<ReturnType<typeof getCountingClient>>
+    id: Ref<CounterSpace>
+    qs: Array<{ last: () => CounterSpace[] }>
+  }> {
     const ctx = await getCountingClient()
     const id = (await createSpace(ctx.factory, false, {
       rate: 0,
       name: 'shared',
       ...extra
-    } as any)) as Ref<CounterSpace>
+    })) as Ref<CounterSpace>
     // Distinct queries that all keep matching, same class and options -> one docCache entry.
     const variants = [{}, { private: false }, { archived: false }, { members: [] }]
     const qs: Array<{ last: () => CounterSpace[] }> = []
@@ -367,7 +367,7 @@ describe('$inc on a doc shared by several queries', () => {
         core.class.Space,
         core.space.Model,
         id,
-        { description: 'forces getCurrentDoc' } as any,
+        { description: 'forces getCurrentDoc' },
         false,
         qs[0].last()[0].modifiedOn
       )
@@ -379,7 +379,7 @@ describe('$inc on a doc shared by several queries', () => {
   it('applies a single $inc once for two subscribers', async () => {
     const { ctx, id, qs } = await shared(2)
 
-    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } } as any)
+    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } })
     await settle()
 
     expect(qs.map((q) => q.last()[0].rate)).toEqual([1, 1])
@@ -388,7 +388,7 @@ describe('$inc on a doc shared by several queries', () => {
   it('does not scale the drift with the number of subscribers', async () => {
     const { ctx, id, qs } = await shared(3)
 
-    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } } as any)
+    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } })
     await settle()
 
     expect(qs.map((q) => q.last()[0].rate)).toEqual([1, 1, 1])
@@ -398,7 +398,7 @@ describe('$inc on a doc shared by several queries', () => {
     const { ctx, id, qs } = await shared(2)
 
     for (let i = 0; i < 5; i++) {
-      await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } } as any)
+      await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: 1 } })
     }
     await settle()
 
@@ -417,7 +417,7 @@ describe('$inc on a doc shared by several queries', () => {
         core.class.Space,
         core.space.Model,
         id,
-        { $inc: { rate: 1 } } as any,
+        { $inc: { rate: 1 } },
         false,
         ts
       )
@@ -432,7 +432,7 @@ describe('$inc on a doc shared by several queries', () => {
   it('applies a negative $inc once', async () => {
     const { ctx, id, qs } = await shared(2, { rate: 3 })
 
-    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: -1 } } as any)
+    await ctx.factory.updateDoc<CounterSpace>(core.class.Space, core.space.Model, id, { $inc: { rate: -1 } })
     await settle()
 
     expect(qs.map((q) => q.last()[0].rate)).toEqual([2, 2])
@@ -450,7 +450,7 @@ describe('$inc on a doc shared by several queries', () => {
         core.class.Space,
         core.space.Model,
         id,
-        { $inc: { rate: 1 } } as any,
+        { $inc: { rate: 1 } },
         false,
         sameTs
       )

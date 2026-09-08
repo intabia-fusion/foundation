@@ -31,10 +31,7 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  $: previewMixin = hierarchy.classHierarchyMixin(
-    value._class as Ref<Class<Doc>>,
-    activity.mixin.ActivityMessagePreview
-  )
+  $: previewMixin = hierarchy.classHierarchyMixin(value._class, activity.mixin.ActivityMessagePreview)
 </script>
 
 {#if previewMixin}

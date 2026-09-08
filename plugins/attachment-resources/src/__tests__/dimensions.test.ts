@@ -355,7 +355,7 @@ describe('Attachment Image Dimensions Suite (calculateAttachmentDimensions)', ()
       const metadata = {
         thumbnail: { width: 300, height: 150 }
       }
-      const dims = calculateAttachmentDimensions(metadata as any, 'x-large', 1)
+      const dims = calculateAttachmentDimensions(metadata, 'x-large', 1)
       expect(dims.width).toBe(300)
       expect(dims.height).toBe(150)
     })

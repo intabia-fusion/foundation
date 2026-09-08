@@ -57,7 +57,7 @@ export interface Application extends Doc {
   accessLevel?: AccountRole
   navFooterComponent?: AnyComponent
   showNotifyMarkerFn?: Resource<
-  (contexts: DocNotifyContext[], preference?: NotificationAppearancePreference) => Promise<boolean>
+    (contexts: DocNotifyContext[], preference?: NotificationAppearancePreference) => Promise<boolean>
   >
 }
 
@@ -184,7 +184,7 @@ export interface SpecialNavModel {
   spaceClass?: Ref<Class<Space>>
   checkIsDisabled?: Resource<() => Promise<boolean>>
   notificationsCountProvider?: Resource<
-  (inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>) => number
+    (inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>) => number
   >
   navigationModel?: ParentsNavigationModel
   queryBuilder?: Resource<() => Promise<DocumentQuery<Doc>>>

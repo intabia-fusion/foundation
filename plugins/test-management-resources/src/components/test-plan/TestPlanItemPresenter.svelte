@@ -31,7 +31,7 @@
   export let shouldShowAvatar = true
 
   let testCase: TestCase | undefined = undefined
-  $: testCase = value?.$lookup?.testCase as TestCase | undefined
+  $: testCase = value?.$lookup?.testCase
   $: title = testCase?.name ?? ''
 </script>
 

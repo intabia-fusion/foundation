@@ -238,9 +238,7 @@ export async function initializeWorkspace (
     if (initWS !== undefined) {
       script = scripts.find((it) => it.name === initWS)
     }
-    if (script === undefined) {
-      script = scripts.find((it) => it.default)
-    }
+    script ??= scripts.find((it) => it.default)
     if (script === undefined) {
       return
     }
@@ -410,9 +408,9 @@ async function prepareMigrationClient (
   wsIds: WorkspaceIds,
   queue: PlatformQueueProducer<QueueWorkspaceMessage>
 ): Promise<{
-    migrateClient: MigrateClientImpl
-    migrateState: Map<string, Set<string>>
-  }> {
+  migrateClient: MigrateClientImpl
+  migrateState: Map<string, Set<string>>
+}> {
   const migrateClient = new MigrateClientImpl(
     pipeline,
     hierarchy,

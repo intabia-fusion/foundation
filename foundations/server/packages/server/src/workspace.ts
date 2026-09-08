@@ -57,9 +57,7 @@ export class Workspace {
   }
 
   private getPipeline (): Pipeline | Promise<Pipeline> {
-    if (this.pipeline === undefined) {
-      this.pipeline = this.factory()
-    }
+    this.pipeline ??= this.factory()
     return this.pipeline
   }
 

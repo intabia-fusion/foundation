@@ -121,11 +121,17 @@ export function planCompaction (input: CompactionInput): CompactionPlan {
  * (tiktoken against a GigaChat model is a guess), so this happens even inside a budget we thought
  * we respected - hence a compact-and-retry rather than a straight failure.
  */
+function safeStringify (val: unknown): string {
+  if (val == null) return ''
+  if (typeof val !== 'object') return String(val as string | number | boolean | bigint | symbol)
+  return JSON.stringify(val)
+}
+
 export function isContextOverflow (err: unknown): boolean {
   const raw = (err as { message?: unknown })?.message
-  const message = (typeof raw === 'string' ? raw : String(err ?? '')).toLowerCase()
+  const message = (typeof raw === 'string' ? raw : safeStringify(err)).toLowerCase()
   const source = err as { code?: unknown, status?: unknown } | undefined
-  const code = String(source?.code ?? source?.status ?? '')
+  const code = safeStringify(source?.code ?? source?.status)
   return (
     message.includes('context_length_exceeded') ||
     message.includes('context length') ||

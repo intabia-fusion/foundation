@@ -336,7 +336,7 @@ export class AudioAnalyzer {
     vadThreshold: number = VAD_THRESHOLD_DEFAULT
   ): AudioAnalysis {
     const numSamples = buf.length >> 1
-    if (this.sampleArray === null || this.sampleArray.length !== numSamples) {
+    if (this.sampleArray?.length !== numSamples) {
       this.sampleArray = new Float32Array(numSamples)
     }
     const sampleArray = this.sampleArray

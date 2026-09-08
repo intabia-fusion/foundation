@@ -117,9 +117,9 @@ let cachedRoomClient: RoomServiceClient | undefined
  */
 export async function closeLiveKitRooms (): Promise<boolean> {
   try {
-    cachedRoomClient ??= new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
-    const rooms = await cachedRoomClient.listRooms()
-    await Promise.all(rooms.map((r) => cachedRoomClient?.deleteRoom(r.name).catch(() => undefined)))
+    const client = (cachedRoomClient ??= new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET))
+    const rooms = await client.listRooms()
+    await Promise.all(rooms.map(async (r) => await client.deleteRoom(r.name).catch(() => undefined)))
     return rooms.length > 0
   } catch {
     // Best-effort: LiveKit unreachable only means the poller closes them on its own schedule.

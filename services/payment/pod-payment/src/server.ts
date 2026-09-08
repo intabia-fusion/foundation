@@ -157,12 +157,12 @@ export async function createServer (
     quantity?: number
   ) => Promise<void>
 ): Promise<{
-    app: Express
-    ensureInitialSubscription: (workspace: WorkspaceUuid) => Promise<void>
-    createFreeIfNoActiveTier: (workspace: WorkspaceUuid, actionId?: string, canceledPlan?: string) => Promise<void>
-    persistSubscription: (data: SubscriptionData) => Promise<void>
-    close: () => void
-  }> {
+  app: Express
+  ensureInitialSubscription: (workspace: WorkspaceUuid) => Promise<void>
+  createFreeIfNoActiveTier: (workspace: WorkspaceUuid, actionId?: string, canceledPlan?: string) => Promise<void>
+  persistSubscription: (data: SubscriptionData) => Promise<void>
+  close: () => void
+}> {
   const app = express()
   // Trust one proxy hop (traefik). `true` trusts whole XFF chain -> client spoofs IP, evades per-IP limiter.
   app.set('trust proxy', 1)
@@ -707,7 +707,7 @@ export async function createServer (
               const activeTier = subscriptions.find(
                 (s) => s.type === SubscriptionType.Tier && s.status === SubscriptionStatus.Active
               )
-              if (activeTier !== undefined && activeTier.provider === config.Provider) {
+              if (activeTier?.provider === config.Provider) {
                 await provider.cancelSubscription(ctx, activeTier.providerSubscriptionId)
               }
               const freeSub = await createFreeSubscription(workspaceUuid, accountUuid)

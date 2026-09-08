@@ -1,6 +1,6 @@
 {
     "extends": [
-        "standard-with-typescript"
+        "../base.eslint.config.json"
     ],
     "ignorePatterns": ["*.json", "node_modules/*", ".eslintrc.js"],
     "rules": {

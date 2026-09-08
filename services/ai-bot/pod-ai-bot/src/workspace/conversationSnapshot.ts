@@ -104,7 +104,7 @@ export function renderSnapshot (snapshot: ConversationSnapshot): string {
 export function parseSnapshot (text: string): ConversationSnapshot | undefined {
   const chunks = text.split(/\n\n---\n\n/)
   const head = chunks[0]
-  if (head === undefined || !head.startsWith('---\n')) return undefined
+  if (!head?.startsWith('---\n')) return undefined
 
   const meta = new Map<string, string>()
   for (const line of head.split('\n')) {

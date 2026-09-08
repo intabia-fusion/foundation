@@ -54,7 +54,7 @@
   let service: ITimeReportService
 
   $: {
-    if (service === undefined || service.isDraft !== draft) {
+    if (service?.isDraft !== draft) {
       if (draft) {
         const initialVal = typeof value === 'number' ? value : ((value as DraftTimeReportPayload)?.reportedTime ?? 0)
         service = new DraftTimeReportService((val) => {

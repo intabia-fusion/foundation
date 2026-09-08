@@ -565,7 +565,7 @@ export async function getTransitionUserInput (
       virtualKey = 'requiredProperties'
     }
 
-    if (virtualContext !== undefined && virtualContext.type === 'userRequest') {
+    if (virtualContext?.type === 'userRequest') {
       const classId = virtualContext._class
       const allAttributes =
         virtualKey === 'requiredFields'
@@ -600,14 +600,14 @@ export async function getTransitionUserInput (
       const value = (action.params as any)[key]
       if (typeof value === 'string') {
         const context = parseContext(value)
-        if (context !== undefined && context.type === 'userRequest') {
+        if (context?.type === 'userRequest') {
           if (skipExisting && userContext[context.id] !== undefined) continue
           inputs.push(context)
         }
       } else if (typeof value === 'object' && !Array.isArray(value)) {
         for (const element of Object.values(value)) {
           const context = parseContext(element)
-          if (context !== undefined && context.type === 'userRequest') {
+          if (context?.type === 'userRequest') {
             if (skipExisting && userContext[context.id] !== undefined) continue
             inputs.push(context)
           }
@@ -636,9 +636,7 @@ export async function getTransitionUserInput (
               for (const [key, value] of Object.entries(res.value)) {
                 const mapping = dynamicMappings[key]
                 if (mapping !== undefined) {
-                  if (groupedValues[mapping.virtualContextId] === undefined) {
-                    groupedValues[mapping.virtualContextId] = {}
-                  }
+                  groupedValues[mapping.virtualContextId] ??= {}
                   groupedValues[mapping.virtualContextId][mapping.attrName] = value
                 } else {
                   userContext[key as ContextId] = value
@@ -681,7 +679,7 @@ export async function getSubProcessesUserInput (
     const context: ExecutionContext = JSON.parse(JSON.stringify(action.params.context ?? getEmptyContext()))
     for (const [k, v] of Object.entries(context)) {
       const c = parseContext(v)
-      if (c !== undefined && c.type === 'userRequest') {
+      if (c?.type === 'userRequest') {
         if (userContext[c.id] !== undefined) continue
         ;(context as any)[k] = userContext[c.id]
       }

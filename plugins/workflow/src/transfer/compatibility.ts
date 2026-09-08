@@ -145,8 +145,8 @@ async function checkScreensCompatibility (
       for (let j = 0; j < impFields.length; j++) {
         const impField = impFields[j]
         const extField = extFields[j]
-        const impKey = (impField.fieldKey ?? (impField.attribute as string)).trim().toLowerCase()
-        const extKey = (extField.fieldKey ?? attrById.get(extField.attribute)?.name ?? (extField.attribute as string))
+        const impKey = (impField.fieldKey ?? impField.attribute).trim().toLowerCase()
+        const extKey = (extField.fieldKey ?? attrById.get(extField.attribute)?.name ?? extField.attribute)
           .trim()
           .toLowerCase()
         if (impKey !== extKey) return false
@@ -168,9 +168,7 @@ async function checkScreensCompatibility (
       (s) => s.name.trim().toLowerCase() === sc.name.trim().toLowerCase() && isScreenSignatureMatch(sc, s)
     )
     // 2. If not found, try any exact signature match
-    if (match === undefined) {
-      match = existingScreens.find((s) => isScreenSignatureMatch(sc, s))
-    }
+    match ??= existingScreens.find((s) => isScreenSignatureMatch(sc, s))
 
     const existingByNameDoc = existingByName.get(sc.name.toLowerCase())
     const isExactMatch = match !== undefined
@@ -259,13 +257,13 @@ async function checkStatusesCompatibility (
   // 1) Category order
   // 2) Original order from config.statuses (or task type status order)
   sourceStatusIds.sort((a, b) => {
-    const stConfigA = configStatusById.get(a) ?? configStatusByName.get(a as string)
-    const stDocA = workspaceStatusById.get(a) ?? workspaceStatusByName.get(a as string)
+    const stConfigA = configStatusById.get(a) ?? configStatusByName.get(a)
+    const stDocA = workspaceStatusById.get(a) ?? workspaceStatusByName.get(a)
     const catA = stConfigA?.category ?? stDocA?.category
     const catOrderA = catA !== undefined ? (categoryOrderMap.get(catA) ?? 9999) : 9999
 
-    const stConfigB = configStatusById.get(b) ?? configStatusByName.get(b as string)
-    const stDocB = workspaceStatusById.get(b) ?? workspaceStatusByName.get(b as string)
+    const stConfigB = configStatusById.get(b) ?? configStatusByName.get(b)
+    const stDocB = workspaceStatusById.get(b) ?? workspaceStatusByName.get(b)
     const catB = stConfigB?.category ?? stDocB?.category
     const catOrderB = catB !== undefined ? (categoryOrderMap.get(catB) ?? 9999) : 9999
 
@@ -281,8 +279,8 @@ async function checkStatusesCompatibility (
     if (idxA !== undefined) return -1
     if (idxB !== undefined) return 1
 
-    const nameA = stConfigA?.name ?? stDocA?.name ?? (a as string)
-    const nameB = stConfigB?.name ?? stDocB?.name ?? (b as string)
+    const nameA = stConfigA?.name ?? stDocA?.name ?? a
+    const nameB = stConfigB?.name ?? stDocB?.name ?? b
     return nameA.localeCompare(nameB)
   })
 
@@ -302,9 +300,9 @@ async function checkStatusesCompatibility (
   // Pass 2: Match by exact Name (case-insensitive)
   for (const sourceStatusId of sourceStatusIds) {
     if (matchedTargetBySourceId.has(sourceStatusId)) continue
-    const stConfig = configStatusById.get(sourceStatusId) ?? configStatusByName.get(sourceStatusId as string)
-    const stDoc = workspaceStatusById.get(sourceStatusId) ?? workspaceStatusByName.get(sourceStatusId as string)
-    const sourceName = (stConfig?.name ?? stDoc?.name ?? (sourceStatusId as string)).trim().toLowerCase()
+    const stConfig = configStatusById.get(sourceStatusId) ?? configStatusByName.get(sourceStatusId)
+    const stDoc = workspaceStatusById.get(sourceStatusId) ?? workspaceStatusByName.get(sourceStatusId)
+    const sourceName = (stConfig?.name ?? stDoc?.name ?? sourceStatusId).trim().toLowerCase()
     if (sourceName !== '') {
       const matchedDoc = targetStatusDocs.find(
         (t) => !usedTargetStatusIds.has(t._id) && t.name.trim().toLowerCase() === sourceName
@@ -319,8 +317,8 @@ async function checkStatusesCompatibility (
   // Pass 3: Match by Category (first available from same category in target status list)
   for (const sourceStatusId of sourceStatusIds) {
     if (matchedTargetBySourceId.has(sourceStatusId)) continue
-    const stConfig = configStatusById.get(sourceStatusId) ?? configStatusByName.get(sourceStatusId as string)
-    const stDoc = workspaceStatusById.get(sourceStatusId) ?? workspaceStatusByName.get(sourceStatusId as string)
+    const stConfig = configStatusById.get(sourceStatusId) ?? configStatusByName.get(sourceStatusId)
+    const stDoc = workspaceStatusById.get(sourceStatusId) ?? workspaceStatusByName.get(sourceStatusId)
     const sourceCategory = stConfig?.category ?? stDoc?.category
     if (sourceCategory !== undefined) {
       const matchedDoc = targetStatusDocs.find((t) => !usedTargetStatusIds.has(t._id) && t.category === sourceCategory)
@@ -333,9 +331,9 @@ async function checkStatusesCompatibility (
 
   const result: StatusCompatibilityItem[] = []
   for (const sourceStatusId of sourceStatusIds) {
-    const stConfig = configStatusById.get(sourceStatusId) ?? configStatusByName.get(sourceStatusId as string)
-    const stDoc = workspaceStatusById.get(sourceStatusId) ?? workspaceStatusByName.get(sourceStatusId as string)
-    const sourceName = stConfig?.name ?? stDoc?.name ?? (sourceStatusId as string)
+    const stConfig = configStatusById.get(sourceStatusId) ?? configStatusByName.get(sourceStatusId)
+    const stDoc = workspaceStatusById.get(sourceStatusId) ?? workspaceStatusByName.get(sourceStatusId)
+    const sourceName = stConfig?.name ?? stDoc?.name ?? sourceStatusId
     const sourceCategory = stConfig?.category ?? stDoc?.category
     const sourceColor = stConfig?.color ?? stDoc?.color ?? 0
     const targetStatusId = matchedTargetBySourceId.get(sourceStatusId)
@@ -482,7 +480,7 @@ export function isAttributeTypeCompatible (
       const tgtOf = (targetType as EnumOf).of
       if (srcOf !== undefined && tgtOf !== undefined) {
         if (srcOf === tgtOf) return true
-        if (enumMapping !== undefined && enumMapping.get(srcOf) === tgtOf) return true
+        if (enumMapping?.get(srcOf) === tgtOf) return true
         return false
       }
       return true
@@ -624,7 +622,8 @@ function hasScreensInConfig (config: WorkflowConfig): boolean {
     return true
   }
 
-  return config.workflows.some((w) =>
-    w.transitions?.some((t) => t.requests?.some((r) => r.rule === workflow.request.ScreenRequest))
+  return config.workflows.some(
+    (w) =>
+      w.transitions?.some((t) => t.requests?.some((r) => r.rule === workflow.request.ScreenRequest) === true) === true
   )
 }

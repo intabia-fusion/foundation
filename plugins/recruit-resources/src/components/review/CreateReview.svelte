@@ -94,7 +94,7 @@
 
     const incResult = await client.update(sequence, { $inc: { sequence: 1 } }, true)
 
-    const candidateInstance = await client.findOne(contact.class.Person, { _id: doc.attachedTo as Ref<Person> })
+    const candidateInstance = await client.findOne(contact.class.Person, { _id: doc.attachedTo })
     if (candidateInstance === undefined) {
       throw new Error('contact not found')
     }

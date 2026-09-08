@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import type { Class, Data, Doc, Obj, Ref } from '../classes'
+import type { Class, Doc, Obj, Ref } from '../classes'
 import { ClassifierKind, DOMAIN_MODEL } from '../classes'
 import core from '../component'
 import { Hierarchy } from '../hierarchy'
@@ -32,7 +32,7 @@ function classTx (_id: Ref<Class<Obj>>, ext: Ref<Class<Obj>>): Tx {
   return factory.createTxCreateDoc(
     core.class.Class,
     core.space.Model,
-    { kind: ClassifierKind.CLASS, extends: ext, label: '' as any, domain: DOMAIN_MODEL } as unknown as Data<Class<Obj>>,
+    { kind: ClassifierKind.CLASS, extends: ext, label: '' as any, domain: DOMAIN_MODEL },
     _id
   )
 }
@@ -41,8 +41,8 @@ function classTx (_id: Ref<Class<Obj>>, ext: Ref<Class<Obj>>): Tx {
 function baseModel (): Tx[] {
   return [
     classTx(core.class.Obj, undefined as unknown as Ref<Class<Obj>>),
-    classTx(core.class.Doc as Ref<Class<Obj>>, core.class.Obj),
-    classTx(core.class.Class as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>)
+    classTx(core.class.Doc, core.class.Obj),
+    classTx(core.class.Class, core.class.Doc)
   ]
 }
 

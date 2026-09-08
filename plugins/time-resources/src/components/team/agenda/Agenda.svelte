@@ -69,9 +69,9 @@
     spaces.length === 0
       ? activeEmployees
       : projects
-        .flatMap((p) => p.members ?? [])
-        .map((it) => $employeeRefByAccountUuidStore.get(it))
-        .filter((it) => it !== undefined)
+          .flatMap((p) => p.members ?? [])
+          .map((it) => $employeeRefByAccountUuidStore.get(it))
+          .filter((it) => it !== undefined)
 
   $: persons = filterPersons.length > 0 ? memberRefs.filter((it) => filterPersons.includes(it)) : memberRefs
 </script>

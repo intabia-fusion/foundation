@@ -48,7 +48,7 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  $: objectPresenter = hierarchy.classHierarchyMixin(value._class as Ref<Class<Doc>>, view.mixin.ObjectPresenter)
+  $: objectPresenter = hierarchy.classHierarchyMixin(value._class, view.mixin.ObjectPresenter)
 </script>
 
 {#if objectPresenter}

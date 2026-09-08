@@ -56,7 +56,7 @@ describe('built model resolves', () => {
   it('resolves every class up to core:class:Obj', () => {
     const broken: string[] = []
     for (const _id of classifiers()) {
-      const cl = hierarchy.getClass(_id as Ref<Class<Doc>>)
+      const cl = hierarchy.getClass(_id)
       if (cl.kind === ClassifierKind.INTERFACE) continue
       if (!hierarchy.getAncestors(_id).includes(core.class.Obj)) {
         broken.push(_id)
@@ -69,12 +69,10 @@ describe('built model resolves', () => {
   it('inherits a domain from ancestors', () => {
     const notInherited: string[] = []
     for (const _id of classifiers()) {
-      const cl = hierarchy.getClass(_id as Ref<Class<Doc>>)
+      const cl = hierarchy.getClass(_id)
       if (cl.kind !== ClassifierKind.CLASS) continue
-      const fromAncestor = hierarchy
-        .getAncestors(_id)
-        .some((a) => hierarchy.findClass(a as Ref<Class<Doc>>)?.domain !== undefined)
-      if (fromAncestor && hierarchy.findDomain(_id as Ref<Class<Doc>>) === undefined) {
+      const fromAncestor = hierarchy.getAncestors(_id).some((a) => hierarchy.findClass(a)?.domain !== undefined)
+      if (fromAncestor && hierarchy.findDomain(_id) === undefined) {
         notInherited.push(_id)
       }
     }
@@ -90,7 +88,7 @@ describe('built model resolves', () => {
   it('resolves parents of every class', () => {
     const unresolved: string[] = []
     for (const _id of classifiers()) {
-      const cl = hierarchy.getClass(_id as Ref<Class<Doc>>)
+      const cl = hierarchy.getClass(_id)
       if (cl.extends !== undefined && hierarchy.findClass(cl.extends) === undefined) {
         unresolved.push(`${_id} extends ${cl.extends}`)
       }
@@ -106,7 +104,7 @@ describe('built model resolves', () => {
   it('attaches every attribute to a known class', () => {
     const orphans: string[] = []
     for (const attr of modelDb.findAllSync(core.class.Attribute, {})) {
-      if (hierarchy.findClass(attr.attributeOf as Ref<Class<Doc>>) === undefined) {
+      if (hierarchy.findClass(attr.attributeOf) === undefined) {
         orphans.push(`${attr._id} of ${attr.attributeOf}`)
       }
     }
@@ -150,7 +148,7 @@ describe('shared overlay answers like a standalone model', () => {
     const oh = new Hierarchy(sharedH)
     overlay = { h: oh, db: new ModelDb(oh, sharedDb) }
 
-    classes = aloneDb.findAllSync(core.class.Class, {}).map((it) => it._id) as Ref<Class<Doc>>[]
+    classes = aloneDb.findAllSync(core.class.Class, {}).map((it) => it._id)
   })
 
   /** Compares per class and reports the offenders, a bare boolean says nothing about which class broke. */

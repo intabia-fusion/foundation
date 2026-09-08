@@ -107,52 +107,52 @@ export class TIgnoreActivity extends TClass implements IgnoreActivity {}
 @Model(activity.class.ActivityMessage, core.class.AttachedDoc, DOMAIN_ACTIVITY)
 export class TActivityMessage extends TAttachedDoc implements ActivityMessage {
   @Prop(TypeBoolean(), activity.string.Pinned)
-    isPinned?: boolean
+  isPinned?: boolean
 
   @Prop(ArrOf(TypeRef(contact.class.Person)), contact.string.Person)
-    repliedPersons?: Ref<Person>[]
+  repliedPersons?: Ref<Person>[]
 
   @Prop(TypeTimestamp(), activity.string.LastReply)
   // @Index(IndexKind.Indexed)
-    lastReply?: Timestamp
+  lastReply?: Timestamp
 
   @Prop(Collection(activity.class.Reaction), activity.string.Reactions)
-    reactions?: number
+  reactions?: number
 
   @Prop(Collection(activity.class.ActivityMessage), activity.string.Replies)
-    replies?: number
+  replies?: number
 
   @Prop(TypeRef(activity.class.ActivityMessage), activity.string.ForwardedMessage)
   @Index(IndexKind.Indexed)
-    forwardedMessage?: Ref<ActivityMessage>
+  forwardedMessage?: Ref<ActivityMessage>
 
   @Prop(TypeRecord(), core.string.Object)
-    forwardContent?: ForwardContent
+  forwardContent?: ForwardContent
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    forwardFromId?: Ref<Doc>
+  forwardFromId?: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    forwardFromClass?: Ref<Class<Doc>>
+  forwardFromClass?: Ref<Class<Doc>>
 }
 
 @Model(activity.class.DocUpdateMessage, activity.class.ActivityMessage)
 export class TDocUpdateMessage extends TActivityMessage implements DocUpdateMessage {
   @Prop(TypeRef(core.class.Doc), core.string.Object)
   @Index(IndexKind.Indexed)
-    objectId!: Ref<Doc>
+  objectId!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
   // @Index(IndexKind.Indexed)
-    objectClass!: Ref<Class<Doc>>
+  objectClass!: Ref<Class<Doc>>
 
   @Prop(TypeRef(core.class.TxCUD), core.string.Object)
   // @Index(IndexKind.Indexed)
-    txId?: Ref<TxCUD<Doc>>
+  txId?: Ref<TxCUD<Doc>>
 
   @Prop(TypeString(), core.string.Object)
   // @Index(IndexKind.Indexed)
-    action!: DocUpdateAction
+  action!: DocUpdateAction
 
   updateCollection?: string
   attributeUpdates?: DocAttributeUpdates
@@ -160,13 +160,13 @@ export class TDocUpdateMessage extends TActivityMessage implements DocUpdateMess
   history!: DocUpdateMessageHistory[]
 
   @Prop(TypeIntlString(), activity.string.Message)
-    messageIntl?: IntlString
+  messageIntl?: IntlString
 
   @Prop(TypeRecord(), activity.string.Attributes)
-    intlParams?: Record<string, string | number>
+  intlParams?: Record<string, string | number>
 
   @Prop(TypeRecord(), activity.string.Update)
-    intlParamsNotLocalized?: Record<string, IntlString>
+  intlParamsNotLocalized?: Record<string, IntlString>
 }
 
 @Model(activity.class.ActivityReference, activity.class.ActivityMessage)
@@ -174,11 +174,11 @@ export class TActivityReference extends TActivityMessage implements ActivityRefe
   // Source document we have reference from, it should be parent document for Comment/Message.
   @Prop(TypeRef(core.class.Doc), core.string.Object)
   // @Index(IndexKind.Indexed)
-    srcDocId!: Ref<Doc>
+  srcDocId!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
   // @Index(IndexKind.Indexed)
-    srcDocClass!: Ref<Class<Doc>>
+  srcDocClass!: Ref<Class<Doc>>
 
   // Reference to comment/message in source doc
   attachedDocId?: Ref<Doc>
@@ -186,16 +186,16 @@ export class TActivityReference extends TActivityMessage implements ActivityRefe
 
   @Prop(TypeMarkup(), activity.string.Message)
   @Index(IndexKind.FullText)
-    message!: string
+  message!: string
 
   @Prop(TypeTimestamp(), activity.string.Edit)
-    editedOn?: Timestamp
+  editedOn?: Timestamp
 }
 
 @Model(activity.class.ActivityInfoMessage, activity.class.ActivityMessage)
 export class TActivityInfoMessage extends TActivityMessage implements ActivityInfoMessage {
   @Prop(TypeIntlString(), activity.string.Update)
-    message!: IntlString
+  message!: IntlString
 
   props!: Record<string, any>
   icon!: Asset
@@ -214,11 +214,11 @@ export class TActivityMessageControl extends TDoc implements ActivityMessageCont
 export class TDocUpdateMessageViewlet extends TDoc implements DocUpdateMessageViewlet {
   @Prop(TypeRef(core.class.Doc), core.string.Class)
   @Index(IndexKind.Indexed)
-    objectClass!: Ref<Class<Doc>>
+  objectClass!: Ref<Class<Doc>>
 
   @Prop(TypeString(), core.string.String)
   @Index(IndexKind.Indexed)
-    action!: DocUpdateAction
+  action!: DocUpdateAction
 
   label?: IntlString
 
@@ -256,12 +256,12 @@ export class TReaction extends TAttachedDoc implements Reaction {
   declare attachedToClass: Ref<Class<ActivityMessage>>
 
   @Prop(TypeString(), activity.string.Emoji)
-    emoji!: string
+  emoji!: string
 
   image?: Ref<Blob>
 
   @Prop(TypePersonId(), view.string.Created)
-    createBy!: PersonId
+  createBy!: PersonId
 }
 
 @Model(activity.class.SavedMessage, preference.class.Preference)

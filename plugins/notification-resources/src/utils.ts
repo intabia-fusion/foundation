@@ -763,7 +763,7 @@ export function isNotificationAllowed (type: NotificationType, providerId: Ref<N
 
   if (provider.ignoreAll === true) {
     const excludedIgnore = providerDefaults.some(
-      (it) => provider._id === it.provider && it.excludeIgnore !== undefined && it.excludeIgnore.includes(type._id)
+      (it) => provider._id === it.provider && it.excludeIgnore?.includes(type._id) === true
     )
 
     if (!excludedIgnore) return false

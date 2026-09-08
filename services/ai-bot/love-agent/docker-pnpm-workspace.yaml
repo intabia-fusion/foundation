@@ -1,0 +1,41 @@
+# Settings for the standalone install inside the docker image, where this package is its own root.
+# Copied in as pnpm-workspace.yaml by the Dockerfile — it must NOT sit here under that name, or pnpm
+# would treat love-agent as a separate workspace root and drop it from the repo's workspace.
+packages: []
+
+allowBuilds:
+  '@ffmpeg-installer/darwin-arm64': true
+  '@ffmpeg-installer/darwin-x64': true
+  '@ffmpeg-installer/linux-arm': true
+  '@ffmpeg-installer/linux-arm64': true
+  '@ffmpeg-installer/linux-ia32': true
+  '@ffmpeg-installer/linux-x64': true
+  '@ffmpeg-installer/win32-ia32': true
+  '@ffmpeg-installer/win32-x64': true
+  '@livekit/local-inference': true
+  '@parcel/watcher': true
+  bufferutil: true
+  core-js: true
+  electron: true
+  es5-ext: true
+  esbuild: true
+  msgpackr-extract: true
+  pnpm: true
+  protobufjs: true
+  puppeteer: true
+  sharp: true
+  svelte-preprocess: true
+  utf-8-validate: true
+
+# Mirrors the repo root: the image resolves this lockfile on its own and cannot see the root's list.
+minimumReleaseAgeExclude:
+  - '@typescript-eslint/eslint-plugin@8.70.0'
+  - '@typescript-eslint/parser@8.70.0'
+  - '@typescript-eslint/project-service@8.70.0'
+  - '@typescript-eslint/scope-manager@8.70.0'
+  - '@typescript-eslint/tsconfig-utils@8.70.0'
+  - '@typescript-eslint/type-utils@8.70.0'
+  - '@typescript-eslint/types@8.70.0'
+  - '@typescript-eslint/typescript-estree@8.70.0'
+  - '@typescript-eslint/utils@8.70.0'
+  - '@typescript-eslint/visitor-keys@8.70.0'

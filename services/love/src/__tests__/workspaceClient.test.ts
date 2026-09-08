@@ -30,12 +30,10 @@ function createFakeClient (opts: { meeting: MeetingMinutes, room?: Room, partici
   const client = {
     findOne: jest.fn(async <T extends Doc>(_class: Ref<Class<T>>, query: DocumentQuery<T>) => {
       if (_class === love.class.MeetingMinutes) {
-        return ((query as any)._id === opts.meeting._id ? opts.meeting : undefined) as T | undefined
+        return (query as any)._id === opts.meeting._id ? opts.meeting : undefined
       }
       if (_class === love.class.Room) {
-        return (opts.room !== undefined && (query as any)._id === opts.room._id ? opts.room : undefined) as
-          | T
-          | undefined
+        return opts.room !== undefined && (query as any)._id === opts.room._id ? opts.room : undefined
       }
       return undefined
     }),
@@ -43,11 +41,11 @@ function createFakeClient (opts: { meeting: MeetingMinutes, room?: Room, partici
       if (_class === love.class.ParticipantInfo) {
         const q = query as any
         // Existing-record lookup (person+meeting+sessionId): none pre-exist in these tests.
-        if (q.sessionId !== undefined) return [] as unknown as T[]
+        if (q.sessionId !== undefined) return []
         // Room-occupancy read used for placement: seed plus everything created so far.
-        return [...participantsSnapshot, ...createDocCalls.map((c) => c.data)] as unknown as T[]
+        return [...participantsSnapshot, ...createDocCalls.map((c) => c.data)]
       }
-      return [] as unknown as T[]
+      return []
     }),
     createDoc: jest.fn(async (_class: any, _space: any, data: any, id: any) => {
       createDocCalls.push({ data, id })

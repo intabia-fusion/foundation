@@ -232,7 +232,7 @@
     if (event.key === 'Delete' || event.key === 'Backspace') return
     if (!selected) return
     if (fullSize) return
-    if (cmdEditor !== undefined && cmdEditor.contains(window.document.activeElement)) return
+    if (cmdEditor?.contains(window.document.activeElement) === true) return
     event.preventDefault()
     if ((event.ctrlKey || event.metaKey) && event.code === 'KeyZ' && !readonly) {
       if (event.shiftKey && !disableRedo) {

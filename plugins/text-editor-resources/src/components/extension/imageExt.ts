@@ -232,7 +232,7 @@ function ImageToolbarPlugin (): Plugin {
   })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ImageToolbarCursorProps {}
 
 function resolveCursorChildNode ($pos?: ResolvedPos): { node: Node | null, index: number, offset: number } | null {
@@ -284,7 +284,7 @@ function getImageNodeFromCursor (state: EditorState): Node | null {
   const cursor = getCursor(state)
 
   const node = cursor?.nodes[0].node
-  if (node === undefined || node.type.name !== ImageExtension.name) {
+  if (node?.type.name !== ImageExtension.name) {
     return null
   }
 
@@ -319,7 +319,7 @@ export async function openImage (editor: Editor): Promise<void> {
 
 function getCursor (state: EditorState): ToolbarCursor<ImageToolbarCursorProps> | null {
   const cursor = getToolbarCursor<ImageToolbarCursorProps>(state)
-  if (cursor === null || cursor.tag !== 'image') {
+  if (cursor?.tag !== 'image') {
     return null
   }
   return cursor

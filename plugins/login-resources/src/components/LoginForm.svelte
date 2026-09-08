@@ -85,7 +85,7 @@
       if (!platformTestingEnabled() && window?.localStorage != null) {
         const stored = localStorage.getItem(LOGIN_METHOD_STORAGE_KEY)
         if (stored === LoginMethods.Password || stored === LoginMethods.Otp) {
-          method = stored as LoginMethods
+          method = stored
           return
         }
       }

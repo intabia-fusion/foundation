@@ -48,7 +48,7 @@ export const popupstore = derived(modalStore, (modals) => {
 })
 
 export const dockStore = derived(modalStore, (modals) => {
-  return (modals.filter((m) => m.type === 'popup') as CompAndProps[]).find((popup: CompAndProps) => popup.dock)
+  return (modals.filter((m) => m.type === 'popup') as CompAndProps[]).find((popup: CompAndProps) => popup.dock === true)
 })
 
 export function updatePopup (id: string, props: Partial<CompAndProps>): void {
@@ -118,8 +118,12 @@ export function showPopup (
     id,
     props,
     element: _element,
-    onClose,
-    onUpdate,
+    onClose: (result: any) => {
+      void onClose?.(result)
+    },
+    onUpdate: (result: any) => {
+      void onUpdate?.(result)
+    },
     close: closePopupOp,
     options,
     type: 'popup'

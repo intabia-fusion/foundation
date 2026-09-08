@@ -53,13 +53,13 @@ export interface ValidatorImpl extends WorkflowValidator {
   executor: Resource<ValidatorFunc>
 }
 
-export interface WorkflowValidator extends WorkflowRule {}
+export type WorkflowValidator = WorkflowRule
 export type WorkflowValidatorConfig<TProps extends Record<string, any> = Record<string, any>> = WorkflowRuleConfig<
-WorkflowValidator,
-TProps
+  WorkflowValidator,
+  TProps
 >
 
-export interface FieldRequiredProps extends FieldListProps {}
+export type FieldRequiredProps = FieldListProps
 export interface SubtaskStatusesProps {
   statuses: Record<Ref<TaskType>, Ref<Status>[] | null>
 }

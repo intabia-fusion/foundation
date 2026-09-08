@@ -89,12 +89,11 @@
   $: isEditable = hierarchy.hasMixin(clazz, setting.mixin.Editable) && hierarchy.as(clazz, setting.mixin.Editable).value
 
   $: isMixinClass = hierarchy.isMixin(_class)
-  $: canApply =
-    isMixinClass && !readonly && rawObject !== undefined && !hierarchy.hasMixin(rawObject, _class as Ref<Mixin<Doc>>)
+  $: canApply = isMixinClass && !readonly && rawObject !== undefined && !hierarchy.hasMixin(rawObject, _class)
 
   async function applyMixin (): Promise<void> {
     if (rawObject === undefined) return
-    await client.createMixin(rawObject._id, rawObject._class, rawObject.space, _class as Ref<Mixin<Doc>>, {})
+    await client.createMixin(rawObject._id, rawObject._class, rawObject.space, _class, {})
   }
 </script>
 

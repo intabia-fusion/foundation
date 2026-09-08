@@ -153,7 +153,7 @@ export function createServer (
 
       const kind = req.query.kind as PrintOptions['kind']
 
-      if (kind !== undefined && !validKinds.includes(kind as any)) {
+      if (kind !== undefined && !validKinds.includes(kind)) {
         throw new ApiError(400, `Invalid print kind: ${kind}`)
       }
 

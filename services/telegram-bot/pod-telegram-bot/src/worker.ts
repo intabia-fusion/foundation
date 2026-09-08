@@ -211,7 +211,7 @@ export class PlatformWorker {
     if (this.channelByRowId.has(channelId)) {
       const channel = this.channelByRowId.get(channelId)
 
-      return channel !== undefined && channel.account === account ? channel : undefined
+      return channel?.account === account ? channel : undefined
     }
 
     const res = await this.db.getChannel(account, channelId)

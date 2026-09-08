@@ -103,9 +103,7 @@
         date: { $gte: start, $lt: end }
       },
       (res) => {
-        dayTotalHours = res
-          .filter((r) => value === undefined || r._id !== value._id)
-          .reduce((sum, r) => sum + (r.value ?? 0), 0)
+        dayTotalHours = res.filter((r) => r._id !== value?._id).reduce((sum, r) => sum + (r.value ?? 0), 0)
       }
     )
   } else {

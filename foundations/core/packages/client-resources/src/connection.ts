@@ -355,7 +355,7 @@ class Connection implements ClientConnection {
   }
 
   isConnected (): boolean {
-    return this.websocket != null && this.websocket.readyState === ClientSocketReadyState.OPEN && this.helloReceived
+    return this.websocket?.readyState === ClientSocketReadyState.OPEN && this.helloReceived
   }
 
   delay = 0
@@ -717,17 +717,15 @@ class Connection implements ClientConnection {
       return
     }
     this.websocket = wsocket
-    if (this.dialTimer === undefined) {
-      this.dialTimer = setTimeout(() => {
-        this.dialTimer = undefined
-        if (!this.closed) {
-          void this.opt?.onDialTimeout?.()?.catch((err) => {
-            this.ctx.error('failed to handle dial timeout', { err })
-          })
-          this.scheduleOpen(this.ctx, true)
-        }
-      }, dialTimeout)
-    }
+    this.dialTimer ??= setTimeout(() => {
+      this.dialTimer = undefined
+      if (!this.closed) {
+        void this.opt?.onDialTimeout?.()?.catch((err) => {
+          this.ctx.error('failed to handle dial timeout', { err })
+        })
+        this.scheduleOpen(this.ctx, true)
+      }
+    }, dialTimeout)
 
     wsocket.onmessage = (event: MessageEvent) => {
       if (this.closed) {
@@ -1011,14 +1009,10 @@ class Connection implements ClientConnection {
     for (const doc of result) {
       for (const [k, v] of Object.entries(query)) {
         if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-          if (doc[k] == null) {
-            doc[k] = v
-          }
+          doc[k] ??= v
         }
       }
-      if (doc._class == null) {
-        doc._class = _class
-      }
+      doc._class ??= _class
     }
 
     return result

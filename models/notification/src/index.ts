@@ -83,7 +83,7 @@ import {
   type TxNotificationType,
   DOMAIN_READ_STATE,
   type ReadState,
-  ReadPosition,
+  type ReadPosition,
   type NotificationAppearancePreference
 } from '@hcengineering/notification'
 import { type Asset, type IntlString, type Resource } from '@hcengineering/platform'
@@ -214,31 +214,31 @@ export class TNotificationContextPresenter extends TClass implements Notificatio
 export class TDocNotifyContext extends TDoc implements DocNotifyContext {
   @Prop(TypeAccountUuid(), core.string.Account)
   @Index(IndexKind.Indexed)
-    user!: AccountUuid
+  user!: AccountUuid
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
   @Index(IndexKind.Indexed)
-    objectId!: Ref<Doc>
+  objectId!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    objectClass!: Ref<Class<Doc>>
+  objectClass!: Ref<Class<Doc>>
 
   @Prop(TypeRef(core.class.Space), core.string.Space)
-    objectSpace!: Ref<Space>
+  objectSpace!: Ref<Space>
 
   declare space: Ref<PersonSpace>
 
   @Prop(TypeDate(), core.string.Date)
-    lastView?: Timestamp
+  lastView?: Timestamp
 
   @Prop(TypeDate(), core.string.Date)
-    lastUpdate?: Timestamp
+  lastUpdate?: Timestamp
 
   @Prop(TypeDate(), core.string.Date)
-    lastNotify?: Timestamp
+  lastNotify?: Timestamp
 
   @Prop(TypeDate(), core.string.Date)
-    lastNotifiedMessage?: Timestamp
+  lastNotifiedMessage?: Timestamp
 
   tx?: Ref<TxCUD<Doc>>
 }
@@ -252,18 +252,18 @@ export class TReadState extends TAttachedDoc implements ReadState {
 export class TInboxNotification extends TDoc implements InboxNotification {
   @Prop(TypeRef(notification.class.DocNotifyContext), core.string.AttachedTo)
   @Index(IndexKind.Indexed)
-    docNotifyContext!: Ref<DocNotifyContext>
+  docNotifyContext!: Ref<DocNotifyContext>
 
   @Prop(TypeAccountUuid(), core.string.Account)
   @Index(IndexKind.Indexed)
-    user!: AccountUuid
+  user!: AccountUuid
 
   @Prop(TypeBoolean(), core.string.Boolean)
   // @Index(IndexKind.Indexed)
-    isViewed!: boolean
+  isViewed!: boolean
 
   @Prop(TypeBoolean(), core.string.Boolean)
-    archived!: boolean
+  archived!: boolean
 
   objectId!: Ref<Doc>
   objectClass!: Ref<Class<Doc>>
@@ -281,30 +281,30 @@ export class TInboxNotification extends TDoc implements InboxNotification {
 @Model(notification.class.ActivityInboxNotification, notification.class.InboxNotification)
 export class TActivityInboxNotification extends TInboxNotification implements ActivityInboxNotification {
   @Prop(TypeRef(activity.class.ActivityMessage), core.string.AttachedTo)
-    attachedTo!: Ref<ActivityMessage>
+  attachedTo!: Ref<ActivityMessage>
 
   @Prop(TypeRef(activity.class.ActivityMessage), core.string.AttachedToClass)
-    attachedToClass!: Ref<Class<ActivityMessage>>
+  attachedToClass!: Ref<Class<ActivityMessage>>
 }
 
 @Model(notification.class.CommonInboxNotification, notification.class.InboxNotification)
 export class TCommonInboxNotification extends TInboxNotification implements CommonInboxNotification {
   @Prop(TypeIntlString(), core.string.String)
-    header?: IntlString
+  header?: IntlString
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    headerObjectId?: Ref<Doc>
+  headerObjectId?: Ref<Doc>
 
   @Prop(TypeRef(core.class.Doc), core.string.Class)
-    headerObjectClass?: Ref<Class<Doc>>
+  headerObjectClass?: Ref<Class<Doc>>
 
   @Prop(TypeIntlString(), notification.string.Message)
-    message?: IntlString
+  message?: IntlString
 
   headerIcon?: Asset
 
   @Prop(TypeMarkup(), notification.string.Message)
-    markup?: Markup
+  markup?: Markup
 
   props?: Record<string, any>
   icon?: Asset
@@ -314,10 +314,10 @@ export class TCommonInboxNotification extends TInboxNotification implements Comm
 @Model(notification.class.MentionInboxNotification, notification.class.CommonInboxNotification)
 export class TMentionInboxNotification extends TCommonInboxNotification implements MentionInboxNotification {
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    mentionedIn!: Ref<Doc>
+  mentionedIn!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Doc), core.string.Class)
-    mentionedInClass!: Ref<Class<Doc>>
+  mentionedInClass!: Ref<Class<Doc>>
 }
 
 @Model(notification.class.ReactionInboxNotification, notification.class.CommonInboxNotification)
@@ -325,10 +325,10 @@ export class TReactionInboxNotification extends TCommonInboxNotification impleme
   emoji!: string
   ref!: Ref<Reaction>
   @Prop(TypeRef(activity.class.ActivityMessage), core.string.AttachedTo)
-    attachedTo!: Ref<ActivityMessage>
+  attachedTo!: Ref<ActivityMessage>
 
   @Prop(TypeRef(activity.class.ActivityMessage), core.string.AttachedToClass)
-    attachedToClass!: Ref<Class<ActivityMessage>>
+  attachedToClass!: Ref<Class<ActivityMessage>>
 }
 
 @Model(notification.class.ActivityNotificationViewlet, core.class.Doc, DOMAIN_MODEL)

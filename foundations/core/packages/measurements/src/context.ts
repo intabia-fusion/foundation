@@ -358,13 +358,9 @@ export function registerOperationLog (ctx: MeasureContext): { opLogMetrics?: Met
   const op: OperationLog = { start: platformNow(), ops: [], end: -1 }
   let opLogMetrics: Metrics | undefined
 
-  if (ctx.id === undefined) {
-    ctx.id = 'op_' + (++globalId).toString(16)
-  }
+  ctx.id ??= 'op_' + (++globalId).toString(16)
   if (ctx.metrics !== undefined) {
-    if (ctx.metrics.opLog === undefined) {
-      ctx.metrics.opLog = {}
-    }
+    ctx.metrics.opLog ??= {}
     ctx.metrics.opLog[ctx.id] = op
     opLogMetrics = ctx.metrics
   }

@@ -324,9 +324,7 @@ export class LiveQuery implements WithTx, Client {
       }
     }
 
-    if (options === undefined) {
-      options = {}
-    }
+    options ??= {}
     options.limit = 1
 
     const d = this.refs.findFromDocs(_class, query, options)
@@ -447,7 +445,7 @@ export class LiveQuery implements WithTx, Client {
       query: _query,
       result: result.then((docs) => new ResultArray(docs, this.getHierarchy())),
       total: 0,
-      options: options as FindOptions<Doc>,
+      options,
       callbacks: new Map(),
       refresh: reduceCalls(() => this.doRefresh(q)),
       refreshId: 0
@@ -1259,9 +1257,7 @@ export class LiveQuery implements WithTx, Client {
               options
             )
             if (docToPush === undefined) continue
-            if (doc.$associations === undefined) {
-              doc.$associations = {}
-            }
+            doc.$associations ??= {}
             const key = direct ? 'b' : 'a'
             const arr = doc.$associations?.[`${assoc[0]}_${key}`] ?? []
             const exists = arr.findIndex((p) => p._id === docToPush._id)
@@ -1454,7 +1450,7 @@ export class LiveQuery implements WithTx, Client {
     const result: [string, string, string?][] = []
     const hierarchy = this.client.getHierarchy()
     if (lookup._id !== undefined) {
-      for (const key in lookup._id) {
+      for (const key of Object.keys(lookup._id)) {
         const value = (lookup._id as any)[key]
         const [valueClass, reverseLookupKey] = Array.isArray(value) ? value : [value, 'attachedTo']
         const clazz = hierarchy.isMixin(valueClass) ? hierarchy.getBaseClass(valueClass) : valueClass

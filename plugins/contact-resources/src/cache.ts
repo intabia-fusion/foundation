@@ -35,9 +35,7 @@ export default class ContactCacheStoreManager {
   }
 
   public static get instance (): ContactCacheStoreManager {
-    if (this._instance === undefined) {
-      this._instance = new ContactCacheStoreManager()
-    }
+    this._instance ??= new ContactCacheStoreManager()
 
     return this._instance
   }

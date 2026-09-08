@@ -39,12 +39,12 @@
 
     const navigate = await getResource(workbench.actionImpl.Navigate)
 
-    await navigate([], undefined as any, {
+    await navigate([], undefined, {
       mode: 'space',
       space: dm.space
     })
 
-    await navigate([], undefined as any, {
+    await navigate([], undefined, {
       mode: 'space',
       space: dm._id
     })

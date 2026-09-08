@@ -6,7 +6,7 @@ import { trainingId, TrainingSpecialIds } from '@hcengineering/training'
 import { getCurrentLocation, type Location } from '@hcengineering/ui'
 import type { Route, RouteParams } from '../utils/Route'
 
-export interface IncomingRequestsRouteParams extends RouteParams {}
+export type IncomingRequestsRouteParams = RouteParams
 
 export const incomingRequestRoute: Route<IncomingRequestsRouteParams> = {
   build (params: IncomingRequestsRouteParams): Location {

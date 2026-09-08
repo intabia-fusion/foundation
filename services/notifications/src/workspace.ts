@@ -423,7 +423,7 @@ class Workspace {
     if (tx._class === core.class.TxCreateDoc) {
       return await this.processCreateReaction(tx as TxCreateDoc<Reaction>)
     } else if (tx._class === core.class.TxRemoveDoc) {
-      return await this.processRemoveReaction(tx as TxRemoveDoc<Reaction>)
+      return await this.processRemoveReaction(tx)
     }
 
     return []
@@ -503,7 +503,7 @@ class Workspace {
     if (tx._class === core.class.TxCreateDoc) {
       return await this.processCreateMessage(tx as TxCreateDoc<ActivityMessage>, notifiedUsers, _res)
     } else if (tx._class === core.class.TxRemoveDoc) {
-      return await this.processRemoveMessage(tx as TxRemoveDoc<ActivityMessage>)
+      return await this.processRemoveMessage(tx)
     } else if (tx._class === core.class.TxUpdateDoc) {
       if (!this.client.hierarchy.isDerived(tx.objectClass, activity.class.DocUpdateMessage)) return []
 
@@ -651,7 +651,7 @@ class Workspace {
 
     const allowedProviders: Record<Ref<NotificationProvider>, Ref<NotificationType>[]> = Object.fromEntries(
       Object.entries(notifyResult).map(([provider, types]) => [provider, types.map((it) => it._id)])
-    ) as Record<Ref<NotificationProvider>, Ref<NotificationType>[]>
+    )
 
     const attrs: Data<InboxNotification> = {
       ...data,

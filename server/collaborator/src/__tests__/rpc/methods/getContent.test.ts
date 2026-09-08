@@ -65,13 +65,13 @@ describe('getContent', () => {
 
     const result = await getContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'test-document',
       { source: 'content-blob-id' as any },
       {
         hocuspocus: mockHocuspocus as any,
         storageAdapter: {} as any,
-        transformer: mockTransformer as any
+        transformer: mockTransformer
       }
     )
 
@@ -98,13 +98,13 @@ describe('getContent', () => {
 
     const result = await getContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'test-document',
       { source: undefined },
       {
         hocuspocus: mockHocuspocus as any,
         storageAdapter: {} as any,
-        transformer: mockTransformer as any
+        transformer: mockTransformer
       }
     )
 
@@ -152,13 +152,13 @@ describe('getContent', () => {
 
     const result = await getContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'test-document',
       { source: undefined },
       {
         hocuspocus: mockHocuspocus as any,
         storageAdapter: {} as any,
-        transformer: mockTransformer as any
+        transformer: mockTransformer
       }
     )
 
@@ -175,13 +175,13 @@ describe('getContent', () => {
 
     await getContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'doc-id',
       { source: 'blob-123' as any },
       {
         hocuspocus: mockHocuspocus as any,
         storageAdapter: {} as any,
-        transformer: mockTransformer as any
+        transformer: mockTransformer
       }
     )
 

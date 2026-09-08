@@ -110,7 +110,7 @@ export type TableCursor = ToolbarCursor<TableCursorProps>
 
 export function getTableCursor (state: EditorState): TableCursor | null {
   const cursor = getToolbarCursor<TableCursorProps>(state)
-  if (cursor === null || cursor.tag !== 'table') {
+  if (cursor?.tag !== 'table') {
     return null
   }
   return cursor

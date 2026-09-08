@@ -341,8 +341,7 @@ async function chooseJudge (served: ModelRef[], args: Args): Promise<ModelRef | 
 async function runScenarios (ref: ModelRef, judge: ModelRef | undefined, args: Args): Promise<boolean> {
   bootstrapEnv(ref.id)
   // Судья ходит своим транспортом (строгий json-schema), а не через провайдера тестируемой модели.
-  const judgeCfg =
-    judge !== undefined && judge.source === 'local' ? { endpoint: ENDPOINT, key: KEY, model: judge.id } : undefined
+  const judgeCfg = judge?.source === 'local' ? { endpoint: ENDPOINT, key: KEY, model: judge.id } : undefined
   if (judge !== undefined && judgeCfg === undefined) {
     console.log(
       `Судья ${label(judge)} не с локального эндпоинта - строгий JSON недоступен, оценка только по проверкам.`
@@ -460,7 +459,7 @@ async function main (): Promise<void> {
 
   if (args.command === 'judge') {
     const ref = await chooseModel(served, args.judge ?? args.model, 'Кого проверяем судьёй?')
-    if (ref === undefined || ref.source !== 'local') {
+    if (ref?.source !== 'local') {
       console.error('Судья должен быть с локального эндпоинта: нужен строгий json-schema.')
       process.exitCode = 1
       return
@@ -478,7 +477,7 @@ async function main (): Promise<void> {
       }
       const bad = Object.entries(fixture.expected).filter(([id, want]) => {
         const got = verdicts.find((v) => v.id === id)
-        return got === undefined || got.met !== want
+        return got?.met !== want
       })
       if (bad.length === 0) {
         console.log(`  ok   ${fixture.name}`)
@@ -526,7 +525,7 @@ async function main (): Promise<void> {
   }
 
   const targetProfile =
-    judge !== undefined && target.id === judge.id && target.source === judge.source
+    target.id === judge?.id && target.source === judge.source
       ? judgeProfile
       : await clearModel(target, args, 'под тестом')
   if (targetProfile === undefined) {

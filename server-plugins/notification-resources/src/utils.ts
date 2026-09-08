@@ -247,8 +247,8 @@ export async function getContentByTemplate (
     params.message = text ?? params.message
   } else if (message !== undefined) {
     params.message = message.message !== undefined ? markupToText(message.message) : (params.message ?? '')
-  } else if (params.message === undefined) {
-    params.message = params.body ?? ''
+  } else {
+    params.message ??= params.body ?? ''
   }
 
   const inboxLink = await getNotificationInboxLink(control, doc, message?._id)

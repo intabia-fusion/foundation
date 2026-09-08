@@ -52,7 +52,7 @@ export function getCardTagMixins (card: Card, hierarchy: Hierarchy): Array<Ref<C
   return hierarchy
     .getDescendants(parentClass)
     .filter((m) => hierarchy.getClass(m).kind === ClassifierKind.MIXIN && hierarchy.hasMixin(card, m)) as Array<
-  Ref<Class<Doc>>
+    Ref<Class<Doc>>
   >
 }
 
@@ -123,7 +123,7 @@ export async function formatTagValue (
         if (typeof lookupLabel === 'string' && isIntlString(lookupLabel)) {
           return await translate(lookupLabel, {}, language)
         }
-        return String(lookupLabel)
+        return JSON.stringify(lookupLabel)
       }
       if (typeof classValue === 'string') {
         const cl = hierarchy.getClass(classValue as Ref<Class<Doc>>)
@@ -150,7 +150,7 @@ export async function formatTagValue (
     if (typeof classLabel === 'string' && isIntlString(classLabel)) {
       return await translate(classLabel, {}, language)
     }
-    return String(classLabel)
+    return JSON.stringify(classLabel)
   }
   const classRef = rec._class
   if (typeof classRef === 'string') {

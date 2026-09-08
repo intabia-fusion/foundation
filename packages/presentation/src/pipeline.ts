@@ -190,10 +190,10 @@ export class PresentationPipelineImpl implements PresentationPipeline {
     options: FindOptions<T> | undefined,
     refresh: () => void
   ): Promise<{
-      unsubscribe: () => void
-      query?: DocumentQuery<T>
-      options?: FindOptions<T>
-    }> {
+    unsubscribe: () => void
+    query?: DocumentQuery<T>
+    options?: FindOptions<T>
+  }> {
     return this.head !== undefined
       ? await this.head.subscribe(_class, query, options, refresh)
       : { unsubscribe: () => {} }
@@ -275,10 +275,10 @@ export abstract class BasePresentationMiddleware {
     options: FindOptions<T> | undefined,
     refresh: () => void
   ): Promise<{
-      unsubscribe: () => void
-      query?: DocumentQuery<T>
-      options?: FindOptions<T>
-    }> {
+    unsubscribe: () => void
+    query?: DocumentQuery<T>
+    options?: FindOptions<T>
+  }> {
     return await this.provideSubscribe(_class, query, options, refresh)
   }
 
@@ -336,10 +336,10 @@ export abstract class BasePresentationMiddleware {
     options: FindOptions<T> | undefined,
     refresh: () => void
   ): Promise<{
-      unsubscribe: () => void
-      query?: DocumentQuery<T>
-      options?: FindOptions<T>
-    }> {
+    unsubscribe: () => void
+    query?: DocumentQuery<T>
+    options?: FindOptions<T>
+  }> {
     if (this.next !== undefined) {
       return await this.next.subscribe(_class, query, options, refresh)
     }
@@ -392,10 +392,10 @@ export class OptimizeQueryMiddleware extends BasePresentationMiddleware implemen
     options: FindOptions<T> | undefined,
     refresh: () => void
   ): Promise<{
-      unsubscribe: () => void
-      query?: DocumentQuery<T>
-      options?: FindOptions<T>
-    }> {
+    unsubscribe: () => void
+    query?: DocumentQuery<T>
+    options?: FindOptions<T>
+  }> {
     return await this.provideSubscribe(_class, query, options, refresh)
   }
 
@@ -417,12 +417,12 @@ export class OptimizeQueryMiddleware extends BasePresentationMiddleware implemen
     for (const [k, v] of Object.entries(fQuery)) {
       if (typeof v === 'object' && v != null) {
         const vobj = v as QuerySelector<any>
-        if (vobj.$in != null && vobj.$in.length === 0) {
+        if (vobj.$in?.length === 0) {
           // Emopty in, will always return []
           return toFindResult([], 0)
-        } else if (vobj.$in != null && vobj.$in.length === 1 && Object.keys(vobj).length === 1) {
+        } else if (vobj.$in?.length === 1 && Object.keys(vobj).length === 1) {
           ;(fQuery as any)[k] = vobj.$in[0]
-        } else if (vobj.$nin != null && vobj.$nin.length === 1 && Object.keys(vobj).length === 1) {
+        } else if (vobj.$nin?.length === 1 && Object.keys(vobj).length === 1) {
           ;(fQuery as any)[k] = { $ne: vobj.$nin[0] }
         }
       }

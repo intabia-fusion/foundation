@@ -710,8 +710,8 @@ export async function handleUpdatePlan (
   const isSeatChange = sub.type === SubscriptionType.Tier && newPlan === sub.plan
   const isPackageChange = sub.type === SubscriptionType.Package
   let checkoutOverride:
-  | { chargeAmount: number, recurringAmount: number, periodStart: number, periodEnd: number }
-  | undefined
+    | { chargeAmount: number, recurringAmount: number, periodStart: number, periodEnd: number }
+    | undefined
   if (
     (isSeatChange || isPackageChange) &&
     sub.status === SubscriptionStatus.Active &&
@@ -1189,12 +1189,12 @@ export async function processWebhook (
       subscriptionData.type === SubscriptionType.Purchase
         ? undefined
         : allSubs.find(
-          (s) =>
-            (s.provider === 'tbank' && s.providerData?.pendingReplacement === true) ||
+            (s) =>
+              (s.provider === 'tbank' && s.providerData?.pendingReplacement === true) ||
               (s.type === subscriptionData.type &&
                 s.status === SubscriptionStatus.Active &&
                 s.id !== subscriptionData.id)
-        )
+          )
     if (oldSub !== undefined && oldSub !== null) {
       // Report under the NEW purchase's action: dropping the old plan is part of that same intent.
       await cancelSubscription(

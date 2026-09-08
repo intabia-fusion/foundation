@@ -217,7 +217,7 @@ export function getWavDuration (data: Uint8Array | Buffer): number {
 export function extractWavSamples (data: Uint8Array | Buffer): Int16Array | undefined {
   const header = parseWavHeader(data)
 
-  if (header === undefined || header.bitsPerSample !== 16) {
+  if (header?.bitsPerSample !== 16) {
     return undefined
   }
 

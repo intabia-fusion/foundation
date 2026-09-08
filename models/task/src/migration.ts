@@ -834,13 +834,13 @@ export async function migrateMixinToClassInModel (
     _class: core.class.TxCreateDoc,
     objectClass: notification.class.MessageNotificationType,
     'attributes.objectClass': oldMixin
-  } as any)
+  })
 
   const txes2 = await client.find<TxCreateDoc<MessageNotificationType>>(DOMAIN_MODEL_TX, {
     _class: core.class.TxCreateDoc,
     objectClass: notification.class.MessageNotificationType,
     'attributes.attachedToClass': oldMixin
-  } as any)
+  })
 
   const txes = new Map([...txes1, ...txes2].map((it) => [it._id, it]))
 
@@ -878,7 +878,7 @@ export async function migrateMixinToClassInModel (
   // Migrate AttributePermission objects bound to oldMixin
   const permTxes = await client.find<TxCreateDoc<any>>(DOMAIN_MODEL_TX, {
     objectClass: oldMixin
-  } as any)
+  })
 
   for (const permTx of permTxes) {
     await client.update(

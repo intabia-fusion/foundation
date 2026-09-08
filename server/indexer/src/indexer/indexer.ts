@@ -68,7 +68,7 @@ import { type Person } from '@hcengineering/contact'
 import { type FullTextPipeline } from './types'
 import { createIndexedDoc, getContent } from './utils'
 
-export * from './types'
+export type * from './types'
 export * from './utils'
 
 const printThresholdMs = 2500
@@ -479,11 +479,9 @@ export class FullTextIndexPipeline implements FullTextPipeline {
 
               if (searchPresenter !== undefined) {
                 await ctx.with('update-search-presenter', { _class: doc._class }, async () => {
-                  if (parentDocs === undefined) {
-                    parentDocs = this.hierarchy.isDerived(_class, core.class.AttachedDoc)
-                      ? await this.findParents(ctx, docs as unknown as AttachedDoc[])
-                      : undefined
-                  }
+                  parentDocs ??= this.hierarchy.isDerived(_class, core.class.AttachedDoc)
+                    ? await this.findParents(ctx, docs as unknown as AttachedDoc[])
+                    : undefined
                   const parentDoc = parentDocs?.get((doc as AttachedDoc).attachedTo)
                   if (spaceDocs === undefined) {
                     await updateSpaces()
@@ -733,11 +731,11 @@ export class FullTextIndexPipeline implements FullTextPipeline {
     if (value !== undefined && value !== '') {
       try {
         const readable = await this.storageAdapter?.read(ctx, this.workspace, value)
-        const markup = Buffer.concat(readable as any).toString()
+        const markup = Buffer.concat(readable).toString()
         let textContent = markupToText(markup)
         textContent = textContent
           .split(/ +|\t+|\f+/)
-          .filter((it) => it)
+          .filter((it) => it !== '')
           .join(' ')
           .split(/\n\n+/)
           .join('\n')
@@ -836,7 +834,7 @@ export class FullTextIndexPipeline implements FullTextPipeline {
       )
       textContent = textContent
         .split(/ +|\t+|\f+/)
-        .filter((it) => it)
+        .filter((it) => it !== '')
         .join(' ')
         .split(/\n\n+/)
         .join('\n')
@@ -851,13 +849,11 @@ export class FullTextIndexPipeline implements FullTextPipeline {
     indexedDoc: IndexedDoc
   ): Promise<void> {
     if (docInfo !== undefined) {
-      let textContent = Buffer.concat(
-        (await this.storageAdapter?.read(ctx, this.workspace, docInfo._id)) as any
-      ).toString()
+      let textContent = Buffer.concat(await this.storageAdapter?.read(ctx, this.workspace, docInfo._id)).toString()
 
       textContent = textContent
         .split(/ +|\t+|\f+/)
-        .filter((it) => it)
+        .filter((it) => it !== '')
         .join(' ')
         .split(/\n\n+/)
         .join('\n')

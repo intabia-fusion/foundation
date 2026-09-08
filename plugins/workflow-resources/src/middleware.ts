@@ -114,7 +114,7 @@ export class WorkflowMiddleware extends BasePresentationMiddleware implements Pr
     const transitions = (workflow.$lookup?.transitions ?? []) as WorkflowTransition[]
 
     const transition =
-      transitions.find((t) => t.to === toStatus && t.from != null && t.from.includes(fromStatus)) ??
+      transitions.find((t) => t.to === toStatus && t.from?.includes(fromStatus) === true) ??
       transitions.find((t) => t.to === toStatus && (t.from == null || t.from.length === 0))
 
     if (transition == null) return { proceed: false }

@@ -297,7 +297,8 @@ const PHASE_MEMORY = {
   typescript: { minHeapMB: 1536, heapMB: 2048, maxWorkers: 6 },
   'svelte-check': { minHeapMB: 3072, heapMB: 3072 },
   format: { minHeapMB: 1280, heapMB: 1536 },
-  lint: { minHeapMB: 1024, heapMB: 2048 },
+  // @typescript-eslint 8 builds a bigger type graph than 6 did: pod-gmail OOMs below 2048.
+  lint: { minHeapMB: 2048, heapMB: 2560 },
   bundle: { minHeapMB: 512, heapMB: 800 },
   docker: { minHeapMB: 256, heapMB: 500 },
   default: { minHeapMB: 512, heapMB: 1000 }

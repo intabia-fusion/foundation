@@ -5,7 +5,7 @@
     "es6": true,
     "node": true
   },
-  "extends": ["standard-with-typescript", "plugin:svelte/prettier"],
+  "extends": ["../base.eslint.config.json", "plugin:svelte/prettier"],
   "globals": {
     "Atomics": "readonly",
     "SharedArrayBuffer": "readonly"
@@ -35,10 +35,14 @@
         "parser": "@typescript-eslint/parser"
       },
       "rules": {
-        "@typescript-eslint/no-unused-vars": ["warn", {
+        // The @typescript-eslint version of this rule throws on svelte-eslint-parser output
+        // (reads defs[0].type of a variable that has no defs), so the base rule runs here instead.
+        "@typescript-eslint/no-unused-vars": "off",
+        "no-unused-vars": ["warn", {
           // Registered Svelte names for better component typings,
           // see https://raqueebuddinaziz.com/blog/svelte-type-events-slots-and-props/#restprops-props
-          "varsIgnorePattern": "^\\$\\$(Props|Events|Slots)$"
+          "varsIgnorePattern": "^\\$\\$(Props|Events|Slots)$",
+          "args": "none"
         }],
         "@typescript-eslint/array-type": "off",
         "@typescript-eslint/promise-function-async": "off",

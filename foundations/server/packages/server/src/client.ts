@@ -255,10 +255,10 @@ export class ClientSession implements Session {
     ctx: ClientSessionCtx,
     tx: Tx
   ): Promise<{
-      result: TxResult
-      broadcastPromise: Promise<void>
-      asyncsPromise: Promise<void> | undefined
-    }> {
+    result: TxResult
+    broadcastPromise: Promise<void>
+    asyncsPromise: Promise<void> | undefined
+  }> {
     // Read-only sessions (guests, operator impersonation) never write, not even derived tx.
     if (this.token.extra?.readonly === 'true') {
       throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
@@ -474,10 +474,10 @@ export class ClientSession implements Session {
     domain: OperationDomain,
     params: DomainParams
   ): Promise<{
-      result: DomainResult
-      broadcastPromise: Promise<void>
-      asyncsPromise: Promise<void> | undefined
-    }> {
+    result: DomainResult
+    broadcastPromise: Promise<void>
+    asyncsPromise: Promise<void> | undefined
+  }> {
     this.lastRequest = Date.now()
     this.total.find++
     this.current.find++

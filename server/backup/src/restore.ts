@@ -115,7 +115,7 @@ export async function collectAccountObjects (
           const name = headers.name ?? ''
           if (name.endsWith('.json')) {
             const objKey = name.substring(0, name.length - 5)
-            if (changeset.has(objKey as any) && !processed.has(objKey)) {
+            if (changeset.has(objKey) && !processed.has(objKey)) {
               const chunks: Buffer[] = []
               stream.on('data', (chunk) => {
                 chunks.push(chunk)
@@ -123,7 +123,7 @@ export async function collectAccountObjects (
               stream.on('end', () => {
                 try {
                   processed.add(objKey)
-                  collectedObjects.push(JSON.parse(Buffer.concat(chunks as any).toString()))
+                  collectedObjects.push(JSON.parse(Buffer.concat(chunks).toString()))
                 } catch (err) {
                   ctx.warn('failed to parse account object', { name, err })
                 }
@@ -208,9 +208,7 @@ export async function restore (
     opt.date = snapshots[snapshots.length - 1].date
   }
 
-  if (backupInfo.domainHashes === undefined) {
-    backupInfo.domainHashes = {}
-  }
+  backupInfo.domainHashes ??= {}
   ctx.info('restore to ', { id: opt.date, date: new Date(opt.date).toDateString() })
   const rsnapshots = Array.from(snapshots).reverse()
 
@@ -342,10 +340,10 @@ export async function restore (
       opt.recheck === true || opt.verifyOnly === true // recheck/verifyOnly process all documents.
         ? Array.from(changeset.entries())
         : Array.from(changeset.entries()).filter(
-          ([it]) =>
-            !serverChangeset.has(it) ||
+            ([it]) =>
+              !serverChangeset.has(it) ||
               (serverChangeset.has(it) && doTrimHash(serverChangeset.get(it)) !== doTrimHash(changeset.get(it)))
-        )
+          )
     )
     const docsToRemove = Array.from(serverChangeset.keys()).filter((it) => !changeset.has(it))
 
@@ -375,15 +373,11 @@ export async function restore (
         })
         // Correct docs without space
         for (const d of docs) {
-          if (d.space == null) {
-            d.space = core.space.Workspace
-          }
+          d.space ??= core.space.Workspace
 
           if (TxProcessor.isExtendsCUD(d._class)) {
             const tx = d as TxCUD<Doc>
-            if (tx.objectSpace == null) {
-              tx.objectSpace = core.space.Workspace
-            }
+            tx.objectSpace ??= core.space.Workspace
           }
         }
 
@@ -518,7 +512,7 @@ export async function restore (
                     chunks.push(chunk)
                   })
                   stream.on('end', () => {
-                    const bf = Buffer.concat(chunks as any)
+                    const bf = Buffer.concat(chunks)
                     const d = blobs.get(name)
                     if (d === undefined) {
                       blobs.set(name, { doc: undefined, buffer: bf })
@@ -543,7 +537,7 @@ export async function restore (
                     chunks.push(chunk)
                   })
                   stream.on('end', () => {
-                    const bf = Buffer.concat(chunks as any)
+                    const bf = Buffer.concat(chunks)
                     let doc: Doc
                     try {
                       doc = JSON.parse(bf.toString()) as Doc
@@ -817,7 +811,7 @@ async function restoreSocialIds (ctx: MeasureContext, accountDb: AccountDB, soci
         const existingPersonUuids = new Set(existingPersons.map((p) => p.uuid))
         const stubPersons = refPersonUuids
           .filter((u) => !existingPersonUuids.has(u))
-          .map((uuid) => ({ uuid, firstName: '', lastName: '' }) as unknown as GlobalPerson)
+          .map((uuid) => ({ uuid, firstName: '', lastName: '' }))
         if (stubPersons.length > 0) {
           await accountDb.person.insertMany(stubPersons)
           ctx.warn('inserted stub persons for orphan socialIds', { count: stubPersons.length })

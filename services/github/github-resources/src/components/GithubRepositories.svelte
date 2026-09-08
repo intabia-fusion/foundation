@@ -86,7 +86,7 @@
     const issuesQuery = await client.findAll(
       github.mixin.GithubIssue,
       {
-        space: prj._id as Ref<Project>,
+        space: prj._id,
         repository: repository._id
       },
       { total: true, limit: 1 }

@@ -269,12 +269,11 @@ export async function createDefaultSpace<T extends Space> (
   }
   const tx = new TxOperations(client, core.account.System)
   const cache = client.spaceCache
-  const current =
-    cache !== undefined ? cache.get(_id as unknown as Ref<Space>) : await tx.findOne(core.class.Space, { _id })
-  if (current === undefined || current._class !== _class) {
+  const current = cache !== undefined ? cache.get(_id) : await tx.findOne(core.class.Space, { _id })
+  if (current?._class !== _class) {
     if (current !== undefined && current._class !== _class) {
       await tx.remove(current)
-      cache?.delete(_id as unknown as Ref<Space>)
+      cache?.delete(_id)
     }
     await tx.createDoc(_class, core.space.Space, data, _id)
   }
@@ -293,8 +292,8 @@ export async function findCachedSpace<T extends Space> (
   _id: Ref<T>,
   _class?: Ref<Class<T>>
 ): Promise<T | undefined> {
-  const cached = client.spaceCache?.get(_id as unknown as Ref<Space>)
-  const found = cached ?? (await client.findOne(core.class.Space, { _id: _id as unknown as Ref<Space> }))
+  const cached = client.spaceCache?.get(_id)
+  const found = cached ?? (await client.findOne(core.class.Space, { _id }))
   if (found === undefined) return undefined
   if (_class !== undefined && found._class !== _class) return undefined
   return found as T

@@ -47,7 +47,7 @@ describe('injectCustomAttributes', () => {
   })
 
   test('skips keys already present as BuildModelKey', () => {
-    const base: Array<string | BuildModelKey> = ['title', { key: 'severity', label: undefined as any }]
+    const base: Array<string | BuildModelKey> = ['title', { key: 'severity', label: undefined }]
     const result = injectCustomAttributes(base, ['severity'])
     expect(result).toBe(base)
   })

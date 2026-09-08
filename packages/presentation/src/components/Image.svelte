@@ -61,14 +61,14 @@
   function lazyObserverAction (node: Element, persistent: boolean): any {
     let activeObserver = persistent
       ? persistentLazyObserver(node, (val) => {
-        visible = val
-      })
+          visible = val
+        })
       : lazyObserver(node, (val, unsubscribe) => {
-        if (val) {
-          visible = true
-          unsubscribe?.()
-        }
-      })
+          if (val) {
+            visible = true
+            unsubscribe?.()
+          }
+        })
 
     return {
       destroy () {
@@ -80,14 +80,14 @@
           persistent = newPersistent
           activeObserver = persistent
             ? persistentLazyObserver(node, (val) => {
-              visible = val
-            })
+                visible = val
+              })
             : lazyObserver(node, (val, unsubscribe) => {
-              if (val) {
-                visible = true
-                unsubscribe?.()
-              }
-            })
+                if (val) {
+                  visible = true
+                  unsubscribe?.()
+                }
+              })
         }
       }
     }

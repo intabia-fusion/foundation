@@ -230,7 +230,7 @@ export class RatingCalculator {
       const newState: MigrationState = {
         _id: generateId(),
         _class: core.class.MigrationState,
-        plugin: ratingId as string,
+        plugin: ratingId,
         state: 'v1',
         modifiedOn: Date.now(),
         modifiedBy: systemAccount.primarySocialId,
@@ -547,7 +547,7 @@ export class RatingCalculator {
         const cud = tx as TxCUD<Doc>
         const domain = this.pipeline.context.hierarchy.findDomain(cud.objectClass)
         const d = domain != null ? this.ratingDomains.get(domain) : undefined
-        if ((d === undefined || !d.has(cud.objectClass)) && domain !== DOMAIN_RATING_REACTION) {
+        if (d?.has(cud.objectClass) !== true && domain !== DOMAIN_RATING_REACTION) {
           continue
         }
         cuds.push(cud)
@@ -588,7 +588,7 @@ export class RatingCalculator {
           }
         )
         for (const p of parents) {
-          parentCache.set(p._id as Ref<Doc>, p)
+          parentCache.set(p._id, p)
           if (p.createdBy != null) {
             personIds.add(p.createdBy)
           }
@@ -616,7 +616,7 @@ export class RatingCalculator {
         }
         case core.class.TxRemoveDoc: {
           this.updatePersonStats(sysRating, tx.createdOn ?? tx.modifiedOn, 'delete', tx.objectClass)
-          await this.handleRatingDelete(ctx, tx as TxRemoveDoc<Doc>, txAuthors)
+          await this.handleRatingDelete(ctx, tx, txAuthors)
           break
         }
       }
@@ -668,12 +668,12 @@ export class RatingCalculator {
   }
 
   notifications = new Map<
-  AccountUuid,
-  {
-    oldRating: number
-    newRating: number
-    person: PersonRating
-  }
+    AccountUuid,
+    {
+      oldRating: number
+      newRating: number
+      person: PersonRating
+    }
   >()
 
   private async flushUpdates (

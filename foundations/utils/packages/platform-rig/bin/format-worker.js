@@ -8,7 +8,7 @@
 */
 
 const { parentPort, threadId } = require('worker_threads')
-const { join, relative, basename } = require('path')
+const { join, relative, basename, dirname } = require('path')
 const { createRequire } = require('module')
 const { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync } = require('fs')
 
@@ -75,6 +75,15 @@ function collectSourceFiles(dir, result = []) {
  * then write to disk ONLY if final content differs from original. No intermediate
  * writes — webpack watchers never see half-formatted files.
  */
+
+// pnpm 12 does not reliably link plugins into every package, so plugin resolution is anchored to the
+// rig, which declares them all and is a dependency of every package anyway.
+function rigDir (cwd) {
+  // require.resolve cannot be used: the rig's package.json is not listed in its `exports`.
+  const dir = join(cwd, 'node_modules', '@hcengineering', 'platform-rig')
+  return existsSync(dir) ? dir : cwd
+}
+
 async function formatPackage(cwd, options = {}) {
   const { srcDir = 'src' } = options
   const srcPath = join(cwd, srcDir)
@@ -85,7 +94,7 @@ async function formatPackage(cwd, options = {}) {
     return { success: true, changed: 0, total: 0, errors: [], memoryMB: 0, durationMs: Date.now() - startedAt }
   }
 
-  let eslint = new ESLint({ fix: true, cwd, cache: false })
+  let eslint = new ESLint({ fix: true, cwd, cache: false, resolvePluginsRelativeTo: rigDir(cwd) })
 
   const errors = []
   let changedCount = 0

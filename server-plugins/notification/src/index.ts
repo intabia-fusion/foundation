@@ -40,8 +40,8 @@ export interface Sender {
 }
 
 export type TypeMatchClient = Pick<
-TriggerControl,
-'hierarchy' | 'modelDb' | 'findAll' | 'txFactory' | 'ctx' | 'branding'
+  TriggerControl,
+  'hierarchy' | 'modelDb' | 'findAll' | 'txFactory' | 'ctx' | 'branding'
 >
 export type TypeMatchFunc = (
   client: TypeMatchClient,
@@ -53,8 +53,8 @@ export type TypeMatchFunc = (
 
 export type TypeMatchFuncResource = Resource<TypeMatchFunc>
 export type CreateNotificationResult = Omit<
-Data<CommonInboxNotification>,
-'archived' | 'user' | 'allowedProviders' | 'docNotifyContext' | 'isViewed' | 'objectId' | 'objectClass'
+  Data<CommonInboxNotification>,
+  'archived' | 'user' | 'allowedProviders' | 'docNotifyContext' | 'isViewed' | 'objectId' | 'objectClass'
 >
 export type CreateNotificationFunc = (
   client: TypeMatchClient,

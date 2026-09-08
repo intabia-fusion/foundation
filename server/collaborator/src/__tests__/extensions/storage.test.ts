@@ -56,8 +56,8 @@ describe('StorageExtension', () => {
     it('should track updates for new documents', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -72,8 +72,8 @@ describe('StorageExtension', () => {
     it('should not track updates when document is loading', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -92,8 +92,8 @@ describe('StorageExtension', () => {
     it('should log connection with document info', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -117,8 +117,8 @@ describe('StorageExtension', () => {
     it('should handle document not in instance', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -144,8 +144,8 @@ describe('StorageExtension', () => {
     it('should log disconnect with document info', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -177,8 +177,8 @@ describe('StorageExtension', () => {
     it('should skip storage when no updates', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -200,8 +200,8 @@ describe('StorageExtension', () => {
     it('should skip storage when document is loading', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -231,8 +231,8 @@ describe('StorageExtension', () => {
     it('should load document from adapter', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -251,8 +251,8 @@ describe('StorageExtension', () => {
     it('should return undefined when document not found', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -271,8 +271,8 @@ describe('StorageExtension', () => {
     it('should skip storage when no updates', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const context = createMockContext()
@@ -297,8 +297,8 @@ describe('StorageExtension', () => {
     it('should clean up internal state', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       await extension.afterUnloadDocument({
@@ -313,8 +313,8 @@ describe('StorageExtension', () => {
     it('should wait for pending saves', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       // Add a pending promise
@@ -332,8 +332,8 @@ describe('StorageExtension', () => {
     it('should handle errors during pending saves', async () => {
       const extension = new StorageExtension({
         ctx: mockCtx,
-        adapter: mockAdapter as any,
-        transformer: mockTransformer as any
+        adapter: mockAdapter,
+        transformer: mockTransformer
       })
 
       const pendingPromise = Promise.reject(new Error('Save failed'))

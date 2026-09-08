@@ -47,7 +47,7 @@ export async function createMentionsData (
   type: TxNotificationType
 ): Promise<MentionResult> {
   if (tx._class === core.class.TxRemoveDoc) {
-    return await removeMentionNotifications(client, tx as TxRemoveDoc<Doc>)
+    return await removeMentionNotifications(client, tx)
   }
 
   const { hierarchy } = client
@@ -201,7 +201,7 @@ async function getMentionRefs (
             },
             blobId
           )
-          const markup = Buffer.concat(buffer as any).toString()
+          const markup = Buffer.concat(buffer).toString()
           const attrMentionRefs = getMentionRefsData(client, doc._id, doc._class, message?._id, message?._class, markup)
           refs.push(...attrMentionRefs)
         } catch {
@@ -233,7 +233,7 @@ function getMentionRefsData (
     if (raw.objectId !== messageId && raw.objectId !== docId) {
       references.push({
         mentionId: raw.objectId as Ref<Person>,
-        mentionClass: raw.objectClass as Ref<Class<Person>>,
+        mentionClass: raw.objectClass,
         docId,
         docClass,
         messageId,

@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import { type Doc, type PersonId, type Ref, SortingOrder } from '@hcengineering/core'
+import { type PersonId, SortingOrder } from '@hcengineering/core'
 import chunter, { type ChatMessage } from '@hcengineering/chunter'
 import aiBot, { type AIEditProposalMessage } from '@hcengineering/ai-bot'
 import { getClient } from '@hcengineering/presentation'
@@ -58,7 +58,7 @@ export async function exportConversationMdx (root: ChatMessage, title: string): 
   const limit = 1000
   const replies = await client.findAll(
     chunter.class.ChatMessage,
-    { attachedTo: root._id as Ref<Doc> },
+    { attachedTo: root._id },
     { sort: { createdOn: SortingOrder.Ascending }, limit }
   )
   const botSocialId = get(aiBotSocialIdentityStore)?._id

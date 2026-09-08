@@ -42,7 +42,7 @@ function attrTx (
   return factory.createTxCreateDoc(
     core.class.Attribute,
     core.space.Model,
-    { attributeOf, name, type: { _class: core.class.TypeString }, label: 'l' } as unknown as Data<AnyAttribute>,
+    { attributeOf, name, type: { _class: core.class.TypeString }, label: 'l' },
     _id as Ref<AnyAttribute>
   )
 }

@@ -45,9 +45,9 @@ type WithPropertyType<T, X, Y> = {
 
 /** @public */
 export type WithMarkup<T> = WithPropertyType<
-WithPropertyType<T, CollaborativeDoc | undefined, MarkupContent | undefined>,
-CollaborativeDoc,
-MarkupContent
+  WithPropertyType<T, CollaborativeDoc | undefined, MarkupContent | undefined>,
+  CollaborativeDoc,
+  MarkupContent
 >
 
 /**
@@ -70,11 +70,11 @@ export type PlatformClient = {
 
   close: () => Promise<void>
 } & FindOperations &
-DocOperations &
-CollectionOperations &
-MixinOperations &
-MarkupOperations &
-AsyncDisposable
+  DocOperations &
+  CollectionOperations &
+  MixinOperations &
+  MarkupOperations &
+  AsyncDisposable
 
 /**
  * @public

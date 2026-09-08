@@ -81,14 +81,10 @@ export function startFront (ctx: MeasureContext, extraConfig?: Record<string, st
   }
 
   let previewUrl = process.env.PREVIEW_URL
-  if (previewUrl === undefined) {
-    previewUrl = ''
-  }
+  previewUrl ??= ''
 
   let filesUrl = process.env.FILES_URL
-  if (filesUrl === undefined) {
-    filesUrl = `${uploadUrl}/:workspace/:filename?file=:blobId&workspace=:workspace`
-  }
+  filesUrl ??= `${uploadUrl}/:workspace/:filename?file=:blobId&workspace=:workspace`
 
   const pushPublicKey = process.env.PUSH_PUBLIC_KEY
 

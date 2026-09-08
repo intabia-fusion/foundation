@@ -1,4 +1,4 @@
-import client, { ClientSocket } from '@hcengineering/client'
+import client from '@hcengineering/client'
 import { Client } from '@hcengineering/core'
 import { setMetadata } from '@hcengineering/platform'
 import { createClient, getTransactorEndpoint } from '@hcengineering/server-client'
@@ -62,7 +62,7 @@ export async function createPlatformClient (token: string): Promise<Client> {
       headers: {
         'User-Agent': config.ServiceID
       }
-    }) as never as ClientSocket
+    }) as never
   })
 
   const endpoint = await getTransactorEndpoint(token)
@@ -73,11 +73,11 @@ export async function createPlatformClient (token: string): Promise<Client> {
 
 export function getFileName (doc: Api.Document): string | undefined {
   const fileNameAttr = doc.originalArgs.attributes.find((p) => p.className === 'DocumentAttributeFilename')
-  if (fileNameAttr !== undefined && fileNameAttr.className === 'DocumentAttributeFilename') {
+  if (fileNameAttr?.className === 'DocumentAttributeFilename') {
     return fileNameAttr.fileName
   }
   const titleAttr = doc.originalArgs.attributes.find((p) => p.className === 'DocumentAttributeAudio')
-  if (titleAttr !== undefined && titleAttr.className === 'DocumentAttributeAudio') {
+  if (titleAttr?.className === 'DocumentAttributeAudio') {
     return titleAttr.title
   }
 }

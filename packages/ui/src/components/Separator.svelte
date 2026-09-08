@@ -528,7 +528,7 @@
     }
   }
   const checkParent = (): void => {
-    if (parentElement === null && separator != null) parentElement = separator.parentElement as HTMLElement
+    if (parentElement === null && separator != null) parentElement = separator.parentElement
     if (parentElement != null && typeof float === 'string') parentElement.setAttribute('data-float', float)
   }
 
@@ -549,7 +549,7 @@
     }
   }
   const clearParent = (): void => {
-    if (parentElement === null && separator != null) parentElement = separator.parentElement as HTMLElement
+    if (parentElement === null && separator != null) parentElement = separator.parentElement
     if (parentElement != null && typeof float === 'string') clearContainer(parentElement)
   }
 
@@ -634,7 +634,7 @@
 
   onMount(() => {
     if (separator != null) {
-      parentElement = separator.parentElement as HTMLElement
+      parentElement = separator.parentElement
       if (sState === SeparatorState.FLOAT) checkParent()
       else if (sState === SeparatorState.NORMAL) {
         checkSibling(true)

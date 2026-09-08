@@ -25,7 +25,7 @@
 
   export let type: StateType
   export let label: LabelString
-  export let params: LabelParams = {} as unknown as LabelParams
+  export let params: LabelParams = {}
 </script>
 
 <div

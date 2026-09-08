@@ -36,12 +36,12 @@
   $: canPreview = subscription.amount != null && subscription.periodStart != null && subscription.periodEnd != null
   $: preview = canPreview
     ? proratePackage({
-      oldAmount: subscription.amount ?? 0,
-      periodStart: subscription.periodStart ?? 0,
-      periodEnd: subscription.periodEnd ?? 0,
-      now: Date.now(),
-      newFullPrice: targetPriceKopecks
-    })
+        oldAmount: subscription.amount ?? 0,
+        periodStart: subscription.periodStart ?? 0,
+        periodEnd: subscription.periodEnd ?? 0,
+        now: Date.now(),
+        newFullPrice: targetPriceKopecks
+      })
     : undefined
 
   $: isUpgrade = preview?.isUpgrade ?? false

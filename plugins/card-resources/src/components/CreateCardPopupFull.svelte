@@ -150,8 +150,7 @@
     }
   }
 
-  $: typeAllowedBySpace =
-    type != null && selectedSpace != null && selectedSpace.types.includes(getRootType(hierarchy, type))
+  $: typeAllowedBySpace = type != null && selectedSpace?.types.includes(getRootType(hierarchy, type)) === true
   $: allowed =
     _space != null &&
     type != null &&

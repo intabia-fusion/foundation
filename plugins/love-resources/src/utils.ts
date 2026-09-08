@@ -289,7 +289,7 @@ export function closeMeetingMinutes (): void {
     const panel = get(panelstore).panel
     const { _id } = panel ?? {}
 
-    if (_id !== undefined && meetingMinutes !== undefined && _id === meetingMinutes._id) {
+    if (_id !== undefined && _id === meetingMinutes?._id) {
       closePanel()
     }
   }
@@ -502,14 +502,14 @@ export function getPlatformToken (): string {
 
 export async function startTranscription (mm: MeetingMinutes): Promise<void> {
   const current = get(currentMeetingMinutes)
-  if (current === undefined || mm._id !== current._id) return
+  if (mm._id !== current?._id) return
 
   await connectMeeting(mm._id, mm.language, { transcription: true })
 }
 
 export async function stopTranscription (mm: MeetingMinutes): Promise<void> {
   const current = get(currentMeetingMinutes)
-  if (current === undefined || mm._id !== current._id) return
+  if (mm._id !== current?._id) return
 
   await disconnectMeeting(mm._id)
 }

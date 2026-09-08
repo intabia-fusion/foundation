@@ -111,7 +111,7 @@
         usedOn: Date.now(),
         props: [
           {
-            key: github.class.GithubIntegrationRepository as string,
+            key: github.class.GithubIntegrationRepository,
             value: repository
           }
         ]

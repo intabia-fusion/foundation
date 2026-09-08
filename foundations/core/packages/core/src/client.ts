@@ -322,8 +322,8 @@ export async function createClient (
   txBuffer = undefined
 
   const oldOnConnect:
-  | ((event: ClientConnectEvent, lastTx: string | undefined, data: any) => Promise<void>)
-  | undefined = conn.onConnect
+    | ((event: ClientConnectEvent, lastTx: string | undefined, data: any) => Promise<void>)
+    | undefined = conn.onConnect
   conn.onConnect = async (event, _lastTx, data) => {
     console.log('Client: onConnect', event)
     if (event === ClientConnectEvent.Maintenance) {

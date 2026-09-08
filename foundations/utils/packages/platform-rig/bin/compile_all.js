@@ -38,6 +38,7 @@ function parseArgs(args) {
   let rootDir = ''
   let forceWorkers = false
   let groupTests = true
+  let lintFix = false
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
@@ -45,6 +46,8 @@ function parseArgs(args) {
       forceWorkers = true
     } else if (arg === '--no-test-group') {
       groupTests = false
+    } else if (arg === '--fix') {
+      lintFix = true
     } else if (arg === '--parallel' || arg === '-p') {
       const next = args[i + 1]
       if (next !== undefined && !next.startsWith('-')) {
@@ -110,7 +113,7 @@ function parseArgs(args) {
     verbose = process.env.VERBOSE === '1'
   }
 
-  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers, groupTests }
+  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers, groupTests, lintFix }
 }
 
 function printUsage() {
@@ -126,6 +129,7 @@ Options:
                        Parallel compilation respects dependency order (builds in waves)
   --force-workers      Force exact worker count, ignore memory limits (use with caution!)
   --no-test-group      Run every package's tests in its own jest process
+  --fix                Apply eslint's automatic fixes while linting
   --verbose, -v        Show detailed output for each package
   --validate           Accepted for compatibility: type checking is part of the build
   --test               Run tests for packages with "_phase:test"
@@ -659,7 +663,7 @@ async function compileAll(rootDir, options = {}) {
     const packagesToLint = packagesToBuild.filter((name) => graph.get(name)?.phaseFormat)
     if (packagesToLint.length > 0) {
       console.log(`\n=== Phase: Linting ${packagesToLint.length} packages ===`)
-      const lintResults = await runLintPhase(graph, packagesToLint, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph) })
+      const lintResults = await runLintPhase(graph, packagesToLint, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph), fix: options.lintFix })
       console.log(`Linted: ${lintResults.successCount}/${lintResults.total} packages in ${Math.round(lintResults.time)}ms`)
       recordPhase('lint', lintResults, null, null)
       if (lintResults.cacheHits > 0) console.log(`  (${lintResults.cacheHits} from cache)`)

@@ -37,7 +37,6 @@ import core, {
   type TxApplyIf,
   type TxCreateDoc,
   type TxRemoveDoc,
-  type TxResult,
   type TxUpdateDoc,
   type WithLookup
 } from '@hcengineering/core'
@@ -116,12 +115,12 @@ describe('WorkflowMiddleware', () => {
       getHierarchy: jest.fn(() => mockHierarchy),
       findOne: jest.fn(),
       findAll: jest.fn(),
-      tx: jest.fn().mockImplementation(async (tx: Tx) => ({ tx, success: true }) as unknown as TxResult),
+      tx: jest.fn().mockImplementation(async (tx: Tx) => ({ tx, success: true })),
       close: jest.fn().mockResolvedValue(undefined)
     } as unknown as jest.Mocked<Client>
 
     mockNext = {
-      tx: jest.fn().mockImplementation(async (tx: Tx) => ({ tx, success: true }) as unknown as TxResult),
+      tx: jest.fn().mockImplementation(async (tx: Tx) => ({ tx, success: true })),
       notifyTx: jest.fn().mockResolvedValue(undefined),
       close: jest.fn().mockResolvedValue(undefined),
       findAll: jest.fn(),
@@ -345,7 +344,7 @@ describe('WorkflowMiddleware', () => {
       mockHierarchy.isDerived.mockReturnValue(false)
       const updateProjectTx = createMockUpdateTx('proj-1' as Ref<Project>, task.class.Project, {
         name: 'Updated'
-      } as unknown as DocumentUpdate<Project>)
+      })
 
       await middleware.tx(updateProjectTx)
       expect(mockHierarchy.isDerived).toHaveBeenCalledWith(task.class.Project, task.class.Task)

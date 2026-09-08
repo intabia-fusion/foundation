@@ -31,7 +31,7 @@ async function onDirectCreate (
   const ctx = { contextData: { account: { uuid: actor } } }
   const tx = { attributes: { members: [...members] } }
   await middleware.onDirectCreate(ctx, tx)
-  return tx.attributes as any
+  return tx.attributes
 }
 
 describe('onDirectCreate', () => {

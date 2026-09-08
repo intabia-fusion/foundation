@@ -18,7 +18,7 @@
       await client.diffUpdate(preference, { [propName]: value })
     } else {
       await client.createDoc(notification.class.NotificationAppearancePreference, core.space.Workspace, {
-        attachedTo: '' as Ref<Doc>,
+        attachedTo: '',
         ...defaultData,
         [propName]: value
       })

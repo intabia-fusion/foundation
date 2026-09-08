@@ -197,7 +197,7 @@ export async function updateDeepgramBilling (ctx: MeasureContext): Promise<void>
     const requests = res.requests ?? []
 
     for (const req of requests) {
-      if (lastData != null && lastData.lastRequestId === req.request_id) continue
+      if (lastData?.lastRequestId === req.request_id) continue
 
       const tags = req.response?.details?.tags ?? []
       if (!tags.includes(config.DeepgramTag)) continue

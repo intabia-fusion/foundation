@@ -51,7 +51,7 @@
   let persons: Person[] = []
   $: persons = filter(items)
     .map((p) => $personByRefStore.get(p))
-    .filter((p) => p !== undefined) as Person[]
+    .filter((p) => p !== undefined)
 
   const dispatch = createEventDispatcher()
 

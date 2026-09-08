@@ -23,7 +23,7 @@
   let popup: HTMLDivElement | undefined
 
   function isClickInsidePopup (target: Node): boolean {
-    if (popup !== undefined && popup.contains(target)) return true
+    if (popup?.contains(target) === true) return true
     if (!(target instanceof Element)) return false
 
     if (target.closest('.tippy-box') !== null) return true

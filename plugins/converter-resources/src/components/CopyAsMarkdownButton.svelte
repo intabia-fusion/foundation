@@ -50,7 +50,7 @@
   }
 
   async function onActionSelected (event?: CustomEvent): Promise<void> {
-    if (event == null || event.detail !== COPY_ALL_ACTION_ID) {
+    if (event?.detail !== COPY_ALL_ACTION_ID) {
       return
     }
 

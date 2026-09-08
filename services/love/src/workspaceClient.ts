@@ -498,11 +498,11 @@ export class WorkspaceClient {
           const place =
             roomDoc !== undefined
               ? getFreeRoomPlace(
-                roomDoc,
-                participants,
-                person,
-                meta.x !== undefined && meta.y !== undefined ? { x: meta.x, y: meta.y } : undefined
-              )
+                  roomDoc,
+                  participants,
+                  person,
+                  meta.x !== undefined && meta.y !== undefined ? { x: meta.x, y: meta.y } : undefined
+                )
               : { x: 0, y: 0 }
           const oid = generateId<ParticipantInfo>()
 
@@ -595,7 +595,7 @@ export class WorkspaceClient {
     try {
       const socialIds = await this.client.findAll(contact.class.SocialIdentity, { attachedTo: personRef }, { limit: 1 })
       if (socialIds.length > 0) {
-        return socialIds[0]._id as PersonId
+        return socialIds[0]._id
       }
     } catch (err: any) {
       this.ctx.error('[WorkspaceClient.getPersonIdByPersonRef] Failed', {
@@ -647,7 +647,7 @@ export class WorkspaceClient {
   async findPersonByAccount (account: AccountUuid): Promise<Ref<Person> | undefined> {
     try {
       const persons = await this.client.findAll(contact.class.Person, {
-        personUuid: account as unknown as Person['personUuid']
+        personUuid: account
       })
       return persons[0]?._id
     } catch (err: any) {

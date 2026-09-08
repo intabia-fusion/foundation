@@ -66,7 +66,7 @@
 
   const colors = getPlatformAvatarColors($themeStore.dark)
   let color: ColorDefinition | undefined =
-    (selectedAvatarType as AvatarType) === AvatarType.COLOR
+    selectedAvatarType === AvatarType.COLOR
       ? getPlatformAvatarColorByName(selectedAvatarProps?.color ?? '', $themeStore.dark)
       : undefined
 

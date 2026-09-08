@@ -16,7 +16,6 @@
 import {
   type ActivityMessage,
   type DocAttributeUpdates,
-  type DocUpdateAction,
   type DocUpdateMessage,
   type DocUpdateMessageHistory,
   type Reaction
@@ -447,7 +446,7 @@ async function migrateCollaboratorsActivity (client: MigrationClient): Promise<v
           modifiedOn: doc.modifiedOn,
           attachedTo: doc.attachedTo,
           attachedToClass: doc.attachedToClass,
-          action: 'create' as DocUpdateAction,
+          action: 'create',
           updateCollection: 'collaborators',
           objectId: collaboratorId,
           objectClass: core.class.Collaborator,
@@ -472,7 +471,7 @@ async function migrateCollaboratorsActivity (client: MigrationClient): Promise<v
           modifiedOn: doc.modifiedOn,
           attachedTo: doc.attachedTo,
           attachedToClass: doc.attachedToClass,
-          action: 'remove' as DocUpdateAction,
+          action: 'remove',
           updateCollection: 'collaborators',
           objectId: generateId<Collaborator>(),
           objectClass: core.class.Collaborator,
@@ -830,8 +829,8 @@ async function migrateAggregateDocUpdateMessages (client: MigrationClient): Prom
 
     if (toUpdate.size > 0) {
       const groupedUpdates = new Map<
-      string,
-      { filter: MigrationDocumentQuery<DocUpdateMessage>, update: MigrateUpdate<DocUpdateMessage> }[]
+        string,
+        { filter: MigrationDocumentQuery<DocUpdateMessage>, update: MigrateUpdate<DocUpdateMessage> }[]
       >()
 
       for (const [id, up] of toUpdate.entries()) {

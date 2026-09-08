@@ -187,7 +187,7 @@ export async function OnToDoRemove (txes: Tx[], control: TriggerControl): Promis
     const project = (await control.findAll(control.ctx, task.class.Project, { _id: issue.space }))[0]
     if (project !== undefined) {
       const type = (await control.modelDb.findAll(task.class.ProjectType, { _id: project.type }))[0]
-      if (type !== undefined && type.classic) {
+      if (type?.classic) {
         const factory = new TxFactory(control.txFactory.account)
         const taskType = (await control.modelDb.findAll(task.class.TaskType, { _id: issue.kind }))[0]
         if (taskType !== undefined) {

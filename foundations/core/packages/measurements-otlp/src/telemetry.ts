@@ -539,9 +539,7 @@ let externalMetricsCtx: MetricsContext | undefined
  */
 export function recordOTELMetric (scope: string, name: string, value: number, labels: Record<string, any> = {}): void {
   if (sdkServiceName === undefined) return
-  if (externalMetricsCtx === undefined) {
-    externalMetricsCtx = new MetricsContext(otelMetrics.getMeter(scope, sdkServiceVersion))
-  }
+  externalMetricsCtx ??= new MetricsContext(otelMetrics.getMeter(scope, sdkServiceVersion))
   const isDuration = /(\.duration|_duration|\.ms|_ms)$/.test(name)
   if (isDuration) {
     externalMetricsCtx.getHistogram(name)?.record(value, labels)

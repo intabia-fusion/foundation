@@ -19,6 +19,7 @@ const { success, error, dim } = require('../libs/colors')
  * Concurrency is capped at 2 to limit ESLint memory usage (~3GB per worker).
  */
 async function runLintPhase(graph, packageNames, concurrency, options = {}) {
+  const fix = options.fix === true
   const { force = false, packageHashes, typesHashes } = options
 
   // Lint sees dependencies through their emitted .d.ts, so key on those, not on their sources.
@@ -78,7 +79,7 @@ async function runLintPhase(graph, packageNames, concurrency, options = {}) {
     }
 
     const taskStart = performance.now()
-    const result = await pool.runTask('lint', cwd, { srcDir: 'src' })
+    const result = await pool.runTask('lint', cwd, { srcDir: 'src', fix })
     const waitTime = Math.round(performance.now() - taskStart)
     const taskTime = result.durationMs !== undefined ? result.durationMs : waitTime
     completedCount++

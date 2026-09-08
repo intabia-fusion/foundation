@@ -30,9 +30,7 @@ export class PaymentProviderFactory {
   private constructor () {}
 
   static getInstance (): PaymentProviderFactory {
-    if (this.instance === undefined) {
-      this.instance = new PaymentProviderFactory()
-    }
+    this.instance ??= new PaymentProviderFactory()
     return this.instance
   }
 

@@ -3,6 +3,7 @@ WORKDIR /usr/src/app
 
 COPY package.json package.json
 COPY pnpm-lock.yaml pnpm-lock.yaml
+COPY docker-pnpm-workspace.yaml pnpm-workspace.yaml
 
 # Frozen: a lock that drifted from package.json must fail here, not silently re-resolve online.
 RUN pnpm install --frozen-lockfile --ignore-scripts=false

@@ -285,7 +285,7 @@ describe('Workflow Validators', () => {
       const taskWithMixin = {
         ...taskDoc,
         [mixinClass]: { extraInfo: 'Present' }
-      } as unknown as Task
+      }
 
       const client = createMockValidatorClient({
         attributes: {
@@ -301,7 +301,7 @@ describe('Workflow Validators', () => {
       const emptyMixinTask = {
         ...taskDoc,
         [mixinClass]: { extraInfo: '' }
-      } as unknown as Task
+      }
 
       const invalidResult = await FieldRequired(client, emptyMixinTask, dummyTransition, {
         fields: [{ mixin: mixinClass, fieldKey: 'extraInfo' }]

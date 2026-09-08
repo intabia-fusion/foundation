@@ -45,14 +45,14 @@
   $: canPreview = subscription.amount != null && subscription.periodStart != null && subscription.periodEnd != null
   $: preview = canPreview
     ? prorateSeats({
-      oldAmount: subscription.amount ?? 0,
-      oldSeats,
-      periodStart: subscription.periodStart ?? 0,
-      periodEnd: subscription.periodEnd ?? 0,
-      now: Date.now(),
-      newSeats: seats,
-      newFullPrice: recurringPriceFor(seats)
-    })
+        oldAmount: subscription.amount ?? 0,
+        oldSeats,
+        periodStart: subscription.periodStart ?? 0,
+        periodEnd: subscription.periodEnd ?? 0,
+        now: Date.now(),
+        newSeats: seats,
+        newFullPrice: recurringPriceFor(seats)
+      })
     : undefined
 
   $: newRecurring = recurringPriceFor(seats)

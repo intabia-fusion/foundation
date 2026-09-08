@@ -51,7 +51,7 @@ function makeUserTx (n: number): Tx[] {
       factory.createTxCreateDoc(
         itemClass,
         'test:space:S' as Ref<Space>,
-        { name: `item ${i}` } as any,
+        { name: `item ${i}` },
         `test:doc:${i}` as Ref<Doc>
       )
     )
@@ -186,7 +186,7 @@ describe('ModelMiddleware model cache', () => {
     const external = factory.createTxCreateDoc(
       itemClass,
       'test:space:S' as Ref<Space>,
-      { name: 'written by a migration' } as any,
+      { name: 'written by a migration' },
       'test:doc:external' as Ref<Doc>
     )
     setDbModel(userTx.concat([external]))
@@ -284,7 +284,7 @@ describe('ModelMiddleware model cache', () => {
       modifiedOn: 1,
       modifiedBy: acc
     } as unknown as TxCUD<Doc>
-    await middleware.tx(harness.ctx, [accountTx as Tx])
+    await middleware.tx(harness.ctx, [accountTx])
 
     const model = (await middleware.loadModel(harness.ctx, 0)) as Tx[]
     expect(model.some((it) => it._id === 'test:tx:account')).toBe(false)
@@ -314,7 +314,7 @@ describe('ModelMiddleware model cache', () => {
       factory.createTxCreateDoc(
         'test:class:Undeclared' as Ref<Class<Doc>>,
         core.space.Model,
-        {} as any,
+        {},
         'test:doc:broken' as Ref<Doc>
       )
     ]
@@ -333,7 +333,7 @@ describe('ModelMiddleware model cache', () => {
     const before = middleware.lastHash
     // A tx the filter drops must move neither the hash nor the served model.
     await middleware.tx(harness.ctx, [
-      factory.createTxCreateDoc(itemClass, core.space.Model, { name: 'x' } as any, 'test:doc:filtered' as Ref<Doc>)
+      factory.createTxCreateDoc(itemClass, core.space.Model, { name: 'x' }, 'test:doc:filtered' as Ref<Doc>)
     ])
     expect(middleware.lastHash).toBe(before)
 

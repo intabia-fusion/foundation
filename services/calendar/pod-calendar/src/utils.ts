@@ -266,9 +266,7 @@ export function encodeReccuring (rules: RecurringRule[], rdates: number[], exdat
 let serviceToken: string | undefined
 
 export function getServiceToken (): string {
-  if (serviceToken === undefined) {
-    serviceToken = generateServiceToken()
-  }
+  serviceToken ??= generateServiceToken()
   return serviceToken
 }
 

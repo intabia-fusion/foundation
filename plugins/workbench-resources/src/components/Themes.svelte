@@ -103,7 +103,7 @@
 
   function trackerIcon (name: string): Asset | undefined {
     const id = `tracker:icon:${name}` as Metadata<Asset>
-    return getMetadata(id) !== undefined ? (id as unknown as Asset) : undefined
+    return getMetadata(id) !== undefined ? id : undefined
   }
 
   onMount(() => {

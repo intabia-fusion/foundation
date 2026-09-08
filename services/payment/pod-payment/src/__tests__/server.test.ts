@@ -98,7 +98,7 @@ const config: Config = {
   StripeApiKey: 'sk_test',
   StripeWebhookSecret: 'whsec',
   StripeSubscriptionPlans: '{}'
-} as unknown as Config
+}
 
 // Route handlers run through ctx.with(...) (real MeasureContext); stub it as a passthrough so
 // handleRequest actually awaits the handler instead of throwing on a missing method.

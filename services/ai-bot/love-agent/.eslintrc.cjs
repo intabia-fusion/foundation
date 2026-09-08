@@ -1,6 +1,6 @@
 module.exports = {
   "extends": [
-    "standard-with-typescript"
+    "../../../foundations/utils/packages/platform-rig/profiles/node/eslint.config.json"
   ],
   "ignorePatterns": ["*.json", "node_modules/*", ".eslintrc.cjs", "esbuild.config.js"],
   "rules": {

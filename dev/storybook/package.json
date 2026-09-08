@@ -29,6 +29,6 @@
     "sass-loader": "^14.0.0",
     "storybook": "^7.0.6",
     "storybook-addon-themes": "^6.1.0",
-    "svelte-preprocess": "^5.1.4"
+    "svelte-preprocess": "^6.0.5"
   }
 }

@@ -13,7 +13,12 @@
 // limitations under the License.
 //
 
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- jest.MockedFunction is a namespace type, there is no import form
+/// <reference types="jest" />
+
 // TypeScript setup for Jest test environment
+// The reference above is needed because desktop's jsdom project pulls this file in from outside its
+// own rootDir, where TypeScript 6 no longer resolves the `types` entry for it.
 
 // Mock getComputedStyle
 Object.defineProperty(window, 'getComputedStyle', {

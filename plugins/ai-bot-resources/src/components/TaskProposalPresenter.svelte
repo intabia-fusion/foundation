@@ -131,7 +131,7 @@
       id: generateId<Issue>(),
       title: s.title,
       description: toMarkup(s.description),
-      priority: (s.priority ?? 0) as IssuePriority,
+      priority: s.priority ?? 0,
       estimation: s.estimation ?? 0,
       assignee: null,
       component: null,
@@ -242,7 +242,7 @@
       const rootIssue = await createIssue(client, target, {
         title,
         description: toMarkup(value.description),
-        priority: value.priority as IssuePriority | undefined,
+        priority: value.priority,
         estimation: value.estimation
       })
       fresh.push(rootIssue)

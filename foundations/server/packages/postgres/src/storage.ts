@@ -795,11 +795,9 @@ abstract class PostgresAdapterBase implements DbAdapter {
         const parent = parentMap.get(parentId)
         if (parent === undefined) continue
 
-        if (parent.$associations === undefined) {
-          parent.$associations = {}
-        }
+        parent.$associations ??= {}
 
-        if (parent.$associations[key] === undefined) parent.$associations[key] = []
+        parent.$associations[key] ??= []
         parent.$associations[key].push(parsed)
         if (!nextParentMap.has(parsed._id)) {
           nextParentMap.set(parsed._id, parsed)
@@ -1095,7 +1093,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
         const key = escape(_key)
         if (attr !== undefined && NumericTypes.includes(attr.type._class)) {
           res.push(`(${this.getKey(_class, baseDomain, key, joins)})::numeric ${val === 1 ? 'ASC' : 'DESC'}`)
-        } else if (attr !== undefined && attr.type._class === core.class.TypeIdentifier) {
+        } else if (attr?.type._class === core.class.TypeIdentifier) {
           res.push(
             `regexp_replace(COALESCE(${this.getKey(_class, baseDomain, key, joins)}, ''), '-?\\d+$', '') ${val === 1 ? 'ASC' : 'DESC'}`
           )
@@ -1166,13 +1164,13 @@ abstract class PostgresAdapterBase implements DbAdapter {
     if (this.hierarchy.isMixin(mixinOrKey as Ref<Class<Doc>>)) {
       key = splitted.slice(1).join('.')
       const attr = this.hierarchy.findAttribute(mixinOrKey as Ref<Class<Doc>>, key)
-      if (attr !== undefined && attr.type._class === core.class.ArrOf) {
+      if (attr?.type._class === core.class.ArrOf) {
         return isDataField(domain, key) ? 'dataArray' : 'array'
       }
       return 'common'
     } else {
       const attr = this.hierarchy.findAttribute(_class, key)
-      if (attr !== undefined && attr.type._class === core.class.ArrOf) {
+      if (attr?.type._class === core.class.ArrOf) {
         return isDataField(domain, key) ? 'dataArray' : 'array'
       }
       return 'common'
@@ -1270,7 +1268,7 @@ abstract class PostgresAdapterBase implements DbAdapter {
     isDataArray: boolean = false
   ): string {
     if (!isDataField(domain, key)) return `"${key}"`
-    const arr = key.split('.').filter((p) => p)
+    const arr = key.split('.').filter((p) => p !== '')
     let tKey = ''
     let isNestedField = false
 
@@ -1601,16 +1599,14 @@ abstract class PostgresAdapterBase implements DbAdapter {
 
     // Memoized: concurrent next() calls must not reserve two clients, the second would leak.
     const ensureBulk = async (): Promise<AsyncGenerator<Doc[]>> => {
-      if (init === undefined) {
-        init = (async () => {
-          client = await this.client.reserve()
-          bulk = createBulk('_id, "%hash%"')
-          return bulk
-        })().catch((err) => {
-          init = undefined // reserve() may fail transiently, let the next call retry
-          throw err
-        })
-      }
+      init ??= (async () => {
+        client = await this.client.reserve()
+        bulk = createBulk('_id, "%hash%"')
+        return bulk
+      })().catch((err) => {
+        init = undefined // reserve() may fail transiently, let the next call retry
+        throw err
+      })
       return await init
     }
 
@@ -1666,16 +1662,14 @@ abstract class PostgresAdapterBase implements DbAdapter {
 
     // Memoized: concurrent find() calls must not reserve two clients, the second would leak.
     const ensureBulk = async (): Promise<AsyncGenerator<Doc[]>> => {
-      if (init === undefined) {
-        init = (async () => {
-          client = await this.client.reserve()
-          bulk = createBulk('*')
-          return bulk
-        })().catch((err) => {
-          init = undefined // reserve() may fail transiently, let the next call retry
-          throw err
-        })
-      }
+      init ??= (async () => {
+        client = await this.client.reserve()
+        bulk = createBulk('*')
+        return bulk
+      })().catch((err) => {
+        init = undefined // reserve() may fail transiently, let the next call retry
+        throw err
+      })
       return await init
     }
 

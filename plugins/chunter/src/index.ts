@@ -27,7 +27,7 @@ import { Widget, WidgetTab } from '@hcengineering/workbench'
 /**
  * @public
  */
-export interface ChunterSpace extends Space {}
+export type ChunterSpace = Space
 
 /**
  * @public
@@ -265,24 +265,24 @@ export default plugin(chunterId, {
     CanTranslateMessage: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     CanSummarizeMessages: '' as Resource<(doc?: Doc | Doc[]) => Promise<boolean>>,
     OpenThreadInSidebar: '' as Resource<
-    (
-      _id: Ref<ActivityMessage>,
-      msg?: ActivityMessage,
-      doc?: Doc,
-      selectedId?: Ref<ActivityMessage>,
-      props?: Record<string, any>,
-      force?: boolean
-    ) => Promise<void>
+      (
+        _id: Ref<ActivityMessage>,
+        msg?: ActivityMessage,
+        doc?: Doc,
+        selectedId?: Ref<ActivityMessage>,
+        props?: Record<string, any>,
+        force?: boolean
+      ) => Promise<void>
     >,
     OpenChannelInSidebar: '' as Resource<
-    (
-      _id: Ref<Doc>,
-      _class: Ref<Class<Doc>>,
-      doc?: Doc,
-      thread?: Ref<ActivityMessage>,
-      newTab?: boolean,
-      selectedMessageId?: Ref<ActivityMessage>
-    ) => Promise<void>
+      (
+        _id: Ref<Doc>,
+        _class: Ref<Class<Doc>>,
+        doc?: Doc,
+        thread?: Ref<ActivityMessage>,
+        newTab?: boolean,
+        selectedMessageId?: Ref<ActivityMessage>
+      ) => Promise<void>
     >,
     OpenDirectForPerson: '' as Resource<(person: Person) => Promise<void>>
   }

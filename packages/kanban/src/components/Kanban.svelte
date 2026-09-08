@@ -70,8 +70,8 @@
   export let storageKey: string | undefined = undefined
   export let controlKey: string | undefined = undefined
   export let getSwimLaneHeaderStyle:
-  | ((swimLane: SwimLane) => { background?: string, color?: string } | undefined)
-  | undefined = undefined
+    | ((swimLane: SwimLane) => { background?: string, color?: string } | undefined)
+    | undefined = undefined
   export let compact: boolean = false
 
   import { registerSwimLaneControls } from '../swimlane'
@@ -157,15 +157,9 @@
     const raw = getGroupByValues(_groupByDocs, category) ?? []
     const ofDoc = getSwimLaneOfDoc
     const inThisLane =
-      _dragCard !== undefined &&
-      _dragCardCurrentSwimLane !== undefined &&
-      _dragCardCurrentSwimLane._id === swimLane._id &&
-      _dragCardState === category
+      _dragCard !== undefined && _dragCardCurrentSwimLane?._id === swimLane._id && _dragCardState === category
     const isOriginal =
-      _dragCard !== undefined &&
-      dragCardInitialSwimLane !== undefined &&
-      dragCardInitialSwimLane._id === swimLane._id &&
-      dragCardInitialState === category
+      _dragCard !== undefined && dragCardInitialSwimLane?._id === swimLane._id && dragCardInitialState === category
     if (inThisLane && isOriginal && _dragCardTargetIndex === undefined) {
       // Card stays at its original position in the original cell — no filtering of dragCard.
       return ofDoc === undefined ? raw : raw.filter((doc) => doc._id === _dragCard?._id || ofDoc(doc) === swimLane._id)
@@ -234,7 +228,7 @@
       swimLaneMode &&
       targetSwimLane !== undefined &&
       getSwimLaneUpdateProps !== undefined &&
-      (dragCardInitialSwimLane === undefined || dragCardInitialSwimLane._id !== targetSwimLane._id)
+      dragCardInitialSwimLane?._id !== targetSwimLane._id
     ) {
       swimUpdates = getSwimLaneUpdateProps(dragCard, targetSwimLane)
     }
@@ -382,8 +376,7 @@
     event?.preventDefault()
     if (dragCard === undefined) return
 
-    const swimLaneChanged =
-      swimLane !== undefined && (dragCardCurrentSwimLane === undefined || dragCardCurrentSwimLane._id !== swimLane._id)
+    const swimLaneChanged = swimLane !== undefined && dragCardCurrentSwimLane?._id !== swimLane._id
 
     if (dragCardState !== state || swimLaneChanged) {
       const canDrop = dragCardAvailableCategories === undefined || dragCardAvailableCategories.includes(state)
@@ -560,7 +553,7 @@
         swimLaneMode &&
         swimLane !== undefined &&
         getSwimLaneUpdateProps !== undefined &&
-        (dragCardInitialSwimLane === undefined || dragCardInitialSwimLane._id !== swimLane._id)
+        dragCardInitialSwimLane?._id !== swimLane._id
       ) {
         swimUpdates = getSwimLaneUpdateProps(dragCard, swimLane)
       }

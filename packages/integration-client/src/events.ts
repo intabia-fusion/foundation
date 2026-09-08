@@ -95,9 +95,7 @@ const GlobalIntegrationEventBus = {
   instance: null as IntegrationEventEmitter | null,
 
   getInstance (): IntegrationEventEmitter {
-    if (GlobalIntegrationEventBus.instance == null) {
-      GlobalIntegrationEventBus.instance = new IntegrationEventEmitter()
-    }
+    GlobalIntegrationEventBus.instance ??= new IntegrationEventEmitter()
     return GlobalIntegrationEventBus.instance
   },
 

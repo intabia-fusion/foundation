@@ -30,8 +30,8 @@ export function looksLikeHttpOrRefMarkdownLink (s: string): boolean {
  * Escape plain text for a pipe-table cell. Document links (RefTo cells from formatValue) keep their
  * `[text](url)` shape, but label and URL are escaped separately - a pipe inside either still breaks the row.
  */
-export function escapeMarkdownTableCellContent (value: unknown): string {
-  const s = value == null ? '' : String(value)
+export function escapeMarkdownTableCellContent (value: string | null | undefined): string {
+  const s = value ?? ''
   if (looksLikeHttpOrRefMarkdownLink(s)) {
     const t = s.trim()
     const sep = t.indexOf('](')

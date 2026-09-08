@@ -22,7 +22,7 @@ import {
   MarkupNodeType
 } from '@hcengineering/text-core'
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface HtmlSerializerOptions {}
 
 export class HtmlSerializer {

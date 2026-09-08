@@ -200,8 +200,8 @@ export function resolveLang (locale: string | null): Lang {
 export type ChargeKind = 'purchase' | 'update' | 'renewal' | 'retry'
 
 const CHARGE_DESCRIPTION = chargeDescriptionTemplates as Record<
-Lang,
-{ tier: Record<ChargeKind, string>, package: Record<ChargeKind, string> }
+  Lang,
+  { tier: Record<ChargeKind, string>, package: Record<ChargeKind, string> }
 >
 
 /**

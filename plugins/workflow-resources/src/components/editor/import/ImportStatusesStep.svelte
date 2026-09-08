@@ -76,7 +76,7 @@
   })
 
   $: getStatusLabel = (id: Ref<Status>): string =>
-    report?.statuses.find((s) => s.sourceStatusId === id)?.sourceName ?? (id as string)
+    report?.statuses.find((s) => s.sourceStatusId === id)?.sourceName ?? id
 
   function getTargetStatusItemsForRow (sourceStatusId: Ref<Status>): DropdownIntlItem[] {
     const selectedInOtherRows = new Set(
@@ -94,7 +94,7 @@
       <IconError size="small" />
       <span><Label label={plugin.string.DuplicateStatusMappingWarning} /></span>
     </div>
-  {:else if report != null && report.statuses.every((s) => statusMap[s.sourceStatusId] !== undefined)}
+  {:else if report?.statuses.every((s) => statusMap[s.sourceStatusId] !== undefined)}
     <div class="success-banner flex-row-center flex-gap-2 mb-3">
       <div class="success-icon-badge flex-center">
         <IconCheck size="small" />
@@ -112,7 +112,7 @@
         <Label label={plugin.string.MissingStatusesWillBeCreated} />
       </span>
     </div>
-  {:else if report != null && report.statuses.some((s) => statusMap[s.sourceStatusId] === undefined)}
+  {:else if report?.statuses.some((s) => statusMap[s.sourceStatusId] === undefined)}
     <div class="warning-banner flex-col flex-gap-2 mb-3">
       <div class="flex-between flex-row-center flex-gap-2">
         <div class="flex-row-center flex-gap-2">

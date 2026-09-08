@@ -116,7 +116,7 @@ function mixedClass (): { _class: Ref<Class<Doc>>, mixin: Ref<Mixin<Doc>> } {
 }
 
 function anyAttribute (): AnyAttribute {
-  return base.db.findAllSync(core.class.Attribute, { hidden: { $ne: true } } as any)[0]
+  return base.db.findAllSync(core.class.Attribute, { hidden: { $ne: true } })[0]
 }
 
 describe('workspace over the real system model', () => {
@@ -209,7 +209,7 @@ describe('workspace over the real system model', () => {
         factory.createTxCreateDoc(
           core.class.Mixin,
           core.space.Model,
-          { kind: ClassifierKind.MIXIN, extends: core.class.Space, label: core.string.Name } as any,
+          { kind: ClassifierKind.MIXIN, extends: core.class.Space, label: core.string.Name },
           _id
         )
       ],
@@ -308,7 +308,7 @@ describe('workspace over the real system model', () => {
         factory.createTxCreateDoc(
           core.class.Class,
           core.space.Model,
-          { kind: ClassifierKind.CLASS, extends: core.class.Space, label: core.string.Name } as any,
+          { kind: ClassifierKind.CLASS, extends: core.class.Space, label: core.string.Name },
           _id
         )
       ],
@@ -348,10 +348,10 @@ describe('workspace over the real system model', () => {
         factory.createTxCreateDoc(
           core.class.Class,
           core.space.Model,
-          { kind: ClassifierKind.CLASS, extends: core.class.Doc, label: core.string.Name } as any,
+          { kind: ClassifierKind.CLASS, extends: core.class.Doc, label: core.string.Name },
           own
         ),
-        factory.createTxUpdateDoc(core.class.Class, core.space.Model, core.class.Space, { extends: own } as any)
+        factory.createTxUpdateDoc(core.class.Class, core.space.Model, core.class.Space, { extends: own })
       ],
       true
     )
@@ -371,7 +371,7 @@ describe('workspace over the real system model', () => {
         factory.createTxCreateDoc(
           core.class.Space,
           core.space.Model,
-          { name: 'own', description: '', private: false, archived: false, members: [] } as any,
+          { name: 'own', description: '', private: false, archived: false, members: [] },
           _id
         )
       ],
@@ -409,7 +409,7 @@ describe('workspace over the real system model', () => {
 
     ws.db.addTxes(
       ctx,
-      [factory.createTxUpdateDoc(status._class, core.space.Model, status._id, { name: 'ws-renamed' } as any)],
+      [factory.createTxUpdateDoc(status._class, core.space.Model, status._id, { name: 'ws-renamed' })],
       true
     )
 
@@ -440,10 +440,10 @@ describe('workspace over the real system model', () => {
     ws.db.addTxes(
       ctx,
       [
-        factory.createTxUpdateDoc(taskType._class, core.space.Model, taskType._id, { name: 'ws-task-type' } as any),
+        factory.createTxUpdateDoc(taskType._class, core.space.Model, taskType._id, { name: 'ws-task-type' }),
         factory.createTxUpdateDoc(taskType._class, core.space.Model, taskType._id, {
           $push: { statuses: extraStatus }
-        } as any)
+        })
       ],
       true
     )
@@ -468,7 +468,7 @@ describe('workspace over the real system model', () => {
       [
         factory.createTxUpdateDoc(taskType._class, core.space.Model, taskType._id, {
           $pull: { statuses: victim }
-        } as any)
+        })
       ],
       true
     )
@@ -488,7 +488,7 @@ describe('workspace over the real system model', () => {
         factory.createTxUpdateDoc(projectType._class, core.space.Model, projectType._id, {
           name: 'ws-project-type',
           $push: { tasks: 'test:taskType:Extra' }
-        } as any)
+        })
       ],
       true
     )
@@ -509,10 +509,10 @@ describe('workspace over the real system model', () => {
       ws.db.addTxes(
         ctx,
         [
-          factory.createTxUpdateDoc(status._class, core.space.Model, status._id, { name: `status-${i}` } as any),
+          factory.createTxUpdateDoc(status._class, core.space.Model, status._id, { name: `status-${i}` }),
           factory.createTxUpdateDoc(taskType._class, core.space.Model, taskType._id, {
             $push: { statuses: `test:status:S${i}` }
-          } as any)
+          })
         ],
         true
       )

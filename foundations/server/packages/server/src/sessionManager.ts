@@ -169,11 +169,11 @@ export class TSessionManager implements SessionManager {
     readonly timeouts: Timeouts,
     readonly brandingMap: BrandingMap,
     readonly profiling:
-    | {
-      start: () => void
-      stop: () => Promise<string | undefined>
-    }
-    | undefined,
+      | {
+        start: () => void
+        stop: () => Promise<string | undefined>
+      }
+      | undefined,
     readonly accountsUrl: string,
     readonly enableCompression: boolean,
     readonly doHandleTick: boolean = true,
@@ -995,7 +995,7 @@ export class TSessionManager implements SessionManager {
     }
     let cachedClasses: Ref<Class<Doc>>[] | null = null
     const droppedClasses = (): Ref<Class<Doc>>[] => {
-      if (cachedClasses === null) cachedClasses = computeClasses(tx)
+      cachedClasses ??= computeClasses(tx)
       return cachedClasses
     }
     const buildRefreshTx = (classes: Ref<Class<Doc>>[]): TxWorkspaceEvent => ({
@@ -1506,17 +1506,17 @@ export class TSessionManager implements SessionManager {
       accountUuid: AccountUuid
       role: AccountRole
     }
-    > {
+  > {
     const ws = this.workspaces.get(workspace)
     if (ws === undefined) {
       return new Map()
     }
     const res = new Map<
-    PersonId,
-    {
-      accountUuid: AccountUuid
-      role: AccountRole
-    }
+      PersonId,
+      {
+        accountUuid: AccountUuid
+        role: AccountRole
+      }
     >()
     const populate = (s: Session): void => {
       const sessionAccount = s.getUser()
@@ -1858,11 +1858,11 @@ export function createSessionManager (
   brandingMap: BrandingMap,
   timeouts: Timeouts,
   profiling:
-  | {
-    start: () => void
-    stop: () => Promise<string | undefined>
-  }
-  | undefined,
+    | {
+      start: () => void
+      stop: () => Promise<string | undefined>
+    }
+    | undefined,
   accountsUrl: string,
   enableCompression: boolean,
   doHandleTick: boolean = true,

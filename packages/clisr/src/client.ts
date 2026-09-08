@@ -250,7 +250,7 @@ export class ClisrClient {
   }
 
   isConnected (): boolean {
-    return this.websocket != null && this.websocket.readyState === ClientSocketReadyState.OPEN && this.helloReceived
+    return this.websocket?.readyState === ClientSocketReadyState.OPEN && this.helloReceived
   }
 
   delay = 0
@@ -555,7 +555,7 @@ export class ClisrClient {
   private async sendResponse (responseToSend: any, respId: ReqId): Promise<void> {
     try {
       // Wait for connection to be ready before sending
-      if (this.websocket == null || this.websocket.readyState !== ClientSocketReadyState.OPEN) {
+      if (this.websocket?.readyState !== ClientSocketReadyState.OPEN) {
         // Wait for connection to be established
         const connectionPromise = this.waitOpenConnection(this.ctx)
         if (connectionPromise instanceof Promise) {
@@ -837,7 +837,7 @@ export class ClisrClient {
           if (Buffer.isBuffer(dec)) {
             u8dec = new Uint8Array(dec.buffer, dec.byteOffset, dec.byteLength)
           } else {
-            u8dec = dec as unknown as Uint8Array
+            u8dec = dec
           }
           this.ctx.info('[ClisrClient] decompressed incoming data', { len: u8dec.byteLength })
           try {
@@ -894,7 +894,7 @@ export class ClisrClient {
           if (Buffer.isBuffer(dec)) {
             u8 = new Uint8Array(dec.buffer, dec.byteOffset, dec.byteLength)
           } else {
-            u8 = dec as unknown as Uint8Array
+            u8 = dec
           }
           this.ctx.info('[ClisrClient] decompressed incoming data', { len: u8.byteLength })
           try {

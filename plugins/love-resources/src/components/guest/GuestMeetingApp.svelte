@@ -304,7 +304,7 @@
   $: void fetchGuestInfo($ticker)
 
   onMount(() => {
-    roomEl && roomEl.addEventListener('fullscreenchange', handleFullScreen)
+    roomEl?.addEventListener('fullscreenchange', handleFullScreen)
 
     // Subscribe to LiveKit events for guest-only detection
     if (lk) {
@@ -438,7 +438,7 @@
           </div>
         </div>
       </div>
-    {:else if guestInfo != null && guestInfo.meetingStatus === MeetingStatus.Scheduled}
+    {:else if guestInfo?.meetingStatus === MeetingStatus.Scheduled}
       <div class="center">
         <div class="message flex flex-col items-center">
           <div class="flex flex-col flex-row-center">

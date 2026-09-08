@@ -44,7 +44,7 @@
   const me = getCurrentAccount()
 
   const object: Data<TestPlan> = {
-    name: '' as IntlString,
+    name: '',
     description: null
   }
   const newDoc: TestPlan = {

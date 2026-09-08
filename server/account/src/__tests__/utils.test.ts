@@ -256,12 +256,12 @@ describe('account utils', () => {
     // Helper function to convert transactors string to REGION_CONFIG_JSON
     const transactorsToRegionConfig = (transactors: string): string => {
       const regions: Record<
-      string,
-      {
-        name?: string
-        transactors: Array<{ external: string, internal: string }>
-        collaborators: Array<{ external: string, internal: string }>
-      }
+        string,
+        {
+          name?: string
+          transactors: Array<{ external: string, internal: string }>
+          collaborators: Array<{ external: string, internal: string }>
+        }
       > = {}
 
       transactors.split(',').forEach((t) => {
@@ -274,9 +274,7 @@ describe('account utils', () => {
           const externalUrl = parts[1].trim()
           const region = parts[2].trim()
 
-          if (regions[region] === undefined) {
-            regions[region] = { transactors: [], collaborators: [] }
-          }
+          regions[region] ??= { transactors: [], collaborators: [] }
           regions[region].transactors.push({ external: externalUrl, internal: internalUrl })
           regions[region].collaborators.push({ external: externalUrl, internal: internalUrl })
         }
@@ -377,12 +375,12 @@ describe('account utils', () => {
       // Helper function to convert transactors string to REGION_CONFIG_JSON
       const transactorsToRegionConfig = (transactors: string): string => {
         const regions: Record<
-        string,
-        {
-          name?: string
-          transactors: Array<{ external: string, internal: string }>
-          collaborators: Array<{ external: string, internal: string }>
-        }
+          string,
+          {
+            name?: string
+            transactors: Array<{ external: string, internal: string }>
+            collaborators: Array<{ external: string, internal: string }>
+          }
         > = {}
 
         transactors.split(',').forEach((t) => {
@@ -395,9 +393,7 @@ describe('account utils', () => {
             const externalUrl = parts[1].trim()
             const region = parts[2].trim()
 
-            if (regions[region] === undefined) {
-              regions[region] = { transactors: [], collaborators: [] }
-            }
+            regions[region] ??= { transactors: [], collaborators: [] }
             regions[region].transactors.push({ external: externalUrl, internal: internalUrl })
             regions[region].collaborators.push({ external: externalUrl, internal: internalUrl })
           }
@@ -2063,7 +2059,7 @@ describe('account utils', () => {
       const mockSocialId = { key: 'email:test@example.com' as PersonId }
       ;(mockDb.socialId.findOne as jest.Mock).mockResolvedValue(mockSocialId)
 
-      const result = await getSocialIdByKey(mockDb, 'email:test@example.com' as PersonId)
+      const result = await getSocialIdByKey(mockDb, 'email:test@example.com')
       expect(result).toEqual(mockSocialId)
       expect(mockDb.socialId.findOne).toHaveBeenCalledWith({ key: 'email:test@example.com' })
     })
@@ -2071,7 +2067,7 @@ describe('account utils', () => {
     test('should return null when social id not found', async () => {
       ;(mockDb.socialId.findOne as jest.Mock).mockResolvedValue(null)
 
-      const result = await getSocialIdByKey(mockDb, 'nonexistent' as PersonId)
+      const result = await getSocialIdByKey(mockDb, 'nonexistent')
       expect(result).toBeNull()
     })
   })

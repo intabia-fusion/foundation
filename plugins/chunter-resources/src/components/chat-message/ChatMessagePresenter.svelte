@@ -113,7 +113,7 @@
 
   $: value !== undefined &&
     getParentMessage(value.attachedToClass, value.attachedTo, value.space).then((res) => {
-      parentMessage = res as ActivityMessage
+      parentMessage = res
     })
 
   $: if (doc !== undefined && value?.attachedTo === doc._id) {
@@ -169,7 +169,7 @@
   $: isEditing = $editingMessageStore === value?._id
   let additionalActions: Action[] = []
 
-  $: isOwn = person !== undefined && person._id === me
+  $: isOwn = person?._id === me
 
   $: additionalActions = [
     ...(isOwn

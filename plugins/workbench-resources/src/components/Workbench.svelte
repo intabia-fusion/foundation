@@ -417,7 +417,7 @@
       if ($prevTabIdStore) {
         const prevTab = tabs.find((t) => t._id === $prevTabIdStore)
         const prevTabLoc = prevTab ? getTabLocation(prevTab) : undefined
-        if (prevTabLoc === undefined || prevTabLoc.path[2] !== loc.path[2]) {
+        if (prevTabLoc?.path[2] !== loc.path[2]) {
           clear(1)
         }
       }
@@ -1016,7 +1016,7 @@
                 on:open={checkOnHide}
               />
               <NavFooter>
-                {#if currentApplication && currentApplication.navFooterComponent}
+                {#if currentApplication?.navFooterComponent}
                   <Component is={currentApplication.navFooterComponent} props={{ currentSpace }} />
                 {/if}
               </NavFooter>
@@ -1047,7 +1047,7 @@
             !(mobileAdaptive && $deviceInfo.isPortrait)}
           data-id={'contentPanel'}
         >
-          {#if currentApplication && currentApplication.component}
+          {#if currentApplication?.component}
             <Component
               is={currentApplication.component}
               props={{

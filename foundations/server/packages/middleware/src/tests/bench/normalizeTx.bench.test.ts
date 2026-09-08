@@ -22,7 +22,6 @@ import core, {
   type Tx,
   TxFactory
 } from '@hcengineering/core'
-import type { Middleware } from '@hcengineering/server-core'
 import { NormalizeTxMiddleware } from '../../normalizeTx'
 import { bench, describeBench } from '@hcengineering/measurements'
 import { createHarness, makeNextMiddleware } from './harness'
@@ -38,7 +37,7 @@ describeBench('NormalizeTxMiddleware bench', () => {
       name: 'item',
       counter: 1,
       tags: ['a', 'b', 'c']
-    } as any)
+    })
   }
   function buildUpdate (): Tx {
     return factory.createTxUpdateDoc(objClass, space, generateId<Doc>(), {
@@ -59,7 +58,7 @@ describeBench('NormalizeTxMiddleware bench', () => {
     void acc
     const h = createHarness()
     const next = makeNextMiddleware(h, { tx: async () => ({}) })
-    return await NormalizeTxMiddleware.create(h.ctx, h.pipelineContext, next as unknown as Middleware)
+    return await NormalizeTxMiddleware.create(h.ctx, h.pipelineContext, next)
   }
 
   it('createDoc throughput', async () => {

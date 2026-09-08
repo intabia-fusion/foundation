@@ -42,7 +42,7 @@
 
   const _class = drive.class.Resource
 
-  $: object = type === 'drive' ? (object as Drive) : (object as Folder)
+  $: object = type === 'drive' ? object : object
   $: query = { space, parent }
   $: canUpload = canCreateObject(drive.class.File, space, $permissionsStore)
 

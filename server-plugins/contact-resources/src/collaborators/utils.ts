@@ -283,9 +283,9 @@ export async function getCollaboratorsByTx (
   doc: Doc,
   cache: Map<Ref<Doc>, Collaborator[]>
 ): Promise<{
-    added: AccountUuid[]
-    removed: AccountUuid[]
-  }> {
+  added: AccountUuid[]
+  removed: AccountUuid[]
+}> {
   return await ctx.with('get-doc-collaborators-by-tx', {}, async (ctx) => {
     const { hierarchy } = control
 

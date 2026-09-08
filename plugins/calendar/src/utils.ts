@@ -76,9 +76,7 @@ function generateWeeklyValues (rule: RecurringRule, currentDate: Date, from: Tim
   let { byDay, bySetPos } = rule
   let i = 0
 
-  if (byDay === undefined) {
-    byDay = [getWeekday(currentDate)]
-  }
+  byDay ??= [getWeekday(currentDate)]
 
   while (true) {
     const next = new Date(currentDate).setDate(currentDate.getDate() + (interval ?? 1) * 7)
@@ -437,7 +435,7 @@ export function getPrimaryCalendar (
   acc: AccountUuid
 ): Ref<Calendar> {
   if (preference?.attachedTo !== undefined) {
-    const pref = calendars.find((p) => p._id === preference.attachedTo && p)
+    const pref = calendars.find((p) => p._id === preference.attachedTo)
     if (pref !== undefined) return pref._id
   }
   for (const _calendar of calendars) {

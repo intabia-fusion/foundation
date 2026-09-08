@@ -123,13 +123,9 @@ export function defineScreenShare (): void {
         (val) => {
           if (val != null) {
             wasSelected = true
-            if (options === undefined) {
-              options = {}
-            }
+            options ??= {}
 
-            if (options.resolution === undefined) {
-              options.resolution = ScreenSharePresets.h1080fps30.resolution
-            }
+            options.resolution ??= ScreenSharePresets.h1080fps30.resolution
 
             const constraints = screenCaptureToDisplayMediaStreamOptions(options)
 

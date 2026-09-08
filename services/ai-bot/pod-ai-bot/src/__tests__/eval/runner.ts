@@ -23,7 +23,7 @@
 import fs from 'fs'
 import path from 'path'
 import * as yaml from 'js-yaml'
-import type { Class, Doc, Ref } from '@hcengineering/core'
+import type { Doc, Ref } from '@hcengineering/core'
 
 import { toolBudgets } from '../../utils/budget'
 import {
@@ -322,7 +322,7 @@ export async function runScenario (scenario: Scenario, opts: RunOptions): Promis
       const budgets = toolBudgets(budgetTokens)
       const reqCtx: ReqCtx = {
         objectId: EVAL_ROOT_ID,
-        objectClass: EVAL_ROOT_CLASS as Ref<Class<Doc>>,
+        objectClass: EVAL_ROOT_CLASS,
         space: EVAL_SPACE,
         collection: 'replies',
         purpose: scenario.purpose,

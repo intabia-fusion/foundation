@@ -15,10 +15,10 @@
 //
 
 export type { StorageAdapter } from '@hcengineering/storage'
-export * from './adapter'
+export type * from './adapter'
 export * from './base'
 export * from './benchmark'
-export * from './configuration'
+export type * from './configuration'
 export * from './limitter'
 export * from './mem'
 export * from './pipeline'
@@ -35,4 +35,4 @@ export * from './service'
 export * from './stats'
 export * from './triggers'
 export * from './queue'
-export * from './limits'
+export type * from './limits'

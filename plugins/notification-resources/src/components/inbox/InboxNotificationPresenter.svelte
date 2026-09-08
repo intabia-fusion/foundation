@@ -49,7 +49,7 @@
   }
 
   function asCommonNotification (notification: DisplayInboxNotification): CommonInboxNotification {
-    return notification as CommonInboxNotification
+    return notification
   }
 </script>
 

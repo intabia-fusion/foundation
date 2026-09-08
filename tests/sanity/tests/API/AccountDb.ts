@@ -28,9 +28,7 @@ const ACCOUNT_DB_URL = process.env.ACCOUNT_DB_URL ?? 'postgres://postgres:postgr
 let opened: [AccountDB, () => void] | undefined
 
 async function getDb (): Promise<AccountDB> {
-  if (opened === undefined) {
-    opened = await getAccountDB(ACCOUNT_DB_URL, process.env.ACCOUNT_DB_NS)
-  }
+  opened ??= await getAccountDB(ACCOUNT_DB_URL, process.env.ACCOUNT_DB_NS)
   return opened[0]
 }
 

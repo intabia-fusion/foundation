@@ -383,7 +383,7 @@ describe('postgres operations', () => {
       taskPlugin.class.Task,
       {},
       {
-        lookup: { stat: [taskPlugin.class.TStat, { category: taskPlugin.class.TStatCat } as any] }
+        lookup: { stat: [taskPlugin.class.TStat, { category: taskPlugin.class.TStatCat }] }
       }
     )
     expect(tasks).toHaveLength(2)

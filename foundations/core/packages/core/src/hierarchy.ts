@@ -634,7 +634,7 @@ export class Hierarchy {
       }
     }
     this.descendants.set(_class, result)
-    return result as Ref<Class<Obj>>[]
+    return result
   }
 
   /**

@@ -124,7 +124,7 @@ import {
 import survey, { surveyId, createModel as surveyModel } from '@hcengineering/model-survey'
 import { type Plugin } from '@hcengineering/platform'
 
-interface ConfigurablePlugin extends Omit<Data<PluginConfiguration>, 'pluginId' | 'transactions'> {}
+type ConfigurablePlugin = Omit<Data<PluginConfiguration>, 'pluginId' | 'transactions'>
 
 type BuilderConfig = [(b: Builder) => void, Plugin] | [(b: Builder) => void, Plugin, ConfigurablePlugin | undefined]
 

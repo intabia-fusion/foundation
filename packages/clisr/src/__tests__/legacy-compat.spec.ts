@@ -53,7 +53,7 @@ d('old peer against new peer', () => {
       {
         useGlobalRPCHandler: false,
         socketFactory: createSocketFactory({ sent: (f) => sent.push(f[0]), received: (f) => received.push(f[0]) })
-      } as any
+      }
     )
 
     try {
@@ -114,7 +114,7 @@ d('old peer against new peer', () => {
       {
         useGlobalRPCHandler: false,
         socketFactory: createSocketFactory({ sent: (f) => oldSent.push(f[0]) })
-      } as any
+      }
     )
     const newClient = new ClisrClient(
       ctx,
@@ -155,7 +155,7 @@ d('old peer against new peer', () => {
       {
         useGlobalRPCHandler: false,
         socketFactory: createSocketFactory()
-      } as any
+      }
     )
 
     try {

@@ -404,7 +404,7 @@ async function exportMixins (
       const descendants = hierarchy.getDescendants(targetClass)
       for (const m of descendants) {
         if (hierarchy.getClass(m).kind === ClassifierKind.MIXIN) {
-          mixinDocIds.add(m as Ref<Mixin<Doc>>)
+          mixinDocIds.add(m)
         }
       }
     } catch {}
@@ -428,12 +428,12 @@ async function exportMixins (
       label: a.label,
       type: a.type,
       isCustom: true,
-      mixin: m._id as Ref<Mixin<Doc>>,
+      mixin: m._id,
       attributeOf: m._id
     }))
 
     result.push({
-      id: m._id as Ref<Mixin<Doc>>,
+      id: m._id,
       label: m.label,
       icon: m.icon,
       color: m.color,
@@ -516,7 +516,7 @@ async function collectAttributeConfigs (
         label: attr.label,
         type: attr.type,
         isCustom: attr.isCustom ?? isMixin,
-        mixin: isMixin ? (attr.attributeOf as Ref<Mixin<Doc>>) : undefined,
+        mixin: isMixin ? attr.attributeOf : undefined,
         attributeOf: attr.attributeOf
       })
     }
@@ -533,7 +533,7 @@ async function collectAttributeConfigs (
         label: attr.label,
         type: attr.type,
         isCustom: attr.isCustom ?? isMixin,
-        mixin: isMixin ? (attr.attributeOf as Ref<Mixin<Doc>>) : undefined,
+        mixin: isMixin ? attr.attributeOf : undefined,
         attributeOf: attr.attributeOf
       })
     }
@@ -551,8 +551,7 @@ export async function exportWorkflowConfig (
   options: WorkflowExportOptions
 ): Promise<WorkflowConfig> {
   const resolver = await buildResolver(client, projectTypeId)
-  const nameOf = (ref: Ref<Doc>, prefix: string): string =>
-    resolver.toToken.get(ref)?.slice(prefix.length) ?? (ref as string)
+  const nameOf = (ref: Ref<Doc>, prefix: string): string => resolver.toToken.get(ref)?.slice(prefix.length) ?? ref
 
   const referencedAttributeIds = new Set<Ref<AnyAttribute>>()
   const referencedFieldKeys = new Set<string>()
@@ -652,7 +651,7 @@ export async function exportWorkflowConfig (
     const entries: Record<string, string> = {}
     for (const [ttRef, wfRef] of Object.entries(mapping)) {
       const ttName = ttNames.get(ttRef)
-      const wfName = wfNames.get(wfRef as string)
+      const wfName = wfNames.get(wfRef)
       if (ttName !== undefined && wfName !== undefined) entries[ttName] = wfName
     }
     if (Object.keys(entries).length > 0) {

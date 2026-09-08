@@ -299,8 +299,8 @@ export function resolveLocale (config: PlanConfig, lang: string): PlanConfig {
     purchasables:
       config.purchasables != null
         ? Object.fromEntries(
-          Object.entries(config.purchasables).map(([k, p]) => [k, { ...p, description: resolve(p.description) }])
-        )
+            Object.entries(config.purchasables).map(([k, p]) => [k, { ...p, description: resolve(p.description) }])
+          )
         : undefined
   }
 }
@@ -371,7 +371,7 @@ export async function checkIsLimited (): Promise<void> {
       if (seats >= usersLimit) break
       const uuid = emp.personUuid
       if (uuid == null) continue
-      if (aiIdentity !== undefined && emp._id === aiIdentity.attachedTo) continue
+      if (emp._id === aiIdentity?.attachedTo) continue
       const role = roleByPerson.get(uuid)
       if (role === undefined || role === AccountRole.Admin || GUEST_ROLES.includes(role)) continue
       seats++

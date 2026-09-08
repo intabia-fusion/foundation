@@ -97,8 +97,7 @@ export function rpcJSONReceiver (key: string, value: any): any {
       'domain' in value &&
       typeof value.domain === 'string' &&
       'value' in value &&
-      value.value != null &&
-      value.value.dataType === 'TotalArray' &&
+      value.value?.dataType === 'TotalArray' &&
       Array.isArray(value.value.value)
     ) {
       return {

@@ -60,8 +60,8 @@
     },
     (result) => {
       result.sort((a, b) => {
-        const aval: string = `${getObjectValue(groupBy, a as any)}`
-        const bval: string = `${getObjectValue(groupBy, b as any)}`
+        const aval: string = `${getObjectValue(groupBy, a)}`
+        const bval: string = `${getObjectValue(groupBy, b)}`
         return aval.localeCompare(bval)
       })
       persons = result

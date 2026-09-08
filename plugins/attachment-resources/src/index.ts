@@ -51,7 +51,7 @@ import AttachmentSimplePreview from './components/AttachmentSimplePreview.svelte
 import DraftAttachmentsEditor from './components/DraftAttachmentsEditor.svelte'
 import { attachmentsApplier } from './utils'
 
-export * from './types'
+export type * from './types'
 export * from './stores'
 export * from './utils'
 
@@ -111,9 +111,7 @@ export const sortModeToOptionObject = (sortMode: FileBrowserSortMode): SortingQu
 
 const msInDay = 24 * 60 * 60 * 1000
 const getBeginningOfDate = (customDate?: Date): number => {
-  if (customDate == null) {
-    customDate = new Date()
-  }
+  customDate ??= new Date()
   customDate.setUTCHours(0, 0, 0, 0)
   return customDate.getTime()
 }

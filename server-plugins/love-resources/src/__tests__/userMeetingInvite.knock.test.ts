@@ -75,7 +75,7 @@ function meetingDoc (overrides: Partial<MeetingMinutes> = {}): MeetingMinutes {
   return {
     _id: meetingId,
     _class: love.class.MeetingMinutes,
-    space: meetingId as unknown as Ref<Space>,
+    space: meetingId,
     name: 'private',
     description: '',
     private: true,
@@ -87,7 +87,7 @@ function meetingDoc (overrides: Partial<MeetingMinutes> = {}): MeetingMinutes {
     modifiedOn: Date.now(),
     modifiedBy: core.account.System,
     ...(overrides as any)
-  } as unknown as MeetingMinutes
+  }
 }
 
 function invite (
@@ -123,19 +123,19 @@ function findAllFor (fixtures: Fixtures) {
       if (query?.meeting !== undefined) inv = inv.filter((it) => it.meeting === query.meeting)
       if (query?.room !== undefined) inv = inv.filter((it) => it.room === query.room)
       if (query?._id !== undefined) inv = inv.filter((it) => it._id === query._id)
-      return inv as Doc[]
+      return inv
     }
     if (_class === love.class.MeetingMinutes) {
       let m = fixtures.meetings
       if (query?._id !== undefined) m = m.filter((it) => it._id === query._id)
       if (query?.roomId !== undefined) m = m.filter((it) => it.roomId === query.roomId)
       if (query?.private !== undefined) m = m.filter((it) => it.private === query.private)
-      return m as Doc[]
+      return m
     }
     if (_class === contact.class.PersonSpace) {
       let s = fixtures.spaces
       if (query?.person !== undefined) s = s.filter((it) => it.person === query.person)
-      return s as Doc[]
+      return s
     }
     if (_class === contact.class.Person) {
       const all: Person[] = [
@@ -143,9 +143,9 @@ function findAllFor (fixtures: Fixtures) {
         person(owner1, owner1Account),
         person(owner2, owner2Account)
       ]
-      if (query?._id !== undefined) return all.filter((p) => p._id === query._id) as Doc[]
-      if (query?.personUuid !== undefined) return all.filter((p) => p.personUuid === query.personUuid) as Doc[]
-      return all as Doc[]
+      if (query?._id !== undefined) return all.filter((p) => p._id === query._id)
+      if (query?.personUuid !== undefined) return all.filter((p) => p.personUuid === query.personUuid)
+      return all
     }
     if (_class === contact.mixin.Employee) return []
     return []
@@ -210,7 +210,7 @@ function buildUpdateResponseTx (
     objectId: resp._id,
     objectClass: love.class.UserMeetingInvite,
     objectSpace: resp.space,
-    operations: { status } as any,
+    operations: { status },
     modifiedOn: Date.now(),
     modifiedBy: 'owner1-social-id' as PersonId,
     createdBy: 'owner1-social-id' as PersonId,

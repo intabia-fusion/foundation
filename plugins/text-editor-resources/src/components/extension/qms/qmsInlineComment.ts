@@ -86,6 +86,7 @@ export interface QMSInlineCommentCommands<ReturnType> {
 }
 
 declare module '@tiptap/core' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- required for tiptap Commands interface merging
   interface Commands<ReturnType> extends QMSInlineCommentCommands<ReturnType> {}
 }
 

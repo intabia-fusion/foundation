@@ -162,9 +162,7 @@ export function showTooltip (
       }
     }
 
-    if (storedValue.kind == null) {
-      storedValue.kind = 'tooltip'
-    }
+    storedValue.kind ??= 'tooltip'
 
     old.push(storedValue)
     return old

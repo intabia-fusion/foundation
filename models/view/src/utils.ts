@@ -78,7 +78,7 @@ export function createAttributeApplier<T extends Doc> (
   applier: Resource<AttributeApplierFn<T>>
 ): void {
   builder.createDoc(view.class.AttrApplier, core.space.Model, {
-    objectClass: _class as Ref<Class<Doc>>,
+    objectClass: _class,
     key: key as string,
     applier
   })

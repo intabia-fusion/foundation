@@ -70,7 +70,7 @@ export function parseWorkflowConfig (text: string, sourceName?: string): ParseCo
         w != null &&
         typeof w === 'object' &&
         'name' in w &&
-        typeof (w as { name: unknown }).name === 'string' &&
+        typeof w.name === 'string' &&
         (w as { name: string }).name.trim() !== ''
     )
     if (validWorkflows.length === 0) {

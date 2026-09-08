@@ -41,7 +41,7 @@ describe('config: plan config validation', () => {
   })
 
   afterAll(() => {
-    process.env = originalEnv as any
+    process.env = originalEnv
   })
 
   it('loads a config where every plan sets windowMonthLimit', () => {

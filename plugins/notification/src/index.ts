@@ -44,7 +44,7 @@ import { PersonSpace } from '@hcengineering/contact'
 
 import { Readable, Writable } from './types'
 
-export * from './types'
+export type * from './types'
 export * from './utils'
 
 export const DOMAIN_NOTIFICATION = 'notification' as Domain
@@ -538,7 +538,7 @@ const notification = plugin(notificationId, {
     CheckPushPermission: '' as Resource<(value: boolean) => Promise<boolean>>,
     GetInboxNotificationsClient: '' as Resource<InboxNotificationsClientFactory>,
     HasInboxNotifications: '' as Resource<
-    (notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>) => Promise<boolean>
+      (notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>) => Promise<boolean>
     >,
     IsNotificationAllowed: '' as Resource<(type: NotificationType, providerId: Ref<NotificationProvider>) => boolean>,
     EditDocNotificationsVisibilityTester: '' as Resource<(doc: Doc | Doc[] | undefined) => Promise<boolean>>

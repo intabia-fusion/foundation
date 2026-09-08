@@ -65,7 +65,7 @@ export async function OnEmployee (txes: Tx[], control: TriggerControl): Promise<
       const createTx = tx as TxCreateDoc<Employee>
       if (createTx.objectClass === contact.mixin.Employee) {
         employee = TxProcessor.createDoc2Doc(createTx)
-        employeeId = createTx.objectId as Ref<Person>
+        employeeId = createTx.objectId
       }
     } else if (tx._class === core.class.TxMixin) {
       // Handle TxMixin (Employee added as mixin to Person) - used by AI bot
@@ -352,7 +352,7 @@ async function findPersonByAccount (control: TriggerControl, account: AccountUui
   const persons = await control.findAll<Person>(
     control.ctx,
     contact.class.Person,
-    { personUuid: account as unknown as Person['personUuid'] },
+    { personUuid: account },
     { limit: 1 }
   )
   return persons[0]
@@ -787,7 +787,7 @@ export async function OnEventUpdate (txes: Tx[], control: TriggerControl): Promi
 
       for (const participantRef of ops.participants) {
         const person = (
-          await control.findAll(control.ctx, contact.class.Person, { _id: participantRef as Ref<Person> }, { limit: 1 })
+          await control.findAll(control.ctx, contact.class.Person, { _id: participantRef }, { limit: 1 })
         )[0]
         if (person?.personUuid !== undefined && !meetingDoc.members.includes(person.personUuid as AccountUuid)) {
           newMembers.push(person.personUuid as AccountUuid)

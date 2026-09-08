@@ -196,7 +196,7 @@
   )
 
   function getName (channel: Channel): string {
-    const contact = contactMap.get(channel.attachedTo as Ref<Contact>)
+    const contact = contactMap.get(channel.attachedTo)
     if (contact === undefined) return channel.value
     return `${getContactName(client.getHierarchy(), contact)} (${channel.value})`
   }

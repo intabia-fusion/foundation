@@ -179,9 +179,7 @@ export class WatchController {
   }
 
   static get (ctx: MeasureContext, accountClient: AccountClient): WatchController {
-    if (WatchController._instance === undefined) {
-      WatchController._instance = new WatchController(ctx, accountClient)
-    }
+    WatchController._instance ??= new WatchController(ctx, accountClient)
     return WatchController._instance
   }
 

@@ -151,15 +151,15 @@
 
   $: dropdownItems = availableTaskTypeIds
     .map<DropdownTextItem | null>((id) => {
-    const taskType = $taskTypeStore.get(id)
-    if (taskType == null) return null
-    return {
-      id,
-      label: taskType.name,
-      icon: taskType.icon === view.ids.IconWithEmoji ? IconWithEmoji : taskType.icon,
-      iconProps: taskType.icon === view.ids.IconWithEmoji ? { icon: taskType.color } : {}
-    }
-  })
+      const taskType = $taskTypeStore.get(id)
+      if (taskType == null) return null
+      return {
+        id,
+        label: taskType.name,
+        icon: taskType.icon === view.ids.IconWithEmoji ? IconWithEmoji : taskType.icon,
+        iconProps: taskType.icon === view.ids.IconWithEmoji ? { icon: taskType.color } : {}
+      }
+    })
     .filter(notEmpty)
 
   $: if (currentTaskTypeId != null) {

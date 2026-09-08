@@ -37,7 +37,7 @@
     )
   }
 
-  $: src = convertedFile === undefined ? '' : getFileUrl(convertedFile as Ref<Blob>, name)
+  $: src = convertedFile === undefined ? '' : getFileUrl(convertedFile, name)
 
   $: colors = $themeStore.dark
     ? `

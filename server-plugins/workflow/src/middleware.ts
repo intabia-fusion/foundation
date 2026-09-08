@@ -170,9 +170,7 @@ export class WorkflowMiddleware extends BaseMiddleware {
     if (oldTask == null) return
 
     const fromStatus = oldTask.status
-    if (updateTx.meta == null) {
-      updateTx.meta = {}
-    }
+    updateTx.meta ??= {}
     updateTx.meta.fromStatus = fromStatus
     updateTx.meta.fromKind = oldTask.kind
 
@@ -210,7 +208,7 @@ export class WorkflowMiddleware extends BaseMiddleware {
     }
 
     const transition =
-      allowedTransitions.find((t) => t.from != null && t.from.includes(fromStatus)) ??
+      allowedTransitions.find((t) => t.from?.includes(fromStatus) === true) ??
       allowedTransitions.find((t) => t.from == null || t.from.length === 0)
 
     if (transition === undefined) {

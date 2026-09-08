@@ -97,7 +97,7 @@ function findAllFor (fixtures: Fixtures) {
       if (query?.meeting !== undefined) inv = inv.filter((it) => it.meeting === query.meeting)
       if (query?.room !== undefined) inv = inv.filter((it) => it.room === query.room)
       if (query?._id !== undefined) inv = inv.filter((it) => it._id === query._id)
-      return inv as Doc[]
+      return inv
     }
     if (_class === contact.class.Person) {
       return [createPerson(callerPersonRef, callerAccount), createPerson(recipientPersonRef, recipientAccount)] as Doc[]
@@ -183,25 +183,25 @@ describe('OnUserMeetingInvite - concurrent invites from the same pair', () => {
       _id: 'invite:req-1' as Ref<UserMeetingInvite>,
       kind: 'invite-request',
       meeting: meetingA,
-      space: callerPersonSpaceRef as unknown as Ref<Space>
+      space: callerPersonSpaceRef
     })
     const req2: UserMeetingInvite = createInvite({
       _id: 'invite:req-2' as Ref<UserMeetingInvite>,
       kind: 'invite-request',
       meeting: meetingB,
-      space: callerPersonSpaceRef as unknown as Ref<Space>
+      space: callerPersonSpaceRef
     })
     const resp1: UserMeetingInvite = createInvite({
       _id: 'invite:resp-1' as Ref<UserMeetingInvite>,
       kind: 'invite-response',
       meeting: meetingA,
-      space: recipientPersonSpaceRef as unknown as Ref<Space>
+      space: recipientPersonSpaceRef
     })
     const resp2: UserMeetingInvite = createInvite({
       _id: 'invite:resp-2' as Ref<UserMeetingInvite>,
       kind: 'invite-response',
       meeting: meetingB,
-      space: recipientPersonSpaceRef as unknown as Ref<Space>
+      space: recipientPersonSpaceRef
     })
 
     // sourceDoc lookup happens via findAll _id; we simulate the
@@ -215,7 +215,7 @@ describe('OnUserMeetingInvite - concurrent invites from the same pair', () => {
       removedMap
     }
     const control = createMockControl(fixtures)
-    const tx = buildRemoveInviteRequestTx(req1._id, callerPersonSpaceRef as unknown as Ref<Space>)
+    const tx = buildRemoveInviteRequestTx(req1._id, callerPersonSpaceRef)
 
     const result = await OnUserMeetingInvite([tx], control)
 

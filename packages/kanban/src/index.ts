@@ -14,7 +14,7 @@
 //
 
 import '@hcengineering/platform-rig/profiles/ui/svelte'
-export * from './types'
+export type * from './types'
 export * from './swimlane'
 
 export { default as Kanban } from './components/Kanban.svelte'

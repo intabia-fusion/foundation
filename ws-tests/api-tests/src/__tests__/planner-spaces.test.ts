@@ -26,9 +26,8 @@
 //   * the ProjectToDo document itself always lives in time.space.ToDos, never in the project.
 
 import type { RestClient } from '@hcengineering/api-client'
-import type { Ref, Space } from '@hcengineering/core'
 import calendar from '@hcengineering/calendar'
-import time, { type ProjectToDo, type ToDo, type WorkSlot } from '@hcengineering/time'
+import time, { type ToDo } from '@hcengineering/time'
 import {
   createIssue,
   createPersonalTodo,
@@ -76,7 +75,7 @@ describe('planner spaces (api-tests)', () => {
     expect(todo.attachedSpace).toBeUndefined()
 
     const slot = await createWorkSlot(user1, todo)
-    expect(slot.space).toBe(user1.space._id as unknown as Ref<Space>)
+    expect(slot.space).toBe(user1.space._id)
 
     const seenByOwner = await user1.client.findOne(time.class.WorkSlot, { _id: slot.id })
     expect(seenByOwner?._id).toBe(slot.id)
@@ -129,12 +128,12 @@ describe('planner spaces (api-tests)', () => {
     await moveIssueToProject(user1.client, { _id: issueId, space: projectA.projectId }, projectB.projectId)
 
     await eventually(async () => {
-      const moved = (await user1.client.findOne(time.class.ProjectToDo, { _id: todo._id })) as ProjectToDo | undefined
+      const moved = await user1.client.findOne(time.class.ProjectToDo, { _id: todo._id })
       return moved?.attachedSpace === projectB.projectId ? moved : undefined
     })
 
     await eventually(async () => {
-      const movedSlot = (await user1.client.findOne(time.class.WorkSlot, { _id: slot.id })) as WorkSlot | undefined
+      const movedSlot = await user1.client.findOne(time.class.WorkSlot, { _id: slot.id })
       return movedSlot?.space === projectB.projectId ? movedSlot : undefined
     })
   }, 30000)

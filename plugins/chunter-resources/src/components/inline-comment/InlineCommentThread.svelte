@@ -35,7 +35,7 @@
       ? [
           {
             label: chunter.string.ResolveThread,
-            icon: IconCheck as AnySvelteComponent,
+            icon: IconCheck,
             group: 'inline-comment',
             inline: true,
             action: async () => {

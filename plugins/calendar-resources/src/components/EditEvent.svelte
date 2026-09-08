@@ -35,6 +35,7 @@
   import { isReadOnly, saveUTC, updateReccuringInstance } from '../utils'
   import CalendarSelector from './CalendarSelector.svelte'
   import EventParticipants from './EventParticipants.svelte'
+  import EventRsvp from './EventRsvp.svelte'
   import ParticipantsBusy from './ParticipantsBusy.svelte'
   import EventReminders from './EventReminders.svelte'
   import EventTimeEditor from './EventTimeEditor.svelte'
@@ -211,6 +212,7 @@
         {busyPersons}
       />
       <ParticipantsBusy {participants} date={startDate} {dueDate} {ignoreEventId} bind:busyPersons />
+      <EventRsvp {object} />
       <ComponentExtensions extension={calendar.extensions.EditEventExtensions} props={{ readOnly, value: object }} />
     </div>
     <div class="block description">

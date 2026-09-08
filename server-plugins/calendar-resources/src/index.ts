@@ -15,6 +15,7 @@
 import calendar, {
   AccessLevel,
   busySlotData,
+  collectRsvp,
   Calendar,
   Event,
   getPrimaryCalendar,
@@ -302,6 +303,25 @@ async function onEventMixin (ctx: TxMixin<Event, Event>, control: TriggerControl
   return res
 }
 
+// A participant answers in their own copy, which lives in their own space - no client can read
+// every copy, so the tally is kept on the master for the organiser to read.
+async function rsvpSummaryTxes (event: Event, control: TriggerControl): Promise<Tx[]> {
+  const copies = await control.findAll(control.ctx, calendar.class.Event, { eventId: event.eventId })
+  const master = copies.find((it) => it.access === AccessLevel.Owner)
+  if (master === undefined) return []
+
+  const summary = collectRsvp(copies)
+  const current = master.rsvpSummary
+  if (
+    current?.accepted === summary.accepted &&
+    current?.declined === summary.declined &&
+    current?.tentative === summary.tentative
+  ) {
+    return []
+  }
+  return [control.txFactory.createTxUpdateDoc(master._class, master.space, master._id, { rsvpSummary: summary })]
+}
+
 async function onEventUpdate (ctx: TxUpdateDoc<Event>, control: TriggerControl): Promise<Tx[]> {
   const ops = ctx.operations
   const { visibility, user, ...otherOps } = ops
@@ -312,6 +332,9 @@ async function onEventUpdate (ctx: TxUpdateDoc<Event>, control: TriggerControl):
     void sendEventToService(event, 'update', control)
   }
   void putEventToQueue(control, 'update', event, ctx.modifiedBy, ops)
+  if (ops.rsvp !== undefined) {
+    return await rsvpSummaryTxes(event, control)
+  }
   if (event.access !== 'owner') return []
   const events = await control.findAll(control.ctx, calendar.class.Event, { eventId: event.eventId })
   const res: Tx[] = []

@@ -74,9 +74,10 @@ import { claimSession, liveSessionsOf } from './sessions'
 import { LimitsState } from './limits'
 import { RecordingProcessor } from './recordings'
 import { WebhookProcessor } from './webhook'
-import { WorkspaceClient } from './workspaceClient'
+import { type ResolveSessionResult, WorkspaceClient } from './workspaceClient'
 import { GuestManager } from './guests'
 import { createToken, decodeMeetingToken, extractToken, getRoomName, getWorkspaceId, updateMetadata } from './utils'
+import { hashGuestPassword } from './passwords'
 import { setBillingProducer, type BillingMessage } from './queue'
 /**
  * Recursively converts all BigInt values in an object to strings.
@@ -397,6 +398,138 @@ export const main = async (): Promise<void> => {
 
   // Answers "am I really still in these meetings?" - a ParticipantInfo row outlives a closed tab,
   // so the client cannot tell a live second session from a leftover on its own.
+  // The shareable link of a meeting. Only a participant may ask for one - the link is a pointer,
+  // but handing it out is still an invitation.
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  app.get('/meetingLink', async (req, res) => {
+    const eventId = req.query.eventId
+    if (typeof eventId !== 'string' || eventId === '') {
+      res.status(400).send({ error: 'Missing eventId' })
+      return
+    }
+    const kind = req.query.kind === 'meeting' ? 'meeting' : 'event'
+    const token = extractToken(req.headers)
+    const workspaceId = getWorkspaceId(req)
+    if (token === undefined || workspaceId === undefined) {
+      res.status(401).send()
+      return
+    }
+
+    const account = decodeToken(token).account
+    const wsClient = await WorkspaceClient.create(workspaceId, ctx)
+    const target = await wsClient.findMeetingTarget(eventId, kind)
+    if (target === undefined) {
+      res.status(404).send({ error: 'Meeting not found' })
+      return
+    }
+    if (account !== systemAccountUuid && !(await wsClient.isMeetingParticipant(target, account))) {
+      res.status(403).send({ error: 'Not a participant of this meeting' })
+      return
+    }
+
+    const shortId = await guestManager.createMeetingLink(
+      target.pointer,
+      workspaceId,
+      target.link?.linkVersion ?? 1,
+      kind
+    )
+    if (shortId === null) {
+      res.status(502).send({ error: 'Failed to create link' })
+      return
+    }
+    res.status(200).send({ shortId })
+  })
+
+  // Sets or clears the guest password of a meeting link. Only love ever computes the hash - the
+  // plaintext never reaches a document, and the hash never reaches back out of this endpoint.
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  app.post('/meetingPassword', async (req, res) => {
+    const eventId = req.body.eventId
+    if (typeof eventId !== 'string' || eventId === '') {
+      res.status(400).send({ error: 'Missing eventId' })
+      return
+    }
+    const kind = req.body.kind === 'meeting' ? 'meeting' : 'event'
+    const password = req.body.password
+    if (password !== null && typeof password !== 'string') {
+      res.status(400).send({ error: 'Invalid password' })
+      return
+    }
+    // An empty password is not a password: hashing '' would let anyone in by sending ''.
+    // Removing one is `null`, explicitly.
+    if (typeof password === 'string' && password.trim() === '') {
+      res.status(400).send({ error: 'Password must not be empty' })
+      return
+    }
+    const token = extractToken(req.headers)
+    const workspaceId = getWorkspaceId(req)
+    if (token === undefined || workspaceId === undefined) {
+      res.status(401).send()
+      return
+    }
+
+    const account = decodeToken(token).account
+    const wsClient = await WorkspaceClient.create(workspaceId, ctx)
+    const target = await wsClient.findMeetingTarget(eventId, kind)
+    if (target === undefined) {
+      res.status(404).send({ error: 'Meeting not found' })
+      return
+    }
+    if (account !== systemAccountUuid && !(await wsClient.isMeetingParticipant(target, account))) {
+      res.status(403).send({ error: 'Not a participant of this meeting' })
+      return
+    }
+
+    try {
+      await wsClient.setGuestPassword(target, password === null ? undefined : hashGuestPassword(password))
+      res.status(200).send()
+    } catch (err: any) {
+      ctx.error('Failed to set guest password', { error: err?.message ?? String(err), eventId })
+      res.status(500).send({ error: 'Failed to set guest password' })
+    }
+  })
+
+  // A scheduled meeting is addressed by its series, not by a session id: the session for the
+  // current occurrence may not exist yet, and the service is the only place allowed to open one.
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  app.post('/resolveSession', async (req, res) => {
+    const eventId = req.body.eventId
+    if (typeof eventId !== 'string' || eventId === '') {
+      res.status(400).send({ error: 'Missing eventId' })
+      return
+    }
+    const kind = req.body.kind === 'meeting' ? 'meeting' : 'event'
+    const workspaceId = getWorkspaceId(req)
+    if (workspaceId === undefined) {
+      res.status(401).send()
+      return
+    }
+
+    let resolved: ResolveSessionResult
+    try {
+      const wsClient = await WorkspaceClient.create(workspaceId, ctx)
+      resolved = await wsClient.resolveSession(eventId, Date.now(), true, kind)
+    } catch (err: any) {
+      // Without this the caller waits for a response that never comes.
+      ctx.error('Failed to resolve a meeting session', { error: err?.message ?? String(err), eventId })
+      res.status(500).send({ error: 'Failed to resolve meeting session' })
+      return
+    }
+
+    if ('meeting' in resolved) {
+      res.status(200).send({ meetingId: resolved.meeting._id, occurrence: resolved.meeting.occurrence })
+      return
+    }
+    if (resolved.error === 'no-occurrence') {
+      // Too early, or the series is over - the client shows a lobby with this date.
+      res.status(403).send({ error: 'Meeting is not open', nextOccurrence: resolved.nextOccurrence })
+    } else if (resolved.error === 'not-found') {
+      res.status(404).send({ error: 'Meeting not found' })
+    } else {
+      res.status(409).send({ error: 'Meeting session is being created' })
+    }
+  })
+
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   app.post('/liveSessions', async (req, res) => {
     const workspaceId = getWorkspaceId(req)

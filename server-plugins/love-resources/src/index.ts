@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import calendar, { Event } from '@hcengineering/calendar'
+import calendar, { AccessLevel, Event } from '@hcengineering/calendar'
 import contact, { Employee, formatName, Person, PersonSpace } from '@hcengineering/contact'
 import core, {
   AccountUuid,
@@ -38,6 +38,7 @@ import love, {
   isOffice,
   loveId,
   MeetingMinutes,
+  LIVE_MEETING_STATUSES,
   MeetingStatus,
   ParticipantInfo,
   Room,
@@ -746,40 +747,33 @@ export async function OnEventUpdate (txes: Tx[], control: TriggerControl): Promi
     if (tx._class !== core.class.TxUpdateDoc) continue
 
     const cudTx = tx as TxCUD<Event>
-    if (cudTx.objectClass !== calendar.class.Event) continue
+    // A series is a ReccuringEvent, so the whole Event hierarchy has to pass - an exact class
+    // check silently skipped every recurring meeting.
+    if (!control.hierarchy.isDerived(cudTx.objectClass, calendar.class.Event)) continue
 
     // Get the event
     const event = (await control.findAll(control.ctx, calendar.class.Event, { _id: cudTx.objectId }, { limit: 1 }))[0]
     if (event === undefined) continue
+    if (event.access !== AccessLevel.Owner) continue
 
     // Check if event has MeetingEventLink mixin
     const hasMeetingMixin = control.hierarchy.hasMixin(event, love.mixin.MeetingEventLink)
     if (!hasMeetingMixin) continue
 
-    const meetingLink = control.hierarchy.as(event, love.mixin.MeetingEventLink)
-    if (meetingLink.meetingId === undefined) continue
-
-    // Get the meeting
+    // The session is found by the series, not by a reference on the event: the mixin no longer
+    // holds one, and a series has a different session per occurrence.
     const meeting = await control.findAll(
       control.ctx,
       love.class.MeetingMinutes,
-      { _id: meetingLink.meetingId },
+      { eventId: event.eventId, status: { $in: LIVE_MEETING_STATUSES } },
       { limit: 1 }
     )
     if (meeting.length === 0) continue
     const meetingDoc = meeting[0]
 
-    // Only update if meeting is in Scheduled status
-    if (meetingDoc.status !== MeetingStatus.Scheduled) continue
-
     const updateTx = tx as TxUpdateDoc<Event>
     const ops = updateTx.operations
     const meetingUpdate: DocumentUpdate<MeetingMinutes> = {}
-
-    // Update meetingScheduledDate if Event date changed
-    if (ops.date !== undefined) {
-      meetingUpdate.meetingScheduledDate = ops.date
-    }
 
     // Update members if Event participants changed
     if (ops.participants !== undefined) {

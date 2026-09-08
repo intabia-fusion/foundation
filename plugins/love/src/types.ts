@@ -6,7 +6,10 @@ import { Preference } from '@hcengineering/preference'
 export enum RoomType {
   Video,
   Audio,
-  Reception
+  Reception,
+  // The one service room every scheduled meeting runs in - it holds no place on a floor grid,
+  // sessions are told apart by MeetingMinutes, not by the room.
+  Scheduled
 }
 
 export interface Floor extends Doc {
@@ -143,9 +146,49 @@ export interface RoomInfo extends Doc {
   isOffice: boolean
 }
 
+export interface MeetingAccess {
+  /** Who may open a new session outside an occurrence window. */
+  start: 'members' | 'link'
+  /** How long the link outlives the series, ms. Counted from the last session's end, and only
+   *  while the series has no future occurrence - otherwise a weekly meeting would die weekly. */
+  afterTtl: number
+  /** What the link gives access to once the series is over. */
+  past: 'none' | 'last'
+  /** pbkdf2-sha256 hash+salt, base64. Absent - no password. Written only by the love service. */
+  guestPassword?: { hash: string, salt: string }
+}
+
+export const defaultMeetingAccess: MeetingAccess = {
+  start: 'members',
+  afterTtl: 7 * 24 * 60 * 60 * 1000,
+  past: 'last'
+}
+
+/**
+ * Meeting identity, mixed into calendar.class.Event. Lives on the series master only: a persisted
+ * ReccuringInstance would carry its own `linkId`. Time and participants stay on the Event.
+ */
 export interface MeetingEventLink extends Event {
-  room: Ref<Room>
-  meetingId: Ref<MeetingMinutes> // A reference to scheduled meeting minutes
+  /** Media mode of the session. Used to be taken from Room.type. */
+  type?: RoomType.Video | RoomType.Audio
+
+  /** shortId of the permanent link. Absent until the link is first issued. */
+  linkId?: string
+  /** Bumping it revokes the previous link: new payload, new shortId. */
+  linkVersion?: number
+
+  /** Named `meetingAccess`, not `access`: `Event.access` is already the calendar's AccessLevel. */
+  meetingAccess?: MeetingAccess
+
+  /** Privacy of future sessions. Drives the Busy badge on the service floor. */
+  private?: boolean
+  language?: RoomLanguage
+  startWithRecording?: boolean
+  startWithTranscription?: boolean
+
+  // Superseded by the fields above, still written by the old scheduling path (F1 §7).
+  room?: Ref<Room>
+  meetingId?: Ref<MeetingMinutes> // A reference to scheduled meeting minutes
 }
 
 export interface MeetingSchedule extends Schedule {
@@ -164,8 +207,7 @@ export interface DevicesPreference extends Preference {
 export enum MeetingStatus {
   Active = 0,
   Finished = 1,
-  Pending = 2,
-  Scheduled = 7 // In case meeting is scheduled, it could be started by any ws participant, only once at -15mins - due interval
+  Pending = 2
 }
 
 export const transcriptionStateLabel = {
@@ -192,8 +234,6 @@ export interface MeetingMinutes extends Space {
   recordingState: RecordingState
   meetingEnd?: Timestamp
 
-  meetingScheduledDate?: Timestamp
-
   transcription?: number
   messages?: number
   attachments?: number
@@ -203,12 +243,46 @@ export interface MeetingMinutes extends Space {
   /** Reference to the room where meeting takes place (optional, for navigation) */
   roomId?: Ref<Room>
 
+  /** eventId of the master event this session belongs to. Undefined for an ad-hoc meeting. */
+  eventId?: string
+  /** The permanent meeting this session belongs to - the counterpart of `eventId` for F4. */
+  meeting?: Ref<PermanentMeeting>
+  /** Start of the occurrence the session is pinned to - `originalStartTime`, not the actual
+   *  start: a moved occurrence keeps the series history stitched to its original point. */
+  occurrence?: Timestamp
+
   language: RoomLanguage
 
   // If defined, should start with recording
   startWithRecording?: boolean
   // If defined, should start with transcription
   startWithTranscription?: boolean
+}
+
+/**
+ * A meeting with a name and no time: it is started whenever someone needs it, and every start
+ * opens its own `MeetingMinutes` session. Documents and chat live here, on the parent, so they
+ * outlive the sessions - a session is terminal, this is not (F4).
+ */
+export interface PermanentMeeting extends Space {
+  /** The meeting's own document. Sessions keep their own minutes. */
+  descriptionRef: MarkupBlobRef | null
+
+  /** Media mode of every session opened from here. */
+  type: RoomType.Video | RoomType.Audio
+  language: RoomLanguage
+  startWithRecording?: boolean
+  startWithTranscription?: boolean
+
+  /** shortId of the permanent link. Absent until the link is first issued. */
+  linkId?: string
+  /** Bumping it revokes the previous link: new payload, new shortId. */
+  linkVersion?: number
+  /** Only `start` applies here: with no series there is nothing for `afterTtl`/`past` to follow. */
+  meetingAccess?: MeetingAccess
+
+  messages?: number
+  attachments?: number
 }
 
 /**

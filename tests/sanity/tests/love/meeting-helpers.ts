@@ -55,6 +55,18 @@ export async function getMeetingsUser (): Promise<{ client: RestClient, account:
   return { client: cachedRestClient, account: cachedAccount }
 }
 
+/** Workspace uuid of the meetings workspace - what a link payload carries. */
+export async function getMeetingsWorkspace (): Promise<string> {
+  const baseUrl = (PlatformURI ?? 'http://localhost:8083').replace(/\/$/, '')
+  const config = await loadServerConfig(baseUrl)
+  const token = await getWorkspaceToken(
+    baseUrl,
+    { email: PlatformUserSecond, password: '1234', workspace: MEETINGS_WS },
+    config
+  )
+  return token.workspaceId
+}
+
 /** Raw workspace JWT for PlatformUserSecond - the same Bearer the browser sends to `/_love/*`. */
 export async function getPlatformToken (): Promise<string> {
   const baseUrl = (PlatformURI ?? 'http://localhost:8083').replace(/\/$/, '')
@@ -115,6 +127,18 @@ let cachedRoomClient: RoomServiceClient | undefined
  * Kills live sessions, so it belongs in teardown or in a test that means to end the meeting - never
  * in a `beforeEach`, where it drops the previous test's windows mid-setup.
  */
+/** System token for the meetings workspace - the love service skips participation checks for it. */
+export async function getSystemToken (): Promise<string> {
+  const baseUrl = (PlatformURI ?? 'http://localhost:8083').replace(/\/$/, '')
+  const config = await loadServerConfig(baseUrl)
+  const token = await getWorkspaceToken(
+    baseUrl,
+    { email: PlatformUserSecond, password: '1234', workspace: MEETINGS_WS },
+    config
+  )
+  return generateToken(systemAccountUuid, token.workspaceId, { service: 'love' }, 'secret')
+}
+
 export async function closeLiveKitRooms (): Promise<boolean> {
   try {
     const client = (cachedRoomClient ??= new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET))
@@ -135,13 +159,13 @@ export async function liveKitRoomOf (meetingId: Ref<MeetingMinutes>): Promise<st
 }
 
 /** Force-finishes every non-Finished meeting through the transactor: the `room_finished`
- *  webhook is not the path tests care about, and a leftover Scheduled one hijacks Connect. */
+ *  webhook is not the path tests care about. */
 async function forceFinishAllMeetings (): Promise<number> {
   try {
     const sys = await getSystemRestClient()
     const [meetings, participants] = await Promise.all([
       sys.findAll<MeetingMinutes>(love.class.MeetingMinutes, {
-        status: { $in: [MeetingStatus.Active, MeetingStatus.Pending, MeetingStatus.Scheduled] }
+        status: { $in: [MeetingStatus.Active, MeetingStatus.Pending] }
       }),
       sys.findAll<ParticipantInfo>(love.class.ParticipantInfo, {})
     ])
@@ -177,7 +201,7 @@ export async function waitForActiveMeetingsToFinish (timeoutMs = 20000): Promise
     const [meetings, participants, invites] = await Promise.all([
       client.findAll<MeetingMinutes>(
         love.class.MeetingMinutes,
-        { status: { $in: [MeetingStatus.Active, MeetingStatus.Pending, MeetingStatus.Scheduled] } },
+        { status: { $in: [MeetingStatus.Active, MeetingStatus.Pending] } },
         { limit: 1 }
       ),
       // A leftover row makes the office owner look "in a meeting" on the next test's floor

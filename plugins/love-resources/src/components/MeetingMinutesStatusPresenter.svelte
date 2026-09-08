@@ -34,10 +34,6 @@
     [MeetingStatus.Pending]: {
       label: love.string.Pending,
       type: StateType.Ghost
-    },
-    [MeetingStatus.Scheduled]: {
-      label: love.string.Scheduled,
-      type: StateType.Positive
     }
   }
 

@@ -125,6 +125,14 @@
     "SynchronizedCalendars": "同期されたカレンダー",
     "Account": "アカウント",
     "NoCalendars": "同期するカレンダーが選択されていません",
-    "PersonalCalendar": "個人カレンダー"
+    "PersonalCalendar": "個人カレンダー",
+    "Going": "参加する",
+    "NotGoing": "参加しない",
+    "Maybe": "未定",
+    "WillYouAttend": "参加しますか？",
+    "RsvpAccepted": "参加",
+    "RsvpDeclined": "不参加",
+    "RsvpTentative": "未定",
+    "RsvpPending": "未回答"
   }
 }

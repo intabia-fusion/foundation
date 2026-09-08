@@ -125,6 +125,14 @@
     "SynchronizedCalendars": "Calendários sincronizados",
     "Account": "Conta",
     "NoCalendars": "Nenhum calendário encontrado",
-    "PersonalCalendar": "Calendário pessoal"
+    "PersonalCalendar": "Calendário pessoal",
+    "Going": "Vou participar",
+    "NotGoing": "Não vou participar",
+    "Maybe": "Talvez",
+    "WillYouAttend": "Você vai participar?",
+    "RsvpAccepted": "participarão",
+    "RsvpDeclined": "não participarão",
+    "RsvpTentative": "talvez",
+    "RsvpPending": "sem resposta"
   }
 }

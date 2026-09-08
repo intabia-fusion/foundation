@@ -40,9 +40,11 @@ import {
   type Office,
   type ParticipantInfo,
   type PendingRecording,
+  type PermanentMeeting,
   type RecordingFormat,
   type Room,
   type RoomInfo,
+  type MeetingAccess,
   type RoomLanguage,
   type RoomType,
   type TranscriptionState,
@@ -219,8 +221,21 @@ export class TRoomInfo extends TDoc implements RoomInfo {
 
 @Mixin(love.mixin.MeetingEventLink, calendar.class.Event)
 export class TMeeting extends TEvent implements MeetingEventLink {
-  room!: Ref<Room>
-  meetingId!: Ref<MeetingMinutes>
+  type?: RoomType.Video | RoomType.Audio
+
+  // Looked up by the link resolver on every guest join.
+  @Index(IndexKind.Indexed)
+    linkId?: string
+
+  linkVersion?: number
+  meetingAccess?: MeetingAccess
+  private?: boolean
+  language?: RoomLanguage
+  startWithRecording?: boolean
+  startWithTranscription?: boolean
+
+  room?: Ref<Room>
+  meetingId?: Ref<MeetingMinutes>
 }
 
 @Model(love.class.MeetingMinutes, core.class.Space, DOMAIN_SPACE)
@@ -305,8 +320,66 @@ export class TMeetingMinutes extends TSpace implements MeetingMinutes, Todoable 
 
   language!: RoomLanguage
 
+  // The whole history of one series is fetched by eventId.
+  @Index(IndexKind.Indexed)
+    eventId?: string
+
+  occurrence?: Timestamp
+
+  // The whole history of one permanent meeting is fetched by this ref.
+  @Index(IndexKind.Indexed)
+    meeting?: Ref<PermanentMeeting>
+
   @Prop(ArrOf(TypeAccountUuid()), love.string.Organizators)
   declare owners: AccountUuid[]
+}
+
+/**
+ * A named meeting with no time. Sessions are opened per start and stay terminal; the document,
+ * chat and files live here so they survive them (F4).
+ */
+@Model(love.class.PermanentMeeting, core.class.Space, DOMAIN_SPACE)
+@UX(
+  love.string.PermanentMeeting,
+  love.icon.MeetingMinutes,
+  undefined,
+  'name',
+  undefined,
+  love.string.PermanentMeetings,
+  'name'
+)
+export class TPermanentMeeting extends TSpace implements PermanentMeeting {
+  // From TSpace: name, description, private, archived, members, owners.
+
+  @Prop(TypeCollaborativeDoc(), core.string.Description)
+  @Index(IndexKind.FullText)
+    descriptionRef!: MarkupBlobRef | null
+
+  // Numeric enum, like Room.type: no @Prop, nothing in the UI enumerates it.
+  type!: RoomType.Video | RoomType.Audio
+
+  language!: RoomLanguage
+
+  @Prop(TypeBoolean(), love.string.StartWithRecording)
+    startWithRecording?: boolean
+
+  @Prop(TypeBoolean(), love.string.StartWithTranscription)
+    startWithTranscription?: boolean
+
+  @Hidden()
+    linkId?: string
+
+  @Hidden()
+    linkVersion?: number
+
+  @Hidden()
+    meetingAccess?: MeetingAccess
+
+  @Prop(PropCollection(chunter.class.ChatMessage), activity.string.Messages)
+    messages?: number
+
+  @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
+    attachments?: number
 }
 
 @Mixin(love.mixin.MeetingSchedule, calendar.class.Schedule)
@@ -367,6 +440,7 @@ export function createModel (builder: Builder): void {
     TRoomInfo,
     TMeeting,
     TMeetingMinutes,
+    TPermanentMeeting,
     TMeetingSchedule,
     TUserMeetingInvite,
     TLegacyMeetingMinutes
@@ -600,7 +674,15 @@ export function createModel (builder: Builder): void {
     components: { input: { component: chunter.component.ChatMessageInput, props: { collection: 'messages' } } }
   })
 
+  // Without it the activity feed has no composer, and the chat of a permanent meeting lives there.
+  builder.createDoc(activity.class.ActivityExtension, core.space.Model, {
+    ofClass: love.class.PermanentMeeting,
+    components: { input: { component: chunter.component.ChatMessageInput, props: { collection: 'messages' } } }
+  })
+
   builder.mixin(love.class.MeetingMinutes, core.class.Class, activity.mixin.ActivityDoc, {})
+
+  builder.mixin(love.class.PermanentMeeting, core.class.Class, activity.mixin.ActivityDoc, {})
 
   builder.mixin(love.class.Room, core.class.Class, activity.mixin.ActivityDoc, {})
 
@@ -641,6 +723,16 @@ export function createModel (builder: Builder): void {
 
   builder.mixin(love.class.MeetingMinutes, core.class.Class, view.mixin.ObjectEditor, {
     editor: love.component.EditMeetingMinutes
+  })
+
+  // The panel renders the document, attachments and chat of a permanent meeting off the same
+  // generic machinery a session gets; this only supplies the header.
+  builder.mixin(love.class.PermanentMeeting, core.class.Class, view.mixin.ObjectEditor, {
+    editor: love.component.EditPermanentMeeting
+  })
+
+  builder.mixin(love.class.PermanentMeeting, core.class.Class, view.mixin.ObjectPresenter, {
+    presenter: love.component.PermanentMeetingPresenter
   })
 
   builder.mixin(love.class.Floor, core.class.Class, view.mixin.AttributeEditor, {
@@ -1030,6 +1122,12 @@ export function createModel (builder: Builder): void {
 
   builder.createDoc(core.class.FullTextSearchContext, core.space.Model, {
     toClass: love.class.MeetingMinutes,
+    fullTextSummary: true,
+    forceIndex: true
+  })
+
+  builder.createDoc(core.class.FullTextSearchContext, core.space.Model, {
+    toClass: love.class.PermanentMeeting,
     fullTextSummary: true,
     forceIndex: true
   })

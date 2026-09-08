@@ -1,6 +1,7 @@
 import { AccountUuid, Data, Ref, Timestamp, generateId } from '@hcengineering/core'
-import { Person } from '@hcengineering/contact'
+import { Contact, Person } from '@hcengineering/contact'
 import calendar, {
+  AccessLevel,
   BusySlot,
   Calendar,
   PrimaryCalendar,
@@ -8,7 +9,9 @@ import calendar, {
   ExternalCalendar,
   ReccuringEvent,
   ReccuringInstance,
-  RecurringRule
+  RecurringRule,
+  RsvpStatus,
+  RsvpSummary
 } from '.'
 
 function getInstance (event: ReccuringEvent, date: Timestamp): ReccuringInstance {
@@ -549,4 +552,35 @@ function mergeIntervals (
     }
   }
   return res
+}
+
+/**
+ * @public
+ *
+ * Tallies answers from every copy of an event. Only the server sees them all: a copy lives in its
+ * owner's space, so one answer per participant is what the master gets told about.
+ */
+export function collectRsvp (copies: Array<Pick<Event, 'access' | 'rsvp' | 'participants'>>): RsvpSummary {
+  const answers = new Map<Ref<Contact>, RsvpStatus>()
+  for (const copy of copies) {
+    // The master carries no answer of its own; counting it would invent one.
+    if (copy.access === AccessLevel.Owner) continue
+    const who = copy.participants?.[0]
+    if (who === undefined || copy.rsvp === undefined) continue
+    answers.set(who, copy.rsvp)
+  }
+
+  const summary: RsvpSummary = { accepted: 0, declined: 0, tentative: 0 }
+  for (const status of answers.values()) {
+    if (status === 'accepted') summary.accepted++
+    else if (status === 'declined') summary.declined++
+    else summary.tentative++
+  }
+  return summary
+}
+
+/** How many of the invited have not answered yet - silence is not a refusal. */
+export function rsvpPending (participants: number, summary: RsvpSummary | undefined): number {
+  if (summary === undefined) return participants
+  return Math.max(0, participants - summary.accepted - summary.declined - summary.tentative)
 }

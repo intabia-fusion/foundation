@@ -15,7 +15,6 @@ import core, {
   type Ref
 } from '@hcengineering/core'
 import love, {
-  SCHEDULED_MEETING_WINDOW_MS,
   MeetingStatus,
   type MeetingMinutes,
   type ParticipantInfo,
@@ -102,56 +101,23 @@ function invite (overrides: Partial<UserMeetingInvite> & { _id: string }): UserM
   } satisfies UserMeetingInvite
 }
 
-describe('WorkspaceClient.finishMeeting → re-arm vs finish', () => {
-  it('re-arms a future-scheduled meeting to Scheduled instead of finishing (still cleans up participants)', async () => {
-    const meeting = createMockMeeting({
-      status: MeetingStatus.Active,
-      meetingScheduledDate: Date.now() + 24 * 60 * 60 * 1000
-    })
+describe('WorkspaceClient.finishMeeting', () => {
+  it('finishing is terminal - the next occurrence opens a session of its own', async () => {
+    // Re-arming existed only to keep one Scheduled document reusable across occurrences.
+    const meeting = createMockMeeting({ status: MeetingStatus.Active })
     const participant = createMockParticipant({ meeting: meeting._id })
     const { client, updated, removed } = createFakeClient({ meeting, participants: [participant] })
-
-    const wc = makeWorkspaceClient(createMockContext(), client)
-    await wc.finishMeeting(meeting._id)
-
-    const meetingUpdate = updated.find((u) => u.doc._id === meeting._id)
-    expect(meetingUpdate?.update).toEqual({ status: MeetingStatus.Scheduled })
-    expect(meetingUpdate?.update).not.toHaveProperty('meetingEnd')
-    expect(removed).toContain(TEST_IDS.participant1)
-  })
-
-  it('finishes a scheduled meeting once it is past its window (with meetingEnd)', async () => {
-    const meeting = createMockMeeting({
-      status: MeetingStatus.Active,
-      meetingScheduledDate: Date.now() - (SCHEDULED_MEETING_WINDOW_MS + 60_000)
-    })
-    const { client, updated } = createFakeClient({ meeting })
 
     const wc = makeWorkspaceClient(createMockContext(), client)
     await wc.finishMeeting(meeting._id, 123456)
 
     const meetingUpdate = updated.find((u) => u.doc._id === meeting._id)
     expect(meetingUpdate?.update).toEqual({ status: MeetingStatus.Finished, meetingEnd: 123456 })
+    expect(removed).toContain(TEST_IDS.participant1)
   })
 
-  it('re-arms a running scheduled meeting instead of finishing it (defect: re-arm only before start)', async () => {
-    // Everyone briefly dropped mid-meeting, so scheduledDate is already past: a re-arm check of
-    // `scheduledDate > now` would give the still-running meeting a terminal Finished.
-    const meeting = createMockMeeting({
-      status: MeetingStatus.Active,
-      meetingScheduledDate: Date.now() - 2 * 60 * 1000
-    })
-    const { client, updated } = createFakeClient({ meeting })
-
-    const wc = makeWorkspaceClient(createMockContext(), client)
-    await wc.finishMeeting(meeting._id, Date.now())
-
-    const meetingUpdate = updated.find((u) => u.doc._id === meeting._id)
-    expect(meetingUpdate?.update).toEqual({ status: MeetingStatus.Scheduled })
-  })
-
-  it('finishes an ad-hoc meeting without meetingScheduledDate as before', async () => {
-    const meeting = createMockMeeting({ status: MeetingStatus.Active, meetingScheduledDate: undefined })
+  it('finishes an ad-hoc meeting the same way', async () => {
+    const meeting = createMockMeeting({ status: MeetingStatus.Active })
     const { client, updated } = createFakeClient({ meeting })
 
     const wc = makeWorkspaceClient(createMockContext(), client)

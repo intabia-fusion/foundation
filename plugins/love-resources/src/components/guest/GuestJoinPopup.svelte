@@ -24,7 +24,7 @@
   import love from '../../plugin'
   import { getLiveKitEndpoint, liveKitClient, lk } from '../../utils'
   import { lkSessionConnected } from '../../liveKitClient'
-  import { closePanel, CheckBox } from '@hcengineering/ui'
+  import { closePanel, CheckBox, EditBox } from '@hcengineering/ui'
   import type { RemoteTrack, RemoteTrackPublication } from 'livekit-client'
   import { RoomEvent } from 'livekit-client'
   import { AuthLikeForm, Label } from '@hcengineering/login-resources'
@@ -34,12 +34,16 @@
   export let guestToken: string | undefined
   export let workspaceId: string | undefined
   export let workspaceName: string | undefined
+  // Set only when /guestInfo answered `passwordRequired: true` - the field stays hidden otherwise.
+  export let passwordRequired: boolean = false
 
   const identityKey = 'platform.love_uniq_person_identity'
 
   let firstName: string = ''
   let lastName: string = ''
+  let password: string = ''
   let error: string | null = null
+  let errorLabel: IntlString | null = null
   let videoContainer: HTMLDivElement | null = null
 
   // Local media state
@@ -216,6 +220,7 @@
     }
     if (joining) return
     error = null
+    errorLabel = null
     joining = true
 
     try {
@@ -242,11 +247,20 @@
           token: guestToken,
           firstName,
           lastName,
-          personToken
+          personToken,
+          password: passwordRequired ? password : undefined
         })
       })
 
       if (!resp.ok) {
+        if (resp.status === 401) {
+          errorLabel = love.string.WrongPassword
+          throw new Error('Wrong password')
+        }
+        if (resp.status === 429) {
+          errorLabel = love.string.TooManyAttempts
+          throw new Error('Too many attempts')
+        }
         const txt = await resp.text().catch(() => '')
         throw new Error(`Join failed: ${resp.status} ${txt}`)
       }
@@ -290,7 +304,7 @@
       closePanel()
     } catch (err: any) {
       console.error('Guest join failed', err)
-      error = err?.message ?? String(err)
+      if (errorLabel === null) error = err?.message ?? String(err)
     } finally {
       joining = false
     }
@@ -377,20 +391,32 @@
     }}
     {firstName}
     {lastName}
-    proceedDisabled={!acceptRecording}
+    proceedDisabled={!acceptRecording || (passwordRequired && password === '')}
     proceedButton={love.string.JoinMeeting}
   >
     <svelte:fragment slot="before-form">
       <div class="actions center">
         <div class="form" data-id="guest-join-form" role="dialog" aria-label={love.string.GuestJoin}>
-          {#if error != null || previewError != null}
+          {#if error != null || errorLabel != null || previewError != null}
             <div class="error" data-id="guest-join-error">
-              {#if error != null}
+              {#if errorLabel != null}
+                <Label label={errorLabel} />
+              {:else if error != null}
                 {error}
               {/if}
               {#if previewError}
                 <Label label={previewError} />
               {/if}
+            </div>
+          {/if}
+          {#if passwordRequired}
+            <div class="input-wrapper">
+              <EditBox
+                bind:value={password}
+                format={'password'}
+                placeholder={love.string.EnterPassword}
+                kind={'default'}
+              />
             </div>
           {/if}
           <div class="preview-area" aria-hidden={startWithVideo ? 'false' : 'true'}>

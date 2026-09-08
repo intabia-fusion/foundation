@@ -13,6 +13,7 @@ import {
   MeetingSchedule,
   Office,
   ParticipantInfo,
+  PermanentMeeting,
   PendingRecording,
   Room,
   RoomInfo,
@@ -31,6 +32,7 @@ const love = plugin(loveId, {
     DevicesPreference: '' as Ref<Class<DevicesPreference>>,
     RoomInfo: '' as Ref<Class<RoomInfo>>,
     MeetingMinutes: '' as Ref<Class<MeetingMinutes>>,
+    PermanentMeeting: '' as Ref<Class<PermanentMeeting>>,
     UserMeetingInvite: '' as Ref<Class<UserMeetingInvite>>
   },
   mixin: {
@@ -133,11 +135,45 @@ const love = plugin(loveId, {
     GroupByRoom: '' as IntlString,
     GroupByOwner: '' as IntlString,
     GroupByStatus: '' as IntlString,
-    GroupByDate: '' as IntlString
+    GroupByDate: '' as IntlString,
+    MeetingLinkSettings: '' as IntlString,
+    WhoCanStart: '' as IntlString,
+    StartMembersOnly: '' as IntlString,
+    StartAnyoneWithLink: '' as IntlString,
+    AfterTheSeries: '' as IntlString,
+    PastNone: '' as IntlString,
+    PastLast: '' as IntlString,
+    LinkLifetime: '' as IntlString,
+    RevokeLink: '' as IntlString,
+    RevokeLinkTooltip: '' as IntlString,
+    Day: '' as IntlString,
+    Week: '' as IntlString,
+    Month: '' as IntlString,
+    ActiveMeetings: '' as IntlString,
+    ScheduledFloor: '' as IntlString,
+    PermanentMeeting: '' as IntlString,
+    PermanentMeetings: '' as IntlString,
+    Audio: '' as IntlString,
+    NewMeeting: '' as IntlString,
+    NoPermanentMeetings: '' as IntlString,
+    PastSessions: '' as IntlString,
+    GuestPassword: '' as IntlString,
+    PasswordSet: '' as IntlString,
+    PasswordNotSet: '' as IntlString,
+    SetPassword: '' as IntlString,
+    RemovePassword: '' as IntlString,
+    CopyLinkWithPassword: '' as IntlString,
+    EnterPassword: '' as IntlString,
+    WrongPassword: '' as IntlString,
+    TooManyAttempts: '' as IntlString
   },
   ids: {
     MainFloor: '' as Ref<Floor>,
     Reception: '' as Ref<Room>,
+    // One service floor per workspace, holding the single room every scheduled meeting runs in.
+    // Fixed ids instead of a trigger: creation is idempotent by _id, so there is no race to guard.
+    ScheduledFloor: '' as Ref<Floor>,
+    ScheduledRoom: '' as Ref<Room>,
     LoveWidget: '' as Ref<Widget>,
     MeetingWidget: '' as Ref<Widget>,
     LoveNotificationGroup: '' as Ref<NotificationGroup>,
@@ -190,7 +226,9 @@ const love = plugin(loveId, {
     FloorMeetingMinutesList: '' as AnyComponent,
     RoomAttributePresenter: '' as AnyComponent,
     MeetingMinutesMessagesPresenter: '' as AnyComponent,
-    MeetingMinutesTranscriptionPresenter: '' as AnyComponent
+    MeetingMinutesTranscriptionPresenter: '' as AnyComponent,
+    EditPermanentMeeting: '' as AnyComponent,
+    PermanentMeetingPresenter: '' as AnyComponent
   },
   viewlet: {
     TableMeetingMinutes: '' as Ref<Viewlet>,

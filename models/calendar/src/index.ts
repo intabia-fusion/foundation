@@ -24,6 +24,8 @@ import {
   type ExternalCalendar,
   type ReccuringEvent,
   type ReccuringInstance,
+  type RsvpStatus,
+  type RsvpSummary,
   type RecurringRule,
   type Schedule,
   type ScheduleAvailability,
@@ -146,6 +148,12 @@ export class TEvent extends TAttachedDoc implements Event {
   externalParticipants?: string[]
 
   access!: AccessLevel
+
+  // Lives on the participant's own copy; the master carries the summary instead, because copies
+  // sit in their owners' spaces and no client can read them all.
+  rsvp?: RsvpStatus
+
+  rsvpSummary?: RsvpSummary
 
   visibility?: Visibility
 

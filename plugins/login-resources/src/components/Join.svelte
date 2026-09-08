@@ -46,11 +46,20 @@
   let workspaceName = ''
   let joiningWithCurrentAccount = false
   let invitationExpired = false
+  let noFreeSeats = false
 
   // Login method for existing account
   let loginMethod: LoginMethods = LoginMethods.Password
 
   let status = OK
+
+  function toJoinStatus (joinStatus: Status): Status {
+    if (joinStatus.code === platform.status.PlanLimitExceeded) {
+      noFreeSeats = true
+      return OK
+    }
+    return joinStatus !== OK ? joinStatus : new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+  }
 
   async function handleLoginSuccess (result: WorkspaceLoginInfo): Promise<void> {
     await logIn(result)
@@ -87,7 +96,7 @@
       if (joinResult != null) {
         await handleLoginSuccess(joinResult)
       } else {
-        status = joinStatus !== OK ? joinStatus : new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+        status = toJoinStatus(joinStatus)
       }
     } catch (err: any) {
       Analytics.handleError(err)
@@ -107,7 +116,7 @@
       if (joinResult != null) {
         await handleLoginSuccess(joinResult)
       } else {
-        status = joinStatus !== OK ? joinStatus : new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+        status = toJoinStatus(joinStatus)
         joiningWithCurrentAccount = false
       }
     } catch (err: any) {
@@ -128,6 +137,10 @@
       const [inviteStatus, info] = await getInviteInfo(inviteId)
       if (inviteStatus.code === platform.status.ExpiredLink) {
         invitationExpired = true
+        return
+      }
+      if (info?.seatsAvailable === false) {
+        noFreeSeats = true
         return
       }
       if (info?.name != null) {
@@ -184,7 +197,14 @@
   }
 </script>
 
-{#if invitationExpired}
+{#if noFreeSeats}
+  <div class="initial-container">
+    <div class="title mb-2">
+      <Label label={login.string.NoFreeSeats} />
+    </div>
+    <div class="description"><Label label={login.string.NoFreeSeatsDescription} /></div>
+  </div>
+{:else if invitationExpired}
   <div class="initial-container">
     <div class="title mb-2">
       <Label label={login.string.ExpiredLink} />
@@ -196,6 +216,10 @@
     <div class="title"><Label label={login.string.Join} /></div>
     {#if workspaceName !== ''}
       <div class="workspace-name">{workspaceName}</div>
+    {/if}
+
+    {#if status !== OK}
+      <div class="status mt-4"><StatusControl {status} /></div>
     {/if}
 
     <div class="actions">

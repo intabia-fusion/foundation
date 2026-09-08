@@ -291,6 +291,8 @@ export default plugin(settingId, {
     CreateMailboxPlaceholder: '' as IntlString,
     MailboxNoDomains: '' as IntlString,
     MailboxLimitReached: '' as IntlString,
+    SeatLimitReached: '' as IntlString,
+    SeatLimitReachedDescription: '' as IntlString,
     OfficeSettings: '' as IntlString,
     OfficeDefaultSettings: '' as IntlString,
     DefaultStartWithTranscription: '' as IntlString,

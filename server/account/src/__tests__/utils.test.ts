@@ -66,7 +66,7 @@ import {
   getLastPasswordChangeEvent,
   isPasswordChangedSince,
   resetRegionConfig,
-  assertSeatAvailableOnJoin
+  assertSeatAvailable
 } from '../utils'
 // eslint-disable-next-line import/no-named-default
 import platform, { getMetadata, PlatformError, Severity, Status } from '@hcengineering/platform'
@@ -2507,8 +2507,8 @@ describe('account utils', () => {
     })
   })
 
-  describe('assertSeatAvailableOnJoin', () => {
-    const ctx = { info: jest.fn(), error: jest.fn() } as unknown as MeasureContext
+  describe('assertSeatAvailable', () => {
+    const ctx = { info: jest.fn() } as unknown as MeasureContext
     const workspace = 'ws-1' as WorkspaceUuid
     const DAY = 24 * 60 * 60 * 1000
 
@@ -2521,6 +2521,7 @@ describe('account utils', () => {
     const mockDb = (subscriptions: any[]): any => ({
       subscription: { find: jest.fn().mockResolvedValue(subscriptions) },
       getWorkspaceMembers: jest.fn().mockResolvedValue(members),
+      // getSeatMembers resolves the AI bot social id to exclude it from the seat count.
       socialId: { findOne: jest.fn().mockResolvedValue(null) }
     })
 
@@ -2532,7 +2533,7 @@ describe('account utils', () => {
     })
 
     const join = async (db: any): Promise<void> => {
-      await assertSeatAvailableOnJoin(ctx, db, workspace, AccountRole.User)
+      await assertSeatAvailable(ctx, db, workspace, AccountRole.User)
     }
 
     test('should reject a join when a live trial is full', async () => {
@@ -2567,7 +2568,7 @@ describe('account utils', () => {
     test('should not cap seatless roles', async () => {
       const db = mockDb([tier(SubscriptionStatus.Active, 2)])
 
-      await expect(assertSeatAvailableOnJoin(ctx, db, workspace, AccountRole.Guest)).resolves.toBeUndefined()
+      await expect(assertSeatAvailable(ctx, db, workspace, AccountRole.Guest)).resolves.toBeUndefined()
       expect(db.subscription.find).not.toHaveBeenCalled()
     })
   })

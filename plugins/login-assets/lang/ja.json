@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "自分のワークスペースを作成するか、既存のワークスペースの所有者にアクセスリンクを依頼してください。",
     "CheckingLink": "リンクを確認しています...",
     "InvalidLink": "このリンクは無効です",
-    "ConfirmationFailed": "登録を完了できませんでした"
+    "ConfirmationFailed": "登録を完了できませんでした",
+    "NoFreeSeats": "空席がありません",
+    "NoFreeSeatsDescription": "このワークスペースはプランのシート上限に達しました。ワークスペースの管理者にお問い合わせください。",
+    "NoFreeSeatsForInvite": "プランに空席がないため、新しい招待リンクを作成できません。"
   }
 }

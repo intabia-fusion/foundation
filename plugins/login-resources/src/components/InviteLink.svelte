@@ -14,14 +14,17 @@
 -->
 <script lang="ts">
   import { AccountRole, getCurrentAccount, hasAccountRole, Timestamp } from '@hcengineering/core'
-  import { copyTextToClipboard, createQuery } from '@hcengineering/presentation'
+  import { MessageBox, copyTextToClipboard, createQuery } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting'
-  import { Button, EditBox, Grid, Label, Loading, MiniToggle, ticker } from '@hcengineering/ui'
-  import { createEventDispatcher } from 'svelte'
+  import { Button, EditBox, Grid, Label, Loading, MiniToggle, showPopup, ticker } from '@hcengineering/ui'
+  import { createEventDispatcher, onMount } from 'svelte'
+
+  import platform, { OK, PlatformError, Severity, Status } from '@hcengineering/platform'
 
   import login from '../plugin'
-  import { getInviteLink } from '../utils'
+  import { getAccountClient, getInviteLink } from '../utils'
   import InviteWorkspace from './icons/InviteWorkspace.svelte'
+  import StatusControl from './StatusControl.svelte'
 
   export let role: AccountRole = AccountRole.User
   export let ignoreSettings: boolean = false
@@ -65,8 +68,22 @@
 
   async function getLink (expHours: number, mask: string, limit: number | undefined, role: AccountRole): Promise<void> {
     loading = true
-    link = await getInviteLink(expHours, mask, limit ?? -1, role)
-    loading = false
+    status = OK
+    try {
+      link = await getInviteLink(expHours, mask, limit ?? -1, role)
+    } catch (err: any) {
+      if (err instanceof PlatformError && err.status.code === platform.status.PlanLimitExceeded) {
+        // The seat count may have been used up between the onMount check and here.
+        showNoFreeSeats()
+        return
+      }
+      status =
+        err instanceof PlatformError
+          ? err.status
+          : new Status(Severity.ERROR, platform.status.UnknownError, { message: err.message })
+    } finally {
+      loading = false
+    }
   }
 
   let copiedTime: Timestamp | undefined
@@ -99,6 +116,30 @@
 
   let link: string | undefined
   let loading = false
+  let status: Status = OK
+  let seatsChecked = false
+
+  function showNoFreeSeats (): void {
+    dispatch('close')
+    showPopup(MessageBox, {
+      label: login.string.NoFreeSeats,
+      message: login.string.NoFreeSeatsForInvite,
+      canSubmit: false
+    })
+  }
+
+  onMount(async () => {
+    try {
+      if (!(await getAccountClient().getWorkspaceSeats()).available) {
+        showNoFreeSeats()
+        return
+      }
+    } catch (err: any) {
+      // Not fatal: the create call below is still guarded server side.
+      console.error('Failed to check workspace seats', err)
+    }
+    seatsChecked = true
+  })
 </script>
 
 <div class="antiPopup popup" class:secure={isSecureContext}>
@@ -106,7 +147,7 @@
     <Label label={login.string.InviteDescription} />
     <InviteWorkspace size={'large'} />
   </div>
-  {#if isOwnerOrMaintainer && !ignoreSettings}
+  {#if isOwnerOrMaintainer && !ignoreSettings && seatsChecked}
     <Grid column={1} rowGap={1.5}>
       <MiniToggle
         bind:on={useDefault}
@@ -136,8 +177,11 @@
       {/if}
     </Grid>
   {/if}
-  {#if loading}
-    <Loading />
+  {#if status !== OK}
+    <div class="mt-4 mb-4"><StatusControl {status} overflow /></div>
+  {/if}
+  {#if !seatsChecked || loading}
+    <div class="mt-4"><Loading shrink /></div>
   {:else if link !== undefined}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="link" class:notSecure={!isSecureContext} class:over-underline={isSecureContext} on:click={copy}>

@@ -228,7 +228,9 @@
     "OtpCode": "Код",
     "OtpSent": "Код отправлен на вашу почту",
     "OtpSendFailed": "Не удалось отправить код",
-    "SendCode": "Отправить код"
+    "SendCode": "Отправить код",
+    "SeatLimitReached": "Нет свободных мест",
+    "SeatLimitReachedDescription": "В рабочем пространстве достигнут лимит мест по тарифу. Освободите место или повысьте тариф, чтобы назначить эту роль."
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Интеграция с {doc} была отключена",

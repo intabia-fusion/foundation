@@ -223,7 +223,9 @@
     "OtpCode": "Kód",
     "OtpSent": "Kód byl odeslán na váš e-mail",
     "OtpSendFailed": "Kód se nepodařilo odeslat",
-    "SendCode": "Odeslat kód"
+    "SendCode": "Odeslat kód",
+    "SeatLimitReached": "Žádná volná místa",
+    "SeatLimitReachedDescription": "Pracovní prostor dosáhl limitu míst podle tarifu. Uvolněte místo nebo navyšte tarif, abyste mohli přiřadit tuto roli."
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

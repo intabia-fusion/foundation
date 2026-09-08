@@ -33,7 +33,7 @@
     SocialIdType
   } from '@hcengineering/core'
   import login from '@hcengineering/login'
-  import { getResource } from '@hcengineering/platform'
+  import platform, { getResource, PlatformError } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
   import { createFocusManager, EditBox, FocusHandler, IconInfo, Label } from '@hcengineering/ui'
   import { planLimits, checkWorkspaceLimits, seatCount, seatLimitReached } from '@hcengineering/billing-resources'
@@ -60,6 +60,7 @@
   }
 
   let saving: boolean = false
+  let inviteRejected = false
 
   const person: Data<Person> = {
     name: '',
@@ -132,7 +133,16 @@
       )
 
       const sendInvite = await getResource(login.function.SendInvite)
-      await sendInvite(mail, AccountRole.User)
+      // Server-side seat cap: the store-based guard above can be stale, so surface a refusal here.
+      try {
+        await sendInvite(mail, AccountRole.User)
+      } catch (err: any) {
+        if (err instanceof PlatformError && err.status.code === platform.status.PlanLimitExceeded) {
+          inviteRejected = true
+          return
+        }
+        throw err
+      }
 
       for (const channel of channels) {
         await client.addCollection(
@@ -208,6 +218,13 @@
         <IconInfo size={'small'} />
         <span class="text-sm overflow-label ml-2">
           <Label label={contact.string.PersonAlreadyExists} />
+        </span>
+      </div>
+    {:else if inviteRejected && !saving}
+      <div class="flex-row-center error-color" data-id="seatLimitError">
+        <IconInfo size={'small'} />
+        <span class="text-sm overflow-label ml-2">
+          <Label label={contact.string.SeatLimitReached} params={{ limit: $planLimits?.usersLimit ?? 0 }} />
         </span>
       </div>
     {:else if $seatLimitReached && !saving}

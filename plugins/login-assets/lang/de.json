@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "Erstellen Sie einen eigenen Arbeitsbereich oder bitten Sie den Eigentümer eines bestehenden Bereichs um einen Zugangslink.",
     "CheckingLink": "Link wird geprüft...",
     "InvalidLink": "Dieser Link ist nicht mehr gültig",
-    "ConfirmationFailed": "Die Registrierung konnte nicht abgeschlossen werden"
+    "ConfirmationFailed": "Die Registrierung konnte nicht abgeschlossen werden",
+    "NoFreeSeats": "Keine freien Plätze",
+    "NoFreeSeatsDescription": "Dieser Arbeitsbereich hat das Platzlimit des Tarifs erreicht. Bitte wenden Sie sich an den Administrator des Arbeitsbereichs.",
+    "NoFreeSeatsForInvite": "Der Tarif hat keine freien Plätze mehr, ein neuer Einladungslink kann nicht erstellt werden."
   }
 }

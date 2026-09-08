@@ -33,7 +33,7 @@
 
 One repository, one build, a set of applications on a shared framework:
 
-| | |
+| Application | Capabilities |
 | --- | --- |
 | **Tracker** | Issues, sub-issues, estimations, time reports, Kanban with swim-lanes |
 | **Chat** | Channels and DMs, threads, replies and forwards, read receipts, web push |

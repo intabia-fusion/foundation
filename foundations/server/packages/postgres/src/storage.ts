@@ -70,6 +70,8 @@ import core, {
 import {
   type ConnectionMgr,
   createDBClient,
+  getDBFlavor,
+  type DBFlavor,
   type DBClient,
   type DBResult,
   doFetchTypes,
@@ -215,9 +217,17 @@ class ValuesVariables {
 
 const DB_QUERY_DURATION = 'db.query.duration'
 
+// Locale-independent collation used for case-insensitive matching ($like).
+// "und-x-icu" is the ICU root locale: it is always present in PostgreSQL builds
+// with ICU support and folds case for all scripts, unlike the database LC_CTYPE
+// which only handles ASCII when the database was created with LC_CTYPE=C.
+const SEARCH_COLLATION = '"und-x-icu"'
+
 abstract class PostgresAdapterBase implements DbAdapter {
   protected readonly _helper: DBCollectionHelper
   protected readonly tableFields = new Map<string, string[]>()
+
+  protected dbFlavor: DBFlavor | undefined
 
   constructor (
     protected readonly client: DBClient,
@@ -233,6 +243,15 @@ abstract class PostgresAdapterBase implements DbAdapter {
     readonly mgrId: string
   ) {
     this._helper = new DBCollectionHelper(this.client, this.workspaceId)
+  }
+
+  async initFlavor (connection: postgres.Sql): Promise<void> {
+    try {
+      this.dbFlavor = await getDBFlavor(connection, this.refClient.url())
+    } catch (err: any) {
+      // Not worth failing startup over: $like falls back to plain ILIKE.
+      this.dbFlavor = 'unknown'
+    }
   }
 
   reserveContext (id: string): () => void {
@@ -1381,7 +1400,15 @@ abstract class PostgresAdapterBase implements DbAdapter {
             }
             break
           case '$like':
-            res.push(`${tlkey} ILIKE ${vars.add(val, valType)}`)
+            // ILIKE folds case using the database LC_CTYPE. Databases created with
+            // LC_CTYPE=C only fold ASCII, so Cyrillic (and any non-ASCII) search is
+            // case-sensitive. An explicit ICU collation folds case correctly on any
+            // database, regardless of how it was created.
+            if (this.dbFlavor === 'postgres') {
+              res.push(`(${tlkey}) COLLATE ${SEARCH_COLLATION} ILIKE ${vars.add(val, valType)}`)
+            } else {
+              res.push(`${tlkey} ILIKE ${vars.add(val, valType)}`)
+            }
             break
           case '$exists':
             res.push(`${tlkey} IS ${val === true || val === 'true' ? 'NOT NULL' : 'NULL'}`)
@@ -2263,7 +2290,7 @@ export async function createPostgresAdapter (
 ): Promise<DbAdapter> {
   const client = getDBClient(url)
   const connection = await client.getClient()
-  return new PostgresAdapter(
+  const adapter = new PostgresAdapter(
     createDBClient(connection),
     client.mgr,
     client,
@@ -2272,6 +2299,8 @@ export async function createPostgresAdapter (
     modelDb,
     'default-' + wsIds.url
   )
+  await adapter.initFlavor(connection)
+  return adapter
 }
 /**
  * @public
@@ -2286,7 +2315,7 @@ export async function createPostgresTxAdapter (
   const client = getDBClient(url)
   const connection = await client.getClient()
 
-  return new PostgresTxAdapter(
+  const adapter = new PostgresTxAdapter(
     createDBClient(connection),
     client.mgr,
     client,
@@ -2295,4 +2324,6 @@ export async function createPostgresTxAdapter (
     modelDb,
     'tx' + wsIds.url
   )
+  await adapter.initFlavor(connection)
+  return adapter
 }

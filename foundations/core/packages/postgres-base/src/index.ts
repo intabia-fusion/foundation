@@ -17,6 +17,34 @@ import postgres, { type Options, type ParameterOrJSON } from 'postgres'
 
 const clientRefs = new Map<number, ClientRef>()
 
+export type DBFlavor = 'postgres' | 'cockroach' | 'unknown'
+
+const dbFlavors = new Map<string, DBFlavor>()
+
+export async function getDBFlavor (client: postgres.Sql, cacheKey?: string): Promise<DBFlavor> {
+  if (cacheKey !== undefined) {
+    const cached = dbFlavors.get(cacheKey)
+    if (cached !== undefined) {
+      return cached
+    }
+  }
+
+  // The version string is the only reliable way to tell the two apart.
+  const [{ version }] = await client`SELECT version()`
+
+  let flavor: DBFlavor = 'unknown'
+  if (/cockroach/i.test(version)) {
+    flavor = 'cockroach'
+  } else if (/postgresql/i.test(version)) {
+    flavor = 'postgres'
+  }
+
+  if (cacheKey !== undefined) {
+    dbFlavors.set(cacheKey, flavor)
+  }
+  return flavor
+}
+
 let clId = 0
 
 export type DBResult = any[] & { count: number }

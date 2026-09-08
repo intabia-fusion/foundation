@@ -2,41 +2,41 @@
 
 ## Diagnosing
 
-Playwright marks a test "flaky" when a retry passes, so the cause is in the *first* attempt. Read
-`step-report.ndjson` (`node analyze_steps.js`) for the step that burnt the time, then
-`test-results/<test>/error-context.md` for the call log. That log separates two opposite bugs:
-`waiting for <locator>` means the control was never there; `intercepts pointer events` means it was
-covered. `playwright-report.json` gives per-test totals (`analyze_failures.js`).
+Playwright mark test "flaky" when retry pass, so cause in *first* attempt. Read
+`step-report.ndjson` (`node analyze_steps.js`) for step that burnt time, then
+`test-results/<test>/error-context.md` for call log. Log separate two opposite bugs:
+`waiting for <locator>` = control never there; `intercepts pointer events` = it covered.
+`playwright-report.json` give per-test totals (`analyze_failures.js`).
 
 ## Recurring shapes
 
-- **`locator.count()` never waits.** Any arithmetic on it needs a settled read first (`waitStable` in
-  `retry.ts`). Two bugs came from this: `iterateLocator` counted pre-filter rows, and `deleteTimeSlot`
+- **`locator.count()` never waits.** Any arithmetic on it need settled read first (`waitStable` in
+  `retry.ts`). Two bugs from this: `iterateLocator` counted pre-filter rows, `deleteTimeSlot`
   asserted `toHaveCount(-1)`.
-- **A control that only exists while hovered or just opened.** Hover/open and use it in two separate
-  statements and a re-render between them leaves the second waiting out the whole test timeout. Retry
-  the pair: hover → assert visible → click. Hit `channel-page` message actions (5 call sites), the
-  ToDo dragbox, attachment tooltips, the context submenu (MouseSpeedTracker needs slow mouse movement),
-  the status popup, the workflow aside.
-- **An action with no timeout of its own inside a `toPass`.** It blocks until the test dies and the
-  retry loop never gets a turn. Give inner actions a short explicit timeout.
-- **A click that is not idempotent.** Rows toggle selection, rooms deselect. Retry the *wait*, not the
-  click, or guard with an early return when the target state already holds.
-- **Positional selectors** (`nth-child(2)`, `.nth(1)`, `first()`) shift when surrounding data changes.
-- **A filter that is not selective.** `selectMenuItem` filters by the first word, so parallel workers'
-  objects stay in the list. Match the whole name when an item carries it; `selectAssignee` delegates
+- **Control that only exist while hovered or just opened.** Hover/open and use it in two separate
+  statements, re-render between them leave second waiting out whole test timeout. Retry pair:
+  hover → assert visible → click. Hit `channel-page` message actions (5 call sites), ToDo dragbox,
+  attachment tooltips, context submenu (MouseSpeedTracker need slow mouse movement),
+  status popup, workflow aside.
+- **Action with no timeout of its own inside `toPass`.** It block until test die and retry loop never
+  get turn. Give inner actions short explicit timeout.
+- **Click that not idempotent.** Rows toggle selection, rooms deselect. Retry *wait*, not
+  click, or guard with early return when target state already hold.
+- **Positional selectors** (`nth-child(2)`, `.nth(1)`, `first()`) shift when surrounding data change.
+- **Filter that not selective.** `selectMenuItem` filter by first word, so parallel workers'
+  objects stay in list. Match whole name when item carry it; `selectAssignee` delegate
   to it for that reason.
-- **`hasText` matches a substring**, so a strict locator throws on a grouped copy — `.first()`.
-- **The pointer stays where the previous step dropped it.** A tooltip then covers the next control
-  (`tooltip right` over `btn-viewOptions` after the Board click), and a second `hover()` on the
-  element the pointer already rests on fires no mousemove, so a retried hover reopens nothing. Park
-  the pointer (`mouse.move(0, 0)`) before the click.
-- **An action that silently never starts.** Chromium raises dragstart on the first move after
-  `mouse.down()`; anything between the two (scrolling, a settle wait) means `dragCard` is never set
-  and every drop is a no-op that only the state check notices, a minute later. Assert the app saw it
-  (the card takes `dragged`) before moving on.
-- **Escape does not close a panel the app opened through the url**, and the close it *did* start
-  lands a beat later and tears down whatever opened after it. Wait for the new panel's own content
+- **`hasText` match substring**, so strict locator throw on grouped copy — `.first()`.
+- **Pointer stay where previous step dropped it.** Tooltip then cover next control
+  (`tooltip right` over `btn-viewOptions` after Board click), and second `hover()` on
+  element pointer already rest on fire no mousemove, so retried hover reopen nothing. Park
+  pointer (`mouse.move(0, 0)`) before click.
+- **Action that silently never start.** Chromium raise dragstart on first move after
+  `mouse.down()`; anything between the two (scrolling, settle wait) mean `dragCard` never set
+  and every drop no-op that only state check notice, minute later. Assert app saw it
+  (card take `dragged`) before moving on.
+- **Escape not close panel app opened through url**, and close it *did* start
+  land beat later and tear down whatever opened after it. Wait for new panel's own content
   and re-check it (`workflow-page.openAside`).
 
 ## Product-side causes
@@ -45,37 +45,37 @@ covered. `playwright-report.json` gives per-test totals (`analyze_failures.js`).
 |---|---|---|
 | Categories auto-fold past 20 items | `ListCategory.initCollapsed` | Rows absent from DOM (`CommonPage.expandCollapsedCategories`) |
 | Async default-app navigation clobbers a click | `Workbench.svelte:syncLoc` | User navigation undone mid-load |
-| Toasts cover `#profile-button` for 10s | `packages/ui/src/utils.ts` | Clicks wait the toast out; suppressed at `0` |
+| Toasts cover `#profile-button` for 10s | `packages/ui/src/utils.ts` | Clicks wait toast out; suppressed at `0` |
 | `TimeInputBox` dispatches per digit | `TimeInputBox.svelte` | One server write per keystroke |
 | Tag saved before its category loads | `CreateTagElement.svelte` | Tag exists, `TagsPopup` renders empty |
-| Live query assigns server values into an open editor | `EditToDo.svelte` | Un-round-tripped edit is wiped |
-| Estimation renders optimistically, falls back ~70ms later | `issues-details-page.setEstimation` | Write lost; needs the 500ms settle (200ms is not enough) |
-| Calendar keeps a stale event after a slot change | UBERF-4273 | Slot added right after a delete never appears |
-| Calendar block under 44px renders no body | `EventElement.svelte` (`empty`) | `hasText` finds no title once ~6 events share an hour |
-| Tag popup renders 50 tags per category | `TagsPopup.svelte` (`slice(0, 50)`) | A fresh tag past the cut is invisible; search for it instead |
-| `move()` returns silently when `dragCard` is unset | `packages/kanban/src/components/Kanban.svelte:210` | A drop with no dragstart changes nothing and reports nothing |
-| Templates group by assignee, group stays collapsed and virtualised | Templates list | A fresh template is absent from the DOM (`expandCollapsedCategories` + scroll) |
+| Live query assigns server values into an open editor | `EditToDo.svelte` | Un-round-tripped edit wiped |
+| Estimation renders optimistically, falls back ~70ms later | `issues-details-page.setEstimation` | Write lost; need 500ms settle (200ms not enough) |
+| Calendar keeps a stale event after a slot change | UBERF-4273 | Slot added right after delete never appears |
+| Calendar block under 44px renders no body | `EventElement.svelte` (`empty`) | `hasText` find no title once ~6 events share hour |
+| Tag popup renders 50 tags per category | `TagsPopup.svelte` (`slice(0, 50)`) | Fresh tag past cut invisible; search for it instead |
+| `move()` returns silently when `dragCard` is unset | `packages/kanban/src/components/Kanban.svelte:210` | Drop with no dragstart change nothing, report nothing |
+| Templates group by assignee, group stays collapsed and virtualised | Templates list | Fresh template absent from DOM (`expandCollapsedCategories` + scroll) |
 
 ## Stand state
 
-**Not restored between local runs** — `dotest.sh` runs no `restore-pg.sh`. Consequences:
+**Not restored between local runs** — `dotest.sh` run no `restore-pg.sh`. Consequences:
 
 - Tests that mutate seed data work exactly once.
-- `plan.spec.ts` asserts absolute counts on seeded todos: a leftover slot makes it unpassable, not
+- `plan.spec.ts` assert absolute counts on seeded todos: leftover slot make it unpassable, not
   flaky (`Expected: 0, Received: 1`, then 2, then 3). Both slot tests call `clearTimeSlots()` first.
-- **Planner tests still need a clean stand.** Each run leaves its own `ToDo to change duration-*`;
-  once the day is crowded a freshly added slot never reaches the calendar. Clean: 11 passed in 17s.
+- **Planner tests still need clean stand.** Each run leave own `ToDo to change duration-*`;
+  once day crowded, freshly added slot never reach calendar. Clean: 11 passed in 17s.
   Repeat without restore: 3 failed, every time.
-- love tests share rooms in `meetings-ws`. `waitForActiveMeetingsToFinish` gives up after 20s and now
-  logs what was left; the next test used to fail 15s later on an unrelated locator.
+- love tests share rooms in `meetings-ws`. `waitForActiveMeetingsToFinish` give up after 20s and now
+  log what was left; next test used to fail 15s later on unrelated locator.
 
-- **Accumulated data crosses product render limits.** Measured 2026-09-03 on a stand nobody had
-  restored: 431 issues, 91 tags, 48 components, 62 todos, 28 templates. That is past `TagsPopup`'s
-  50 and enough to bury a fresh template below the fold - tests that passed for months start failing
-  with no code change. `plan.spec.ts` and `template.spec.ts` now drop their own leftovers in
-  `beforeAll`; the real fix is running `tests/restore-pg.sh` on a schedule.
+- **Accumulated data cross product render limits.** Measured 2026-09-03 on stand nobody had
+  restored: 431 issues, 91 tags, 48 components, 62 todos, 28 templates. That past `TagsPopup`'s
+  50 and enough to bury fresh template below fold - tests that passed for months start failing
+  with no code change. `plan.spec.ts` and `template.spec.ts` now drop own leftovers in
+  `beforeAll`; real fix is running `tests/restore-pg.sh` on schedule.
 
-**Recreating one container breaks nginx** — it resolves upstreams at startup. `docker restart
+**Recreating one container breaks nginx** — it resolve upstreams at startup. `docker restart
 sanity-nginx-1` after any `--force-recreate`.
 
 ## Fixed flakes
@@ -130,35 +130,35 @@ sanity-nginx-1` after any `--force-recreate`.
 
 ## Open, do not retry these
 
-**`subissues.spec.ts:153`.** Moving the issue closes the panel; reopening from the list renders the
-identifier as a breadcrumb instead of `div.title.not-active` — 4 failures in 20 versus 1 flake in a
-full run. Reverted. Needs a locator matching both renderings.
+**`subissues.spec.ts:153`.** Moving issue close panel; reopening from list render
+identifier as breadcrumb instead of `div.title.not-active` — 4 failures in 20 versus 1 flake in
+full run. Reverted. Need locator matching both renderings.
 
 ## Wall time is packing, not just work
 
-`meetings.all.spec.ts` imports all 17 `love/*.tests.ts`, so with `fullyParallel: false` love is one
-sequential ~178s job - twice the next file. It used to start ~82s in and finish at 276s while the
-other four workers idled from 190s. Giving it its own project (`Love` declared **before** `Platform`,
-`testMatch: /love\//` vs `testIgnore: /love\//`, `use` shared through `platformUse`) puts it at the
-head of the queue: love now runs 0.1s -> 162.9s and **wall went 276s -> 238s**. Packing is near the
+`meetings.all.spec.ts` import all 17 `love/*.tests.ts`, so with `fullyParallel: false` love is one
+sequential ~178s job - twice next file. It used to start ~82s in and finish at 276s while
+other four workers idled from 190s. Giving it own project (`Love` declared **before** `Platform`,
+`testMatch: /love\//` vs `testIgnore: /love\//`, `use` shared through `platformUse`) put it at
+head of queue: love now run 0.1s -> 162.9s and **wall went 276s -> 238s**. Packing near
 ceiling now (1114s of worker busy over 238s = 4.68 effective workers), so further wall cuts have to
-come out of the work itself.
+come out of work itself.
 
-**Do not try to parallelise inside love.** `waitForActiveMeetingsToFinish` does not just clean up
-after itself - it force-finishes every `MeetingMinutes` and deletes every `ParticipantInfo` /
-`UserMeetingInvite` in the workspace (no room filter), then *waits until none are left*. Two love
+**Do not try to parallelise inside love.** `waitForActiveMeetingsToFinish` not just clean up
+after itself - it force-finish every `MeetingMinutes` and delete every `ParticipantInfo` /
+`UserMeetingInvite` in workspace (no room filter), then *wait until none left*. Two love
 files in parallel kill each other's meetings. 12 of 17 reach it via `closeMeetingContexts`;
 `session` and `bidirectional-loop` also call it mid-test. Only `access`, `migration`, `privacy` and
-`meetings.tests` are safe to split out (13.2s of 178s) - and after the project split love is no
-longer the critical path, so that buys nothing.
+`meetings.tests` safe to split out (13.2s of 178s) - and after project split love no
+longer critical path, so that buy nothing.
 
-`meetings.start.tests.ts` creates real meetings and has **no cleanup at all** - it only works because
-the aggregator runs it before files whose `beforeEach` drains. Any reordering leaves a live meeting.
+`meetings.start.tests.ts` create real meetings and has **no cleanup at all** - it only work because
+aggregator run it before files whose `beforeEach` drains. Any reordering leave live meeting.
 
 ## Where the time goes
 
 Clean run, 5 workers, 391 tests: **1054s of step time over ~250s wall** — bound by total work, not by
-packing (5 workers already give 4.2x). Cutting wall time means cutting work.
+packing (5 workers already give 4.2x). Cutting wall time mean cutting work.
 
 | block | cost |
 |---|---|
@@ -169,84 +169,108 @@ packing (5 workers already give 4.2x). Cutting wall time means cutting work.
 | love widget waits (`meeting-widget` 35s, `floorGrid` 25s) | 60s |
 | context + page creation | 31s |
 
-**A click on the icon of the app that is already open toggles the navigator shut**, and every later
-lookup in it waits out its timeout on a panel that is not there. `LeftSideMenuPage.openApp` returns
-early when `pathname.split('/')[3]` already names the app, so all eight `click<App>` helpers are
-idempotent. Same shape one level down: a navigator group renders a moment after the app, and a
-`isVisible()` read in that gap makes a caller press the hamburger and hide the panel it wanted
+**Click on icon of app already open toggle navigator shut**, and every later
+lookup in it wait out its timeout on panel that not there. `LeftSideMenuPage.openApp` return
+early when `pathname.split('/')[3]` already name app, so all eight `click<App>` helpers
+idempotent. Same shape one level down: navigator group render moment after app, and
+`isVisible()` read in that gap make caller press hamburger and hide panel it wanted
 (`ai-bot-scenarios.openDefaultProject`).
 
-**Open the app from the url, not from the sidebar.** `loginByToken` / `createAccountAndWorkspace`
-take an optional app alias (`chunter`, `tracker`, `document`, `contact`, `notification`, `time`,
-`love`); specs on `PlatformSetting` just extend their own `goto`. Measured: the opening click costs
-~913ms, the app segment in the url ~55ms - 141 such clicks were 128.8s of the run. Converted: all of
+**Open app from url, not from sidebar.** `loginByToken` / `createAccountAndWorkspace`
+take optional app alias (`chunter`, `tracker`, `document`, `contact`, `notification`, `time`,
+`love`); specs on `PlatformSetting` just extend own `goto`. Measured: opening click cost
+~913ms, app segment in url ~55ms - 141 such clicks were 128.8s of run. Converted: all of
 `chat/*`, `documents/*`, `love/*` (already had `navigateToOffice`'s early return), `tracker/filter`,
-`inbox` (also moved off the login form). Pick the alias the *first* step needs, not the one the file
-is named after - `dynamic-issues-chats` opens the tracker first and only then the chat.
+`inbox` (also moved off login form). Pick alias *first* step need, not one file
+named after - `dynamic-issues-chats` open tracker first and only then chat.
 
-**Token login instead of the form.** `loginByToken` / `createAccountAndWorkspace` in `utils.ts`.
+**Token login instead of form.** `loginByToken` / `createAccountAndWorkspace` in `utils.ts`.
 Measured: form + picker ~1.1s, token + `goto /workbench/<ws>` **490ms**, and
-`goto /workbench/<ws>/<app>` only ~55ms more — it also swallows the 810ms app-switch click. Eleven
+`goto /workbench/<ws>/<app>` only ~55ms more — it also swallow 810ms app-switch click. Eleven
 specs converted: login-form steps **160 → 56**, `chat.spec` 110.6 → 88.9s, `image-reservation`
 48.2 → 31.3s. Still slow: 63 opening app-switch clicks (`goto` + click ~1000ms vs direct URL 483ms).
 
-**Tracing every attempt roughly doubles a local run** (17.9MB per kept trace). Default is
-`on-first-retry` in all three sanity configs; `TRACE_MODE=retain-on-failure` only when chasing a flake,
-because `on-first-retry` traces the attempt that *passed*.
+**Tracing every attempt roughly double local run** (17.9MB per kept trace). Default is
+`on-first-retry` in all three sanity configs; `TRACE_MODE=retain-on-failure` only when chasing flake,
+because `on-first-retry` trace attempt that *passed*.
 
 **Browser cache is per BrowserContext.** Server hits for `bundle*`: fresh context 6, reload 0, new
-page in it 0, new context 6. Headers are already `max-age=31536000` + etag. A full run serves 34 800
+page in it 0, new context 6. Headers already `max-age=31536000` + etag. Full run serve 34 800
 static requests / 1.9 GB out of 128 unique files, ~89 per test.
 
-**Context reuse was tried twice and removed — do not reach for it again.** A single shared context
-gives half the suite the wrong logged-in user (53 specs declare their own `storageState`). A pool
-keyed by context options with the snapshot restored is correct on two specs (896 → 130 requests) and
-gives **exactly the same wall time**; the full suite then went 363 passed / 23 failed in 8.3m against
-386 passed in 4.9m. What leaks is not storage — the page kept open to write localStorage is a live
-websocket session the notification and workspace tests see as an extra participant. The saving is
-bytes, not CPU: the bundle is already minified (`optimization.minimize: prod`).
+**Context reuse tried twice and removed — do not reach for it again.** Single shared context
+give half suite wrong logged-in user (53 specs declare own `storageState`). Pool
+keyed by context options with snapshot restored is correct on two specs (896 → 130 requests) and
+give **exactly same wall time**; full suite then went 363 passed / 23 failed in 8.3m against
+386 passed in 4.9m. What leak not storage — page kept open to write localStorage is live
+websocket session notification and workspace tests see as extra participant. Saving is
+bytes, not CPU: bundle already minified (`optimization.minimize: prod`).
 
 **4 workers on `ubuntu-latest` buy exactly nothing.** Same suite, work went 3159s → 5899s and every
 action's p50 doubled (`Create context` 102→210ms, `Close context` 10→19ms, `beforeEach` 714→1465ms);
-wall stayed at 1744s vs 1813s. `Close context` is not app work, so it is the runner: 4 vCPU with the
-whole 34-container stand is saturated at 2 workers. `workers` left unset (cores/2). The remaining CI
-levers are a bigger runner or splitting across runners.
+wall stayed at 1744s vs 1813s. `Close context` not app work, so it runner: 4 vCPU with
+whole 34-container stand saturated at 2 workers. `workers` left unset (cores/2). Remaining CI
+levers are bigger runner or splitting across runners.
 
-**`Promise.race` of two `waitFor`s bills the loser** — 98.8s over 9 sign-ups in `confirmOtpIfNeeded`.
-Use `expect.poll` over both conditions. **`step-reporter.ts` is not a cost** (18836 rows / 4MB).
+**`Promise.race` of two `waitFor`s bill loser** — 98.8s over 9 sign-ups in `confirmOtpIfNeeded`.
+Use `expect.poll` over both conditions. **`step-reporter.ts` not a cost** (18836 rows / 4MB).
 
 ## Kanban drag: what the drop checks must compare (2026-09-07)
 
-`dragPointer` (tests/sanity/tests/model/tracker/kanban-board-page.ts) verified the drop target by
-`data-state` alone. With swim lanes on, every lane carries a cell per status, so a drop that landed
-one lane off matched `wanted`, passed both the pre-release hit test and the `__dropSeen` check, and
-the test failed later as "attachedTo never changed" - exactly the flake seen in run 20260907-185152.
-The zone key is now `data-swimlane-id|data-state` in all three places (`wanted`, the capture-phase
+`dragPointer` (tests/sanity/tests/model/tracker/kanban-board-page.ts) verified drop target by
+`data-state` alone. With swim lanes on, every lane carry cell per status, so drop that landed
+one lane off matched `wanted`, passed both pre-release hit test and `__dropSeen` check, and
+test failed later as "attachedTo never changed" - exactly flake seen in run 20260907-185152.
+Zone key now `data-swimlane-id|data-state` in all three places (`wanted`, capture-phase
 `drop` listener, `elementFromPoint`).
 
-Two more things the drag got wrong:
+Two more things drag got wrong:
 
-- The pointer aimed at the centre of the target's bounding box. A swim lane cell is taller than the
-  900px viewport, so its centre sat below the fold and `elementFromPoint` returned nothing. It now
-  aims at the centre of the intersection with the viewport (`visiblePointOf`).
-- Taking the card out of its own cell rearranges the board, so the target moves after it was
-  measured. Measure-move-verify now runs up to 4 times inside the same held drag instead of failing
-  the caller's attempt.
+- Pointer aimed at centre of target's bounding box. Swim lane cell taller than
+  900px viewport, so its centre sat below fold and `elementFromPoint` returned nothing. It now
+  aim at centre of intersection with viewport (`visiblePointOf`).
+- Taking card out of own cell rearrange board, so target move after it was
+  measured. Measure-move-verify now run up to 4 times inside same held drag instead of failing
+  caller's attempt.
 
-`expectCardInColumn` / `expectCardInSwimLaneCell` call `revealCard` first: past a column's limit the
-card is not in the DOM at all, and the assertion reported it as missing.
+`expectCardInColumn` / `expectCardInSwimLaneCell` call `revealCard` first: past column's limit
+card not in DOM at all, and assertion reported it as missing.
 
 ## Tooling traps
 
-- `pnpm build:lint` can report `errors 0` for a package it served from
-  `.fast-build-cache.json` and never linted. The real check is `npx eslint "tests/**/*.ts"` from
-  inside `tests/sanity` — the glob is required, a plain `tests/` path is rejected.
-- `--reporter=line` **replaces** the reporter list: no `step-report.ndjson`, no `playwright-report.json`.
-- love files are `*.tests.ts`; a path argument gives `No tests found`, select with
+- `pnpm build:lint` can report `errors 0` for package it served from
+  `.fast-build-cache.json` and never linted. Real check is `npx eslint "tests/**/*.ts"` from
+  inside `tests/sanity` — glob required, plain `tests/` path rejected.
+- `--reporter=line` **replaces** reporter list: no `step-report.ndjson`, no `playwright-report.json`.
+- love files are `*.tests.ts`; path argument give `No tests found`, select with
   `pnpm run uitest -g "<part of the title>"`.
-- `workflow-settings.spec.ts` is a serial describe — one flake re-runs the whole block, so every test
-  in the file gets a `-retry1` folder while only one is reported flaky.
-- `--repeat-each` on `kanban.spec.ts` gives false failures: `setSwimLane` stores view options per
-  user and the storage state is shared, so parallel copies fight over the board layout.
-- `love/*` timings swing by tens of seconds run to run (LiveKit on the Mac host); compare per-file
+- `workflow-settings.spec.ts` is serial describe — one flake re-run whole block, so every test
+  in file get `-retry1` folder while only one reported flaky.
+- `--repeat-each` on `kanban.spec.ts` give false failures: `setSwimLane` store view options per
+  user and storage state shared, so parallel copies fight over board layout.
+- `love/*` timings swing by tens of seconds run to run (LiveKit on Mac host); compare per-file
   deltas, not totals.
+
+## love multitab: second tab left the meeting it just joined (2026-09-08)
+
+`meetings.multitab.tests.ts` "joining from a second tab evicts the first tab" failed on
+`connectedMarker(tabB)` in run 20260908-125454. Not test defect: trace show tab B connect, then
+disconnect itself 49ms later (`[LiveKitClient.connect] Connection established successfully` 58.811 ->
+`[LiveKitClient.disconnect] Disconnecting...` 58.860); love service logs matching `participant_left`
+in room B 0.5s after `Evicted a session in another meeting`.
+
+Root cause in `plugins/love-resources/src/components/meeting/ControlExt.svelte`: "was I moved out
+of my room" guard in `checkActiveMeeting` read outer `myRoomAttached`, which not dependency of
+reactive statement (Svelte track call arguments only), so it ran one tick before that
+assignment. When tab B own ParticipantInfo landed, `$currentRoom` already room B while
+`myRoomAttached` still pointed at room A from tab A row, and `$myInfo.sessionId === mySid` now
+matched because row was tab B own - guard fired, called `leaveMeeting()`. Fix: pass value as
+parameter, so it tracked and recomputed first.
+
+Reproduce under load only: idle, tab B ParticipantInfo webhook land while `myConnectingSessionId`
+still set and guard return early. 8 isolated repeats passed; with full Platform run
+alongside, 4 of 8 failed before fix, 8 of 8 passed after (Love project 66 passed).
+
+Reproducing love flakes: `--project=Love -g "<title>" --repeat-each 8 --workers 1 --retries 0
+--trace on` while `--project=Platform --workers 5` load machine. Trace console entries identify
+client-side disconnect; JSON reporter carry no steps, `error-context.md` no page snapshot.

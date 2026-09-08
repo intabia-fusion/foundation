@@ -32,6 +32,8 @@ function parseArgs(args) {
   let doPackage = false
   let doDockerBuild = false
   let doSvelteCheck = false
+  let noTypeCheck = false
+  let esbuildEmit = false
   let help = false
   let list = false
   let toPackage = null
@@ -83,6 +85,10 @@ function parseArgs(args) {
       doBundle = true  // docker-build implies bundle
     } else if (arg === '--svelte-check') {
       doSvelteCheck = true
+    } else if (arg === '--no-type-check') {
+      noTypeCheck = true
+    } else if (arg === '--esbuild-emit') {
+      esbuildEmit = true
     } else if (arg === '--list' || arg === '-l') {
       list = true
     } else if (arg === '--to') {
@@ -113,7 +119,7 @@ function parseArgs(args) {
     verbose = process.env.VERBOSE === '1'
   }
 
-  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers, groupTests, lintFix }
+  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, noTypeCheck, esbuildEmit, help, list, toPackage, rootDir, forceWorkers, groupTests, lintFix }
 }
 
 function printUsage() {
@@ -140,6 +146,9 @@ Options:
   --docker-build       Run docker-build phase (implies --bundle)
   --svelte-check       Run svelte-check for packages with "_phase:svelte-check"
   --list, -l           Only print the list of packages in compilation order (no actual compilation)
+  --no-type-check      Emit without checking types (tsc --noCheck); outputs are identical,
+                       type errors are left to the build/lint jobs
+  --esbuild-emit       Emit JS with esbuild and leave tsc declarations only (the pre-tsc7 split)
   --to <package>       Only compile the specified package and its dependencies
   --help, -h           Show this help message
 
@@ -491,6 +500,8 @@ async function compileAll(rootDir, options = {}) {
     doPackage = false,
     doDockerBuild = false,
     doSvelteCheck = false,
+    noTypeCheck = false,
+    esbuildEmit = false,
     list = false,
     toPackage = null,
     forceWorkers = false
@@ -648,7 +659,9 @@ async function compileAll(rootDir, options = {}) {
   // Single build phase: one tsc pass per package emits JS and .d.ts together.
   const buildPhaseResults = await runBuildPhase(graph, packagesToBuild, tscWorkers, {
     force: forcePrerequisites,
-    packageHashes
+    packageHashes,
+    noTypeCheck,
+    esbuildEmit
   })
 
   if (buildPhaseResults.errors.length > 0) {

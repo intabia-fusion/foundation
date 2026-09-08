@@ -1,4 +1,6 @@
-./common/scripts/node_modules/.bin/compile-all . --parallel 4 --docker-build \
+# Images only need JS: types are checked by the build and lint jobs, and a bundle never
+# reads .d.ts. Transpile-only, as the docker path did before tsc7.
+./common/scripts/node_modules/.bin/compile-all . --parallel 4 --docker-build --esbuild-emit \
 --to @hcengineering/pod-server \
 --to @hcengineering/pod-front \
 --to @hcengineering/prod \

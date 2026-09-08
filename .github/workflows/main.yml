@@ -536,7 +536,7 @@ jobs:
       - name: Model version from git tags
         run: pnpm model-version
       - name: Package
-        run: pnpm package --to desktop -v
+        run: pnpm package --to desktop -v --esbuild-emit
       - name: Test desktop update system
         run: |
           cd desktop-package

@@ -145,6 +145,16 @@ async function formatPackage(cwd, options = {}) {
           const resolved = await eslint.calculateConfigForFile(file)
           const first = r.messages.find((m) => m.ruleId == null)
           const lines = content.split('\n')
+          // Does the unformatted source parse? Separates a prettier problem from a parser one.
+          let originalParseErrors = -1
+          try {
+            const orig = await eslint.lintText(original, { filePath: file })
+            originalParseErrors = orig[0].messages.filter((m) => m.ruleId == null).length
+          } catch {}
+          let tsVersion = 'unknown'
+          try {
+            tsVersion = require(require.resolve('typescript/package.json', { paths: [cwd] })).version
+          } catch (e) { tsVersion = 'unresolved: ' + e.message }
           console.error(
             'PARSE-DIAG ' +
               JSON.stringify({
@@ -156,6 +166,8 @@ async function formatPackage(cwd, options = {}) {
                 head: content.slice(0, 120),
                 bytes: content.length,
                 prettierChanged: content !== original,
+                originalParseErrors,
+                tsVersion,
                 parser: resolved.parser ?? '(eslint default)',
                 project: resolved.parserOptions?.project,
                 tsconfigRootDir: resolved.parserOptions?.tsconfigRootDir,

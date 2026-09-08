@@ -330,9 +330,12 @@ function getOptimalWorkerCount(requestedWorkers, taskType = 'default', overrides
   const requested = Number.isFinite(envWorkers) && envWorkers > 0 ? envWorkers : requestedWorkers
 
   const byMemory = Math.max(1, Math.floor(budgetMB / spec.minHeapMB))
-  // `spec.workers` is a fixed count for phases whose worker is itself multi-threaded:
-  // the CPU count says nothing useful there, only memory does. --force-workers still wins.
-  const byCpu = spec.workers ?? Math.min(requested, cpuCount, spec.maxWorkers ?? cpuCount)
+  // `spec.workers` is a ceiling for phases whose worker is itself multi-threaded (tsgo saturates
+  // several cores on its own), so it is capped by the CPU count but never drops below 2 —
+  // one process alone leaves the pipeline serial. --force-workers still wins.
+  const byCpu = spec.workers != null
+    ? Math.max(2, Math.min(spec.workers, cpuCount))
+    : Math.min(requested, cpuCount, spec.maxWorkers ?? cpuCount)
   const workers = Math.max(1, Math.min(byCpu, byMemory))
 
   // Split the budget across the workers we settled on. Never hand out more than the

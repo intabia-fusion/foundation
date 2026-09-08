@@ -143,7 +143,10 @@ async function performESBuildWithSvelte(filesToTranspile, options = {}) {
       absWorkingDir: cwd,
       plugins: [
         sveltePlugin({
-          preprocess: sveltePreprocess(),
+          // svelte-preprocess 6 elides imports that only the markup uses (a store referenced
+          // as $store) unless this is set. Deliberately not in tsconfig: esbuild reads it too
+          // and would then keep type-only imports, pulling .svelte source into node bundles.
+          preprocess: sveltePreprocess({ typescript: { compilerOptions: { verbatimModuleSyntax: true } } }),
           compilerOptions: {
             css: 'injected',
             generate: 'ssr'

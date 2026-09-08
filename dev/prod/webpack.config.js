@@ -545,6 +545,8 @@ module.exports = [
                 emitCss: true,
                 hotReload: !prod,
                 preprocess: require('svelte-preprocess')({
+                  // Keeps imports that only the markup uses; see platform-rig/bin/compile.js.
+                  typescript: { compilerOptions: { verbatimModuleSyntax: true } },
                   postcss: true,
                   sourceMap: true,
                   scss: {

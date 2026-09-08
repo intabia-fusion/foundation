@@ -61,6 +61,14 @@ function quitApplication (): void {
   app.quit()
 }
 
+// A dev run shares config, session and the single-instance lock with an installed build unless it
+// gets its own name: the lock lives inside userData, so without this `pnpm desktop` just focuses the
+// installed app instead of starting. Must happen before the lock is requested.
+if (process.env.DEV_INSTANCE === 'true') {
+  app.setName(`${app.getName()} Dev`)
+  app.setPath('userData', path.join(app.getPath('appData'), app.getName()))
+}
+
 const gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {

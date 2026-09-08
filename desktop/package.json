@@ -20,7 +20,7 @@
     "dev": "cross-env NODE_ENV=development node ../common/scripts/set_model_and_version_env.js webpack --progress -w",
     "dev-build": "cross-env NODE_ENV=development node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details",
     "start": "cross-env NODE_ENV=production node ../common/scripts/set_model_and_version_env.js electron --no-sandbox .",
-    "start-dev": "cross-env NODE_ENV=development node ../common/scripts/set_model_and_version_env.js electron --no-sandbox .",
+    "start-dev": "cross-env NODE_ENV=development DEV_INSTANCE=true node ../common/scripts/set_model_and_version_env.js electron --no-sandbox .",
     "test": "jest --passWithNoTests --silent --forceExit --verbose --detectOpenHandles",
     "test:debug": "node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand --no-cache",
     "format": "format src",

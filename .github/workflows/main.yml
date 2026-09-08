@@ -232,10 +232,9 @@ jobs:
       - name: Testing...
         run: pnpm test --verbose
         env:
-          DB_URL: "postgresql://root@localhost:26258/defaultdb?sslmode=disable"
+          DB_URL: "postgresql://postgres:postgres@localhost:5433/postgres"
           ELASTIC_URL: "http://localhost:9201"
           MONGO_URL: "mongodb://localhost:27018"
-          POSTGRES_URL: "postgresql://postgres:postgres@localhost:5433/postgres"
 
   uitest-cockroach:
     if: inputs.run-cockroach == true

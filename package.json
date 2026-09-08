@@ -2,7 +2,7 @@
   "name": "@hcengineering/foundation",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@10.30.3",
+  "packageManager": "pnpm@12.3.4",
   "engines": {
     "node": ">=24.0.0 <25.0.0"
   },
@@ -10,6 +10,7 @@
     "build": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel",
     "build:lint": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --lint",
     "test": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --test",
+    "jest": "node ./foundations/utils/packages/platform-rig/bin/jest.js",
     "bundle": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --bundle",
     "package": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --bundle --package",
     "docker:build": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --docker-build",
@@ -20,6 +21,7 @@
     "docker": "./common/scripts/docker-fast.sh",
     "format": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --format",
     "format:branch": "./common/scripts/fast-format.sh",
+    "profile-test": "node ./common/scripts/profile-tests.js",
     "check-versions": "node ./common/scripts/check-versions.js",
     "check-layers": "node ./common/scripts/check-layers.js",
     "model-version": "node ./common/scripts/show_version.js",
@@ -39,6 +41,10 @@
     "tool:upgrade": "pnpm --filter @hcengineering/tool run run-local upgrade -f",
     "ts-clean": "find . -name '*.tsbuildinfo' -not -path '*node_modules*' -delete",
     "remove-ts-types": "find . -maxdepth 5 -name types -type d -not -path '*node_modules*' -exec rm -rf {} +",
-    "update-deps": "./common/scripts/node_modules/.bin/update-deps"
+    "update-deps": "./common/scripts/node_modules/.bin/update-deps",
+    "doupdate": "pnpm install --frozen-lockfile"
+  },
+  "dependencies": {
+    "pnpm": "^12.3.4"
   }
 }

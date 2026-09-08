@@ -12,14 +12,14 @@ const {
   isPhaseCached,
   markPhaseCompleted
 } = require('../libs/cache')
+const { planTestRun, findJestBin, hasTestFiles, buildSharedConfig } = require('../libs/test-groups')
 const { success, error, dim, colorizeErrorMessage } = require('../libs/colors')
 
 // Environment variables that affect test execution and should invalidate cache
 const TEST_ENV_VARS = [
   'DB_URL',
   'ELASTIC_URL',
-  'MONGO_URL',
-  'POSTGRES_URL'
+  'MONGO_URL'
 ]
 
 /**
@@ -34,29 +34,68 @@ function getTestEnvHash () {
 }
 
 /**
- * Check if a directory contains any test files (*.test.ts, *.spec.ts, *.test.js, *.spec.js)
+ * Runs one jest over every shared package via `projects`, then maps the report back so each
+ * package keeps its own pass/fail and cache entry. jest's own reporter goes straight to the
+ * terminal; the machine-readable copy lands in a temp file.
  */
-function hasTestFiles (dir) {
-  const testPattern = /\.(test|spec)\.(ts|js|tsx|jsx)$/
-  try {
-    const entries = readdirSync(dir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (entry.name === 'node_modules' || entry.name === '.svelte-check') continue
-      const fullPath = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        if (hasTestFiles(fullPath)) return true
-      } else if (testPattern.test(entry.name)) {
-        return true
+async function runShared (shared, jestBin) {
+  const { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } = require('fs')
+  const { tmpdir } = require('os')
+  const dir = mkdtempSync(join(tmpdir(), 'jest-shared-'))
+  const configPath = join(dir, 'jest.config.js')
+  const jsonPath = join(dir, 'report.json')
+  const { projects, testTimeout } = buildSharedConfig(shared)
+  writeFileSync(configPath, `module.exports = ${JSON.stringify({ projects }, null, 2)}\n`)
+
+  const args = ['-c', configPath, ...shared.flags, '--json', `--outputFile=${jsonPath}`]
+  if (testTimeout !== undefined) args.push(`--testTimeout=${testTimeout}`)
+  const started = performance.now()
+  // jest prints a line per suite; captured here so a green run stays quiet, replayed on failure.
+  const child = spawn(jestBin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+  let output = ''
+  child.stdout?.on('data', (d) => { output += d.toString() })
+  child.stderr?.on('data', (d) => { output += d.toString() })
+  const heartbeat = setInterval(() => {
+    console.log(`    [test] shared jest still running... (${Math.round((performance.now() - started) / 1000)}s elapsed)`)
+  }, 15000)
+  await new Promise((resolve) => {
+    child.on('close', resolve)
+    child.on('error', () => resolve(-1))
+  })
+  clearInterval(heartbeat)
+  const wall = performance.now() - started
+
+  // Attribute every suite to the package it lives in, longest path first so nested dirs win.
+  const byPackage = new Map(shared.packages.map((p) => [p.name, { time: 0, failed: false, details: [] }]))
+  const sorted = [...shared.packages].sort((a, b) => b.cwd.length - a.cwd.length)
+  let parsed = false
+  if (existsSync(jsonPath)) {
+    try {
+      const report = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      parsed = true
+      for (const suite of report.testResults ?? []) {
+        const owner = sorted.find((pkg) => suite.name.startsWith(pkg.cwd + '/'))
+        if (owner === undefined) continue
+        const acc = byPackage.get(owner.name)
+        acc.time += suite.endTime - suite.startTime
+        if (suite.status === 'failed') {
+          acc.failed = true
+          if (suite.message) acc.details.push(suite.message.trimEnd())
+        }
       }
-    }
-  } catch {
-    // Directory doesn't exist or can't be read
+    } catch { /* handled below */ }
   }
-  return false
+  rmSync(dir, { recursive: true, force: true })
+
+  // No report means we cannot tell packages apart; fail them all rather than cache a bad pass.
+  if (!parsed) {
+    for (const acc of byPackage.values()) acc.failed = true
+  }
+  return { byPackage, wall, parsed, output }
 }
 
 async function runTestPhase (graph, packageNames, concurrency, options = {}) {
-  const { force = false, packageHashes, verbose = false } = options
+  const { force = false, packageHashes, verbose = false, group: groupEnabled = true } = options
 
   const results = {
     successCount: 0,
@@ -74,27 +113,16 @@ async function runTestPhase (graph, packageNames, concurrency, options = {}) {
 
   console.log(`    Using ${concurrency} test workers`)
 
+  const hashOf = (packageName) => {
+    const baseHash = packageHashes?.get(packageName)
+    // Include env vars in hash so cache invalidates when test env changes
+    return baseHash ? `${baseHash}-${envHash}` : undefined
+  }
+
   async function testPackage (packageName) {
     const node = graph.get(packageName)
     const cwd = node.project.fullPath
-    const baseHash = packageHashes?.get(packageName)
-    // Include env vars in hash so cache invalidates when test env changes
-    const packageHash = baseHash ? `${baseHash}-${envHash}` : undefined
-
-    // Check cache
-    if (!force && packageHash) {
-      if (isPhaseCached(cwd, packageHash, 'test', null, [])) {
-        return { success: true, fromCache: true }
-      }
-    }
-
-    // Skip packages without any test files — avoids ~2s jest startup overhead per package
-    if (!hasTestFiles(cwd)) {
-      if (packageHash) {
-        markPhaseCompleted(cwd, packageHash, 'test', null, [])
-      }
-      return { success: true, skipped: true }
-    }
+    const packageHash = hashOf(packageName)
 
     return new Promise((resolve) => {
       const pkgStart = performance.now()
@@ -177,50 +205,100 @@ async function runTestPhase (graph, packageNames, concurrency, options = {}) {
     })
   }
 
-  // Process packages with concurrency limit
-  const chunks = []
-  for (let i = 0; i < packageNames.length; i += concurrency) {
-    chunks.push(packageNames.slice(i, i + concurrency))
-  }
-
-  for (const chunk of chunks) {
-    const promises = chunk.map(async (name) => {
-      const result = await testPackage(name)
-      completedCount++
-      if (result.success) {
-        results.successCount++
-        if (result.fromCache) {
-          results.cacheHits++
-          if (verbose) {
-            console.log(`    ${success('T')} ${dim(completedCount)}/${packageNames.length} ${dim(name)} ${dim('(cached)')}`)
-          }
-        } else if (result.skipped) {
-          results.skippedCount++
-          if (verbose) {
-            console.log(`    ${success('T')} ${dim(completedCount)}/${packageNames.length} ${dim(name)} ${dim('(no tests)')}`)
-          }
-        } else {
-          const time = result.time ? Math.round(result.time) + 'ms' : ''
-          timings.push({ package: name, time: Math.round(result.time || 0), failed: false })
-          console.log(`    ${success('T')} ${dim(completedCount)}/${packageNames.length} ${name} ${success('passed')} ${dim(time)}`)
+  function report (name, result) {
+    completedCount++
+    if (result.success) {
+      results.successCount++
+      if (result.fromCache) {
+        results.cacheHits++
+        if (verbose) {
+          console.log(`    ${success('T')} ${dim(completedCount)}/${packageNames.length} ${dim(name)} ${dim('(cached)')}`)
+        }
+      } else if (result.skipped) {
+        results.skippedCount++
+        if (verbose) {
+          console.log(`    ${success('T')} ${dim(completedCount)}/${packageNames.length} ${dim(name)} ${dim('(no tests)')}`)
         }
       } else {
-        results.errors.push({ package: name, error: result.error })
         const time = result.time ? Math.round(result.time) + 'ms' : ''
-        timings.push({ package: name, time: Math.round(result.time || 0), failed: true })
-        console.error(`    ${error('T')} ${dim(completedCount)}/${packageNames.length} ${name} ${error('FAILED')} ${dim(time)}`)
-        if (result.error?.stderr) {
-          const lines = result.error.stderr.split('\n').filter(l => l.trim()).slice(-5)
-          for (const line of lines) {
-            const { colored } = colorizeErrorMessage(line)
-            console.error(`      ${colored}`)
-          }
+        timings.push({ package: name, time: Math.round(result.time || 0), failed: false })
+        console.log(`    ${success('T')} ${dim(completedCount)}/${packageNames.length} ${name} ${success('passed')} ${dim(time)}`)
+      }
+    } else {
+      results.errors.push({ package: name, error: result.error })
+      const time = result.time ? Math.round(result.time) + 'ms' : ''
+      timings.push({ package: name, time: Math.round(result.time || 0), failed: true })
+      console.error(`    ${error('T')} ${dim(completedCount)}/${packageNames.length} ${name} ${error('FAILED')} ${dim(time)}`)
+      if (result.details) {
+        for (const line of result.details.split('\n')) console.error(`      ${line}`)
+      } else if (result.error?.stderr) {
+        const lines = result.error.stderr.split('\n').filter(l => l.trim()).slice(-5)
+        for (const line of lines) {
+          const { colored } = colorizeErrorMessage(line)
+          console.error(`      ${colored}`)
         }
       }
-      return result
-    })
+    }
+    return result
+  }
 
-    await Promise.all(promises)
+  // Pre-pass: cache hits and packages without tests never reach jest.
+  const pending = []
+  for (const name of packageNames) {
+    const cwd = graph.get(name).project.fullPath
+    const packageHash = hashOf(name)
+    if (!force && packageHash && isPhaseCached(cwd, packageHash, 'test', null, [])) {
+      report(name, { success: true, fromCache: true })
+      continue
+    }
+    // Skip packages without any test files — avoids ~2s jest startup overhead per package
+    if (!hasTestFiles(cwd)) {
+      if (packageHash) markPhaseCompleted(cwd, packageHash, 'test', null, [])
+      report(name, { success: true, skipped: true })
+      continue
+    }
+    pending.push({ name, cwd })
+  }
+
+  let solo = pending.map((p) => p.name)
+  let exclusive = []
+  if (groupEnabled && pending.length > 0) {
+    const { shared, isolated } = planTestRun(pending)
+    const jestBin = shared == null ? null : findJestBin(shared.packages)
+    if (shared != null && jestBin != null) {
+      solo = isolated.filter((i) => !i.exclusive).map((i) => i.name)
+      exclusive = isolated.filter((i) => i.exclusive).map((i) => i.name)
+      console.log(`    Running ${shared.packages.length} packages as one jest, ${isolated.length} on their own`)
+      if (verbose) {
+        for (const i of isolated) console.log(`      ${dim(i.name)} ${dim('— ' + i.reason)}`)
+      }
+      const { byPackage, parsed, output } = await runShared(shared, jestBin)
+      // Without a report there is nothing to attribute, so the raw tail is all we have.
+      if (!parsed) console.error(output.split('\n').slice(-200).join('\n'))
+      for (const pkg of shared.packages) {
+        const acc = byPackage.get(pkg.name)
+        if (acc.failed) {
+          const err = new Error(parsed ? 'Test failed in the shared jest run' : 'Shared jest run produced no report')
+          report(pkg.name, { success: false, error: err, time: acc.time, details: acc.details.join('\n\n') })
+        } else {
+          const packageHash = hashOf(pkg.name)
+          if (packageHash) markPhaseCompleted(pkg.cwd, packageHash, 'test', null, [])
+          report(pkg.name, { success: true, time: acc.time })
+        }
+      }
+    }
+  }
+
+  // These say they need the stand to themselves, so they get it: one at a time.
+  for (const name of exclusive) {
+    report(name, await testPackage(name))
+  }
+
+  // Whatever could not be shared still runs package by package.
+  for (let i = 0; i < solo.length; i += concurrency) {
+    await Promise.all(solo.slice(i, i + concurrency).map(async (name) => {
+      report(name, await testPackage(name))
+    }))
   }
 
   results.time = performance.now() - startTime

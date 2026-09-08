@@ -120,3 +120,5 @@ dev/gh-picker/gh-picker
 .claude/settings.local.json
 get-model-bundle.js
 tests/sanity/step-report.ndjson
+
+.profile-tests

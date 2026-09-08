@@ -130,35 +130,40 @@ class TestQueue {
 describe('full-text-indexing', () => {
   const toolCtx = new MeasureMetricsContext('tool', {})
 
-  it('check-file-indexing', async () => {
-    const queue = new TestQueue(toolCtx)
+  // One queue for the whole file: start/close costs ~15s of kafka group join and disconnect,
+  // while every test is already isolated by its own random workspace.
+  let queue: TestQueue
+
+  beforeAll(async () => {
+    queue = new TestQueue(toolCtx)
     await queue.start()
-    try {
-      const txProducer = queue.queue.getProducer<Tx>(toolCtx, QueueTopic.Tx)
-      const personId = randomUUID().toString() as PersonUuid
-      const wsId: WorkspaceUuid = randomUUID().toString() as WorkspaceUuid
-      const token = generateToken(personId, wsId)
-      const indexer = await queue.mgr.withIndexer(toolCtx, wsId, token, true, async () => {})
-      expect(indexer).toBeDefined()
+  })
 
-      const dataId = generateId()
+  afterAll(async () => {
+    await queue.close()
+  })
 
-      await queue.expectIndexingDoc(dataId, async () => {
-        await txProducer.send(toolCtx, wsId, [
-          createDoc(test.class.TestDocument, {
-            title: 'first doc',
-            description: dataId
-          })
-        ])
-      })
-    } finally {
-      await queue.close()
-    }
+  it('check-file-indexing', async () => {
+    const txProducer = queue.queue.getProducer<Tx>(toolCtx, QueueTopic.Tx)
+    const personId = randomUUID().toString() as PersonUuid
+    const wsId: WorkspaceUuid = randomUUID().toString() as WorkspaceUuid
+    const token = generateToken(personId, wsId)
+    const indexer = await queue.mgr.withIndexer(toolCtx, wsId, token, true, async () => {})
+    expect(indexer).toBeDefined()
+
+    const dataId = generateId()
+
+    await queue.expectIndexingDoc(dataId, async () => {
+      await txProducer.send(toolCtx, wsId, [
+        createDoc(test.class.TestDocument, {
+          title: 'first doc',
+          description: dataId
+        })
+      ])
+    })
   })
 
   it('check-full-pipeline', async () => {
-    const queue = new TestQueue(toolCtx)
-    await queue.start()
     const { pipeline, wsIds } = await preparePipeline(toolCtx, queue.queue)
 
     try {
@@ -183,13 +188,10 @@ describe('full-text-indexing', () => {
         })
       })
     } finally {
-      await queue.close()
       await pipeline.close()
     }
   })
   it('test-reindex', async () => {
-    const queue = new TestQueue(toolCtx)
-    await queue.start()
     const { pipeline, wsIds } = await preparePipeline(toolCtx, queue.queue, false) // Do not use broadcast
     const wsProcessor = queue.queue.getProducer<QueueWorkspaceMessage>(toolCtx, QueueTopic.Workspace)
     try {
@@ -223,7 +225,6 @@ describe('full-text-indexing', () => {
       await reindexAllP
     } finally {
       await wsProcessor.close()
-      await queue.close()
       await pipeline.close()
     }
   }, 180000)

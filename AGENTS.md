@@ -45,8 +45,13 @@ pnpm docker                       # Compile + bundle + docker build (local stand
 pnpm docker:build                 # Same, every package with a docker phase
 pnpm svelte-check                 # Compile + svelte-check
 pnpm build:watch                  # Watch + rebuild
-pnpm --filter PKG add DEP         # Add dependency to a package
+pnpm --filter PKG add DEP         # Add dependency to a package (from anywhere)
+pnpm -w run SCRIPT                # Run a root script from any directory in the tree
 ```
+
+`pnpm run` only sees the nearest `package.json`, so from inside a package use `pnpm -w run` to
+reach the root scripts (`pnpm -w run docker:up`). After adding a dependency by hand, run
+`pnpm check-versions` — nothing enforces a single version across packages on its own.
 
 The workspace is plain pnpm: projects are listed in `pnpm-workspace.yaml`, the lockfile is
 `pnpm-lock.yaml` at the root. Rush is gone; `rush`/`rushx` no longer exist.

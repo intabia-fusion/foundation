@@ -1,10 +1,11 @@
 import { readFile } from 'fs/promises'
+import { join } from 'path'
 import { compress } from 'snappy'
 import { RPCHandler } from '@hcengineering/rpc'
 
 describe('compression-tests', () => {
   it('check-snappy', async () => {
-    const modelJSON = (await readFile('./bundle/model.json')).toString()
+    const modelJSON = (await readFile(join(__dirname, '../../bundle/model.json'))).toString()
 
     const txes = JSON.parse(modelJSON)
 

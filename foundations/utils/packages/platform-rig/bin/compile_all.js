@@ -37,11 +37,14 @@ function parseArgs(args) {
   let toPackage = null
   let rootDir = ''
   let forceWorkers = false
+  let groupTests = true
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     if (arg === '--force-workers') {
       forceWorkers = true
+    } else if (arg === '--no-test-group') {
+      groupTests = false
     } else if (arg === '--parallel' || arg === '-p') {
       const next = args[i + 1]
       if (next !== undefined && !next.startsWith('-')) {
@@ -107,7 +110,7 @@ function parseArgs(args) {
     verbose = process.env.VERBOSE === '1'
   }
 
-  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers }
+  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers, groupTests }
 }
 
 function printUsage() {
@@ -122,6 +125,7 @@ Options:
                        If no number specified, uses CPU count (limited by available memory)
                        Parallel compilation respects dependency order (builds in waves)
   --force-workers      Force exact worker count, ignore memory limits (use with caution!)
+  --no-test-group      Run every package's tests in its own jest process
   --verbose, -v        Show detailed output for each package
   --validate           Accepted for compatibility: type checking is part of the build
   --test               Run tests for packages with "_phase:test"
@@ -688,7 +692,7 @@ async function compileAll(rootDir, options = {}) {
   // Phase: Test
   if (doTest && packagesToTest.length > 0) {
     console.log(`\n=== Phase: Testing ${packagesToTest.length} packages ===`)
-    const testResults = await runTestPhase(graph, packagesToTest, validationWorkers, { force, packageHashes, verbose })
+    const testResults = await runTestPhase(graph, packagesToTest, validationWorkers, { force, packageHashes, verbose, group: options.groupTests })
     console.log(`Tested: ${testResults.successCount}/${testResults.total} packages in ${Math.round(testResults.time)}ms`)
     recordPhase('test', testResults, validationWorkers, null)
     if (testResults.cacheHits > 0) console.log(`  (${testResults.cacheHits} from cache)`)

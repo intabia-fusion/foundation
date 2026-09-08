@@ -57,9 +57,17 @@ interface TransactorEndpoint {
   workspaceUrl: string
 }
 
-// ponytail: cached for the process lifetime and identity-independent, so both target helpers share it.
-// A workspace moved to another transactor is not noticed until restart.
-const endpoints = new Map<WorkspaceUuid, Promise<TransactorEndpoint>>()
+/** Bounds how long a workspace moved to another transactor goes unnoticed by a cached endpoint. */
+export const ENDPOINT_CACHE_TTL_MS = 5 * 60 * 1000
+
+interface CachedEndpoint {
+  promise: Promise<TransactorEndpoint>
+  expiresAt: number
+}
+
+// ponytail: cached for the process lifetime (with a TTL below) and identity-independent, so both
+// target helpers share it.
+const endpoints = new Map<WorkspaceUuid, CachedEndpoint>()
 
 async function loadEndpoint (config: Config, workspace: WorkspaceUuid, token: string): Promise<TransactorEndpoint> {
   const wsInfo = await getAccountClient(config.AccountsUrl, token).selectWorkspace('', 'internal')
@@ -78,12 +86,18 @@ export interface TransactorTarget {
 
 async function resolveTarget (config: Config, workspace: WorkspaceUuid, token: string): Promise<TransactorTarget> {
   let cached = endpoints.get(workspace)
-  if (cached === undefined) {
-    cached = loadEndpoint(config, workspace, token)
-    endpoints.set(workspace, cached)
-    cached.catch(() => endpoints.delete(workspace)) // don't cache a failed attempt
+  if (cached === undefined || cached.expiresAt <= Date.now()) {
+    const promise = loadEndpoint(config, workspace, token)
+    const entry: CachedEndpoint = { promise, expiresAt: Date.now() + ENDPOINT_CACHE_TTL_MS }
+    cached = entry
+    endpoints.set(workspace, entry)
+    // Only evict if this entry is still the current one - a slow load can reject after TTL expiry
+    // already replaced it with a fresh entry, which must not be evicted by the stale rejection.
+    promise.catch(() => {
+      if (endpoints.get(workspace) === entry) endpoints.delete(workspace)
+    })
   }
-  const { transactorUrl, collaboratorEndpoint, workspaceUrl } = await cached
+  const { transactorUrl, collaboratorEndpoint, workspaceUrl } = await cached.promise
 
   const rest = createRestClient(transactorUrl, workspace, token, collaboratorEndpoint)
   return { token, transactorUrl, workspaceUrl, rest }

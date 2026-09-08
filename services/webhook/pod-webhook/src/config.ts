@@ -48,8 +48,11 @@ export interface Config {
   FrontUrl: string
 }
 
-const parseNumber = (str: string | undefined, defaultVal: number): number =>
-  str !== undefined ? Number(str) : defaultVal
+// Empty/blank string falls back to the default like an unset var - Number('') is 0, not NaN.
+const parseNumber = (str: string | undefined, defaultVal: number): number => {
+  const trimmed = str?.trim()
+  return trimmed !== undefined && trimmed !== '' && Number.isFinite(Number(trimmed)) ? Number(trimmed) : defaultVal
+}
 
 const parseBool = (str: string | undefined, defaultVal: boolean): boolean =>
   str !== undefined ? str === 'true' : defaultVal

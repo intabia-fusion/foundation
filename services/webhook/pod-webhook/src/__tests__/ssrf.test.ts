@@ -111,6 +111,22 @@ describe('safeFetch address policy', () => {
     expect(dns.lookup).toHaveBeenCalledTimes(1)
   })
 
+  test('a blocked address keeps the resolved IP in message (for logs) but not in publicMessage (persisted)', async () => {
+    mockLookupSequence({ address: '10.0.0.5', family: 4 })
+
+    let caught: any
+    try {
+      await safeFetch('https://internal.example/hook', baseOpts)
+    } catch (err) {
+      caught = err
+    }
+
+    expect(caught).toBeInstanceOf(SsrfError)
+    expect(caught.message).toContain('10.0.0.5')
+    expect(caught.publicMessage).not.toContain('10.0.0.5')
+    expect(caught.publicMessage).toContain('internal.example')
+  })
+
   test('re-checks right before connecting: a name that resolves publicly at preflight but privately at connect time is still blocked', async () => {
     mockLookupSequence(
       { address: '8.8.8.8', family: 4 }, // preflight: looks public, passes

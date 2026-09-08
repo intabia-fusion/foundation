@@ -257,6 +257,35 @@ describe('processDelivery', () => {
     )
   })
 
+  test('a blocked-address SsrfError persists a generic lastError without the resolved IP, but logs the full detail', async () => {
+    const updateDoc = jest.fn().mockResolvedValue(undefined)
+    ;(getSystemTransactorTarget as jest.Mock).mockResolvedValue(mockTarget(baseEndpoint(), updateDoc))
+    const { SsrfError } = jest.requireActual('../ssrf')
+    ;(safeFetch as jest.Mock).mockRejectedValue(
+      new SsrfError(
+        'address 10.0.0.5 for host "internal.example" is not allowed',
+        'host "internal.example" is not allowed'
+      )
+    )
+    const queue: any = { getProducer: jest.fn() }
+    const ctx = newCtx()
+
+    await processDelivery(ctx, CONFIG, queue, {} as any, baseJob())
+
+    expect(updateDoc).toHaveBeenCalledWith(
+      setting.class.WebhookEndpoint,
+      expect.anything(),
+      'ep_1',
+      expect.objectContaining({ lastError: 'host "internal.example" is not allowed' })
+    )
+    const lastErrorCall = updateDoc.mock.calls.find((c) => c[3]?.lastError !== undefined)
+    expect(lastErrorCall?.[3].lastError).not.toContain('10.0.0.5')
+    expect(ctx.error).toHaveBeenCalledWith(
+      'webhook delivery failed',
+      expect.objectContaining({ error: expect.stringContaining('10.0.0.5') })
+    )
+  })
+
   test('a network error (not SsrfError) retries', async () => {
     ;(getSystemTransactorTarget as jest.Mock).mockResolvedValue(mockTarget(baseEndpoint()))
     ;(safeFetch as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'))

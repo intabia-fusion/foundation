@@ -23,27 +23,11 @@ import {
   type Timestamp,
   type WorkspaceUuid
 } from '@hcengineering/core'
+import { apiKeyOperations, type ApiKeyOperation } from '@hcengineering/account-client'
 import { createHash, randomBytes } from 'crypto'
 
-/** Writes only - reads are implicit, limited by `spaces`. Duplicated in account-client/src/types.ts - change both */
-export type ApiKeyOperation =
-  | 'issue:create'
-  | 'issue:update'
-  | 'issue:comment'
-  | 'issue:time_report'
-  | 'chat:post'
-  | 'doc:create'
-  | 'doc:update'
-
-export const apiKeyOperations: ApiKeyOperation[] = [
-  'issue:create',
-  'issue:update',
-  'issue:comment',
-  'issue:time_report',
-  'chat:post',
-  'doc:create',
-  'doc:update'
-]
+// Single source of truth is account-client; re-exported here so existing importers of './apiKeys' keep working.
+export { apiKeyOperations, type ApiKeyOperation }
 
 /** Integration kind of an API key row in `integration`/`integration_secrets`. */
 export const apiKeyKind = 'webhook' as IntegrationKind

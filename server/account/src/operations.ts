@@ -142,6 +142,7 @@ import {
   normalizePhone,
   normalizeValue,
   publishMembersChanged,
+  parseEnvInt,
   recordFailedLoginAttempt,
   resetFailedLoginAttempts,
   sanitizeEmail,
@@ -3255,11 +3256,10 @@ export async function getWorkspaceUsersWithPermission (
 /* =================================== */
 
 // Same scheme as workspaceLimitPerUser/Account.maxWorkspaces, but per-workspace: env default, Workspace.maxApiKeys overrides.
-const apiKeyLimitPerWorkspace =
-  process.env.API_KEY_LIMIT_PER_WORKSPACE != null ? parseInt(process.env.API_KEY_LIMIT_PER_WORKSPACE) : 5
+const apiKeyLimitPerWorkspace = parseEnvInt(process.env.API_KEY_LIMIT_PER_WORKSPACE, 5)
 
 // Personal keys don't count against apiKeyLimitPerWorkspace (and vice versa) - separate quota, per user per workspace.
-const personalApiKeyLimitPerUser = 5
+const personalApiKeyLimitPerUser = parseEnvInt(process.env.PERSONAL_API_KEY_LIMIT_PER_USER, 5)
 
 async function getApiKeySecrets (
   db: AccountDB,
@@ -3268,6 +3268,38 @@ async function getApiKeySecrets (
   const rows = await db.integrationSecret.find({ kind: apiKeyKind, workspaceUuid: workspace })
 
   return rows.map((row) => ({ socialId: row.socialId, key: row.key, secret: JSON.parse(row.secret) }))
+}
+
+/** The quota bucket a key competes in: personal keys count per creator, integration keys per workspace. */
+function apiKeyQuota (
+  secrets: Array<{ secret: ApiKeySecret }>,
+  personal: boolean,
+  account: AccountUuid
+): ApiKeySecret[] {
+  return secrets
+    .map((it) => it.secret)
+    .filter(
+      (s) => isApiKeyUsable(s) && (personal ? s.personal === true && s.createdBy === account : s.personal !== true)
+    )
+}
+
+/** Undoes a key that lost the quota race: everything createApiKey wrote, in reverse. */
+async function rollbackApiKey (
+  ctx: MeasureContext,
+  db: AccountDB,
+  workspace: WorkspaceUuid,
+  socialId: PersonId,
+  personal: boolean
+): Promise<void> {
+  await db.integrationSecret.deleteMany({ socialId, kind: apiKeyKind, workspaceUuid: workspace })
+  await db.integration.deleteMany({ socialId, kind: apiKeyKind, workspaceUuid: workspace })
+  if (!personal) {
+    const sid = await db.socialId.findOne({ _id: socialId })
+    if (sid != null) {
+      await db.unassignWorkspace(sid.personUuid as AccountUuid, workspace)
+      await publishMembersChanged(ctx, workspace)
+    }
+  }
 }
 
 /** Owner (or admin) gate: manage any integration key in the workspace. */
@@ -3444,30 +3476,11 @@ export async function createApiKey (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid: workspace }))
   }
 
-  if (personal) {
-    const personalKeys = (await getApiKeySecrets(db, workspace)).filter(
-      (it) => it.secret.personal === true && it.secret.createdBy === account && isApiKeyUsable(it.secret)
-    ).length
-    if (personalKeys >= personalApiKeyLimitPerUser) {
-      ctx.warn('personal-api-key-limit-reached', {
-        workspace,
-        account,
-        personalKeys,
-        limit: personalApiKeyLimitPerUser
-      })
-      throw new PlatformError(
-        new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit: personalApiKeyLimitPerUser })
-      )
-    }
-  } else {
-    const limit = ws.maxApiKeys ?? apiKeyLimitPerWorkspace
-    const activeKeys = (await getApiKeySecrets(db, workspace)).filter(
-      (it) => it.secret.personal !== true && isApiKeyUsable(it.secret)
-    ).length
-    if (activeKeys >= limit) {
-      ctx.warn('api-key-limit-reached', { workspace, activeKeys, limit })
-      throw new PlatformError(new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit }))
-    }
+  const limit = personal ? personalApiKeyLimitPerUser : ws.maxApiKeys ?? apiKeyLimitPerWorkspace
+  const activeKeys = apiKeyQuota(await getApiKeySecrets(db, workspace), personal, account).length
+  if (activeKeys >= limit) {
+    ctx.warn('api-key-limit-reached', { workspace, account, personal, activeKeys, limit })
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit }))
   }
 
   const keyId = randomUUID()
@@ -3528,6 +3541,24 @@ export async function createApiKey (
     key: hashApiKey(key),
     secret: JSON.stringify(secret)
   })
+
+  // The count above and the insert are not atomic. Re-rank now that the row is visible and let the
+  // later creator lose, so two parallel calls cannot both slip past the quota. A re-read that fails
+  // keeps the key: it already passed the check, and dropping it would leave the caller no secret.
+  const reread = await getApiKeySecrets(db, workspace).catch((err) => {
+    ctx.warn('api-key-rerank-read-failed', { workspace, keyId, err })
+    return undefined
+  })
+  if (reread !== undefined) {
+    const ahead = apiKeyQuota(reread, personal, account).filter(
+      (s) => s.createdOn < secret.createdOn || (s.createdOn === secret.createdOn && s.keyId < keyId)
+    ).length
+    if (ahead >= limit) {
+      await rollbackApiKey(ctx, db, workspace, socialId, personal)
+      ctx.warn('api-key-limit-race-lost', { workspace, account, personal, ahead, limit })
+      throw new PlatformError(new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit }))
+    }
+  }
 
   ctx.info('API key created', { workspace, keyId, createdBy: account, personal })
 

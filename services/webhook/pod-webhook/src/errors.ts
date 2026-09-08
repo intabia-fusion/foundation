@@ -23,6 +23,7 @@ export type WebhookErrorCode =
   | 'invalid_payload'
   | 'not_found'
   | 'internal_error'
+  | 'service_unavailable'
 
 const messages: Record<WebhookErrorCode, string> = {
   unauthorized: 'Invalid or missing API key',
@@ -31,7 +32,8 @@ const messages: Record<WebhookErrorCode, string> = {
   payload_too_large: 'Request body exceeds the size limit',
   invalid_payload: 'Request body is missing or has invalid required fields',
   not_found: 'Job not found',
-  internal_error: 'Internal error'
+  internal_error: 'Internal error',
+  service_unavailable: 'Account service is unavailable'
 }
 
 export function sendError (res: Response, status: number, code: WebhookErrorCode, message?: string): void {

@@ -38109,6 +38109,9 @@ importers:
 
   server/account:
     dependencies:
+      '@hcengineering/account-client':
+        specifier: workspace:^0.7.21
+        version: link:../../foundations/core/packages/account-client
       '@hcengineering/analytics':
         specifier: workspace:^0.7.17
         version: link:../../foundations/core/packages/analytics
@@ -38233,6 +38236,9 @@ importers:
       '@hcengineering/pulse':
         specifier: workspace:^0.7.0
         version: link:../../plugins/pulse
+      '@hcengineering/rpc':
+        specifier: workspace:^0.7.17
+        version: link:../../foundations/core/packages/rpc
       '@hcengineering/server-core':
         specifier: workspace:^0.7.18
         version: link:../../foundations/server/packages/core

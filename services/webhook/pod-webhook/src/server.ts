@@ -20,9 +20,10 @@ import {
   type Ref,
   type WorkspaceUuid
 } from '@hcengineering/core'
-import { getClient as getAccountClient, type AccountClient } from '@hcengineering/account-client'
+import { getClient as getAccountClient, type AccountClient, type ApiKeyCheck } from '@hcengineering/account-client'
 import { SlidingWindowRateLimitter, type RateLimitInfo } from '@hcengineering/rpc'
 import type { PlatformQueueProducer } from '@hcengineering/server-core'
+import { PlatformError } from '@hcengineering/platform'
 import { decodeToken } from '@hcengineering/server-token'
 import setting, { type WebhookEndpoint } from '@hcengineering/setting'
 import cors from 'cors'
@@ -75,7 +76,7 @@ export function createServer (
   app.get(
     '/api/v1/webhook/job/:id',
     wrap(async (req, res) => {
-      await handleJobStatus(accountClient, store, req, res)
+      await handleJobStatus(ctx, accountClient, store, req, res)
     })
   )
 
@@ -118,6 +119,28 @@ const wrap =
 function bearerToken (req: Request): string | undefined {
   const match = /^Bearer\s+(.+)$/i.exec(req.header('authorization') ?? '')
   return match?.[1]
+}
+
+type KeyVerification =
+  | { status: 'ok', check: ApiKeyCheck }
+  | { status: 'invalid' }
+  | { status: 'unavailable' }
+  | { status: 'error' }
+
+// Distinguishes a genuine "unknown key" (account service answered null) from the account service
+// itself being unreachable - the two must not both collapse into 401 (finding 12).
+async function verifyKey (ctx: MeasureContext, accountClient: AccountClient, key: string): Promise<KeyVerification> {
+  try {
+    const check = await accountClient.verifyApiKey(key)
+    return check === null ? { status: 'invalid' } : { status: 'ok', check }
+  } catch (err) {
+    ctx.error('webhook: verifyApiKey failed', { err })
+    // PlatformError = account service answered (our own auth misconfig, not the caller's key) - not 503.
+    if (err instanceof PlatformError) {
+      return { status: 'error' }
+    }
+    return { status: 'unavailable' }
+  }
 }
 
 function logCall (
@@ -171,11 +194,18 @@ async function handleIngest (
     return
   }
 
-  const check = await accountClient.verifyApiKey(key).catch((err) => {
-    ctx.error('webhook: verifyApiKey failed', { err })
-    return null
-  })
-  if (check === null) {
+  const verification = await verifyKey(ctx, accountClient, key)
+  if (verification.status === 'unavailable') {
+    logCall(ctx, undefined, undefined, keySource, 'service_unavailable')
+    sendError(res, 503, 'service_unavailable')
+    return
+  }
+  if (verification.status === 'error') {
+    logCall(ctx, undefined, undefined, keySource, 'internal_error')
+    sendError(res, 500, 'internal_error')
+    return
+  }
+  if (verification.status === 'invalid') {
     // Only a credential that did not verify burns the shared per-IP budget - that is the guessing case.
     const ipLimit = perIpLimiter.checkRateLimit(req.ip ?? 'unknown')
     if (ipLimit.remaining === 0) {
@@ -188,6 +218,7 @@ async function handleIngest (
     sendError(res, 401, 'unauthorized')
     return
   }
+  const check = verification.check
   if (!check.incoming) {
     // Same response as an unknown key - a caller must not be able to tell "wrong key" apart from
     // "valid key, but not permitted on ingest routes". Only our own log tells the two apart.
@@ -265,6 +296,7 @@ async function handleIngest (
 }
 
 async function handleJobStatus (
+  ctx: MeasureContext,
   accountClient: AccountClient,
   store: WebhookStore,
   req: Request,
@@ -276,11 +308,22 @@ async function handleJobStatus (
     return
   }
 
-  const check = await accountClient.verifyApiKey(key).catch(() => null)
-  if (check === null) {
+  const verification = await verifyKey(ctx, accountClient, key)
+  if (verification.status === 'unavailable') {
+    logCall(ctx, undefined, undefined, 'header', 'service_unavailable')
+    sendError(res, 503, 'service_unavailable')
+    return
+  }
+  if (verification.status === 'error') {
+    logCall(ctx, undefined, undefined, 'header', 'internal_error')
+    sendError(res, 500, 'internal_error')
+    return
+  }
+  if (verification.status === 'invalid') {
     sendError(res, 401, 'unauthorized')
     return
   }
+  const check = verification.check
 
   // keyId as well as workspace: one key must not read another key's job result or error text.
   const job = store.getJob(req.params.id)

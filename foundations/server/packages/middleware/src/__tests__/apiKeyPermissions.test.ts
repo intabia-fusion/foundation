@@ -59,6 +59,18 @@ function makeNext (): { next: Middleware, txCalled: () => boolean, lastQuery: ()
   return { next, txCalled: () => txCalled, lastQuery: () => lastQuery }
 }
 
+// Variant of makeNext() that returns a fixed result set instead of [], to prove findAll results are not filtered.
+function makeNextWithResult (docs: Doc[]): { next: Middleware, lastQuery: () => DocumentQuery<Doc> | undefined } {
+  let lastQuery: DocumentQuery<Doc> | undefined
+  const next = {
+    findAll: async (_ctx: any, _class: any, query: DocumentQuery<Doc>): Promise<FindResult<Doc>> => {
+      lastQuery = query
+      return docs as unknown as FindResult<Doc>
+    }
+  } as unknown as Middleware
+  return { next, lastQuery: () => lastQuery }
+}
+
 interface ApiKeyGrant {
   canWrite: boolean
   opsOnly: boolean
@@ -170,6 +182,27 @@ describe('ApiKeyPermissionsMiddleware', () => {
 
     const query: DocumentQuery<Doc> = { name: 'x' } as unknown as DocumentQuery<Doc>
     await mw.findAll(makeCtx(undefined), core.class.Doc, query)
+    expect(lastQuery()).toBe(query)
+  })
+
+  it('rejection error carries the reason in its message, not just the status code', async () => {
+    const { next } = makeNext()
+    const mw = await ApiKeyPermissionsMiddleware.create(ctx, anyContext, next)
+
+    const readOnly = { canWrite: false, opsOnly: true, spaces: [] }
+    await expect(mw.tx(makeCtx(readOnly, true), [createTx(SPACE_A)])).rejects.toThrow('The API key is read-only')
+    await expect(mw.tx(makeCtx(opsKey([SPACE_A]), true), [createTx(SPACE_B)])).rejects.toThrow(SPACE_B)
+  })
+
+  it('findAll result is not narrowed to apiKey.spaces even when a doc is outside them', async () => {
+    const outside = { _id: 'doc1', space: SPACE_B } as unknown as Doc
+    const { next, lastQuery } = makeNextWithResult([outside])
+    const mw = await ApiKeyPermissionsMiddleware.create(ctx, anyContext, next)
+
+    const query: DocumentQuery<Doc> = { name: 'x' } as unknown as DocumentQuery<Doc>
+    const result = await mw.findAll(makeCtx(opsKey([SPACE_A])), core.class.Doc, query)
+
+    expect(result).toEqual([outside])
     expect(lastQuery()).toBe(query)
   })
 })

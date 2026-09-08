@@ -118,7 +118,9 @@ export async function processDelivery (
 
     if (err instanceof SsrfError) {
       // The recipient's own configured address is unsafe - retrying changes nothing about that.
-      await finalizeFailure(ctx, config, notifyProducer, target.rest, target.token, endpoint, job, message)
+      // publicMessage (not message) is persisted: message may carry the resolved address, which must
+      // not leak into the endpoint doc's lastError.
+      await finalizeFailure(ctx, config, notifyProducer, target.rest, target.token, endpoint, job, err.publicMessage)
     } else {
       // Network error or timeout - worth retrying.
       await retryOrFinalize(ctx, config, queue, notifyProducer, target.rest, target.token, endpoint, job, message)

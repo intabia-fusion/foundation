@@ -12,8 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import type { ApiKeyCheck } from '@hcengineering/account-client'
+// operations.ts pulls apiKeyOperations from this module too - keep the real exports, only stub getClient.
+jest.mock('@hcengineering/account-client', () => ({
+  ...jest.requireActual('@hcengineering/account-client'),
+  getClient: jest.fn()
+}))
+
+/* eslint-disable import/first */
+import { getClient as getAccountClient, type ApiKeyCheck } from '@hcengineering/account-client'
+import platform, { PlatformError, Severity, Status } from '@hcengineering/platform'
+import { ENDPOINT_CACHE_TTL_MS, getSystemTransactorTarget } from '../workspaceClient'
 import { startWebhookSender, type WebhookSender } from './webhookSender'
+/* eslint-enable import/first */
 
 const KEY = 'fus_ws1_test'
 
@@ -36,6 +46,45 @@ describe('POST /api/v1/webhook/action', () => {
   })
 
   test('invalid key -> 401 unauthorized', async () => {
+    sender = await startWebhookSender(null)
+    const res = await sender.action(KEY, { action: 'issue:create', space: 'FUSIO' })
+    expect(res.status).toBe(401)
+    expect((await res.json()).error).toBe('unauthorized')
+  })
+
+  test('account service call rejecting -> 503 service_unavailable, not 401 (finding 12)', async () => {
+    sender = await startWebhookSender(baseCheck)
+    sender.verifyApiKey.mockRejectedValueOnce(new Error('account service down'))
+    const res = await sender.action(KEY, { action: 'issue:create', space: 'FUSIO' })
+    expect(res.status).toBe(503)
+    expect((await res.json()).error).toBe('service_unavailable')
+  })
+
+  test('account service call rejecting on the job-status route also yields 503, not 401', async () => {
+    sender = await startWebhookSender(baseCheck)
+    sender.verifyApiKey.mockRejectedValueOnce(new Error('account service down'))
+    const res = await sender.job(KEY, 'wh_whatever')
+    expect(res.status).toBe(503)
+    expect((await res.json()).error).toBe('service_unavailable')
+  })
+
+  // The account service answered (Forbidden/BadRequest/expired token) - a permanent misconfiguration,
+  // not a transport blip, so it must not collapse into "retry later" 503 (finding 1).
+  test('a PlatformError from verifyApiKey does NOT yield 503 on the ingest route', async () => {
+    sender = await startWebhookSender(baseCheck)
+    sender.verifyApiKey.mockRejectedValueOnce(new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {})))
+    const res = await sender.action(KEY, { action: 'issue:create', space: 'FUSIO' })
+    expect(res.status).not.toBe(503)
+  })
+
+  test('a PlatformError from verifyApiKey does NOT yield 503 on the job-status route', async () => {
+    sender = await startWebhookSender(baseCheck)
+    sender.verifyApiKey.mockRejectedValueOnce(new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {})))
+    const res = await sender.job(KEY, 'wh_whatever')
+    expect(res.status).not.toBe(503)
+  })
+
+  test('account service returning null (unknown key) is still 401, unlike a rejection', async () => {
     sender = await startWebhookSender(null)
     const res = await sender.action(KEY, { action: 'issue:create', space: 'FUSIO' })
     expect(res.status).toBe(401)
@@ -183,5 +232,69 @@ describe('POST /api/v1/webhook/action', () => {
     const p2 = await sender.pathKey(KEY, { action: 'issue:create', space: 'FUSIO' })
     expect(p1.status).toBe(202)
     expect(p2.status).toBe(429)
+  })
+})
+
+describe('transactor endpoint cache TTL (finding 13)', () => {
+  const wsConfig: any = { AccountsUrl: 'http://accounts.local' }
+
+  afterEach(() => {
+    jest.useRealTimers()
+    jest.clearAllMocks()
+  })
+
+  test('same workspace resolved twice within the TTL hits the loader once, reloads after it elapses', async () => {
+    jest.useFakeTimers()
+    const selectWorkspace = jest.fn().mockResolvedValue({
+      endpoint: 'ws://transactor.local',
+      collaboratorEndpoint: undefined,
+      workspaceUrl: 'ws-slug'
+    })
+    ;(getAccountClient as jest.Mock).mockReturnValue({ selectWorkspace })
+
+    const workspace = '99999999-9999-4999-8999-999999999999' as any
+    await getSystemTransactorTarget(wsConfig, workspace)
+    await getSystemTransactorTarget(wsConfig, workspace)
+    expect(selectWorkspace).toHaveBeenCalledTimes(1)
+
+    jest.advanceTimersByTime(ENDPOINT_CACHE_TTL_MS + 1)
+
+    await getSystemTransactorTarget(wsConfig, workspace)
+    expect(selectWorkspace).toHaveBeenCalledTimes(2)
+  })
+
+  test('a stale rejection after TTL replacement does not evict the fresh entry (finding 3)', async () => {
+    jest.useFakeTimers()
+    let rejectFirst: (err: Error) => void = () => {}
+    const hangingLoad = new Promise<never>((_resolve, reject) => {
+      rejectFirst = reject
+    })
+    const selectWorkspace = jest
+      .fn()
+      .mockReturnValueOnce(hangingLoad)
+      .mockResolvedValue({
+        endpoint: 'ws://transactor.local',
+        collaboratorEndpoint: undefined,
+        workspaceUrl: 'ws-slug'
+      })
+    ;(getAccountClient as jest.Mock).mockReturnValue({ selectWorkspace })
+
+    const workspace = '88888888-8888-4888-8888-888888888888' as any
+    // First load, never resolves - its own rejection lands after being replaced below.
+    const firstCall = getSystemTransactorTarget(wsConfig, workspace).catch(() => {})
+
+    // TTL elapses while the first load is still pending, so the next call starts a fresh one.
+    jest.advanceTimersByTime(ENDPOINT_CACHE_TTL_MS + 1)
+    await getSystemTransactorTarget(wsConfig, workspace)
+    expect(selectWorkspace).toHaveBeenCalledTimes(2)
+
+    // The stale first load finally rejects - it must not evict the fresh (2nd) entry.
+    rejectFirst(new Error('stale failure'))
+    await firstCall
+    await Promise.resolve()
+    await Promise.resolve()
+
+    await getSystemTransactorTarget(wsConfig, workspace)
+    expect(selectWorkspace).toHaveBeenCalledTimes(2)
   })
 })

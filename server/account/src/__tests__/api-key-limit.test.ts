@@ -86,11 +86,13 @@ describe('api key limit per workspace', () => {
       accountEvent: { insertOne: jest.fn() },
       userProfile: { insertOne: jest.fn() },
       assignWorkspace: jest.fn(),
-      integration: { insertOne: jest.fn() },
+      integration: { insertOne: jest.fn(), deleteMany: jest.fn() },
+      unassignWorkspace: jest.fn(),
       integrationSecret: {
         find: jest.fn().mockResolvedValue(existing),
         insertOne: jest.fn(),
-        update: jest.fn()
+        update: jest.fn(),
+        deleteMany: jest.fn()
       }
     } as unknown as AccountDB
   }
@@ -133,6 +135,67 @@ describe('api key limit per workspace', () => {
 
     const result = await createApiKey(mockCtx, db, null, callerToken, { name: 'fits', ops: [] })
     expect(result.info.name).toBe('fits')
+  })
+
+  test('a key that passed the check but lost the race to a parallel one is rolled back', async () => {
+    const before = Array.from({ length: 4 }, (_, i) => existingSecret(`k${i}`, { createdOn: 1000 }))
+    // The 5th key landed between our count and our insert - the re-rank has to catch it.
+    const after = [...before, existingSecret('parallel', { createdOn: 2000 })]
+    const db = makeDb(before)
+    ;(db.integrationSecret.find as jest.Mock).mockResolvedValueOnce(before).mockResolvedValue(after)
+
+    await expect(createApiKey(mockCtx, db, null, callerToken, { name: 'loser', ops: [] })).rejects.toThrow(
+      new PlatformError(new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit: 5 }))
+    )
+    expect(db.integrationSecret.deleteMany).toHaveBeenCalled()
+    expect(db.integration.deleteMany).toHaveBeenCalled()
+  })
+
+  test('a key that wins the race is kept', async () => {
+    const before = Array.from({ length: 3 }, (_, i) => existingSecret(`k${i}`, { createdOn: 1000 }))
+    const after = [...before, existingSecret('parallel', { createdOn: 2000 })]
+    const db = makeDb(before)
+    ;(db.integrationSecret.find as jest.Mock).mockResolvedValueOnce(before).mockResolvedValue(after)
+
+    const result = await createApiKey(mockCtx, db, null, callerToken, { name: 'winner', ops: [] })
+    expect(result.info.name).toBe('winner')
+    expect(db.integrationSecret.deleteMany).not.toHaveBeenCalled()
+  })
+
+  test('a broken env limit falls back to the default instead of removing the quota', async () => {
+    const prevWs = process.env.API_KEY_LIMIT_PER_WORKSPACE
+    const prevPersonal = process.env.PERSONAL_API_KEY_LIMIT_PER_USER
+    process.env.API_KEY_LIMIT_PER_WORKSPACE = 'abc'
+    process.env.PERSONAL_API_KEY_LIMIT_PER_USER = ''
+    jest.resetModules()
+    try {
+      // A typo in the env must not silently uncap key creation.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const fresh = require('../operations')
+      const db = makeDb(Array.from({ length: 5 }, (_, i) => existingSecret(`k${i}`)))
+      await expect(fresh.createApiKey(mockCtx, db, null, callerToken, { name: 'one-too-many', ops: [] })).rejects.toThrow(
+        new PlatformError(new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit: 5 }))
+      )
+    } finally {
+      if (prevWs === undefined) delete process.env.API_KEY_LIMIT_PER_WORKSPACE
+      else process.env.API_KEY_LIMIT_PER_WORKSPACE = prevWs
+      if (prevPersonal === undefined) delete process.env.PERSONAL_API_KEY_LIMIT_PER_USER
+      else process.env.PERSONAL_API_KEY_LIMIT_PER_USER = prevPersonal
+      jest.resetModules()
+    }
+  })
+
+  test('a failing re-rank read keeps the key rather than orphaning it', async () => {
+    const before = Array.from({ length: 2 }, (_, i) => existingSecret(`k${i}`))
+    const db = makeDb(before)
+    // The row is already inserted by the time the re-rank reads; a read failure must not lose it.
+    ;(db.integrationSecret.find as jest.Mock)
+      .mockResolvedValueOnce(before)
+      .mockRejectedValue(new Error('db unavailable'))
+
+    const result = await createApiKey(mockCtx, db, null, callerToken, { name: 'kept', ops: [] })
+    expect(result.info.name).toBe('kept')
+    expect(db.integrationSecret.deleteMany).not.toHaveBeenCalled()
   })
 
   test('adminUpdateApiKeyLimit writes the override, null resets to the default', async () => {

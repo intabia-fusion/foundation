@@ -17,7 +17,13 @@ import * as dns from 'dns'
 import * as http from 'http'
 import * as https from 'https'
 
-export class SsrfError extends Error {}
+// publicMessage is safe to persist (e.g. as an endpoint's lastError) - unlike message, it never carries
+// a resolved address, so it can't be used to probe what a hostname points at internally.
+export class SsrfError extends Error {
+  constructor (message: string, public readonly publicMessage: string = message) {
+    super(message)
+  }
+}
 
 // Exact ranges from the plan (TSK-2026-09-01-027), not a general "is this public" classifier.
 const BLOCKED_IPV4_RANGES: ReadonlyArray<readonly [string, number]> = [
@@ -110,7 +116,10 @@ function assertAllowed (
 
   const blocked = addresses.find((a) => isBlockedAddress(a.address, a.family))
   if (blocked !== undefined) {
-    throw new SsrfError(`address ${blocked.address} for host "${hostname}" is not allowed`)
+    throw new SsrfError(
+      `address ${blocked.address} for host "${hostname}" is not allowed`,
+      `host "${hostname}" is not allowed`
+    )
   }
 }
 

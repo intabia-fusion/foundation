@@ -15,7 +15,7 @@
 
 import type { Server } from 'http'
 import type { AddressInfo } from 'net'
-import { signStandard } from '@hcengineering/pod-webhook/src/signature'
+import { buildDeliveryHeaders, signStandard } from '@hcengineering/pod-webhook/src/signature'
 
 import { createServer } from '../server'
 import { DeliveryStore } from '../store'
@@ -57,6 +57,42 @@ describe('webhook mock', () => {
       expect(items).toHaveLength(1)
       expect(items[0].headers['webhook-id']).toBe('msg_1')
       expect(items[0].rawBody).toBe('{"hello":"world"}')
+    } finally {
+      await new Promise<void>((resolve) => {
+        server.close(() => {
+          resolve()
+        })
+      })
+    }
+  })
+
+  test('a delivery signed with buildDeliveryHeaders (the real producer) verifies as a match', async () => {
+    const secret = 'whsec_MfKQ9r8GKYqrTwjQPqZk8T4LK2Xw7BiXeQx3AWmy7yQ='
+    const body = JSON.stringify({ hello: 'world' })
+    const headers = buildDeliveryHeaders({ secrets: [{ id: 's1', secret, createdOn: 0 }] }, 'msg_e2e', 1700000000, body, 0)
+
+    const store = new DeliveryStore()
+    const app = createServer({ Port: 0, WebhookUrl: 'http://unused' }, store)
+    const server: Server = app.listen(0)
+    const { port } = server.address() as AddressInfo
+
+    try {
+      const posted = await fetch(`http://127.0.0.1:${port}/receive`, {
+        method: 'POST',
+        headers,
+        body
+      })
+      expect(posted.status).toBe(200)
+
+      const list = await fetch(`http://127.0.0.1:${port}/api/deliveries`)
+      const [item] = (await list.json()) as Array<{ id: string }>
+
+      const verifyRes = await fetch(`http://127.0.0.1:${port}/api/deliveries/${item.id}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret })
+      })
+      expect((await verifyRes.json()).match).toBe(true)
     } finally {
       await new Promise<void>((resolve) => {
         server.close(() => {

@@ -13,7 +13,8 @@
 // limitations under the License.
 //
 
-import { mergeQueries } from '..'
+import { mergeQueries, buildSocialIdString, parseSocialIdString } from '..'
+import { SocialIdType } from '../classes'
 import { TxFactory } from '../tx'
 
 describe('mergeQueries', () => {
@@ -182,6 +183,20 @@ describe('mergeQueries', () => {
     } as any
     expect(mergeQueries(q1, q2)).toEqual(res)
     expect(mergeQueries(q2, q1)).toEqual(res)
+  })
+})
+
+describe('buildSocialIdString / parseSocialIdString', () => {
+  it('round-trips a webhook social key built with a uuid value', () => {
+    const key = { type: SocialIdType.WEBHOOK, value: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d' }
+    expect(parseSocialIdString(buildSocialIdString(key))).toEqual(key)
+  })
+
+  // Documents current behaviour, not desired behaviour: split(':') keeps only the first two
+  // parts, so a value containing ':' is silently truncated on parse.
+  it('truncates the value at the first extra colon (current behaviour, not a spec)', () => {
+    const built = buildSocialIdString({ type: SocialIdType.WEBHOOK, value: 'aaa:bbb' })
+    expect(parseSocialIdString(built)).toEqual({ type: SocialIdType.WEBHOOK, value: 'aaa' })
   })
 })
 

@@ -98,8 +98,8 @@ export function filterAndRemapRuleProps (
     const screenProp =
       (props as { screen?: string, screenId?: string }).screen ?? (props as { screenId?: string }).screenId
     if (screenProp !== undefined && screenResolutions !== undefined) {
-      const cleanKey = screenProp.replace('$screen:', '')
-      const screenRes = screenResolutions[cleanKey] ?? screenResolutions[screenProp]
+      const cleanKey = screenProp.startsWith(ScreenToken) ? screenProp.slice(ScreenToken.length) : screenProp
+      const screenRes = screenResolutions[screenProp] ?? screenResolutions[cleanKey]
       if (screenRes?.action === 'skip') {
         return { valid: false, props }
       }
@@ -232,6 +232,26 @@ export function filterAndRemapRuleProps (
   }
 
   return { valid: true, props }
+}
+
+/**
+ * Screen resolutions are keyed by source screen id, while rule props reference screens
+ * by `$screen:<name>` tokens. Builds a lookup keyed by id, name and token at once.
+ */
+export function buildScreenResolutionLookup (
+  screens: ScreenConfig[] | undefined,
+  screenResolutions: Record<string, ScreenResolutionConfig> | undefined
+): Record<string, ScreenResolutionConfig> | undefined {
+  if (screenResolutions === undefined) return undefined
+  const lookup: Record<string, ScreenResolutionConfig> = { ...screenResolutions }
+  for (const sc of screens ?? []) {
+    const res = screenResolutions[sc.id] ?? screenResolutions[sc.name] ?? screenResolutions[ScreenToken + sc.name]
+    if (res === undefined) continue
+    lookup[sc.id] = res
+    lookup[sc.name] = res
+    lookup[ScreenToken + sc.name] = res
+  }
+  return lookup
 }
 
 export function importRules<TRule extends WorkflowRule> (
@@ -1062,6 +1082,11 @@ export async function importWorkflowConfig (
     )
   }
 
+  const screenResolutionLookup = buildScreenResolutionLookup(
+    config.screens,
+    resolution?.screenResolutions as Record<string, ScreenResolutionConfig> | undefined
+  )
+
   const result: ImportResult = { screens: {}, workflows: {}, transitions: {} }
 
   // Import screens according to screen resolutions
@@ -1252,7 +1277,7 @@ export async function importWorkflowConfig (
       transitionRank = makeRank(transitionRank, undefined)
       result.transitions[t.id] = transitionId
 
-      const screenResolutions = resolution?.screenResolutions as Record<string, ScreenResolutionConfig> | undefined
+      const screenResolutions = screenResolutionLookup
       const importedRequests = importRules(
         t.requests,
         resolver,

@@ -343,6 +343,73 @@ describe('Workflow Import', () => {
     )
   })
 
+  it('skips screen request rules when their screen is skipped by resolution keyed by id', async () => {
+    const client = createMockTx()
+    const config: WorkflowConfig = {
+      version: 1,
+      exportDate: '2026-08-31T00:00:00.000Z',
+      workspace: ws1,
+      projectTypeId,
+      screens: [
+        {
+          id: '6a8d21f4a0bb1bdb4108762b' as Ref<Screen>,
+          name: 'Classic Issue (вкл А и Б)',
+          targetClass: 'old:class:Doc' as any,
+          tabs: [{ name: 'Main', fields: [] }]
+        }
+      ],
+      workflows: [
+        {
+          id: workflowId,
+          name: 'Wf with skipped screen',
+          taskTypeName: 'Bug',
+          taskTypeId,
+          transitions: [
+            {
+              id: 'trans-skip-screen' as Ref<WorkflowTransition>,
+              name: 'Resolve',
+              from: [statusOpenId],
+              to: statusOpenId,
+              requests: [
+                {
+                  id: 'rule-screen-1',
+                  rule: workflow.request.ScreenRequest,
+                  ruleClass: workflow.class.WorkflowRequest,
+                  props: { screen: '$screen:Classic Issue (вкл А и Б)' }
+                }
+              ],
+              validators: [
+                {
+                  id: 'rule-field-required-1',
+                  rule: workflow.validator.FieldRequired,
+                  ruleClass: workflow.class.WorkflowValidator,
+                  props: { fields: [{ fieldKey: 'reportedTime', attribute: 'attr-reported-time' as any }] }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+    await expect(
+      importWorkflowConfig(client, projectTypeId, config, {
+        targetTaskTypeId,
+        screenResolutions: { '6a8d21f4a0bb1bdb4108762b': { action: 'skip' } }
+      })
+    ).resolves.toBeDefined()
+
+    expect(client.createDoc).not.toHaveBeenCalledWith(workflow.class.Screen, core.space.Workspace, expect.anything())
+    const requestUpdates = (client.updateCollection as jest.Mock).mock.calls.filter((c) => c[6]?.requests !== undefined)
+    for (const call of requestUpdates) {
+      expect(call[6].requests).toBeUndefined()
+    }
+    const validatorUpdates = (client.updateCollection as jest.Mock).mock.calls.filter(
+      (c) => c[6]?.validators !== undefined
+    )
+    expect(validatorUpdates.length).toBeGreaterThan(0)
+  })
+
   it('generates unique screen name if screen with same name already exists', async () => {
     const existingScreen: Screen = {
       _id: 'existing-screen-1' as Ref<Screen>,

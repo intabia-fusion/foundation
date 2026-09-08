@@ -12,15 +12,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import type { Class, Ref } from '@hcengineering/core'
+  import type { Ref } from '@hcengineering/core'
   import { getEmbeddedLabel, translate, type IntlString } from '@hcengineering/platform'
-  import { createQuery, getClient } from '@hcengineering/presentation'
-  import type { ProjectType, TaskType } from '@hcengineering/task'
+  import { getClient } from '@hcengineering/presentation'
+  import type { TaskType } from '@hcengineering/task'
   import { taskTypeStore } from '@hcengineering/task-resources'
   import tracker from '@hcengineering/tracker'
-  import { Icon, IconError, Label, ModernDropdown, languageStore, tooltip } from '@hcengineering/ui'
-  import workflow, {
-    type Screen,
+  import { Icon, IconInfo, Label, languageStore, tooltip } from '@hcengineering/ui'
+  import {
     type ScreenConfig,
     type ScreenResolutionConfig,
     type WorkflowCompatibilityReport,
@@ -30,7 +29,6 @@
   import plugin from '../../../plugin'
   import { getFieldIntlLabel, getTransitionsUsingScreen } from './utils'
 
-  export let projectType: ProjectType
   export let selectedTaskTypeId: Ref<TaskType> | undefined = undefined
   export let parsedConfig: WorkflowConfig | null = null
   export let screenResolutions: Record<string, ScreenResolutionConfig> = {}
@@ -42,12 +40,6 @@
   let anyStatusLabel = ''
   $: void translate(plugin.string.AnyStatus, {}, $languageStore).then((l) => {
     anyStatusLabel = l
-  })
-
-  let allExistingScreens: Screen[] = []
-  const screensQuery = createQuery()
-  $: screensQuery.query(workflow.class.Screen, { projectType: projectType._id }, (res) => {
-    allExistingScreens = res
   })
 
   $: targetTaskType = selectedTaskTypeId !== undefined ? $taskTypeStore.get(selectedTaskTypeId) : undefined
@@ -111,7 +103,7 @@
                     props: { transitions: usedTransitions.join(', ') }
                   }}
                 >
-                  <IconError size="small" />
+                  <IconInfo size="small" />
                 </div>
               {/if}
 
@@ -284,8 +276,8 @@
   }
 
   .section-header {
-    color: var(--theme-content-color, #1a1a1a);
-    margin-bottom: var(--spacing-2);
+    color: var(--theme-caption-color);
+    margin-bottom: 0.5rem;
   }
 
   .screens-detailed-list {
@@ -298,9 +290,8 @@
   .screen-detail-card {
     padding: 1rem 1.25rem;
     border-radius: 0.75rem;
-    border: 1px solid var(--theme-divider-color, rgba(0, 0, 0, 0.08));
-    background-color: var(--theme-card-bg, #ffffff);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--theme-dialog-border-color);
+    background-color: var(--theme-comp-header-color);
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -309,8 +300,8 @@
       border-color 0.2s ease;
 
     &.disabled {
-      background-color: var(--theme-button-hover-bg, rgba(0, 0, 0, 0.02));
-      border-color: var(--theme-divider-color, rgba(0, 0, 0, 0.05));
+      background-color: var(--theme-button-hovered);
+      border-color: var(--theme-divider-color);
 
       .screen-main-info {
         opacity: 0.5;
@@ -347,13 +338,13 @@
     width: 2rem;
     height: 2rem;
     border-radius: 0.375rem;
-    background-color: var(--theme-button-hover-bg, rgba(0, 0, 0, 0.04));
-    color: var(--theme-content-color, #1a1a1a);
+    background-color: var(--theme-button-hovered);
+    color: var(--theme-dark-color);
     flex-shrink: 0;
   }
 
   .screen-title {
-    color: var(--theme-content-color, #1a1a1a);
+    color: var(--theme-caption-color);
     font-weight: 500;
     font-size: 0.875rem;
     white-space: nowrap;
@@ -372,8 +363,8 @@
     letter-spacing: 0.01em;
     padding: 0.1875rem 0.5rem;
     border-radius: 0.25rem;
-    background-color: var(--text-editor-selected-node-background, rgba(76, 56, 189, 0.12));
-    color: var(--primary-color-purple-02, #6452db);
+    background-color: var(--theme-button-hovered);
+    color: var(--theme-dark-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -382,15 +373,15 @@
   .exact-match-badge {
     padding: 0.125rem 0.5rem;
     border-radius: 0.25rem;
-    background-color: var(--global-success-highlight-BackgroundColor, rgba(46, 160, 67, 0.1));
-    border: 1px solid var(--global-success-BorderColor, rgba(46, 160, 67, 0.25));
-    color: var(--global-success-TextColor, #2ea043);
+    background-color: var(--theme-state-positive-background-color);
+    border: 1px solid var(--theme-state-positive-border-color);
+    color: var(--theme-state-positive-color);
     font-size: 0.75rem;
     font-weight: 500;
   }
 
   .screen-skipped-warning {
-    color: #e36209;
+    color: var(--theme-warning-color);
     cursor: default;
     display: flex;
     align-items: center;
@@ -398,27 +389,26 @@
     width: 1.875rem;
     height: 1.875rem;
     border-radius: 0.375rem;
-    background-color: rgba(227, 98, 9, 0.12);
-    border: 1px solid rgba(227, 98, 9, 0.35);
+    background-color: rgba(242, 153, 74, 0.12);
+    border: 1px solid rgba(242, 153, 74, 0.25);
     flex-shrink: 0;
     opacity: 1 !important;
     transition: all 0.15s ease;
 
     &:hover {
-      background-color: rgba(227, 98, 9, 0.2);
-      border-color: rgba(227, 98, 9, 0.6);
-      transform: scale(1.05);
+      background-color: rgba(242, 153, 74, 0.2);
+      border-color: rgba(242, 153, 74, 0.4);
     }
   }
 
   .screen-action-segmented {
     display: inline-flex;
     align-items: center;
-    background-color: var(--theme-button-hover-bg, rgba(0, 0, 0, 0.05));
+    background-color: var(--theme-button-hovered);
     border-radius: 0.5rem;
     padding: 3px;
     gap: 2px;
-    border: 1px solid var(--theme-divider-color, rgba(0, 0, 0, 0.06));
+    border: 1px solid var(--theme-divider-color);
     flex-shrink: 0;
     max-width: 100%;
 
@@ -429,51 +419,28 @@
       border-radius: 0.375rem;
       font-size: 0.75rem;
       font-weight: 500;
-      color: var(--theme-secondary-color, #666);
+      color: var(--theme-dark-color);
       cursor: pointer;
       white-space: nowrap;
       transition: all 0.15s ease;
 
-      &:hover:not(.selected):not([disabled]) {
-        color: var(--theme-content-color, #1a1a1a);
-        background-color: rgba(0, 0, 0, 0.04);
+      &:hover:not(.selected) {
+        color: var(--theme-caption-color);
+        background-color: var(--theme-button-pressed);
       }
 
       &.selected {
-        background-color: var(--theme-card-bg, #ffffff);
-        color: var(--primary-color-purple-02, #6452db);
+        background-color: var(--theme-dialog-background-color);
+        border: 1px solid var(--theme-button-border);
+        color: var(--theme-caption-color);
         font-weight: 600;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
       }
-
-      &[disabled],
-      &.disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-      }
-    }
-  }
-
-  .screen-replace-target-row {
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    background-color: var(--theme-button-hover-bg, rgba(0, 0, 0, 0.02));
-    border: 1px solid var(--theme-divider-color, rgba(0, 0, 0, 0.06));
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-
-    .replace-dropdown-wrapper {
-      min-width: 180px;
-      max-width: 260px;
-      flex: 1;
     }
   }
 
   .screen-fields-container {
-    background-color: var(--theme-button-hover-bg, rgba(0, 0, 0, 0.025));
-    border: 1px solid var(--theme-divider-color, rgba(0, 0, 0, 0.06));
+    background-color: var(--theme-button-hovered);
+    border: 1px solid var(--theme-divider-color);
     border-radius: 0.5rem;
     padding: 0.625rem 0.875rem;
   }
@@ -488,7 +455,7 @@
     &:not(:first-child) {
       margin-top: 0.375rem;
       padding-top: 0.375rem;
-      border-top: 1px dashed var(--theme-divider-color, rgba(0, 0, 0, 0.06));
+      border-top: 1px dashed var(--theme-divider-color);
     }
   }
 
@@ -505,11 +472,10 @@
   .field-pill {
     padding: 0.25rem 0.5rem;
     border-radius: 0.375rem;
-    background-color: var(--theme-card-bg, #ffffff);
-    border: 1px solid var(--theme-divider-color, rgba(0, 0, 0, 0.08));
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    background-color: var(--theme-comp-header-color);
+    border: 1px solid var(--theme-button-border);
     font-size: 0.75rem;
-    color: var(--theme-content-color, #1a1a1a);
+    color: var(--theme-content-color);
   }
 
   .field-label {

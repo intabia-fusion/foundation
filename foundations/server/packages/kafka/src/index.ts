@@ -52,6 +52,80 @@ function firstFetchDone (cc: Consumer): Promise<void> {
   })
 }
 
+// kafkajs restarts a crashed consumer only when the error is retriable. A plain Error - e.g.
+// 'Broker not connected' after a broker/DNS outage - stops the consumer for good and the pod goes
+// silent until restarted. Restart it ourselves in that case.
+const CRASH_RESTART_DELAY = 5000
+const MAX_CRASH_RESTART_DELAY = 60000
+
+export function installCrashRestart (
+  ctx: MeasureContext,
+  cc: Consumer,
+  restart: () => Promise<void>,
+  isClosed: () => boolean,
+  delayMs: number = CRASH_RESTART_DELAY
+): void {
+  // A caller-supplied 0/NaN would turn the loop into a tight spin
+  const baseDelay = Number.isFinite(delayMs) && delayMs > 0 ? delayMs : CRASH_RESTART_DELAY
+  let restarting = false
+  cc.on(cc.events.CRASH, (event: any) => {
+    if (event?.payload?.restart === true || restarting || isClosed()) return
+    restarting = true
+    ctx.warn('consumer crashed unrecoverably, restarting', { err: event?.payload?.error })
+    void (async () => {
+      let delay = baseDelay
+      while (!isClosed()) {
+        await new Promise((resolve) => {
+          // unref: a pending restart delay must not hold the process up during shutdown
+          setTimeout(resolve, delay).unref?.()
+        })
+        if (isClosed()) break
+        try {
+          await restart()
+          // close() may have run while restart was in flight - undo it, or the pod keeps consuming.
+          if (isClosed()) await cc.disconnect()
+          break
+        } catch (err: any) {
+          ctx.error('failed to restart consumer', { err })
+          delay = Math.min(delay * 2, MAX_CRASH_RESTART_DELAY)
+        }
+      }
+      restarting = false
+    })()
+  })
+}
+
+// Kafka unreachable for this long (including the very first connect) means the pod is useless:
+// exit and let the orchestrator restart it. 0 disables.
+const QUEUE_DEAD_TIMEOUT = 60000
+
+export function installDeadWatchdog (
+  ctx: MeasureContext,
+  cc: Consumer,
+  isClosed: () => boolean,
+  timeoutMs: number = intEnv('QUEUE_DEAD_TIMEOUT', QUEUE_DEAD_TIMEOUT),
+  onDead: () => void = () => process.exit(1)
+): void {
+  if (timeoutMs <= 0) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const arm = (): void => {
+    if (timer !== undefined) return
+    timer = setTimeout(() => {
+      timer = undefined
+      if (isClosed()) return
+      ctx.error('queue unreachable for too long, exiting to be restarted', { timeoutMs })
+      onDead()
+    }, timeoutMs)
+    timer.unref?.()
+  }
+  cc.on(cc.events.CONNECT, () => {
+    if (timer !== undefined) clearTimeout(timer)
+    timer = undefined
+  })
+  cc.on(cc.events.DISCONNECT, arm)
+  arm() // not connected yet: cover a broker that is down at startup
+}
+
 // Pump heartbeats every second while a handler runs so a slow message/batch never trips
 // sessionTimeout. kafkajs throttles internally, so frequent calls are safe.
 const HEARTBEAT_PUMP_INTERVAL = 1000
@@ -361,6 +435,7 @@ class PlatformQueueProducerImpl implements PlatformQueueProducer<any> {
 
 class PlatformQueueConsumerImpl implements ConsumerHandle {
   connected = false
+  private closed = false
   cc: Consumer
   private readonly ready: Promise<void>
   constructor (
@@ -379,6 +454,10 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
       retryDelay?: number // Initial retry delay in milliseconds (default 1000)
       maxRetryDelay?: number // Maximum retry delay in seconds (default 10)
       sessionTimeout?: number // Optional session timeout in milliseconds
+      // internal/test-only knobs, prod tunes deadTimeout via QUEUE_DEAD_TIMEOUT
+      crashRestartDelay?: number
+      deadTimeout?: number
+      onDead?: () => void
     }
   ) {
     this.cc = this.kafka.consumer({
@@ -387,6 +466,7 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
       allowAutoTopicCreation: true
     })
     this.ready = firstFetchDone(this.cc)
+    this.installListeners(this.options?.crashRestartDelay, this.options?.deadTimeout, this.options?.onDead)
 
     void this.start().catch((err) => {
       ctx.error('failed to consume', { err })
@@ -448,15 +528,26 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
     })
   }
 
-  async doConnect (): Promise<void> {
-    this.cc.on('consumer.connect', () => {
+  private installListeners (delayMs?: number, deadTimeout?: number, onDead?: () => void): void {
+    this.cc.on(this.cc.events.CONNECT, () => {
       this.connected = true
       this.ctx.info('consumer connected to queue')
     })
-    this.cc.on('consumer.disconnect', () => {
+    this.cc.on(this.cc.events.DISCONNECT, () => {
       this.connected = false
       this.ctx.warn('consumer disconnected from queue')
     })
+    installCrashRestart(
+      this.ctx,
+      this.cc,
+      () => this.start(),
+      () => this.closed,
+      delayMs
+    )
+    installDeadWatchdog(this.ctx, this.cc, () => this.closed, deadTimeout, onDead)
+  }
+
+  async doConnect (): Promise<void> {
     await this.cc.connect()
   }
 
@@ -476,6 +567,7 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
   }
 
   close (): Promise<void> {
+    this.closed = true
     return this.cc.disconnect()
   }
 }
@@ -491,6 +583,7 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
  */
 class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
   connected = false
+  private closed = false
   cc: Consumer
   private readonly ready: Promise<void>
   constructor (
@@ -511,6 +604,10 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
       batchSize?: number
       batchTimeout?: number
       sessionTimeout?: number // Optional session timeout in milliseconds
+      // internal/test-only knobs, prod tunes deadTimeout via QUEUE_DEAD_TIMEOUT
+      crashRestartDelay?: number
+      deadTimeout?: number
+      onDead?: () => void
     }
   ) {
     const rawMaxWait = this.options?.batchTimeout
@@ -523,6 +620,7 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
       allowAutoTopicCreation: true
     })
     this.ready = firstFetchDone(this.cc)
+    this.installListeners(this.options?.crashRestartDelay, this.options?.deadTimeout, this.options?.onDead)
 
     void this.start().catch((err) => {
       ctx.error('failed to consume', { err })
@@ -625,15 +723,26 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
     })
   }
 
-  async doConnect (): Promise<void> {
-    this.cc.on('consumer.connect', () => {
+  private installListeners (delayMs?: number, deadTimeout?: number, onDead?: () => void): void {
+    this.cc.on(this.cc.events.CONNECT, () => {
       this.connected = true
       this.ctx.info('consumer connected to queue')
     })
-    this.cc.on('consumer.disconnect', () => {
+    this.cc.on(this.cc.events.DISCONNECT, () => {
       this.connected = false
       this.ctx.warn('consumer disconnected from queue')
     })
+    installCrashRestart(
+      this.ctx,
+      this.cc,
+      () => this.start(),
+      () => this.closed,
+      delayMs
+    )
+    installDeadWatchdog(this.ctx, this.cc, () => this.closed, deadTimeout, onDead)
+  }
+
+  async doConnect (): Promise<void> {
     await this.cc.connect()
   }
 
@@ -653,6 +762,7 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
   }
 
   close (): Promise<void> {
+    this.closed = true
     return this.cc.disconnect()
   }
 }

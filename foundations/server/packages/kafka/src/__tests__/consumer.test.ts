@@ -15,17 +15,32 @@
 import { QueueTopic } from '@hcengineering/server-core'
 
 // jest.mock factory may only reference vars prefixed with `mock`.
-const mockState: any = { eachBatch: undefined }
+const mockState: any = { eachBatch: undefined, listeners: {} }
 const mockConsumer = {
   connect: jest.fn(async () => {}),
   subscribe: jest.fn(async () => {}),
   disconnect: jest.fn(async () => {}),
-  events: { FETCH: 'consumer.fetch' },
+  events: {
+    FETCH: 'consumer.fetch',
+    CRASH: 'consumer.crash',
+    CONNECT: 'consumer.connect',
+    DISCONNECT: 'consumer.disconnect'
+  },
   // kafkajs `on` returns a remove-listener function
-  on: jest.fn(() => () => {}),
+  on: jest.fn((event: string, cb: any) => {
+    ;(mockState.listeners[event] ??= []).push(cb)
+    return () => {
+      mockState.listeners[event] = mockState.listeners[event].filter((l: any) => l !== cb)
+    }
+  }),
   run: jest.fn(async (opts: any) => {
     mockState.eachBatch = opts.eachBatch
+    mockState.eachMessage = opts.eachMessage
   })
+}
+
+function emit (event: string, payload: any): void {
+  for (const l of [...(mockState.listeners[event] ?? [])]) l({ payload })
 }
 jest.mock('kafkajs', () => ({
   Kafka: jest.fn().mockImplementation(() => ({
@@ -71,14 +86,26 @@ function controls (over: any = {}): any {
   }
 }
 
-async function makeBatchConsumer (onMessage: any, options: any = {}): Promise<any> {
+async function makeConsumer (kind: 'batch' | 'single', onMessage: any, options: any = {}): Promise<any> {
   mockState.eachBatch = undefined
+  mockState.eachMessage = undefined
+  mockState.listeners = {}
   const q = createPlatformQueue(config)
-  q.createBatchConsumer(ctx, QueueTopic.Workspace, 'grp', onMessage, { retryDelay: 0, maxRetryDelay: 1, ...options })
-  // start() is fired async in the constructor; wait until run() captured eachBatch.
-  for (let i = 0; i < 50 && mockState.eachBatch === undefined; i++) {
+  const opts = { retryDelay: 0, maxRetryDelay: 1, deadTimeout: 0, ...options }
+  const handle =
+    kind === 'batch'
+      ? q.createBatchConsumer(ctx, QueueTopic.Workspace, 'grp', onMessage, opts)
+      : q.createConsumer(ctx, QueueTopic.Workspace, 'grp', onMessage, opts)
+  // start() is fired async in the constructor; wait until run() captured the handler.
+  const captured = (): any => (kind === 'batch' ? mockState.eachBatch : mockState.eachMessage)
+  for (let i = 0; i < 50 && captured() === undefined; i++) {
     await new Promise((resolve) => setImmediate(resolve))
   }
+  return handle
+}
+
+async function makeBatchConsumer (onMessage: any, options: any = {}): Promise<any> {
+  await makeConsumer('batch', onMessage, options)
   return mockState.eachBatch
 }
 
@@ -197,5 +224,135 @@ describe('heartbeat pump', () => {
     const t0 = Date.now()
     await stop()
     expect(Date.now() - t0).toBeLessThan(500)
+  })
+})
+
+describe.each(['batch', 'single'] as const)('crash restart (%s consumer)', (kind) => {
+  it('restarts the consumer when kafkajs gives up (restart: false)', async () => {
+    await makeConsumer(
+      kind,
+      jest.fn(async () => {}),
+      { crashRestartDelay: 5 }
+    )
+    const runs = mockConsumer.run.mock.calls.length
+    emit('consumer.crash', { error: new Error('Broker not connected'), restart: false })
+    await sleep(60)
+    expect(mockConsumer.run.mock.calls.length).toBe(runs + 1)
+    expect(mockConsumer.connect.mock.calls.length).toBeGreaterThan(1)
+  })
+
+  it('does not restart when kafkajs restarts on its own', async () => {
+    await makeConsumer(
+      kind,
+      jest.fn(async () => {}),
+      { crashRestartDelay: 5 }
+    )
+    const runs = mockConsumer.run.mock.calls.length
+    emit('consumer.crash', { error: new Error('transient'), restart: true })
+    await sleep(60)
+    expect(mockConsumer.run.mock.calls.length).toBe(runs)
+  })
+
+  it('keeps retrying while restart fails', async () => {
+    await makeConsumer(
+      kind,
+      jest.fn(async () => {}),
+      { crashRestartDelay: 5 }
+    )
+    mockConsumer.connect.mockRejectedValueOnce(new Error('still down'))
+    const runs = mockConsumer.run.mock.calls.length
+    emit('consumer.crash', { error: new Error('Broker not connected'), restart: false })
+    await sleep(120)
+    expect(mockConsumer.run.mock.calls.length).toBe(runs + 1)
+  })
+
+  it('stops restarting after close', async () => {
+    const handle = await makeConsumer(
+      kind,
+      jest.fn(async () => {}),
+      { crashRestartDelay: 5 }
+    )
+    await handle.close()
+    const runs = mockConsumer.run.mock.calls.length
+    emit('consumer.crash', { error: new Error('Broker not connected'), restart: false })
+    await sleep(60)
+    expect(mockConsumer.run.mock.calls.length).toBe(runs)
+  })
+
+  it('disconnects again when close lands while the restart is in flight', async () => {
+    const handle = await makeConsumer(
+      kind,
+      jest.fn(async () => {}),
+      { crashRestartDelay: 5 }
+    )
+    emit('consumer.crash', { error: new Error('Broker not connected'), restart: false })
+    await handle.close() // during the restart delay
+    const disconnects = mockConsumer.disconnect.mock.calls.length
+    await sleep(60)
+    // either the loop bailed before restarting, or it restarted and disconnected right after
+    if (mockConsumer.run.mock.calls.length > 1) {
+      expect(mockConsumer.disconnect.mock.calls.length).toBeGreaterThan(disconnects)
+    }
+  })
+})
+
+describe('dead queue watchdog', () => {
+  it('exits when the broker never connects', async () => {
+    const onDead = jest.fn()
+    await makeConsumer(
+      'batch',
+      jest.fn(async () => {}),
+      { deadTimeout: 20, onDead }
+    )
+    await sleep(60)
+    expect(onDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not exit once the consumer connects', async () => {
+    const onDead = jest.fn()
+    await makeConsumer(
+      'batch',
+      jest.fn(async () => {}),
+      { deadTimeout: 20, onDead }
+    )
+    emit('consumer.connect', {})
+    await sleep(60)
+    expect(onDead).not.toHaveBeenCalled()
+  })
+
+  it('re-arms on disconnect and exits if the queue stays down', async () => {
+    const onDead = jest.fn()
+    await makeConsumer(
+      'batch',
+      jest.fn(async () => {}),
+      { deadTimeout: 20, onDead }
+    )
+    emit('consumer.connect', {})
+    emit('consumer.disconnect', {})
+    await sleep(60)
+    expect(onDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not exit after close', async () => {
+    const onDead = jest.fn()
+    const handle = await makeConsumer(
+      'batch',
+      jest.fn(async () => {}),
+      { deadTimeout: 20, onDead }
+    )
+    await handle.close()
+    await sleep(60)
+    expect(onDead).not.toHaveBeenCalled()
+  })
+
+  it('is disabled with deadTimeout 0', async () => {
+    const onDead = jest.fn()
+    await makeConsumer(
+      'batch',
+      jest.fn(async () => {}),
+      { deadTimeout: 0, onDead }
+    )
+    await sleep(40)
+    expect(onDead).not.toHaveBeenCalled()
   })
 })

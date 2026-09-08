@@ -50,7 +50,11 @@ export class ChannelPage extends CommonPage {
     this.page.locator('.antiTable-body__row', { hasText: channel }).getByText(userName)
 
   readonly addMemberToChannelButton = (userName: string): Locator => this.page.getByText(userName)
-  readonly joinChannelButton = (): Locator => this.page.getByRole('button', { name: 'Join' })
+  // Scoped to the row: the table lists every public channel of the workspace, and each one this
+  // user is not a member of renders a Join of its own.
+  readonly joinChannelButton = (channel: string): Locator =>
+    this.channelTable().getByRole('row').filter({ hasText: channel }).getByRole('button', { name: 'Join' })
+
   readonly selectEmoji = (emoji: string): Locator => this.page.getByText(emoji)
 
   // Action popup exists in DOM for every message and is only visible while that message is hovered,
@@ -320,8 +324,8 @@ export class ChannelPage extends CommonPage {
     await this.openAddMemberToChannel(user).click()
   }
 
-  async clickJoinChannelButton (): Promise<void> {
-    await this.joinChannelButton().click()
+  async clickJoinChannelButton (channel: string): Promise<void> {
+    await this.joinChannelButton(channel).click()
   }
 
   async getChannelsGroupLocatorByType (channelType: LinkedChannelTypes, channelName: string): Promise<Locator> {

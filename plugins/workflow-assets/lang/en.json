@@ -208,7 +208,7 @@
     "StepGeneral": "General",
     "StepStatuses": "Status mapping",
     "StepGeneralAndStatuses": "General & Statuses",
-    "StepSelectFile": "Select file",
+    "StepSelectSource": "Select source",
     "StepTaskTypeAndStatuses": "Task type & statuses",
     "StepScreens": "Screens",
     "StepAttributes": "Attributes & Rules",

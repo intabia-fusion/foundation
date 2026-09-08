@@ -115,8 +115,7 @@
             projectType: type,
             taskTypes,
             initialText: text,
-            initialConfig: parsed,
-            initialFileName: parsed != null ? 'Clipboard' : ''
+            initialConfig: parsed
           },
           'center'
         )
@@ -166,8 +165,7 @@
         {
           projectType: type,
           taskTypes,
-          initialConfig: parsed,
-          initialFileName: file.name
+          initialConfig: parsed
         },
         'center'
       )

@@ -206,7 +206,7 @@
     "StepGeneral": "一般",
     "StepStatuses": "ステータスマッピング",
     "StepGeneralAndStatuses": "一般とステータス",
-    "StepSelectFile": "ファイルの選択",
+    "StepSelectSource": "ソースの選択",
     "StepTaskTypeAndStatuses": "タスクタイプとステータス",
     "StepScreens": "画面",
     "StepAttributes": "属性とルール",

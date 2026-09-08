@@ -336,7 +336,7 @@ export default plugin(workflowId, {
     StepGeneral: '' as IntlString,
     StepStatuses: '' as IntlString,
     StepGeneralAndStatuses: '' as IntlString,
-    StepSelectFile: '' as IntlString,
+    StepSelectSource: '' as IntlString,
     StepTaskTypeAndStatuses: '' as IntlString,
     StepScreens: '' as IntlString,
     StepAttributes: '' as IntlString,

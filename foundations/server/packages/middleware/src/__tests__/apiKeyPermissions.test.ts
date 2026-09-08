@@ -141,13 +141,15 @@ describe('ApiKeyPermissionsMiddleware', () => {
     expect(lastQuery()).toBe(query)
   })
 
-  it('a trigger-derived tx is not judged against the key spaces', async () => {
+  // Real derived txes never reach this middleware - they enter at MarkDerivedEntryMiddleware, which is
+  // registered after it. So `space: DerivedTx` on an incoming tx is the caller's claim, not a fact.
+  it('a tx claiming core.space.DerivedTx still gets its objectSpace checked', async () => {
     const { next, txCalled } = makeNext()
     const mw = await ApiKeyPermissionsMiddleware.create(ctx, anyContext, next)
 
-    const derived = { ...createTx(SPACE_B), space: core.space.DerivedTx }
-    expect((await runTx(mw, opsKey([SPACE_A]), derived)).rejected).toBe(false)
-    expect(txCalled()).toBe(true)
+    const claimed = { ...createTx(SPACE_B), space: core.space.DerivedTx }
+    expect((await runTx(mw, opsKey([SPACE_A]), claimed)).rejected).toBe(true)
+    expect(txCalled()).toBe(false)
   })
 
   it('undefined grant (non-key session) lets a write through', async () => {

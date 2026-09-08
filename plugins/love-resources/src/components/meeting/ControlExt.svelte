@@ -92,11 +92,14 @@
 
   $: receptionParticipants = $infos.filter((p) => p.room === love.ids.Reception)
 
+  // `myRoom` is a parameter, not the outer `myRoomAttached`: read from the closure it is one tick
+  // stale, and a second tab then reads its own fresh ParticipantInfo as "moved out" and leaves.
   function checkActiveMeeting (
     loc: Location,
     meetingSessionConnected: boolean,
     room: Ref<Room> | undefined,
-    hasPendingJoinInThisSession: boolean
+    hasPendingJoinInThisSession: boolean,
+    myRoom: Ref<Room> | undefined
   ): void {
     const meetingWidgetState = $sidebarStore.widgetsState.get(love.ids.MeetingWidget)
     const isMeetingWidgetCreated = meetingWidgetState !== undefined
@@ -122,8 +125,8 @@
       const mySid = liveKitClient.liveKitRoom.localParticipant.sid
       if (
         currentMeeting !== undefined &&
-        myRoomAttached !== undefined &&
-        myRoomAttached !== room &&
+        myRoom !== undefined &&
+        myRoom !== room &&
         $myInfo?.sessionId === mySid
       ) {
         void leaveMeeting()
@@ -138,7 +141,7 @@
     } else {
       // If user has a ParticipantInfo showing they are in this meeting, keep the widget
       // so they can return after a page reload. Otherwise close the widget.
-      if (isMeetingWidgetCreated && myRoomAttached !== room) {
+      if (isMeetingWidgetCreated && myRoom !== room) {
         closeWidget(love.ids.MeetingWidget)
       }
     }
@@ -148,7 +151,7 @@
   $: currentSessionId = getMetadata(presentation.metadata.SessionId)
   $: hasPendingJoinInThisSession = $myConnectingSessionId !== null && $myConnectingSessionId === currentSessionId
 
-  $: checkActiveMeeting($location, $lkSessionConnected, $currentRoom?._id, hasPendingJoinInThisSession)
+  $: checkActiveMeeting($location, $lkSessionConnected, $currentRoom?._id, hasPendingJoinInThisSession, myRoomAttached)
 
   let myRoomAttached: Ref<Room> | undefined = undefined
   $: myRoomAttached =

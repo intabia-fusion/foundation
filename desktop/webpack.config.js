@@ -117,7 +117,7 @@ module.exports = [
     },
     resolve: {
       extensions: ['.ts', '.js'],
-      conditionNames: ['svelte', 'browser', 'import'],
+      conditionNames: ['node', 'svelte', 'browser', 'import'],
       alias: {
         ws: path.resolve('node_modules', 'ws/index.js')
       }

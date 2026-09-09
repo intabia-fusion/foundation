@@ -100,7 +100,9 @@ function stringifyValue (val: unknown): string {
   if (typeof val !== 'object') return String(val as string | number | boolean | bigint | symbol)
   const obj = val as Record<string, unknown>
   const label = obj.name ?? obj.label ?? obj._id
-  return label != null ? stringifyValue(label) : JSON.stringify(val)
+  // Cast keeps no-base-to-string quiet; String() here is the long-standing contract -
+  // Date and array render via their own toString, a plain object as "[object Object]".
+  return String((label ?? val) as { toString: () => string })
 }
 
 function parseNumber (val: unknown): number | null {

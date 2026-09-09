@@ -5,6 +5,7 @@
   "private": true,
   "main": "index.js",
   "scripts": {
+    "format": "echo done",
     "run:basic": "ts-node 01-basic-container-request-response.ts",
     "run:events": "ts-node 02-event-broadcasting.ts",
     "run:multi-tenant": "ts-node 03-multi-tenant.ts",

@@ -5082,8 +5082,6 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
-  foundations/hulylake: {}
-
   foundations/net/common/scripts:
     devDependencies:
       esbuild:

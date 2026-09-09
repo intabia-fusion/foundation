@@ -36,7 +36,6 @@ packages:
   - foundations/core/packages/text-markdown
   - foundations/core/packages/text-ydoc
   - foundations/core/packages/token
-  - foundations/hulylake
   - foundations/net/common/scripts
   - foundations/net/examples
   - foundations/net/packages/backrpc

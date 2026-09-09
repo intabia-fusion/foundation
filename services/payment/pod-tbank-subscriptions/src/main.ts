@@ -139,7 +139,15 @@ export const main = async (): Promise<void> => {
     'tbank-webhook-processor',
     async (ctx, msg) => {
       try {
-        await processWebhook(ctx, config, tbank, storage, msg.value.notification, msg.value.verified)
+        await processWebhook(
+          ctx,
+          config,
+          tbank,
+          storage,
+          msg.value.notification,
+          msg.value.verified,
+          msg.value.receivedAt
+        )
       } catch (err: any) {
         const poison = err instanceof TypeError || err instanceof RangeError || err instanceof SyntaxError
         ctx.error(poison ? 'Poison TBank webhook dropped' : 'Failed to process TBank webhook, will retry', {

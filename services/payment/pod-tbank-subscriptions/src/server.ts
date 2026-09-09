@@ -1041,13 +1041,18 @@ async function handleWebhook (
 // Consumer: process a verified webhook. Rechecks the payment state against the bank before applying
 // money-moved effects, then runs the activation / past-due / abandon logic. Throws on retriable errors
 // (storage/bank transient) so the queue retries; returns on terminal outcomes.
+// How long a CONFIRMED webhook waits for its draft to arrive through the queue before it is treated
+// as a payment we know nothing about.
+const DRAFT_WAIT_MS = 60000
+
 export async function processWebhook (
   ctx: MeasureContext,
   config: Config,
   tbank: TbankPayments,
   storage: SubscriptionStorage,
   notification: Record<string, any>,
-  verified: boolean
+  verified: boolean,
+  receivedAt?: number
 ): Promise<void> {
   const typedNotification = notification as unknown as TbankWebhookNotification
 
@@ -1089,6 +1094,14 @@ export async function processWebhook (
   }
 
   const sub = await storage.getByProviderId(typedNotification.PaymentId)
+
+  // The draft reaches account through the queue, so a fast bank beats it here. Retry while the
+  // message is young instead of dropping the payment.
+  if (sub === null && (typedNotification.Status === 'CONFIRMED' || typedNotification.Status === 'AUTHORIZED')) {
+    if (receivedAt !== undefined && Date.now() - receivedAt < DRAFT_WAIT_MS) {
+      throw new Error(`no subscription for payment ${typedNotification.PaymentId} yet, retrying`)
+    }
+  }
 
   ctx.info('Processing TBank webhook', {
     paymentId: typedNotification.PaymentId,

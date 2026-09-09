@@ -143,17 +143,20 @@
   $: roomInfos = getInfo(object._id, $infos)
 
   const me = getCurrentEmployee()
+  // Agents (bot, egress recorder) outlive the meeting that finished: counting them as occupants left
+  // the room locked with nobody to knock at - neither Connect nor Knock rendered.
+  $: humanInfos = roomInfos.filter((p) => p.kind !== 'agent' && p.person !== $aiBotPerson)
   // Room is locked if participants are present but meeting is not in our accessible meetings store
   $: isLockedByPrivateMeeting =
-    roomInfos.length > 0 &&
-    !roomInfos.some((p) => p.person === me) &&
+    humanInfos.length > 0 &&
+    !humanInfos.some((p) => p.person === me) &&
     !$meetings.some((m) => m.roomId === object._id && m.status !== MeetingStatus.Finished) &&
     getCurrentAccount().role !== AccountRole.Owner
 
   // Track whether we already sent a knock-request for this room. Knock
   // requests are tied to the room, not a specific recipient — the server
   // fans them out to the meeting's owners.
-  $: knockTarget = roomInfos.find((p) => p.kind !== 'agent' && p.person !== $aiBotPerson)?.person
+  $: knockTarget = humanInfos[0]?.person
   $: pendingKnock = $outgoingInvitesStore.find((it) => it.from === me && it.room === object._id)
   $: hasOutgoingKnock = pendingKnock !== undefined
 

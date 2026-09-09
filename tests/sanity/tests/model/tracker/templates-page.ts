@@ -146,7 +146,12 @@ export class TemplatePage extends CommonTrackerPage {
   private async clickSaveTemplate (): Promise<void> {
     const save = this.saveTemplateButton()
     await expect(save).toBeEnabled({ timeout: 15000 })
-    await save.click()
+    // The panel keeps re-rendering while the editor content settles, so the button moves under the
+    // pointer or is replaced mid-click. Saving switches it to view mode - retry until it does.
+    await retry(async () => {
+      await save.click({ timeout: 5000 })
+      await expect(save).toHaveCount(0, { timeout: 3000 })
+    })
   }
 
   async editTemplate (newContent: string): Promise<void> {

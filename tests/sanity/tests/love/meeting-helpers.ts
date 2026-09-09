@@ -464,7 +464,14 @@ export async function joinRoom (page: Page, name: string, timeout = 45000): Prom
     if ((await page.locator('[data-id="meeting-knock"], [data-id="meeting-knock-pending"]').count()) > 0) {
       throw new Error(`room "${name}" is locked by someone else's meeting - Knock is shown, not Connect`)
     }
-    await expect(connect).toBeVisible({ timeout: 10000 })
+    // Neither Connect nor Knock: a stale occupant locks the room and there is nobody to knock at.
+    const appeared = await connect
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .then(() => true)
+      .catch(() => false)
+    if (!appeared) {
+      throw new Error(`room "${name}" panel shows neither Connect nor Knock - a stale occupant holds it`)
+    }
     await connect.click({ timeout: 10000 })
     await expect.poll(async () => await connectedMarker(page).count(), { timeout: 10000 }).toBeGreaterThan(0)
   }, timeout)

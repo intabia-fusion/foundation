@@ -507,4 +507,17 @@ describe('processWebhook (consumer)', () => {
     expect(activated.amount).toBe(720000)
     expect(activated.periodEnd).toBe(yearlyEnd)
   })
+  // The draft reaches account through the subscription queue, so a fast bank can confirm before it
+  // lands. A young webhook must retry; an old one gives up so a stray payment cannot wedge the topic.
+  test('CONFIRMED without a draft: retries while young, gives up once stale', async () => {
+    const storage = makeStorage(null)
+    const notification = { PaymentId: 'pay_missing', Status: 'CONFIRMED', Amount: 100000 }
+
+    await expect(
+      processWebhook(newCtx(), baseConfig, makeTbank(true), storage, notification, true, Date.now())
+    ).rejects.toThrow(/pay_missing/)
+
+    await processWebhook(newCtx(), baseConfig, makeTbank(true), storage, notification, true, Date.now() - 120000)
+    expect(storage.upsert).not.toHaveBeenCalled()
+  })
 })

@@ -1,6 +1,7 @@
 import type { WorkspaceInfoWithStatus, WorkspaceLoginInfo } from '@hcengineering/account'
 import { APIRequestContext } from '@playwright/test'
 import { DevUrl, LocalUrl, PlatformURI, PlatformWorkspaceRegion } from '../utils'
+import { retry } from '../retry'
 
 export class ApiEndpoint {
   private readonly request: APIRequestContext
@@ -9,6 +10,18 @@ export class ApiEndpoint {
   constructor (request: APIRequestContext) {
     this.request = request
     this.baseUrl = typeof DevUrl === 'string' && DevUrl.trim() !== '' ? DevUrl : LocalUrl
+  }
+
+  // An account call can answer with an nginx error page or the SPA index.html, and `json()` then
+  // throws "Unexpected token '<'" naming neither the method nor the status.
+  private async post (data: { method: string, params: object }, headers: Record<string, string>): Promise<any> {
+    const response = await this.request.post(this.baseUrl, { data, headers })
+    const text = await response.text()
+    try {
+      return JSON.parse(text)
+    } catch {
+      throw new Error(`${data.method} answered ${response.status()} with ${text.slice(0, 120).replace(/\s+/g, ' ')}`)
+    }
   }
 
   private getDefaultHeaders (token: string = ''): Record<string, string> {
@@ -24,7 +37,6 @@ export class ApiEndpoint {
   }
 
   async loginAndGetToken (email: string, password: string): Promise<string> {
-    const loginUrl = this.baseUrl
     const loginPayload = {
       method: 'login',
       params: { email, password }
@@ -34,12 +46,11 @@ export class ApiEndpoint {
       Origin: PlatformURI,
       Referer: PlatformURI
     }
-    const response = await this.request.post(loginUrl, { data: loginPayload, headers })
-    if (response.status() !== 200) {
-      throw new Error(`Login failed with status: ${response.status()}`)
+    const body = await this.post(loginPayload, headers)
+    if (body?.result?.token == null) {
+      throw new Error(`login failed for ${email}: ${JSON.stringify(body?.error ?? body)}`)
     }
-    const token = (await response.json()).result.token
-    return token
+    return body.result.token
   }
 
   async createWorkspaceWithLogin (
@@ -52,15 +63,12 @@ export class ApiEndpoint {
   }
 
   private async createWorkspaceInternal (workspaceName: string, token: string): Promise<WorkspaceLoginInfo> {
-    const url = this.baseUrl
     const payload = {
       method: 'createWorkspace',
       params: { workspaceName, region: PlatformWorkspaceRegion }
     }
     const headers = this.getDefaultHeaders(token)
-    const response = await this.request.post(url, { data: payload, headers })
-
-    const body = await response.json()
+    const body = await this.post(payload, headers)
     // Without this an account-side refusal (WorkspaceLimitReached and friends) surfaces as
     // "Cannot read properties of undefined" from the line below.
     if (body?.result == null) {
@@ -76,66 +84,58 @@ export class ApiEndpoint {
   async waitWorkspaceReady (token: string, workspaceUrl: string): Promise<void> {
     // We need to wait for workspace to be created before we will continue.
     const headers = this.getDefaultHeaders(token)
-    const url = this.baseUrl
-    const selectWorkspaceResponse: WorkspaceLoginInfo = (
-      await (
-        await this.request.post(url, {
-          data: {
-            method: 'selectWorkspace',
-            params: { workspaceUrl }
-          },
-          headers
-        })
-      ).json()
-    ).result
-
-    const wsToken = selectWorkspaceResponse.token
-    if (wsToken === undefined) {
-      throw new Error('Workspace token is undefined')
-    }
+    // Retried like the poll below: the call is a read, and a single bad answer used to fail the
+    // test in its `beforeEach`.
+    let wsToken: string | undefined
+    await retry(async () => {
+      const selected: WorkspaceLoginInfo = (
+        await this.post({ method: 'selectWorkspace', params: { workspaceUrl } }, headers)
+      ).result
+      wsToken = selected?.token
+      if (wsToken === undefined) {
+        throw new Error(`selectWorkspace returned no token for ${workspaceUrl}`)
+      }
+    }, 15000)
 
     const headersInfo = this.getDefaultHeaders(wsToken)
-    while (true) {
-      const wsInfo: WorkspaceInfoWithStatus = (
-        await (
-          await this.request.post(url, {
-            data: {
-              method: 'getWorkspaceInfo',
-              params: { updateLastVisit: false }
-            },
-            headers: headersInfo
-          })
-        ).json()
-      ).result
-      if (wsInfo.status.mode === 'active') {
-        break
+    // Bounded, and a bad answer only costs one more poll: the read has no side effect, while a
+    // single hiccup here used to fail the test in its `beforeEach`.
+    const deadline = Date.now() + 60000
+    let lastError = 'workspace never became active'
+    while (Date.now() < deadline) {
+      const wsInfo: WorkspaceInfoWithStatus | undefined = await this.post(
+        { method: 'getWorkspaceInfo', params: { updateLastVisit: false } },
+        headersInfo
+      )
+        .then((body) => body?.result)
+        .catch((err: Error) => {
+          lastError = err.message
+          return undefined
+        })
+      if (wsInfo?.status?.mode === 'active') {
+        return
       }
       // 100ms, not 250: a workspace is ready ~500ms after the call, and every test that creates one
       // pays a quarter of a second of pure polling granularity on top.
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
+    throw new Error(`workspace ${workspaceUrl} is not ready: ${lastError}`)
   }
 
   async createAccount (email: string, password: string, firstName: string, lastName: string): Promise<any> {
-    const url = this.baseUrl
     const payload = {
       method: 'signUp',
       params: { email, password, firstName, lastName }
     }
-    const headers = this.getDefaultHeaders()
-    const response = await this.request.post(url, { data: payload, headers })
-    return await response.json()
+    return await this.post(payload, this.getDefaultHeaders())
   }
 
   async leaveWorkspace (account: string, username: string, password: string): Promise<any> {
     const token = await this.loginAndGetToken(username, password)
-    const url = this.baseUrl
     const payload = {
       method: 'leaveWorkspace',
       params: { account }
     }
-    const headers = this.getDefaultHeaders(token)
-    const response = await this.request.post(url, { data: payload, headers })
-    return await response.json()
+    return await this.post(payload, this.getDefaultHeaders(token))
   }
 }

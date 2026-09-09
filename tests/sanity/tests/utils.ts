@@ -347,23 +347,29 @@ export async function loginByToken (
   )?.finished()
 }
 
+export async function createAccountWithWorkspace (
+  request: APIRequestContext,
+  data: TestData
+): Promise<{ ws: WorkspaceLoginInfo, token: string }> {
+  const api: ApiEndpoint = new ApiEndpoint(request)
+  await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
+  const created = await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
+  // The login has to come after the workspace: a token issued before it does not carry the new
+  // membership, and the browser lands in a workspace it is not a member of.
+  return { ws: created, token: await api.loginAndGetToken(data.userName, '1234') }
+}
+
 export async function createAccountAndWorkspace (
   page: Page,
   request: APIRequestContext,
   data: TestData,
   app?: string
 ): Promise<void> {
-  const api: ApiEndpoint = new ApiEndpoint(request)
   // Two steps, not one: the per-test setup is a quarter of the Platform lane, and without the split
   // the step report cannot say whether that is the account service or the client booting a new
   // workspace.
-  const { ws, token } = await test.step('setup: account and workspace', async () => {
-    await api.createAccount(data.userName, '1234', data.firstName, data.lastName)
-    const created = await api.createWorkspaceWithLogin(data.workspaceName, data.userName, '1234')
-    // The login has to come after the workspace: a token issued before it does not carry the new
-    // membership, and the browser lands in a workspace it is not a member of.
-    return { ws: created, token: await api.loginAndGetToken(data.userName, '1234') }
-  })
+  const { ws, token } = await test.step('setup: account and workspace', async () =>
+    await createAccountWithWorkspace(request, data))
   await test.step('setup: open the workspace', async () => {
     await loginByToken(page, token, ws, app)
   })

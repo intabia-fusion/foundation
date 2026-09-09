@@ -41,7 +41,7 @@ import { dbConfig, dbUrl, elasticIndexName, kafkaBroker, model, prepare } from '
 prepare()
 jest.mock('franc-min', () => ({ franc: () => 'en' }), { virtual: true })
 
-jest.setTimeout(60000)
+jest.setTimeout(90000)
 
 class TestWorkspaceManager extends WorkspaceManager {
   public async getWorkspaceInfo (ctx: MeasureContext, token?: string): Promise<WorkspaceInfoWithStatus | undefined> {
@@ -138,6 +138,13 @@ describe('fulltext batch-removal scenarios', () => {
     h = new Harness(toolCtx)
     await h.start()
     txProducer = h.queue.getProducer<Tx>(toolCtx, QueueTopic.Tx)
+
+    // The first document through the pipeline pays for the workspace schema, the elastic index and
+    // the first kafka fetch. On a slow runner that is more than the wait budget of a test.
+    const { wsId } = await setup()
+    const warmup = createDoc(test.class.TestDocument, { title: 'warm-up', description: 'warmup-' + generateId() })
+    await txProducer.send(toolCtx, wsId, [warmup])
+    await h.waitFor(() => h.indexed.has(String(warmup.objectId)), 30000, 'warm-up indexed')
   })
 
   afterAll(async () => {

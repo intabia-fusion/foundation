@@ -37,7 +37,7 @@ services:
     extra_hosts:
       - 'huly.local:host-gateway'
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -p 5433']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -h 127.0.0.1 -p 5433']
       interval: 5s
       timeout: 5s
       retries: 10

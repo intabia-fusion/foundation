@@ -17,6 +17,7 @@ import { expect, test } from '@playwright/test'
 import { MeetingStatus, type MeetingMinutes } from '@hcengineering/love'
 import love from '@hcengineering/love'
 import {
+  clickRoomByName,
   closeLoveWindows,
   closeMeetingContexts,
   connectedMarker,
@@ -25,6 +26,7 @@ import {
   joinRoom,
   liveKitRoomOf,
   openLove,
+  startOrJoin,
   waitForActiveMeetingsToFinish,
   waitRoomMeeting
 } from './meeting-helpers'
@@ -61,11 +63,10 @@ export function registerMultiTabTests (): void {
         await openLove(tabB)
         const roomB = await firstAvailableRoom(tabB, [roomA as string])
         expect(roomB).not.toBeNull()
-        await tabB
-          .locator(`[data-id="room-${roomB as string}"]`)
-          .first()
-          .click()
-        await tabB.locator('[data-id="meeting-connect"]').getByRole('button').first().click()
+        // Through the helpers, not by hand: an unscoped meeting-connect also matches the dead button
+        // on a MeetingMinutes page, and the wait below then burns its whole budget.
+        await clickRoomByName(tabB, roomB as string)
+        await startOrJoin(tabB)
 
         // The guard warns that another session holds a meeting; confirming leaves it.
         const confirm = tabB.getByRole('button', { name: 'Ok' }).first()

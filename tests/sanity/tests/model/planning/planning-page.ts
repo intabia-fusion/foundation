@@ -120,12 +120,18 @@ export class PlanningPage extends CalendarPage {
     await this.buttonNextDayInSchedule().click()
   }
 
+  // The target hour depends on the clock, so it can sit below the fold or under the sticky day
+  // header - and boundingBox() reports those coordinates all the same, aiming the drag at a point
+  // the mouse can never reach. Centre it instead of settling for "somewhere in view".
+  private async scrollCellIntoMiddle (time: string, column: number): Promise<void> {
+    await this.selectTimeCell(time, column).evaluate((el) => {
+      el.scrollIntoView({ block: 'center', inline: 'nearest' })
+    })
+  }
+
   async dragToCalendar (title: string, column: number, time: string, addHalf: boolean = false): Promise<void> {
     await expect(async () => {
-      // The target time depends on the hour the run starts at, and later hours sit below the fold.
-      // boundingBox() reports coordinates outside the viewport all the same, so the drop would be
-      // aimed at a point the mouse can never reach.
-      await this.selectTimeCell(time, column).scrollIntoViewIfNeeded()
+      await this.scrollCellIntoMiddle(time, column)
       // Hover inside the loop: a failed attempt leaves the pointer on the target cell, so the next
       // mouse.down() would grab nothing and every retry would repeat the same no-op.
       await this.toDosContainer().getByRole('button', { name: title }).hover()
@@ -159,8 +165,7 @@ export class PlanningPage extends CalendarPage {
     const border = element.locator(`.calendar-element-${size === 'top' ? 'start' : 'end'}`)
 
     await expect(async () => {
-      // Bring the target hour into view first - see dragToCalendar.
-      await this.selectTimeCell(targetTime, column).scrollIntoViewIfNeeded()
+      await this.scrollCellIntoMiddle(targetTime, column)
       const before = await element.boundingBox()
       // Hover inside the loop: a failed attempt leaves the pointer on the target cell, so the next
       // mouse.down() would grab nothing and every retry would repeat the same no-op.
@@ -172,6 +177,15 @@ export class PlanningPage extends CalendarPage {
         if (boundingBox != null) {
           const x = boundingBox.x + 10
           const y = size === 'bottom' ? boundingBox.y - 8 : boundingBox.y + 5
+          // Off the grid the cells take no mousemove, the resize is a silent no-op and every retry
+          // repeats it - name what got hit instead of timing out on an unchanged height.
+          const hit = await this.page.evaluate(
+            ([px, py]) => (document.elementFromPoint(px, py) as HTMLElement | null)?.className ?? 'nothing',
+            [x, y]
+          )
+          if (!hit.includes('empty-cell')) {
+            throw new Error(`resize target (${x}, ${y}) is not a calendar cell but "${hit}"`)
+          }
           // A single jump can land before the resize handler sees the drag, leaving the border where
           // it was and no error to retry on. Walk the pointer there and nudge it on arrival.
           await this.page.mouse.move(x, y, { steps: 10 })

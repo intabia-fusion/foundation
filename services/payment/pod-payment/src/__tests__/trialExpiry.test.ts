@@ -303,3 +303,109 @@ describe('startTrialExpiry', () => {
     expect(accountClient.getSubscriptionsByProvider).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('trial-expired email', () => {
+  let ctx: any
+  let buildFree: jest.Mock
+  let sent: any[]
+
+  const DAY = 24 * 60 * 60 * 1000
+  const NOW = Date.UTC(2026, 8, 4)
+  const ENDED = NOW - DAY
+
+  const trial = (over: Record<string, any> = {}): any => ({
+    id: 'trial-ws-1',
+    workspaceUuid: 'ws-1',
+    accountUuid: 'acc-1',
+    provider: 'trial',
+    providerSubscriptionId: 'trial-1',
+    type: SubscriptionType.Tier,
+    status: SubscriptionStatus.Trialing,
+    plan: 'business',
+    trialEnd: ENDED,
+    providerData: { quantity: 10 },
+    ...over
+  })
+
+  // Mail context over stub lookups: this suite asserts that the sweep sends, not how it renders.
+  const mailContext = (): any => ({
+    storage: {
+      getAccountContact: jest.fn().mockResolvedValue({ name: 'Иван', email: 'payer@x.com', locale: 'ru' }),
+      getWorkspaceInfo: jest.fn().mockResolvedValue({ name: 'Моя компания', url: 'my-company' }),
+      getWorkspaceUrl: jest.fn().mockResolvedValue('my-company')
+    },
+    send: async (_c: any, to: string, msg: any) => {
+      sent.push({ to, ...msg })
+    },
+    planLabel: async (plan: string) => plan,
+    planCurrency: async () => '₽',
+    frontUrl: 'https://app.intabia.ru'
+  })
+
+  const client = (trials: any[]): any => ({
+    getSubscriptionsByProvider: jest.fn(async () => trials),
+    getSubscriptions: jest.fn(async () => []),
+    upsertSubscriptionsBulk: jest.fn(async (subs: any[]) => subs.map((s) => ({ id: s.id, ok: true })))
+  })
+
+  beforeEach(() => {
+    jest.useFakeTimers({ doNotFake: ['nextTick'] })
+    jest.setSystemTime(NOW)
+    sent = []
+    ctx = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
+    buildFree = jest.fn((workspace: string) => ({
+      id: `free-${workspace}`,
+      workspaceUuid: workspace,
+      provider: 'free',
+      type: SubscriptionType.Tier,
+      status: SubscriptionStatus.Active,
+      plan: 'free'
+    }))
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('an expired trial gets one mail, dated by trialEnd', async () => {
+    await expireTrials(ctx, client([trial()]), buildFree, undefined, mailContext())
+    expect(sent).toHaveLength(1)
+    expect(sent[0].to).toBe('payer@x.com')
+    expect(sent[0].subject).toBe('Пробный период закончился')
+    // The date access ended, not the tick time.
+    expect(sent[0].text).toContain('03.09.2026')
+  })
+
+  it('no mail context -> the sweep still retires the trial', async () => {
+    const accountClient = client([trial()])
+    await expireTrials(ctx, accountClient, buildFree)
+    expect(sent).toHaveLength(0)
+    expect(accountClient.upsertSubscriptionsBulk).toHaveBeenCalled()
+  })
+
+  it('a trial that has not ended is neither retired nor emailed', async () => {
+    const accountClient = client([trial({ trialEnd: NOW + DAY })])
+    await expireTrials(ctx, accountClient, buildFree, undefined, mailContext())
+    expect(sent).toHaveLength(0)
+    expect(accountClient.upsertSubscriptionsBulk).not.toHaveBeenCalled()
+  })
+
+  it('a workspace that already bought a tier is skipped entirely', async () => {
+    const accountClient = client([trial()])
+    accountClient.getSubscriptions = jest.fn(async () => [
+      { type: SubscriptionType.Tier, status: SubscriptionStatus.Active, plan: 'business' }
+    ])
+    await expireTrials(ctx, accountClient, buildFree, undefined, mailContext())
+    expect(sent).toHaveLength(0)
+  })
+
+  it('a mail failure never breaks the sweep', async () => {
+    const mail = mailContext()
+    mail.send = async () => {
+      throw new Error('queue unavailable')
+    }
+    const accountClient = client([trial()])
+    await expect(expireTrials(ctx, accountClient, buildFree, undefined, mail)).resolves.toBeUndefined()
+    expect(accountClient.upsertSubscriptionsBulk).toHaveBeenCalled()
+  })
+})

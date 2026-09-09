@@ -14,7 +14,7 @@
 //
 
 import { SubscriptionStatus } from '@hcengineering/account-client'
-import { notifyUpcoming } from '../notifications'
+import { notifyUpcoming, setMailSender } from '../notifications'
 
 // Renders the real email (no module mock here — upcoming.test.ts covers the scheduler's choice of
 // reminder, this file covers what actually lands in the mailbox).
@@ -22,7 +22,6 @@ const NOW = Date.UTC(2026, 6, 19)
 const DUE = Date.UTC(2026, 6, 22)
 
 const config: any = {
-  MailUrl: 'http://mail:8097',
   MailFrom: 'platform@intabia.ru',
   FrontUrl: 'https://app.intabia.ru',
   PaymentUrl: undefined // no plan-config lookup: getPlanLabel falls back to the raw plan id
@@ -65,10 +64,10 @@ beforeEach(() => {
   jest.useFakeTimers({ doNotFake: ['nextTick'] })
   jest.setSystemTime(NOW)
   sent = []
-  global.fetch = jest.fn().mockImplementation(async (_url: string, init: any) => {
-    sent.push(JSON.parse(init.body))
-    return { ok: true, status: 200 }
-  }) as any
+  // The pod publishes to the notification queue now; capture what the sender is handed.
+  setMailSender(async (_ctx: any, to: string, msg: any) => {
+    sent.push({ to, ...msg })
+  })
 })
 
 afterEach(() => {
@@ -144,7 +143,8 @@ describe('upcoming reminder: content per kind', () => {
 
 describe('upcoming reminder: skips', () => {
   test('mail not configured -> nothing is sent', async () => {
-    await notifyUpcoming(makeCtx(), makeStorage(), { ...config, MailUrl: undefined }, sub, 'recurrent', DUE)
+    setMailSender(undefined)
+    await notifyUpcoming(makeCtx(), makeStorage(), config, sub, 'recurrent', DUE)
     expect(sent).toHaveLength(0)
   })
 
@@ -156,7 +156,9 @@ describe('upcoming reminder: skips', () => {
   })
 
   test('a mail-service failure is swallowed, never thrown at the scheduler', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 }) as any
+    setMailSender(async () => {
+      throw new Error('queue unavailable')
+    })
     const ctx = makeCtx()
     await expect(notifyUpcoming(ctx, makeStorage(), config, sub, 'recurrent', DUE)).resolves.toBeUndefined()
     expect(ctx.error).toHaveBeenCalled()

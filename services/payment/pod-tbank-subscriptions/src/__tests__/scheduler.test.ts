@@ -15,6 +15,7 @@
 
 import { SubscriptionStatus } from '@hcengineering/account-client'
 import { startScheduler } from '../scheduler'
+import { setMailSender } from '../notifications'
 
 const NOW = Date.UTC(2026, 6, 19)
 
@@ -177,7 +178,7 @@ describe('scheduler renewal claim outcomes', () => {
       { claimed: true, status: 'new', intentId: 'i1' },
       { getAccountContact: jest.fn().mockResolvedValue({ email: null, phone: null, locale: null }) }
     )
-    global.fetch = jest.fn() as any // no MailUrl, so no HTTP
+    global.fetch = jest.fn() as any // mail goes to the queue, never over HTTP
     const tbank: any = { initPayment: jest.fn(), chargeRecurrent: jest.fn() }
     const { ctx } = await runOneTick(tbank, storage)
     // Never initiated or charged — no receipt-less payment.
@@ -200,18 +201,18 @@ describe('scheduler renewal claim outcomes', () => {
       { claimed: true, status: 'new', intentId: 'i1' },
       { getAccountContact: jest.fn().mockResolvedValue({ email: null, phone: null, locale: null }) }
     )
-    const mailConfig = { ...config, MailUrl: 'http://mail', MailFrom: 'noreply@x.com', BillingEmails: ['ops@x.com'] }
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true }) as any
-    global.fetch = fetchMock
+    const mailConfig = { ...config, MailFrom: 'noreply@x.com', BillingEmails: ['ops@x.com'] }
+    const mails: any[] = []
+    setMailSender(async (_ctx: any, to: string, msg: any) => {
+      mails.push({ to, ...msg })
+    })
     const tbank: any = { initPayment: jest.fn(), chargeRecurrent: jest.fn() }
     await runOneTick(tbank, storage, mailConfig)
-    // A team alert email was POSTed to pod-mail; no charge happened.
+    // A team alert email was queued for pod-mail; no charge happened.
     expect(tbank.chargeRecurrent).not.toHaveBeenCalled()
-    const mailCall = fetchMock.mock.calls.find((c: any[]) => String(c[0]).endsWith('/send'))
-    expect(mailCall).toBeDefined()
-    const body = JSON.parse(mailCall[1].body)
-    expect(body.to).toBe('ops@x.com')
-    expect(body.subject).toContain('54-ФЗ')
+    const mail = mails.find((m) => m.to === 'ops@x.com')
+    expect(mail).toBeDefined()
+    expect(mail.subject).toContain('54-ФЗ')
   })
 
   test('account lookup throws during receipt build -> abort WITHOUT charging, mark failed, PastDue (not unknown/pending)', async () => {
@@ -222,7 +223,7 @@ describe('scheduler renewal claim outcomes', () => {
       { claimed: true, status: 'new', intentId: 'i1' },
       { getAccountContact: jest.fn().mockRejectedValue(new Error('accounts down')) }
     )
-    global.fetch = jest.fn() as any // notifyRenewalFailure: no MailUrl, so no HTTP
+    global.fetch = jest.fn() as any // notifyRenewalFailure publishes to the queue, not over HTTP
     const tbank: any = { initPayment: jest.fn(), chargeRecurrent: jest.fn() }
     await runOneTick(tbank, storage)
     expect(tbank.initPayment).not.toHaveBeenCalled()
@@ -242,7 +243,7 @@ describe('scheduler renewal claim outcomes', () => {
       initPayment: jest.fn().mockResolvedValue({ Success: true, PaymentId: 'init_1' }),
       chargeRecurrent: jest.fn().mockResolvedValue({ Success: false, ErrorCode: '111', Message: 'declined' })
     }
-    global.fetch = jest.fn() as any // notifyPaymentFailed short-circuits: config has no MailUrl, so no HTTP happens
+    global.fetch = jest.fn() as any // notifyPaymentFailed publishes to the queue: no sender wired here, so nothing is sent
     await runOneTick(tbank, storage)
     expect(storage.markCharge).toHaveBeenCalledWith('i1', 'failed')
     const logged = storage.logOperation.mock.calls.find((c: any[]) => c[0].operation === 'charge_recurrent')
@@ -315,6 +316,16 @@ describe('one-off subscription expiry', () => {
     const written = storage.upsert.mock.calls.map((c: any[]) => c[0]).find((s: any) => s.status === 'canceled')
     expect(written).toBeDefined()
     expect(written.type).toBe('package')
+  })
+
+  it('a one-time purchase is never expired: its effect lives in the purchases table', async () => {
+    // AI-token top-ups carry recurrent:false and a meaningless periodEnd, so without a type guard
+    // this cycle would cancel them and mail the user that access "ended".
+    const purchase = { ...oneOffTier, type: 'purchase', plan: 'ai-tokens-1m' }
+    const storage = makeStorage(purchase, noRenewal)
+    await runOneTick({}, storage)
+
+    expect(storage.upsert).not.toHaveBeenCalled()
   })
 
   it('one-off still inside its paid period is left alone', async () => {

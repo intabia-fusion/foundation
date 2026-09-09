@@ -164,13 +164,6 @@ export class SubscriptionStorage {
     return await this.accountClient.getSubscriptionsByProvider('tbank')
   }
 
-  /**
-   * Trial subscriptions (provider 'trial'), bounded by `trialEnd`.
-   */
-  async getTrialCandidates (): Promise<Subscription[]> {
-    return await this.accountClient.getSubscriptionsByProvider('trial', [SubscriptionStatus.Trialing])
-  }
-
   static needsRenewal (sub: Subscription, now: number): boolean {
     if (sub.providerData?.recurrent === false) return false
     if (sub.providerData?.rebillId === undefined) return false

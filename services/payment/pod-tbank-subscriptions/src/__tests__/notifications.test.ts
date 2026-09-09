@@ -13,12 +13,11 @@
 // limitations under the License.
 //
 
-import { notifyPaymentSucceeded, notifyPaymentFailed } from '../notifications'
+import { notifyPaymentSucceeded, notifyPaymentFailed, setMailSender } from '../notifications'
 
 // Guards the 'purchase' key in SERVICE.type (templates/service.ts), added for FUSIO-866.
 
 const config: any = {
-  MailUrl: 'http://mail:8097',
   MailFrom: 'platform@intabia.ru',
   FrontUrl: 'https://app.intabia.ru',
   PaymentUrl: undefined, // no plan-config lookup: getPlanLabel falls back to the raw plan id
@@ -41,10 +40,10 @@ let sent: any[] = []
 
 beforeEach(() => {
   sent = []
-  global.fetch = jest.fn().mockImplementation(async (_url: string, init: any) => {
-    sent.push(JSON.parse(init.body))
-    return { ok: true, status: 200 }
-  }) as any
+  // The pod publishes to the notification queue now; capture what the sender is handed.
+  setMailSender(async (_ctx: any, to: string, msg: any) => {
+    sent.push({ to, ...msg })
+  })
 })
 
 const purchaseSub: any = {

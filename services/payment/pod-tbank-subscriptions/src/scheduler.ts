@@ -14,17 +14,23 @@
 //
 
 import { type MeasureContext } from '@hcengineering/core'
-import { type SubscriptionData, type Subscription, SubscriptionStatus } from '@hcengineering/account-client'
+import {
+  type SubscriptionData,
+  type Subscription,
+  SubscriptionStatus,
+  SubscriptionType
+} from '@hcengineering/account-client'
 import TbankPayments, { TbankTransportError } from './tbank'
 import type { Config } from './config'
 import { SubscriptionStorage } from './storage'
+import { type UpcomingKind } from '@hcengineering/billing-mail'
 import {
   notifyPaymentFailed,
   notifyPaymentSucceeded,
   notifyReceiptBlocked,
   notifyUpcoming,
-  buildChargeDescription,
-  type UpcomingKind
+  notifyExpired,
+  buildChargeDescription
 } from './notifications'
 import {
   isPendingFirstPayment,
@@ -381,6 +387,7 @@ async function enforceGracePeriod (ctx: MeasureContext, storage: SubscriptionSto
         }
       })
       ctx.info('Subscription moved to ReadOnly after grace period', { subId: freshSub.id, plan: freshSub.plan })
+      await notifyExpired(ctx, storage, config, freshSub, 'grace', freshSub.periodEnd + graceMs)
       moved++
     }
 
@@ -398,12 +405,17 @@ async function enforceGracePeriod (ctx: MeasureContext, storage: SubscriptionSto
  * A tier is canceled and th workspace switches to the free plan.
  * A package simply terminates.
  */
-async function expireOneOffSubscriptions (ctx: MeasureContext, storage: SubscriptionStorage): Promise<void> {
+async function expireOneOffSubscriptions (
+  ctx: MeasureContext,
+  storage: SubscriptionStorage,
+  config: Config
+): Promise<void> {
   try {
     const now = Date.now()
     let expired = 0
 
     const isExpiredOneOff = (sub: Subscription): boolean =>
+      (sub.type === SubscriptionType.Tier || sub.type === SubscriptionType.Package) &&
       sub.status === SubscriptionStatus.Active &&
       sub.providerData?.recurrent === false &&
       sub.providerData?.pending !== true &&
@@ -434,6 +446,9 @@ async function expireOneOffSubscriptions (ctx: MeasureContext, storage: Subscrip
         type: freshSub.type,
         plan: freshSub.plan
       })
+      // A cancel the user scheduled is their own doing — enforceScheduledCancel words it that way.
+      const kind = freshSub.willCancelAt != null ? 'canceled' : 'oneoff'
+      await notifyExpired(ctx, storage, config, freshSub, kind, freshSub.periodEnd as number)
       expired++
     }
 
@@ -451,6 +466,7 @@ async function expireOneOffSubscriptions (ctx: MeasureContext, storage: Subscrip
 function classifyUpcoming (sub: Subscription): UpcomingKind | null {
   if (sub.status !== SubscriptionStatus.Active) return null
   if (sub.providerData?.pending === true) return null
+  if (sub.type !== SubscriptionType.Tier && sub.type !== SubscriptionType.Package) return null
   // Same predicate needsRenewal uses to suppress the charge — the period ends at the scheduled cancel.
   if (sub.willCancelAt != null && sub.periodEnd != null && sub.periodEnd >= sub.willCancelAt) return 'canceled'
   if (sub.providerData?.recurrent === false) return 'oneoff'
@@ -481,9 +497,9 @@ async function notifyUpcomingExpiry (ctx: MeasureContext, storage: SubscriptionS
       if (fresh === null) return false
       if (fresh.providerData?.upcomingNotifiedFor === dueAt) return false
       // Re-derive the date from the fresh record: a renewal that landed mid-cycle shifts periodEnd.
-      const freshDue = kind === 'trial' ? fresh.trialEnd : fresh.periodEnd
+      const freshDue = fresh.periodEnd
       if (freshDue !== dueAt || !inWindow(freshDue)) return false
-      if (kind !== 'trial' && classifyUpcoming(fresh) !== kind) return false
+      if (classifyUpcoming(fresh) !== kind) return false
 
       await storage.upsert({
         ...fresh,
@@ -498,12 +514,6 @@ async function notifyUpcomingExpiry (ctx: MeasureContext, storage: SubscriptionS
       const kind = classifyUpcoming(sub)
       if (kind === null || !inWindow(sub.periodEnd)) continue
       if (await remind(sub, kind, sub.periodEnd)) sent++
-    }
-
-    // Trials live on provider 'trial' with no periodEnd, so they need their own lookup.
-    for (const sub of await storage.getTrialCandidates()) {
-      if (!inWindow(sub.trialEnd)) continue
-      if (await remind(sub, 'trial', sub.trialEnd)) sent++
     }
 
     if (sent > 0) {
@@ -522,23 +532,28 @@ async function notifyUpcomingExpiry (ctx: MeasureContext, storage: SubscriptionS
 async function enforceScheduledCancel (
   ctx: MeasureContext,
   tbank: TbankPayments,
-  storage: SubscriptionStorage
+  storage: SubscriptionStorage,
+  config: Config
 ): Promise<void> {
   try {
     const now = Date.now()
     let canceled = 0
 
+    // Skip sending letter for canceled one-off subscription.
+    const isDueScheduledCancel = (sub: Subscription): boolean =>
+      sub.status === SubscriptionStatus.Active &&
+      sub.providerData?.pending !== true &&
+      sub.providerData?.recurrent !== false &&
+      sub.willCancelAt != null &&
+      sub.willCancelAt <= now
+
     for (const sub of await storage.getCandidates()) {
-      if (sub.status !== SubscriptionStatus.Active) continue
-      if (sub.providerData?.pending === true) continue
-      if (sub.willCancelAt == null || sub.willCancelAt > now) continue
+      if (!isDueScheduledCancel(sub)) continue
 
       // Re-fetch to avoid racing an uncancel (which clears willCancelAt) or a concurrent tick.
       const freshSub = await storage.getById(sub.id)
       if (freshSub === null) continue
-      if (freshSub.status !== SubscriptionStatus.Active) continue
-      if (freshSub.providerData?.pending === true) continue
-      if (freshSub.willCancelAt == null || freshSub.willCancelAt > now) continue
+      if (!isDueScheduledCancel(freshSub)) continue
 
       await removeSubscriptionCard(ctx, tbank, freshSub)
       await storage.upsert({
@@ -551,6 +566,7 @@ async function enforceScheduledCancel (
         }
       })
       ctx.info('Scheduled cancellation finalized', { subId: freshSub.id, plan: freshSub.plan })
+      await notifyExpired(ctx, storage, config, freshSub, 'canceled', freshSub.willCancelAt as number)
       canceled++
     }
 
@@ -614,11 +630,11 @@ export function startScheduler (
   }
 
   const scheduledCancelCycle = async (): Promise<void> => {
-    await enforceScheduledCancel(ctx, tbank, storage)
+    await enforceScheduledCancel(ctx, tbank, storage, config)
   }
 
   const oneOffExpiryCycle = async (): Promise<void> => {
-    await expireOneOffSubscriptions(ctx, storage)
+    await expireOneOffSubscriptions(ctx, storage, config)
   }
 
   const upcomingNoticeCycle = async (): Promise<void> => {

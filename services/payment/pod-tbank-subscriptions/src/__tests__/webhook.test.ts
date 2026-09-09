@@ -17,6 +17,7 @@ import { createServer as createHttpServer, type Server } from 'http'
 import type { AddressInfo } from 'net'
 import { SubscriptionStatus } from '@hcengineering/account-client'
 import { createServer, processWebhook } from '../server'
+import { setMailSender } from '../notifications'
 
 const activeSub: any = {
   id: 'tbank_1',
@@ -215,7 +216,7 @@ describe('processWebhook (consumer)', () => {
       providerData: { ...activeSub.providerData, pending: true }
     }
     const storage = makeStorage(pendingSub)
-    const mailConfig = { ...baseConfig, MailUrl: 'http://mail', MailFrom: 'noreply@x.com' }
+    const mailConfig = { ...baseConfig, MailFrom: 'noreply@x.com' }
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as any
     try {
       await processWebhook(
@@ -272,8 +273,9 @@ describe('processWebhook (consumer)', () => {
 
   test('REJECTED on wasActive=true -> PastDue and notify attempted', async () => {
     const storage = makeStorage(activeSub)
-    const mailConfig = { ...baseConfig, MailUrl: 'http://mail', MailFrom: 'noreply@x.com' }
-    // Notify does real HTTP (plan-config + mail) — stub it so the test never hits the network.
+    const mailConfig = { ...baseConfig, MailFrom: 'noreply@x.com' }
+    // Mail goes to the queue now; the plan-config lookup is still HTTP, so keep fetch stubbed.
+    setMailSender(async () => {})
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as any
     try {
       await processWebhook(
@@ -294,7 +296,7 @@ describe('processWebhook (consumer)', () => {
 
   test.each(['REVERSED', 'REFUNDED'])('%s (refund) on Active sub -> PastDue, NO dunning email', async (status) => {
     const storage = makeStorage(activeSub)
-    const mailConfig = { ...baseConfig, MailUrl: 'http://mail', MailFrom: 'noreply@x.com' }
+    const mailConfig = { ...baseConfig, MailFrom: 'noreply@x.com' }
     // Guard: if notify regresses back in, the stubbed fetch must be observed instead of a network hang.
     const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
     global.fetch = fetchMock as any

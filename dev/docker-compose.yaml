@@ -255,6 +255,9 @@ services:
       # set it in .env to sweep every N minutes instead (testing only).
       - TRIAL_EXPIRY_HOUR_UTC=${TRIAL_EXPIRY_HOUR_UTC:-21}
       - TRIAL_EXPIRY_INTERVAL_MINUTES=${TRIAL_EXPIRY_INTERVAL_MINUTES:-}
+      - MAIL_FROM=platform@intabia.ru
+      - SUPPORT_EMAIL=${SUPPORT_EMAIL:-platform@intabia.ru}
+      - SUPPORT_URL=${SUPPORT_URL:-https://t.me/intabia}
     restart: unless-stopped
   workspace:
     image: "intabiafusion/workspace:${DOCKER_TAG:-latest}"
@@ -960,8 +963,8 @@ services:
     environment:
       - MODE=server
       - PORT=8097
-      - SOURCE=hello@localhost
-      - REPLY_TO=hello@localhost
+      - SOURCE=platform@intabia.ru
+      - REPLY_TO=platform@intabia.ru
       - QUEUE_CONFIG=${QUEUE_CONFIG}
       - REGION=
       - API_KEY=naephea1Rai7eeth1noh
@@ -1091,9 +1094,8 @@ services:
       - SCHEDULER_INTERVAL_MINUTES=${TBANK_SCHEDULER_INTERVAL_MINUTES:-60}
       # Set to true to skip webhook token verification (for local dev with curl)
       - TBANK_SKIP_WEBHOOK_VERIFICATION=true
-      # Email notifications for failed payments (via pod-mail -> mailpit on local)
-      - MAIL_URL=http://mail_server:8097
-      - MAIL_API_KEY=naephea1Rai7eeth1noh
+      # Email notifications: published to the platform notification queue, consumed by pod-mail
+      # (-> mailpit on local). MAIL_FROM is optional; pod-mail falls back to its own SOURCE.
       - MAIL_FROM=platform@intabia.ru
       - BILLING_EMAILS=${BILLING_EMAILS:-}
       - SUPPORT_EMAIL=${SUPPORT_EMAIL:-platform@intabia.ru}

@@ -267,13 +267,12 @@ function setupShutdownHandlers (
 /**
  * Creates an email message object from notification data.
  */
-function createEmailMessage (data: EmailNotification): SendMailOptions {
+export function createEmailMessage (data: EmailNotification): SendMailOptions {
   const emailMessage: SendMailOptions = {
     ...(data as SendMailOptions)
   }
 
-  // Set from address
-  const fromAddress = config.source
+  const fromAddress = (data as SendMailOptions).from ?? config.source
   emailMessage.from = fromAddress
 
   // Set reply-to if configured and from address matches source

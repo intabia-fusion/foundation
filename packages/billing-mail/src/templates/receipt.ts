@@ -19,12 +19,23 @@ export default {
   ru: {
     subject: 'Чек об оплате — {plan} от {paidAtDate}',
     intro: {
-      purchase: 'Оплата по подписке «{plan}» прошла успешно.',
-      renewal: 'Подписка «{plan}» успешно продлена.'
+      purchase: {
+        tier: 'Оплата тарифа «{plan}» прошла успешно.',
+        package: 'Оплата пакета «{plan}» прошла успешно.',
+        purchase: 'Оплата «{plan}» прошла успешно.'
+      },
+      renewal: {
+        tier: 'Подписка «{plan}» успешно продлена.',
+        package: 'Пакет «{plan}» успешно продлён.',
+        // A one-time purchase never renews; kept only so the shape matches.
+        purchase: 'Оплата «{plan}» прошла успешно.'
+      }
     },
     labels: {
       customer: 'Плательщик',
       plan: 'Тариф',
+      package: 'Пакет',
+      purchase: 'Покупка',
       amount: {
         purchase: 'Сумма',
         renewal: 'Сумма списания'
@@ -41,12 +52,22 @@ export default {
   en: {
     subject: 'Payment receipt — {plan} from {paidAtDate}',
     intro: {
-      purchase: 'Your payment for the "{plan}" subscription was successful.',
-      renewal: 'Your "{plan}" subscription was renewed successfully.'
+      purchase: {
+        tier: 'Your payment for the "{plan}" plan was successful.',
+        package: 'Your payment for the "{plan}" package was successful.',
+        purchase: 'Your payment for "{plan}" was successful.'
+      },
+      renewal: {
+        tier: 'Your "{plan}" subscription was renewed successfully.',
+        package: 'Your "{plan}" package was renewed successfully.',
+        purchase: 'Your payment for "{plan}" was successful.'
+      }
     },
     labels: {
       customer: 'Customer',
       plan: 'Plan',
+      package: 'Package',
+      purchase: 'Purchase',
       amount: {
         purchase: 'Amount',
         renewal: 'Amount charged'

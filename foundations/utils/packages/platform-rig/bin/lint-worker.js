@@ -11,6 +11,12 @@ const { parentPort, threadId } = require('worker_threads')
 const { join, basename, dirname } = require('path')
 const { existsSync, readdirSync, lstatSync } = require('fs')
 
+// typescript-estree switches to its "single run" host when CI=true, and that path hands us a
+// program containing only the current file: type-aware rules then see no types and the parser
+// reports phantom syntax errors. The watch host is what works, so ask for it explicitly.
+process.env.TSESTREE_SINGLE_RUN ??= 'false'
+
+
 const { ESLint } = require('eslint')
 
 function collectSourceFiles(dir, result = []) {

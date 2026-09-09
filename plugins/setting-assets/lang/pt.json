@@ -222,7 +222,7 @@
     "CreatePersonalApiKey": "Criar chave pessoal",
     "CreateIntegrationApiKey": "Criar chave de integração",
     "PersonalApiKeyHint": "Esta chave atua com as suas próprias permissões em todo o espaço de trabalho. Trate-a como uma palavra-passe - quem a tiver pode agir como você. Uma chave restrita só pode reduzir essas permissões, nunca alargá-las.",
-    "PersonalApiKeyReadOnlyHint": "This key can only read, never write. It reads everything you can read: the scope list does not narrow reading, so it is not offered here. Treat it like a password - anyone who has it sees what you see.",
+    "PersonalApiKeyReadOnlyHint": "Esta chave só pode ler, nunca escrever. Lê tudo o que você pode ler: a lista de âmbitos não restringe a leitura, por isso não é apresentada aqui. Trate-a como uma palavra-passe - quem a tiver vê o mesmo que você.",
     "ApiKeyFullRights": "Direitos completos",
     "ApiKeySpaces": "Espaços",
     "ApiKeyAddAll": "Adicionar tudo",

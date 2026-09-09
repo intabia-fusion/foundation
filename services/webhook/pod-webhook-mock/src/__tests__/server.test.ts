@@ -69,7 +69,13 @@ describe('webhook mock', () => {
   test('a delivery signed with buildDeliveryHeaders (the real producer) verifies as a match', async () => {
     const secret = 'whsec_MfKQ9r8GKYqrTwjQPqZk8T4LK2Xw7BiXeQx3AWmy7yQ='
     const body = JSON.stringify({ hello: 'world' })
-    const headers = buildDeliveryHeaders({ secrets: [{ id: 's1', secret, createdOn: 0 }] }, 'msg_e2e', 1700000000, body, 0)
+    const headers = buildDeliveryHeaders(
+      { secrets: [{ id: 's1', secret, createdOn: 0 }] },
+      'msg_e2e',
+      1700000000,
+      body,
+      0
+    )
 
     const store = new DeliveryStore()
     const app = createServer({ Port: 0, WebhookUrl: 'http://unused' }, store)

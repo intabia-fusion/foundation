@@ -173,9 +173,9 @@ describe('api key limit per workspace', () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const fresh = require('../operations')
       const db = makeDb(Array.from({ length: 5 }, (_, i) => existingSecret(`k${i}`)))
-      await expect(fresh.createApiKey(mockCtx, db, null, callerToken, { name: 'one-too-many', ops: [] })).rejects.toThrow(
-        new PlatformError(new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit: 5 }))
-      )
+      await expect(
+        fresh.createApiKey(mockCtx, db, null, callerToken, { name: 'one-too-many', ops: [] })
+      ).rejects.toThrow(new PlatformError(new Status(Severity.ERROR, platform.status.ApiKeyLimitReached, { limit: 5 })))
     } finally {
       if (prevWs === undefined) delete process.env.API_KEY_LIMIT_PER_WORKSPACE
       else process.env.API_KEY_LIMIT_PER_WORKSPACE = prevWs

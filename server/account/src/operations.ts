@@ -3476,7 +3476,7 @@ export async function createApiKey (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid: workspace }))
   }
 
-  const limit = personal ? personalApiKeyLimitPerUser : ws.maxApiKeys ?? apiKeyLimitPerWorkspace
+  const limit = personal ? personalApiKeyLimitPerUser : (ws.maxApiKeys ?? apiKeyLimitPerWorkspace)
   const activeKeys = apiKeyQuota(await getApiKeySecrets(db, workspace), personal, account).length
   if (activeKeys >= limit) {
     ctx.warn('api-key-limit-reached', { workspace, account, personal, activeKeys, limit })

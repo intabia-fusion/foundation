@@ -72,14 +72,18 @@ describe('POST /api/v1/webhook/action', () => {
   // not a transport blip, so it must not collapse into "retry later" 503 (finding 1).
   test('a PlatformError from verifyApiKey does NOT yield 503 on the ingest route', async () => {
     sender = await startWebhookSender(baseCheck)
-    sender.verifyApiKey.mockRejectedValueOnce(new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {})))
+    sender.verifyApiKey.mockRejectedValueOnce(
+      new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    )
     const res = await sender.action(KEY, { action: 'issue:create', space: 'FUSIO' })
     expect(res.status).not.toBe(503)
   })
 
   test('a PlatformError from verifyApiKey does NOT yield 503 on the job-status route', async () => {
     sender = await startWebhookSender(baseCheck)
-    sender.verifyApiKey.mockRejectedValueOnce(new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {})))
+    sender.verifyApiKey.mockRejectedValueOnce(
+      new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
+    )
     const res = await sender.job(KEY, 'wh_whatever')
     expect(res.status).not.toBe(503)
   })
@@ -269,14 +273,11 @@ describe('transactor endpoint cache TTL (finding 13)', () => {
     const hangingLoad = new Promise<never>((_resolve, reject) => {
       rejectFirst = reject
     })
-    const selectWorkspace = jest
-      .fn()
-      .mockReturnValueOnce(hangingLoad)
-      .mockResolvedValue({
-        endpoint: 'ws://transactor.local',
-        collaboratorEndpoint: undefined,
-        workspaceUrl: 'ws-slug'
-      })
+    const selectWorkspace = jest.fn().mockReturnValueOnce(hangingLoad).mockResolvedValue({
+      endpoint: 'ws://transactor.local',
+      collaboratorEndpoint: undefined,
+      workspaceUrl: 'ws-slug'
+    })
     ;(getAccountClient as jest.Mock).mockReturnValue({ selectWorkspace })
 
     const workspace = '88888888-8888-4888-8888-888888888888' as any

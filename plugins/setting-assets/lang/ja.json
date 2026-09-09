@@ -231,7 +231,7 @@
     "CreatePersonalApiKey": "個人用キーを作成",
     "CreateIntegrationApiKey": "連携キーを作成",
     "PersonalApiKeyHint": "このキーはワークスペース全体であなた自身の権限で動作します。パスワードと同様に扱ってください。持っている人は誰でもあなたとして操作できます。制限付きキーはこれらの権限を狭めることしかできず、広げることはできません。",
-    "PersonalApiKeyReadOnlyHint": "This key can only read, never write. It reads everything you can read: the scope list does not narrow reading, so it is not offered here. Treat it like a password - anyone who has it sees what you see.",
+    "PersonalApiKeyReadOnlyHint": "このキーは読み取り専用で、書き込みはできません。あなたが読めるものはすべて読み取れます。スコープの一覧は読み取りを制限しないため、ここには表示されません。パスワードと同じように扱ってください - このキーを持つ人は、あなたと同じ内容を見ることができます。",
     "ApiKeyFullRights": "フル権限",
     "ApiKeySpaces": "スペース",
     "ApiKeyAddAll": "すべて追加",

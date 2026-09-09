@@ -219,7 +219,7 @@
     "CreatePersonalApiKey": "Crear clave personal",
     "CreateIntegrationApiKey": "Crear clave de integración",
     "PersonalApiKeyHint": "Esta clave actúa con sus propios permisos en todo el espacio de trabajo. Trátela como una contraseña: quien la tenga puede actuar en su nombre. Una clave restringida solo puede reducir esos permisos, nunca ampliarlos.",
-    "PersonalApiKeyReadOnlyHint": "This key can only read, never write. It reads everything you can read: the scope list does not narrow reading, so it is not offered here. Treat it like a password - anyone who has it sees what you see.",
+    "PersonalApiKeyReadOnlyHint": "Esta clave solo puede leer, nunca escribir. Lee todo lo que usted puede leer: la lista de ámbitos no limita la lectura, por eso no se ofrece aquí. Trátela como una contraseña - cualquiera que la tenga ve lo mismo que usted.",
     "ApiKeyFullRights": "Derechos completos",
     "ApiKeySpaces": "Espacios",
     "ApiKeyAddAll": "Añadir todo",

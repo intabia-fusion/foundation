@@ -20,7 +20,10 @@ import * as https from 'https'
 // publicMessage is safe to persist (e.g. as an endpoint's lastError) - unlike message, it never carries
 // a resolved address, so it can't be used to probe what a hostname points at internally.
 export class SsrfError extends Error {
-  constructor (message: string, public readonly publicMessage: string = message) {
+  constructor (
+    message: string,
+    public readonly publicMessage: string = message
+  ) {
     super(message)
   }
 }

@@ -231,7 +231,7 @@
     "CreatePersonalApiKey": "Crea chiave personale",
     "CreateIntegrationApiKey": "Crea chiave di integrazione",
     "PersonalApiKeyHint": "Questa chiave agisce con i tuoi permessi personali in tutto lo spazio di lavoro. Trattala come una password: chiunque la possieda può agire per tuo conto. Una chiave limitata può solo restringere questi permessi, mai ampliarli.",
-    "PersonalApiKeyReadOnlyHint": "This key can only read, never write. It reads everything you can read: the scope list does not narrow reading, so it is not offered here. Treat it like a password - anyone who has it sees what you see.",
+    "PersonalApiKeyReadOnlyHint": "Questa chiave può solo leggere, mai scrivere. Legge tutto ciò che puoi leggere tu: l'elenco degli ambiti non restringe la lettura, perciò qui non viene proposto. Trattala come una password - chiunque la possieda vede ciò che vedi tu.",
     "ApiKeyFullRights": "Diritti completi",
     "ApiKeySpaces": "Spazi",
     "ApiKeyAddAll": "Aggiungi tutto",

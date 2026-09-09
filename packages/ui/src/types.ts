@@ -514,6 +514,7 @@ export interface SeparatedItem {
 export type DefSeparators = Array<SeparatedItem | null>
 export interface SeparatedElement {
   id: number
+  childIndex: number
   element: Element
   styles: Map<string, string> | null
   minSize: number

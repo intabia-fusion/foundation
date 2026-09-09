@@ -692,14 +692,25 @@ function handleRequest (req: http.IncomingMessage, res: http.ServerResponse): vo
   const method = req.method ?? 'GET'
   const url = req.url ?? '/'
 
-  // Request logging - helps diagnose blocked/failed requests (adblocker, mixed-content, etc.)
-  // Shows method, url, origin header and remote address
-  try {
-    console.log(`[desktop-server] ${method} ${url} origin=${String(req.headers.origin ?? '-')} remote=${req.socket?.remoteAddress ?? '-'}`)
-  } catch (e) {
-    // Use a safe fallback to avoid crashing on unexpected values
-    console.log('[desktop-server] request received')
-  }
+  // Request/response logging - diagnoses update failures: which manifest was
+  // fetched, range (blockmap differential download), status, bytes actually sent
+  // and whether the client aborted mid-download.
+  const startedAt = Date.now()
+  const bytesAtStart = req.socket?.bytesWritten ?? 0
+  console.log(
+    `[desktop-server] -> ${method} ${url} range=${String(req.headers.range ?? '-')} ` +
+    `origin=${String(req.headers.origin ?? '-')} remote=${req.socket?.remoteAddress ?? '-'} ` +
+    `ua=${String(req.headers['user-agent'] ?? '-')}`
+  )
+  res.once('close', () => {
+    // Socket bytes, so headers count too and a keep-alive connection measures from this request's
+    // start - close enough to spot a truncated download, not an exact body length.
+    const wire = (req.socket?.bytesWritten ?? bytesAtStart) - bytesAtStart
+    console.log(
+      `[desktop-server] <- ${method} ${url} ${res.statusCode} wire=${wire} ${Date.now() - startedAt}ms` +
+      `${res.writableFinished ? '' : ' ABORTED'}`
+    )
+  })
 
   // Handle CORS preflight
   if (method === 'OPTIONS') {

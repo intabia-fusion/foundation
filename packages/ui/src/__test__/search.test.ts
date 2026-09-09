@@ -13,27 +13,28 @@
 // limitations under the License.
 //
 
+import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest'
 import { type IntlString, translate } from '@hcengineering/platform'
 import { LocalizedSearch } from '../search'
 import type { DropdownIntlItem } from '../types'
 
 // Mock dependencies
-jest.mock('@hcengineering/platform', () => ({
-  translate: jest.fn()
+vi.mock('@hcengineering/platform', () => ({
+  translate: vi.fn()
 }))
 
-jest.mock('@hcengineering/theme', () => ({
+vi.mock('@hcengineering/theme', () => ({
   themeStore: {
     language: 'en'
   }
 }))
 
-jest.mock('svelte/store', () => ({
-  get: jest.fn((store) => store)
+vi.mock('svelte/store', () => ({
+  get: vi.fn((store) => store)
 }))
 
 // Get the mocked translate function
-const translateMock = translate as jest.MockedFunction<typeof translate>
+const translateMock = translate as MockedFunction<typeof translate>
 
 describe('LocalizedSearch', () => {
   let localizedSearch: LocalizedSearch
@@ -41,7 +42,7 @@ describe('LocalizedSearch', () => {
 
   beforeEach(() => {
     localizedSearch = new LocalizedSearch()
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
     // Setup mock items
     mockItems = [

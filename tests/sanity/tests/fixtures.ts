@@ -26,7 +26,7 @@ const SEATS_PER_WORKSPACE = 3
 
 // @playwright/test's `test`, plus a flush of client counters before a context closes.
 // Overriding `context` and not `page` keeps request-only tests browser-free.
-// eslint-disable-next-line @typescript-eslint/ban-types
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export const test = base.extend<{}, { sharedWorkspace: (invites?: number) => Promise<SharedWorkspace> }>({
   context: async ({ context }, use) => {
     await use(context)

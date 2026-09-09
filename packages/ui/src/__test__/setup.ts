@@ -1,5 +1,5 @@
 // jsdom ships no matchMedia, and importing the ui index pulls in players and layout helpers that use it.
-if (window.matchMedia === undefined) {
+if (typeof window.matchMedia !== 'function') {
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,

@@ -20,13 +20,12 @@
     deviceOptionsStore as deviceInfo,
     getSeparators,
     saveSeparator,
-    SeparatedElement,
     separatorsRevision,
     separatorsStore,
     SeparatorState
   } from '..'
   import { panelstore } from '../panelup'
-  import { buildLayout, distribute, toSeparators } from '../separatorLayout'
+  import { buildLayout, distribute, toSeparators, type LayoutBox } from '../separatorLayout'
 
   export let prevElementSize: SeparatedItem | undefined = undefined
   export let nextElementSize: SeparatedItem | undefined = undefined
@@ -45,7 +44,8 @@
 
   export let direction: 'horizontal' | 'vertical' = 'horizontal'
   let separators: SeparatedItem[] | null = null
-  let separatorMap: SeparatedElement[]
+  // The layout boxes carry the index of the DOM child they came from; the public SeparatedElement does not.
+  let separatorMap: Array<LayoutBox & { element: Element, styles: Map<string, string> | null }>
   let prevElSize: SeparatedItem
   let nextElSize: SeparatedItem
   let panel: SeparatedItem

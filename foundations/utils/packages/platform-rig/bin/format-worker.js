@@ -63,6 +63,8 @@ function collectSourceFiles(dir, result = []) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
     const stat = lstatSync(full)
+    // node_modules is never ours to format, and a symlink (a junction on Windows) would walk into it.
+    if (entry === 'node_modules' || stat.isSymbolicLink()) continue
     if (stat.isDirectory()) {
       collectSourceFiles(full, result)
     } else {
@@ -102,6 +104,7 @@ async function formatPackage(cwd, options = {}) {
 
   let eslint = new ESLint({ fix: true, cwd, cache: false, resolvePluginsRelativeTo: rigDir(cwd) })
   let parseReports = 0
+  let errorReports = 0
 
   const errors = []
   let changedCount = 0
@@ -242,6 +245,24 @@ async function formatPackage(cwd, options = {}) {
         if (r.errorCount > 0 || r.warningCount > 0) {
           if (!failingResults) failingResults = []
           failingResults.push(r)
+        }
+        if (r.errorCount > 0 && errorReports < 3) {
+          errorReports++
+          const lines = content.split('\n')
+          const first = r.messages.find((m) => m.severity === 2)
+          const at = first?.line ?? 1
+          console.error(
+            'LINT-DIAG ' +
+              JSON.stringify({
+                file: relative(cwd, file),
+                onDisk: original.split('\n').length,
+                linted: lines.length,
+                prettierChanged: content !== original,
+                at: `${at}:${first?.column}`,
+                rule: first?.ruleId,
+                around: lines.slice(Math.max(0, at - 3), at + 2)
+              })
+          )
         }
         if (r.output !== undefined) content = r.output
       }

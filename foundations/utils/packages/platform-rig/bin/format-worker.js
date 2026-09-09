@@ -157,6 +157,29 @@ async function formatPackage(cwd, options = {}) {
             const p = require(resolved.parser)
             p.parseForESLint(content, { filePath: file, sourceType: 'module', ecmaVersion: 2022, range: true, loc: true })
           } catch (e) { bareParse = 'threw: ' + e.message.slice(0, 120) }
+          // What does the program built from parserOptions.project actually contain?
+          let program = 'n/a'
+          try {
+            const p = require(resolved.parser)
+            const res = p.parseForESLint(content, {
+              filePath: file,
+              project: resolved.parserOptions?.project,
+              tsconfigRootDir: resolved.parserOptions?.tsconfigRootDir ?? cwd,
+              sourceType: 'module',
+              ecmaVersion: 2022,
+              range: true,
+              loc: true
+            })
+            const prog = res.services?.program
+            const sf = prog?.getSourceFile(file)
+            program = {
+              files: prog?.getSourceFiles?.().length ?? null,
+              hasFile: sf != null,
+              scriptKind: sf?.scriptKind ?? null,
+              languageVersion: sf?.languageVersion ?? null,
+              syntactic: sf != null ? prog.getSyntacticDiagnostics(sf).length : null
+            }
+          } catch (e) { program = 'threw: ' + e.message.slice(0, 160) }
           let tsVersion = 'unknown'
           try {
             tsVersion = require(require.resolve('typescript/package.json', { paths: [cwd] })).version
@@ -174,6 +197,7 @@ async function formatPackage(cwd, options = {}) {
                 prettierChanged: content !== original,
                 originalParseErrors,
                 bareParse,
+                program,
                 tsVersion,
                 parser: resolved.parser ?? '(eslint default)',
                 project: resolved.parserOptions?.project,

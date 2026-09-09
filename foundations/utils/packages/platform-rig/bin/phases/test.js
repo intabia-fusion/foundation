@@ -7,6 +7,7 @@ const { join } = require('path')
 const { readdirSync } = require('fs')
 
 const crypto = require('crypto')
+const PNPM_CMD = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
 const {
   isPhaseCached,
@@ -126,9 +127,10 @@ async function runTestPhase (graph, packageNames, concurrency, options = {}) {
 
     return new Promise((resolve) => {
       const pkgStart = performance.now()
-      const child = spawn('pnpm', ['run', 'test'], {
+      const child = spawn(PNPM_CMD, ['run', 'test'], {
         cwd,
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: true
       })
 
       let stdout = ''

@@ -166,7 +166,12 @@ export class LiveKitClient {
       // with LiveKit's PeerConnection timeout. denied permissions are fine -
       // useMedia returns a session without active devices and the room still
       // connects (user joins as listener).
-      await setupMediaSession()
+      try {
+        await setupMediaSession()
+      } catch (err) {
+        console.warn('[LiveKitClient.connect] media session failed, joining without devices', err)
+        this.closeMediaSession()
+      }
       await this.liveKitRoom.connect(wsURL, token, {
         maxRetries: 3,
         websocketTimeout: 20000,
@@ -193,12 +198,21 @@ export class LiveKitClient {
         void this.setScreenShareEnabled(enabled, true)
       })
 
-      await this.updateActiveDevices()
+      try {
+        await this.updateActiveDevices()
+      } catch (err) {
+        console.warn('[LiveKitClient.connect] failed to apply device state, devices stay off', err)
+      }
       console.log('[LiveKitClient.connect] Connection established successfully', { state: this.liveKitRoom.state })
     } catch (error) {
       console.error('[LiveKitClient.connect] Connection failed', { error, state: this.liveKitRoom.state })
       lkIsConnecting.set(false)
       this.closeMediaSession()
+
+      if (this.liveKitRoom.state === ConnectionState.Connected) {
+        await this.disconnect().catch(() => {})
+      }
+
       throw error
     }
   }
@@ -210,7 +224,7 @@ export class LiveKitClient {
     const me = this.liveKitRoom.localParticipant
     try {
       await Promise.all([me.setScreenShareEnabled(false), me.setCameraEnabled(false), me.setMicrophoneEnabled(false)])
-      await this.liveKitRoom.disconnect()
+      await this.liveKitRoom.disconnect(true)
     } finally {
       this.currentSessionSupportsVideo = false
       this.closeMediaSession()
@@ -221,8 +235,24 @@ export class LiveKitClient {
   // Every leak of this registers a second entry in the global media `sessions` store, and the
   // aggregated mic state is an OR across all of them - a stale one freezes the mic button.
   private closeMediaSession (): void {
-    this.currentMediaSession?.close()
-    this.currentMediaSession?.removeAllListeners()
+    if (this.currentMediaSession === undefined) return
+
+    const cameraTrack = this.currentMediaSession.state?.camera?.track
+    const micTrack = this.currentMediaSession.state?.microphone?.track
+
+    try {
+      if (cameraTrack !== undefined) {
+        cameraTrack.stop()
+      }
+      if (micTrack !== undefined) {
+        micTrack.stop()
+      }
+    } catch (err) {
+      console.warn('[LiveKitClient.closeMediaSession] failed to stop tracks', err)
+    }
+
+    this.currentMediaSession.close()
+    this.currentMediaSession.removeAllListeners()
     this.currentMediaSession = undefined
   }
 
@@ -567,10 +597,14 @@ export class LiveKitClient {
     } catch (e) {
       // If enabling failed, try to select an available camera and enable again.
       if (value) {
-        const mediaDevices = await getMediaDevices(false, true)
-        if (mediaDevices.activeCamera !== undefined) {
-          await this.setActiveCamera(mediaDevices.activeCamera.deviceId)
-          await this.liveKitRoom.localParticipant.setCameraEnabled(true)
+        try {
+          const mediaDevices = await getMediaDevices(false, true)
+          if (mediaDevices.activeCamera !== undefined) {
+            await this.setActiveCamera(mediaDevices.activeCamera.deviceId)
+            await this.liveKitRoom.localParticipant.setCameraEnabled(true)
+          }
+        } catch (retryErr) {
+          console.warn('[LiveKitClient.setCameraEnabled] camera unavailable, stays off', retryErr)
         }
       }
     }
@@ -601,10 +635,14 @@ export class LiveKitClient {
       await this.liveKitRoom.localParticipant.setMicrophoneEnabled(value)
     } catch (e) {
       if (value) {
-        const mediaDevices = await getMediaDevices(true, false)
-        if (mediaDevices.activeMicrophone !== undefined) {
-          await this.setActiveMicrophone(mediaDevices.activeMicrophone.deviceId)
-          await this.liveKitRoom.localParticipant.setMicrophoneEnabled(true)
+        try {
+          const mediaDevices = await getMediaDevices(true, false)
+          if (mediaDevices.activeMicrophone !== undefined) {
+            await this.setActiveMicrophone(mediaDevices.activeMicrophone.deviceId)
+            await this.liveKitRoom.localParticipant.setMicrophoneEnabled(true)
+          }
+        } catch (retryErr) {
+          console.warn('[LiveKitClient.setMicrophoneEnabled] microphone unavailable, stays off', retryErr)
         }
       }
     }

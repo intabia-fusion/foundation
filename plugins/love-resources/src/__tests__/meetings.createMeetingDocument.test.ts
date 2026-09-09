@@ -86,7 +86,11 @@ jest.mock('../utils', () => ({
   getLiveKitEndpoint: jest.fn(() => 'wss://example.test'),
   getRoomName: jest.fn(async () => 'Room 1'),
   liveKitClient: { connect: jest.fn(async () => {}), disconnect: jest.fn(async () => {}) },
-  loveClient: { getRoomToken: jest.fn(async () => 'token'), claimSession: jest.fn(async () => {}) },
+  loveClient: {
+    getRoomToken: jest.fn(async () => 'token'),
+    claimSession: jest.fn(async () => {}),
+    requestFinishMeeting: jest.fn(async () => {})
+  },
   navigateToMeetingMinutes: jest.fn(async () => {}),
   navigateToOfficeDoc: jest.fn(async () => {})
 }))

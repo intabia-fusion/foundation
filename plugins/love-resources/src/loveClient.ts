@@ -137,6 +137,22 @@ export class LoveClient {
     }
   }
 
+  async requestFinishMeeting (meetingId: Ref<MeetingMinutes>): Promise<void> {
+    try {
+      await fetch(concatLink(this.getLoveEndpoint(), '/finishMeeting'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${getPlatformToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ meetingId }),
+        signal: AbortSignal.timeout(LOVE_HOUSEKEEPING_TIMEOUT_MS)
+      })
+    } catch (err: any) {
+      console.warn('Failed to request meeting finish', err)
+    }
+  }
+
   private async refreshRoomToken (meetingMinutes: MeetingMinutes): Promise<string> {
     const endpoint = this.getLoveEndpoint()
     if (endpoint === undefined) {

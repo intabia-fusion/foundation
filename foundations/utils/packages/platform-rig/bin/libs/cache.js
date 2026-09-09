@@ -78,7 +78,12 @@ function collectFileSignatures(dir, extensions = null) {
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   for (const entry of entries) {
     const fullPath = join(dir, entry.name)
+    // A junction (how pnpm links packages on Windows) reports isDirectory() === true, unlike a
+    // symlink on unix. Without these guards the walk descends into node_modules and re-hashes the
+    // whole dependency tree once per package.
+    if (entry.name === 'node_modules' || entry.isSymbolicLink()) continue
     if (entry.isDirectory()) {
+      if (fs.lstatSync(fullPath).isSymbolicLink()) continue
       Object.assign(signatures, collectFileSignatures(fullPath, extensions))
     } else {
       // Skip if extensions filter is provided and file doesn't match

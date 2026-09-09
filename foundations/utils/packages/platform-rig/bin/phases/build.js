@@ -56,10 +56,16 @@ function runTsc (packagePath, emitDeclarationOnly, noTypeCheck) {
     const args = ['-p', 'tsconfig.json', '--tsBuildInfoFile', join('.build', 'build.tsbuildinfo')]
     if (emitDeclarationOnly) args.push('--emitDeclarationOnly')
     if (noTypeCheck) args.push('--noCheck')
+    // Bounded: a compiler that floods stdout must not grow the parent's heap without limit.
+    const MAX_OUT = 1 << 20
     let out = ''
+    const append = (d) => {
+      out += d
+      if (out.length > MAX_OUT) out = out.slice(out.length - MAX_OUT)
+    }
     const child = spawn(resolveTsc7(), args, { cwd: packagePath })
-    child.stdout.on('data', (d) => { out += d })
-    child.stderr.on('data', (d) => { out += d })
+    child.stdout.on('data', append)
+    child.stderr.on('data', append)
     child.on('error', (err) => resolve({ success: false, error: err }))
     child.on('close', (code) => {
       if (code === 0) resolve({ success: true })

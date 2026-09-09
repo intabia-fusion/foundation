@@ -180,6 +180,25 @@ async function formatPackage(cwd, options = {}) {
               syntactic: sf != null ? prog.getSyntacticDiagnostics(sf).length : null
             }
           } catch (e) { program = 'threw: ' + e.message.slice(0, 160) }
+          // Read the tsconfig the way typescript-estree would, to see what the program is missing.
+          let tsconfig = 'n/a'
+          try {
+            const ts = require(require.resolve('typescript', { paths: [cwd] }))
+            const cfgPath = join(cwd, 'tsconfig.json')
+            const read = ts.readConfigFile(cfgPath, ts.sys.readFile)
+            const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, cwd)
+            const prog = ts.createProgram(parsed.fileNames, parsed.options)
+            tsconfig = {
+              tsPath: require.resolve('typescript', { paths: [cwd] }),
+              version: ts.version,
+              readError: read.error != null ? ts.flattenDiagnosticMessageText(read.error.messageText, ' ') : null,
+              fileNames: parsed.fileNames.length,
+              configErrors: parsed.errors.map((e) => ts.flattenDiagnosticMessageText(e.messageText, ' ')).slice(0, 3),
+              programFiles: prog.getSourceFiles().length,
+              defaultLib: ts.getDefaultLibFilePath(parsed.options),
+              defaultLibExists: existsSync(ts.getDefaultLibFilePath(parsed.options))
+            }
+          } catch (e) { tsconfig = 'threw: ' + e.message.slice(0, 200) }
           let tsVersion = 'unknown'
           try {
             tsVersion = require(require.resolve('typescript/package.json', { paths: [cwd] })).version
@@ -198,6 +217,7 @@ async function formatPackage(cwd, options = {}) {
                 originalParseErrors,
                 bareParse,
                 program,
+                tsconfig,
                 tsVersion,
                 parser: resolved.parser ?? '(eslint default)',
                 project: resolved.parserOptions?.project,

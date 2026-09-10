@@ -116,6 +116,18 @@
     "ConfirmationFailed": "Kayıt tamamlanamadı",
     "NoFreeSeats": "Boş koltuk yok",
     "NoFreeSeatsDescription": "Bu çalışma alanı plan koltuk limitine ulaştı. Lütfen çalışma alanı yöneticisine başvurun.",
-    "NoFreeSeatsForInvite": "Planda boş koltuk kalmadı, yeni bir davet bağlantısı oluşturulamıyor."
+    "NoFreeSeatsForInvite": "Planda boş koltuk kalmadı, yeni bir davet bağlantısı oluşturulamıyor.",
+    "ScheduledForDeletion": "{date} tarihinde silinecek",
+    "WorkspaceDeletionScheduledDesc": "Bu çalışma alanı {date} tarihinde silinmek üzere planlandı. O ana kadar geri yüklenebilir, sonrasında yedeğiyle birlikte kaybolur.",
+    "CancelWorkspaceDeletion": "Silmeyi iptal et",
+    "AccountDeletionScheduled": "Hesap silinmek üzere planlandı",
+    "AccountDeletionScheduledDesc": "Hesabınız {date} tarihinde silinecek. Tutmak için silmeyi iptal edin. Planlanan çalışma alanları planlı kalır - her birini ayrı ayrı geri yükleyin.",
+    "CancelAccountDeletion": "Silmeyi iptal et",
+    "KeepAccountDeletion": "Olduğu gibi bırak",
+    "AccountDeletionCancelled": "Hesap silme işlemi iptal edildi.",
+    "CopyToClipboard": "Kopyala",
+    "DeleteAccount": "Hesabı sil",
+    "DeleteAccountConfirm": "Hesap silinmek üzere işaretlenecek ve 21 gün sonra kalıcı olarak kaldırılacak. Bundan önce giriş yaparsanız iptal edebilirsiniz. Devam edilsin mi?",
+    "CodeSent": "E-postanıza bir onay kodu gönderildi."
   }
 }

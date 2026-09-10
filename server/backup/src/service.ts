@@ -38,9 +38,11 @@ import {
 } from '@hcengineering/server-core'
 import { generateToken } from '@hcengineering/server-token'
 import { clearInterval } from 'node:timers'
-import { createStorageBackupStorage } from './storage'
+import { gunzipSync } from 'node:zlib'
+import { createStorageBackupStorage, type BackupStorage } from './storage'
 import { backup } from './backup'
 import { restore } from './restore'
+import { type BackupInfo } from './types'
 
 export interface BackupConfig {
   AccountsURL: string
@@ -58,6 +60,114 @@ export interface BackupConfig {
   Parallel: number
 
   KeepSnapshots: number
+
+  // Days a deleted workspace keeps its backup before the archive is dropped too. 0 disables cleanup.
+  DeletedRetentionDays: number
+}
+
+/**
+ * Delete exactly the files `backup.json.gz` lists, one by one.
+ *
+ * Deliberately not a prefix sweep: `StorageAdapter.listStream` treats its prefix as a hint and the
+ * minio adapter ignores it outright, so a sweep would list the whole bucket and lean on string
+ * matching - where a `ws-1` prefix also matches `ws-10/...` and would take another workspace's
+ * archive with it. The index tells us every name, so nothing has to be guessed.
+ *
+ * Returns how many files were removed. A missing file is not an error: a backup interrupted midway
+ * leaves entries whose data never landed.
+ */
+export async function removeBackupFiles (ctx: MeasureContext, storage: BackupStorage): Promise<number> {
+  const infoFile = 'backup.json.gz'
+  const blobInfoFile = 'blob-info.json.gz'
+
+  if (!(await storage.exists(infoFile))) {
+    // Nothing to go on - a sweep here is exactly what this function refuses to do.
+    ctx.warn('no backup index found, leaving the archive alone', { infoFile })
+    return 0
+  }
+
+  const info: BackupInfo = JSON.parse(gunzipSync(new Uint8Array(await storage.loadFile(infoFile))).toString())
+
+  const files = new Set<string>()
+  for (const snapshot of info.snapshots ?? []) {
+    for (const domain of Object.values(snapshot.domains ?? {})) {
+      if (domain.snapshot !== undefined) files.add(domain.snapshot)
+      for (const it of domain.snapshots ?? []) files.add(it)
+      for (const it of domain.storage ?? []) files.add(it)
+    }
+  }
+  // The two indices go last: while they are there the archive can still be reasoned about.
+  files.add(blobInfoFile)
+  files.add(infoFile)
+
+  let removed = 0
+  for (const file of files) {
+    try {
+      await storage.delete(file)
+      removed++
+    } catch (err: any) {
+      ctx.warn('failed to remove a backup file', { file, error: err })
+    }
+  }
+  return removed
+}
+
+/**
+ * A deleted workspace keeps its backup for a grace period - it is the only way back after a delete
+ * someone regrets. Once the period is over the archive goes as well.
+ *
+ * `lastProcessingTime` is stamped by the `delete-done` transition and nothing touches the workspace
+ * afterwards, so it doubles as "deleted at".
+ *
+ * Returns the workspaces whose archive was dropped.
+ */
+export async function cleanupDeletedBackups (
+  ctx: MeasureContext,
+  storageAdapter: StorageAdapter,
+  config: BackupConfig,
+  region: string
+): Promise<WorkspaceUuid[]> {
+  // Negative disables the sweep; 0 means "as soon as the workspace is deleted".
+  if (config.DeletedRetentionDays < 0) return []
+  const retentionMs = config.DeletedRetentionDays * 24 * 3600 * 1000
+
+  const now = Date.now()
+  // isDisabled: null - a deleted workspace is always disabled, the default view would hide it.
+  const deleted = await getAccountClient(config.Token).listWorkspaces(region, 'deleted', undefined, null)
+  const cleaned: WorkspaceUuid[] = []
+
+  for (const ws of deleted) {
+    // backups === 0 means the archive is already gone: cleanup stamps an empty status.
+    if ((ws.backupInfo?.backups ?? 0) === 0) continue
+    const deletedOn = ws.lastProcessingTime ?? 0
+    if (deletedOn === 0 || now - deletedOn < retentionMs) continue
+
+    const dataId = ws.dataId ?? (ws.uuid as unknown as WorkspaceDataId)
+    try {
+      const storage = await createStorageBackupStorage(
+        ctx,
+        storageAdapter,
+        { uuid: config.BucketName as WorkspaceUuid, dataId: config.BucketName as WorkspaceDataId, url: '' },
+        dataId,
+        false
+      )
+      const removed = await removeBackupFiles(ctx, storage)
+
+      const token = generateToken(systemAccountUuid, ws.uuid, { service: 'backup' })
+      await getAccountClient(token).updateBackupInfo({
+        backups: 0,
+        backupSize: 0,
+        blobsSize: 0,
+        dataSize: 0,
+        lastBackup: 0
+      })
+      cleaned.push(ws.uuid)
+      ctx.warn('backup of a deleted workspace removed', { workspace: ws.uuid, url: ws.url, deletedOn, removed })
+    } catch (err: any) {
+      ctx.error('failed to remove the backup of a deleted workspace', { workspace: ws.uuid, error: err })
+    }
+  }
+  return cleaned
 }
 
 class BackupWorker {
@@ -172,6 +282,12 @@ class BackupWorker {
       }
     } catch (err: any) {
       ctx.error('Error in recheckWorkspaces', { error: err })
+    }
+
+    try {
+      await cleanupDeletedBackups(ctx, this.storageAdapter, this.config, this.region)
+    } catch (err: any) {
+      ctx.error('Error in cleanupDeletedBackups', { error: err })
     }
   })
 

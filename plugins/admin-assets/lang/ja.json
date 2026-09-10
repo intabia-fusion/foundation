@@ -195,6 +195,8 @@
     "Actions": "操作",
     "NoTrial": "トライアルを除く",
     "Sessions": "セッション",
-    "Ops5m": "操作数 (5分)"
+    "Ops5m": "操作数 (5分)",
+    "CancelDeletion": "削除を取り消す",
+    "DeletionScheduled": "{date} に削除"
   }
 }

@@ -20,6 +20,8 @@ export interface LoginInfo {
   name?: string
   socialId?: PersonId
   token?: string
+  // Set when the account is scheduled for deletion: the client asks whether to call it off.
+  deleteOn?: number
 }
 
 export interface EndpointInfo {
@@ -528,4 +530,10 @@ export interface AccountWorkspaceActivity {
 export interface AccountActivityStats {
   workspaces: AccountWorkspaceActivity[]
   weekly: WorkspaceActivityPoint[]
+}
+
+/** Whether the caller may purge their own account, and the workspaces that stand in the way. */
+export interface CanDeleteAccountResult {
+  canDelete: boolean
+  ownedWorkspaces: Array<{ uuid: WorkspaceUuid, name: string, url: string }>
 }

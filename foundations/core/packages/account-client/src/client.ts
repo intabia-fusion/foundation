@@ -38,6 +38,7 @@ import type {
   AccountAggregatedInfo,
   AccountsFilter,
   AdminActionsQuery,
+  CanDeleteAccountResult,
   AdminActionsResult,
   AccountsSortKey,
   TransactorEndpointInfo,
@@ -200,7 +201,9 @@ export interface AccountClient {
     order?: 'asc' | 'desc'
   ) => Promise<AccountAggregatedInfo[]>
   getTransactorEndpoints: () => Promise<TransactorEndpointInfo[]>
-  deleteAccount: (uuid: AccountUuid, otpCode?: string) => Promise<void>
+  deleteAccount: (uuid: AccountUuid, otpCode?: string, force?: boolean) => Promise<void>
+  cancelAccountDeletion: () => Promise<void>
+  canDeleteAccount: () => Promise<CanDeleteAccountResult>
 
   workerHandshake: (region: string, version: Data<Version>, operation: WorkspaceOperation) => Promise<void>
   getPendingWorkspace: (
@@ -222,7 +225,9 @@ export interface AccountClient {
   listWorkspaces: (
     region?: string | null,
     mode?: WorkspaceMode | null,
-    visited?: number
+    visited?: number,
+    /** null includes disabled workspaces; omitted keeps the enabled-only default. */
+    isDisabled?: boolean | null
   ) => Promise<WorkspaceInfoWithStatus[]>
   listWorkspacesPaged: (query: WorkspacesPagedQuery) => Promise<WorkspacesPagedResult>
   getWorkspacesSummary: () => Promise<WorkspacesSummary>
@@ -1044,11 +1049,12 @@ class AccountClientImpl implements AccountClient {
   async listWorkspaces (
     region?: string | null,
     mode: WorkspaceMode | null = null,
-    visited?: number
+    visited?: number,
+    isDisabled?: boolean | null
   ): Promise<WorkspaceInfoWithStatus[]> {
     const request = {
       method: 'listWorkspaces' as const,
-      params: { region, mode, visited }
+      params: { region, mode, visited, isDisabled }
     }
 
     return ((await this.rpc<any[]>(request)) ?? []).map((ws) => this.flattenStatus(ws))
@@ -1377,13 +1383,31 @@ class AccountClientImpl implements AccountClient {
     return await this.rpc(request)
   }
 
-  async deleteAccount (uuid: AccountUuid, otpCode?: string): Promise<void> {
+  async deleteAccount (uuid: AccountUuid, otpCode?: string, force?: boolean): Promise<void> {
     const request = {
       method: 'deleteAccount' as const,
-      params: { uuid, otpCode }
+      params: { uuid, otpCode, force }
     }
 
     await this.rpc(request)
+  }
+
+  async cancelAccountDeletion (): Promise<void> {
+    const request = {
+      method: 'cancelAccountDeletion' as const,
+      params: {}
+    }
+
+    await this.rpc(request)
+  }
+
+  async canDeleteAccount (): Promise<CanDeleteAccountResult> {
+    const request = {
+      method: 'canDeleteAccount' as const,
+      params: {}
+    }
+
+    return await this.rpc(request)
   }
 
   async releaseSocialId (

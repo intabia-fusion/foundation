@@ -122,7 +122,7 @@
     "DeleteRole": "Elimina ruolo",
     "DeleteRoleConfirmation": "Sei sicuro di voler eliminare questo ruolo? Tutti gli utenti con questo ruolo perderanno i loro permessi.",
     "DeleteWorkspace": "Elimina spazio di lavoro",
-    "DeleteWorkspaceConfirm": "Sei sicuro di voler eliminare questo spazio di lavoro? Tu e tutti gli altri membri perderete l'accesso a questo spazio di lavoro. Tutte le informazioni dallo spazio di lavoro andranno perse. Questa azione non può essere annullata. Vuoi procedere?",
+    "DeleteWorkspaceConfirm": "Lo spazio di lavoro resterà in sola lettura per 7 giorni per poter estrarre i dati, poi verrà archiviato e dopo 21 giorni sarà eliminato definitivamente insieme al backup. Fino ad allora un proprietario può annullare l'eliminazione. L'abbonamento viene annullato subito. Continuare?",
     "DeleteSpaceType": "Elimina tipo di spazio",
     "DeleteSpaceTypeConfirm": "Sei sicuro di voler eliminare questo tipo di spazio?",
     "WorkspaceName": "Nome spazio di lavoro",

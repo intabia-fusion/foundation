@@ -23,3 +23,7 @@ export function isAdminEmail (email: string): boolean {
 export function isBillingAdminEmail (email: string): boolean {
   return BILLING_EMAILS.has(email.trim())
 }
+
+export function getBillingAdminEmails (): string[] {
+  return [...BILLING_EMAILS].filter((e) => e !== '')
+}

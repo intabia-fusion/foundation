@@ -482,6 +482,7 @@ export class AccountPostgresDbCollection
         a.automatic,
         a.max_workspaces,
         a.failed_login_attempts,
+        a.delete_on,
         p.hash,
         p.salt
       FROM ${this.getTableName()} as a
@@ -1013,7 +1014,8 @@ export class PostgresAccountDB implements AccountDB {
             'processing_attempts', s.processing_attempts,
             'processing_message', s.processing_message,
             'backup_info', s.backup_info,
-            'usage_info', s.usage_info
+            'usage_info', s.usage_info,
+            'delete_on', s.delete_on
           ) status
            FROM ${this.getWsMembersTableName()} as m
            INNER JOIN ${this.workspace.getTableName()} as w ON m.workspace_uuid = w.uuid
@@ -1028,6 +1030,7 @@ export class PostgresAccountDB implements AccountDB {
       for (const row of res) {
         row.created_on = convertTimestamp(row.created_on)
         row.status.last_processing_time = convertTimestamp(row.status.last_processing_time)
+        row.status.delete_on = row.status.delete_on != null ? convertTimestamp(row.status.delete_on) : undefined
         row.status.last_visit = convertTimestamp(row.status.last_visit)
         row.password_aging_rule = convertTimestamp(row.password_aging_rule)
       }
@@ -1067,7 +1070,8 @@ export class PostgresAccountDB implements AccountDB {
             'processing_attempts', s.processing_attempts,
             'processing_message', s.processing_message,
             'backup_info', s.backup_info,
-            'usage_info', s.usage_info
+            'usage_info', s.usage_info,
+            'delete_on', s.delete_on
           ) status
            FROM ${this.workspace.getTableName()} as w
            INNER JOIN ${this.workspaceStatus.getTableName()} as s ON s.workspace_uuid = w.uuid
@@ -1178,13 +1182,28 @@ export class PostgresAccountDB implements AccountDB {
 
       await this.mailbox.deleteMany({ accountUuid }, rTx)
 
-      await this.socialId.update({ personUuid: accountUuid }, { verifiedOn: undefined }, rTx)
+      // Social ids stay as rows so their _id keeps resolving in workspace data, but the value is
+      // mangled and flagged: the identifier can never be handed to a new person, and a fresh signup
+      // with the same email no longer finds anything to reuse.
+      for (const socialIdObj of socialIds) {
+        if (socialIdObj.isDeleted === true) continue
+        await this.socialId.update(
+          { _id: socialIdObj._id },
+          { value: `${socialIdObj.value}#${socialIdObj._id}`, isDeleted: true, verifiedOn: undefined },
+          rTx
+        )
+      }
 
       // Unassign from all workspaces
       await rTx`DELETE FROM ${this.client(this.getWsMembersTableName())} WHERE account_uuid = ${accountUuid}`
 
+      await this.userProfile.deleteMany({ personUuid: accountUuid }, rTx)
+
       // This removes the account along with the password if any
       await this.account.deleteMany({ uuid: accountUuid }, rTx)
+
+      // The person row outlives the account (workspace rows reference it), so strip what it carried.
+      await this.person.update({ uuid: accountUuid }, { firstName: '', lastName: '', phoneHint: undefined }, rTx)
     })
   }
 
@@ -1441,7 +1460,8 @@ export class PostgresAccountDB implements AccountDB {
             'processing_attempts', ${alias}.processing_attempts,
             'processing_message', ${alias}.processing_message,
             'backup_info', ${alias}.backup_info,
-            'usage_info', ${alias}.usage_info
+            'usage_info', ${alias}.usage_info,
+            'delete_on', ${alias}.delete_on
           )`
   }
 
@@ -1546,6 +1566,7 @@ export class PostgresAccountDB implements AccountDB {
         row.created_on = convertTimestamp(row.created_on)
         row.billing_period_end = row.billing_period_end != null ? convertTimestamp(row.billing_period_end) : undefined
         row.status.last_processing_time = convertTimestamp(row.status.last_processing_time)
+        row.status.delete_on = row.status.delete_on != null ? convertTimestamp(row.status.delete_on) : undefined
         row.status.last_visit = convertTimestamp(row.status.last_visit)
       }
       return { workspaces: convertKeysToCamelCase(res), total }

@@ -118,6 +118,9 @@ services:
     expose:
       - 9000
       - 9001
+    # backup-tests assert on the archive bucket from the host.
+    ports:
+      - 9002:9000
     healthcheck:
       test: ['CMD', 'mc', 'ready', 'local']
       interval: 5s
@@ -211,6 +214,39 @@ services:
       # OTP codes are short-lived by design; tests need room between requesting and entering one.
       - OTP_TIME_TO_LIVE=600
       - OTP_RETRY_DELAY=1
+    restart: unless-stopped
+  backup:
+    image: 'intabiafusion/backup:${DOCKER_TAG:-latest}'
+    pull_policy: never
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    links:
+      - minio
+      - postgres
+      - stats
+      - account
+    environment:
+      - SECRET=secret
+      - ACCOUNTS_URL=http://account:3003
+      - ACCOUNTS_DB_URL=${DB_PG_URL}
+      - STATS_URL=http://stats:4901
+      - DB_URL=${DB_URL}
+      - REGION=
+      - BUCKET_NAME=${BACKUP_BUCKET_NAME}
+      - STORAGE=${BACKUP_STORAGE_CONFIG}
+      - WORKSPACE_STORAGE=${STORAGE_CONFIG}
+      # INTERVAL doubles as the "visited recently" window: a workspace whose lastVisit is older is
+      # skipped entirely. A week keeps every workspace a test just created in scope.
+      - INTERVAL=604800
+      - COOL_DOWN=30
+      - PARALLEL=2
+      # Retention of a deleted workspace's archive. Tests move `last_processing_time` back in the
+      # account DB instead of waiting, so the production default is what runs here.
+      - DELETED_RETENTION_DAYS=7
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
     restart: unless-stopped
   stats:
     image: 'intabiafusion/stats:${DOCKER_TAG:-latest}'

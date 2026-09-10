@@ -43,6 +43,7 @@
   import login from '../plugin'
   import {
     getAccount,
+    getAccountClient,
     getAccountDisplayName,
     getHref,
     getWorkspaces,
@@ -50,10 +51,13 @@
     isReadOnlyGuestAccount,
     navigateToWorkspace,
     selectWorkspace,
-    unArchive
+    unArchive,
+    cancelWorkspaceDeletion
   } from '../utils'
   import StatusControl from './StatusControl.svelte'
   import NavLink from './NavLink.svelte'
+  import DeleteAccountDialog from './DeleteAccountDialog.svelte'
+  import WorkspaceDeletionDialog from './WorkspaceDeletionDialog.svelte'
 
   export let navigateUrl: string | undefined = undefined
 
@@ -67,10 +71,68 @@
 
   let flagToUpdateWorkspaces = false
 
+  let canDeleteAccount = false
+
   async function loadAccount (): Promise<void> {
     accountPromise = getAccount()
     account = await accountPromise
     isReadOnlyGuest = await isReadOnlyGuestAccount(account)
+    await loadCanDeleteAccount()
+    askAboutScheduledDeletion()
+  }
+
+  // Signing in does not call the deletion off by itself: the person may have come to take their
+  // data out. Show the deadline and let them decide.
+  function askAboutScheduledDeletion (): void {
+    const deleteOn = account?.deleteOn
+    const token = account?.token
+    if (deleteOn == null || token == null) return
+
+    showPopup(MessageBox, {
+      label: login.string.AccountDeletionScheduled,
+      message: login.string.AccountDeletionScheduledDesc,
+      params: { date: formatDeleteOn(deleteOn) },
+      canSubmit: true,
+      okLabel: login.string.CancelAccountDeletion,
+      action: async () => {
+        await getAccountClient(token).cancelAccountDeletion()
+        account = await getAccount()
+      }
+    })
+  }
+
+  // The server owns the rule (nothing left that the account is the only owner of); the link is
+  // simply hidden while anything blocks it.
+  async function loadCanDeleteAccount (): Promise<void> {
+    if (account?.token == null || isReadOnlyGuest) {
+      canDeleteAccount = false
+      return
+    }
+    try {
+      canDeleteAccount = (await getAccountClient(account.token).canDeleteAccount()).canDelete
+    } catch (err) {
+      console.error('Failed to check whether the account can be deleted', err)
+      canDeleteAccount = false
+    }
+  }
+
+  function handleDeleteAccount (): void {
+    if (account?.account == null) return
+    const uuid = account.account
+    const token = account.token
+    showPopup(DeleteAccountDialog, {}, undefined, (code) => {
+      if (typeof code !== 'string' || code.length === 0) return
+      void (async () => {
+        try {
+          await getAccountClient(token ?? null).deleteAccount(uuid, code)
+          await logOut()
+          goTo('login')
+        } catch (err: any) {
+          console.error('Failed to delete the account', err)
+          status = new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+        }
+      })()
+    })
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -90,12 +152,45 @@
     void loadAccount()
   })
 
+  function formatDeleteOn (deleteOn: number): string {
+    return new Date(deleteOn).toLocaleDateString()
+  }
+
+  /** Waits out the restore the cancel kicked off, so the row stops showing a stale mode. */
+  async function awaitRestore (uuid: string): Promise<void> {
+    workspaces = await getWorkspaces()
+    let info = workspaces.find((it) => it.uuid === uuid)
+    while (isRestoringMode(info?.mode) || isUpgradingMode(info?.mode)) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 5000))
+      workspaces = await getWorkspaces()
+      info = workspaces.find((it) => it.uuid === uuid)
+    }
+  }
+
   async function select (workspaceUrl: string): Promise<void> {
     status = new Status(Severity.INFO, login.status.ConnectingToServer, {})
 
     const [loginStatus, result] = await selectWorkspace(workspaceUrl)
 
     const ws = workspaces.find((it) => it.uuid === result?.workspace)
+    if (ws?.deleteOn != null && result?.token != null) {
+      const token = result.token
+      showPopup(
+        WorkspaceDeletionDialog,
+        { uuid: ws.uuid, dataId: ws.dataId, deleteOn: ws.deleteOn, token },
+        undefined,
+        (res) => {
+          if (res !== 'cancel') return
+          void (async () => {
+            if (await cancelWorkspaceDeletion(ws.uuid, token)) {
+              await awaitRestore(ws.uuid)
+            }
+          })()
+        }
+      )
+      status = loginStatus
+      return
+    }
     if (ws != null && isArchivingMode(ws?.mode) && result?.workspace !== undefined) {
       showPopup(MessageBox, {
         label: login.string.SelectWorkspace,
@@ -105,13 +200,7 @@
         okLabel: login.string.RestoreArchivedWorkspace,
         action: async () => {
           if (await unArchive(ws.uuid, result.token)) {
-            workspaces = await getWorkspaces()
-            let info = workspaces.find((it) => it.uuid === ws.uuid)
-            while (isRestoringMode(info?.mode) || isUpgradingMode(info?.mode)) {
-              await new Promise<void>((resolve) => setTimeout(resolve, 5000))
-              workspaces = await getWorkspaces()
-              info = workspaces.find((it) => it.uuid === ws.uuid)
-            }
+            await awaitRestore(ws.uuid)
           }
         }
       })
@@ -209,7 +298,9 @@
             <div class="flex flex-col flex-grow">
               <span class="label overflow-label flex-center">
                 {wsName}
-                {#if isArchivingMode(workspace.mode)}
+                {#if workspace.deleteOn != null}
+                  - <Label label={login.string.ScheduledForDeletion} params={{ date: formatDeleteOn(workspace.deleteOn) }} />
+                {:else if isArchivingMode(workspace.mode)}
                   - <Label label={presentation.string.Archived} />
                 {/if}
                 {#if !isActiveMode(workspace.mode) && !isArchivingMode(workspace.mode)}
@@ -264,6 +355,15 @@
           <Label label={login.string.ChangeAccount} variant={'link'} />
         </NavLink>
       </div>
+      {#if canDeleteAccount}
+        <div class="delete-account">
+          <!-- svelte-ignore a11y-click-events-have-key-events -->
+          <!-- svelte-ignore a11y-no-static-element-interactions -->
+          <span on:click={handleDeleteAccount}>
+            <Label label={login.string.DeleteAccount} />
+          </span>
+        </div>
+      {/if}
     </div>
   {/await}
 </form>
@@ -343,6 +443,20 @@
     .grow-separator {
       flex-grow: 1;
     }
+    .delete-account {
+      margin-top: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--theme-darker-color);
+
+      span {
+        cursor: pointer;
+
+        &:hover {
+          color: var(--theme-caption-color);
+        }
+      }
+    }
+
     .footer {
       margin-top: 3.5rem;
       font-size: 0.8rem;

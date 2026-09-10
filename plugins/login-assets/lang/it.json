@@ -116,6 +116,18 @@
     "ConfirmationFailed": "Non è stato possibile completare la registrazione",
     "NoFreeSeats": "Nessun posto libero",
     "NoFreeSeatsDescription": "Questo spazio di lavoro ha raggiunto il limite di posti del piano. Contatta l'amministratore dello spazio di lavoro.",
-    "NoFreeSeatsForInvite": "Il piano non ha più posti liberi, non è possibile creare un nuovo link di invito."
+    "NoFreeSeatsForInvite": "Il piano non ha più posti liberi, non è possibile creare un nuovo link di invito.",
+    "ScheduledForDeletion": "eliminazione il {date}",
+    "WorkspaceDeletionScheduledDesc": "Questo spazio di lavoro è programmato per l'eliminazione il {date}. Fino ad allora può essere ripristinato; dopo, esso e il suo backup spariscono.",
+    "CancelWorkspaceDeletion": "Annulla eliminazione",
+    "AccountDeletionScheduled": "Account programmato per l'eliminazione",
+    "AccountDeletionScheduledDesc": "Il tuo account sarà eliminato il {date}. Annulla l'eliminazione per conservarlo. Gli spazi di lavoro programmati restano programmati: ripristina ciascuno separatamente.",
+    "CancelAccountDeletion": "Annulla eliminazione",
+    "KeepAccountDeletion": "Lascia com'è",
+    "AccountDeletionCancelled": "Eliminazione dell'account annullata.",
+    "CopyToClipboard": "Copia",
+    "DeleteAccount": "Elimina account",
+    "DeleteAccountConfirm": "L'account sarà contrassegnato per l'eliminazione e rimosso definitivamente tra 21 giorni. Accedendo prima potrai annullare. Continuare?",
+    "CodeSent": "Un codice di conferma è stato inviato alla tua email."
   }
 }

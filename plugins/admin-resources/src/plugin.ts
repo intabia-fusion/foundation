@@ -107,6 +107,8 @@ export default mergeIds(adminId, admin, {
     Subscriptions: '' as IntlString,
     Archive: '' as IntlString,
     Unarchive: '' as IntlString,
+    CancelDeletion: '' as IntlString,
+    DeletionScheduled: '' as IntlString<{ date: string }>,
     Migrate: '' as IntlString,
     Delete: '' as IntlString,
     Previous: '' as IntlString,

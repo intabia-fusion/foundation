@@ -195,6 +195,8 @@
     "Actions": "Ações",
     "NoTrial": "Sem período de teste",
     "Sessions": "Sessões",
-    "Ops5m": "Operações (5 min)"
+    "Ops5m": "Operações (5 min)",
+    "CancelDeletion": "Cancelar exclusão",
+    "DeletionScheduled": "exclusão em {date}"
   }
 }

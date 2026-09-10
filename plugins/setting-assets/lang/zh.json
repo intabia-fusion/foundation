@@ -122,7 +122,7 @@
     "DeleteRole": "删除角色",
     "DeleteRoleConfirmation": "您确定要删除此角色吗？拥有此角色的所有用户将失去其权限。",
     "DeleteWorkspace": "删除工作区",
-    "DeleteWorkspaceConfirm": "您确定要删除此工作区吗？您和所有其他成员将失去对此工作区的访问权限。工作区中的所有信息将丢失。此操作无法撤销。您要继续吗？",
+    "DeleteWorkspaceConfirm": "工作区将有 7 天处于只读状态，以便导出数据，随后归档，并在 21 天后连同备份一起被彻底删除。在此之前，所有者可以取消删除。订阅将立即取消。是否继续?",
     "DeleteSpaceType": "删除空间类型",
     "DeleteSpaceTypeConfirm": "您确定要删除此空间类型吗？",
     "WorkspaceName": "工作区名称",

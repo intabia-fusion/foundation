@@ -116,6 +116,18 @@
     "ConfirmationFailed": "登録を完了できませんでした",
     "NoFreeSeats": "空席がありません",
     "NoFreeSeatsDescription": "このワークスペースはプランのシート上限に達しました。ワークスペースの管理者にお問い合わせください。",
-    "NoFreeSeatsForInvite": "プランに空席がないため、新しい招待リンクを作成できません。"
+    "NoFreeSeatsForInvite": "プランに空席がないため、新しい招待リンクを作成できません。",
+    "ScheduledForDeletion": "{date} に削除",
+    "WorkspaceDeletionScheduledDesc": "このワークスペースは {date} に削除される予定です。それまでは復元できますが、その後はバックアップごと失われます。",
+    "CancelWorkspaceDeletion": "削除を取り消す",
+    "AccountDeletionScheduled": "アカウントは削除予定です",
+    "AccountDeletionScheduledDesc": "アカウントは {date} に削除されます。残す場合は削除を取り消してください。予定済みのワークスペースは予定のままです。個別に復元してください。",
+    "CancelAccountDeletion": "削除を取り消す",
+    "KeepAccountDeletion": "そのままにする",
+    "AccountDeletionCancelled": "アカウントの削除を取り消しました。",
+    "CopyToClipboard": "コピー",
+    "DeleteAccount": "アカウントを削除",
+    "DeleteAccountConfirm": "アカウントは削除予定となり、21日後に完全に削除されます。それまでにログインすれば取り消せます。続行しますか?",
+    "CodeSent": "確認コードをメールに送信しました。"
   }
 }

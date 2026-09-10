@@ -116,6 +116,19 @@
     "ConfirmationFailed": "Die Registrierung konnte nicht abgeschlossen werden",
     "NoFreeSeats": "Keine freien Plätze",
     "NoFreeSeatsDescription": "Dieser Arbeitsbereich hat das Platzlimit des Tarifs erreicht. Bitte wenden Sie sich an den Administrator des Arbeitsbereichs.",
-    "NoFreeSeatsForInvite": "Der Tarif hat keine freien Plätze mehr, ein neuer Einladungslink kann nicht erstellt werden."
+    "NoFreeSeatsForInvite": "Der Tarif hat keine freien Plätze mehr, ein neuer Einladungslink kann nicht erstellt werden.",
+    "ScheduledForDeletion": "Löschung am {date}",
+    "WorkspaceDeletionScheduledDesc": "Dieser Arbeitsbereich ist zur Löschung am {date} vorgemerkt. Bis dahin kann er wiederhergestellt werden, danach sind er und sein Backup verschwunden.",
+    "CancelWorkspaceDeletion": "Löschung abbrechen",
+    "AccountDeletionScheduled": "Konto zur Löschung vorgemerkt",
+    "AccountDeletionScheduledDesc": "Ihr Konto wird am {date} gelöscht. Brechen Sie die Löschung ab, um es zu behalten. Vorgemerkte Arbeitsbereiche bleiben vorgemerkt - stellen Sie jeden einzeln wieder her.",
+    "CancelAccountDeletion": "Löschung abbrechen",
+    "KeepAccountDeletion": "So belassen",
+    "AccountDeletionCancelled": "Löschung des Kontos abgebrochen.",
+    "CopyToClipboard": "Kopieren",
+    "DeleteAccount": "Konto löschen",
+    "DeleteAccountConfirm": "Das Konto wird zur Löschung vorgemerkt und in 21 Tagen endgültig entfernt. Wenn Sie sich vorher anmelden, können Sie die Löschung abbrechen. Fortfahren?",
+    "CodeSent": "Ein Bestätigungscode wurde an Ihre E-Mail gesendet.",
+    "EnterCode": "Code eingeben"
   }
 }

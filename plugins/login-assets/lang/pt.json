@@ -116,6 +116,18 @@
     "ConfirmationFailed": "Não foi possível concluir o registo",
     "NoFreeSeats": "Sem lugares livres",
     "NoFreeSeatsDescription": "Este espaço de trabalho atingiu o limite de lugares do plano. Contacte o administrador do espaço de trabalho.",
-    "NoFreeSeatsForInvite": "O plano não tem lugares livres, não é possível criar uma nova ligação de convite."
+    "NoFreeSeatsForInvite": "O plano não tem lugares livres, não é possível criar uma nova ligação de convite.",
+    "ScheduledForDeletion": "exclusão em {date}",
+    "WorkspaceDeletionScheduledDesc": "Este espaço de trabalho está programado para exclusão em {date}. Até lá pode ser restaurado; depois disso, ele e o backup somem.",
+    "CancelWorkspaceDeletion": "Cancelar exclusão",
+    "AccountDeletionScheduled": "Conta programada para exclusão",
+    "AccountDeletionScheduledDesc": "Sua conta será excluída em {date}. Cancele a exclusão para mantê-la. Os espaços de trabalho programados continuam programados: restaure cada um separadamente.",
+    "CancelAccountDeletion": "Cancelar exclusão",
+    "KeepAccountDeletion": "Deixar como está",
+    "AccountDeletionCancelled": "Exclusão da conta cancelada.",
+    "CopyToClipboard": "Copiar",
+    "DeleteAccount": "Excluir conta",
+    "DeleteAccountConfirm": "A conta será marcada para exclusão e removida definitivamente em 21 dias. Entrando antes disso, você poderá cancelar. Continuar?",
+    "CodeSent": "Um código de confirmação foi enviado para seu e-mail."
   }
 }

@@ -444,6 +444,16 @@ export async function unArchive (workspaceId: string, token: string): Promise<bo
   }
 }
 
+/** Calls off a scheduled deletion. An archived workspace also starts restoring. */
+export async function cancelWorkspaceDeletion (workspaceId: string, token: string): Promise<boolean> {
+  try {
+    return await getAccountClient(token).performWorkspaceOperation(workspaceId, 'cancel-delete')
+  } catch (err: any) {
+    Analytics.handleError(err)
+    return false
+  }
+}
+
 export async function getPerson (): Promise<[Status, Person | null]> {
   const token = getMetadata(presentation.metadata.Token)
   if (token === undefined) {

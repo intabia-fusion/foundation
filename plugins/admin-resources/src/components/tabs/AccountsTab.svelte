@@ -207,7 +207,7 @@
     </div>
   {/if}
 </div>
-<div class="fs-title p-3 flex-no-shrink">
+<div class="fs-title p-3 flex-no-shrink" data-testid="account-search-container">
   <SearchEdit bind:value={accountSearch} width={'100%'} on:change={accountSearchChanged} />
 </div>
 
@@ -365,7 +365,7 @@
           </tr>
         {/if}
         {#each group.items as account}
-          <tr class="focused-button">
+          <tr class="focused-button" id={account.uuid}>
             <td>
               <div class="fs-title">{account.firstName} {account.lastName}</div>
               <div class="content-dark-color flex-row-center">

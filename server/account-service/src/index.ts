@@ -15,7 +15,8 @@ import account, {
   type CrmNotification,
   parseFreePlanLimits,
   initRegionConfig,
-  generateShortId
+  generateShortId,
+  sweepScheduledDeletions
 } from '@hcengineering/account'
 import accountEn from '@hcengineering/account/lang/en.json'
 import accountRu from '@hcengineering/account/lang/ru.json'
@@ -275,6 +276,13 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
       },
       3 * 60 * 1000
     )
+    const sweep = (): void => {
+      void sweepScheduledDeletions(measureCtx, db).catch((err) => {
+        measureCtx.error('Scheduled deletion sweep failed', { err })
+      })
+    }
+    setInterval(sweep, 60 * 60 * 1000)
+    sweep()
   })
 
   const extractAuthorizationToken = (headers: IncomingHttpHeaders): string | undefined => {

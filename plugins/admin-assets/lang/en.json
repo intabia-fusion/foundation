@@ -195,6 +195,8 @@
     "Actions": "Actions",
     "NoTrial": "No trial",
     "Sessions": "Sessions",
-    "Ops5m": "Ops (5 min)"
+    "Ops5m": "Ops (5 min)",
+    "CancelDeletion": "Cancel deletion",
+    "DeletionScheduled": "deletion on {date}"
   }
 }

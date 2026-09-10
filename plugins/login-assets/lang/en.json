@@ -116,6 +116,18 @@
     "ConfirmationFailed": "Could not complete the registration",
     "NoFreeSeats": "No free seats",
     "NoFreeSeatsDescription": "This workspace has reached its plan seat limit. Please contact the workspace administrator.",
-    "NoFreeSeatsForInvite": "The plan has no free seats left, so a new invite link cannot be created."
+    "NoFreeSeatsForInvite": "The plan has no free seats left, so a new invite link cannot be created.",
+    "DeleteAccount": "Delete account",
+    "DeleteAccountConfirm": "Your account will be marked for deletion and removed for good in 21 days. Signing in before that lets you call it off. Continue?",
+    "CodeSent": "A confirmation code has been sent to your email.",
+    "ScheduledForDeletion": "deletion on {date}",
+    "WorkspaceDeletionScheduledDesc": "This workspace is scheduled for deletion on {date}. Until then it can be restored; after that it and its backup are gone.",
+    "CancelWorkspaceDeletion": "Cancel deletion",
+    "AccountDeletionScheduled": "Account scheduled for deletion",
+    "AccountDeletionScheduledDesc": "Your account will be deleted on {date}. Cancel the deletion to keep it. Workspaces you scheduled stay scheduled - restore each of them separately.",
+    "CancelAccountDeletion": "Cancel deletion",
+    "KeepAccountDeletion": "Leave as is",
+    "AccountDeletionCancelled": "Account deletion cancelled.",
+    "CopyToClipboard": "Copy"
   }
 }

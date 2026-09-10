@@ -39823,8 +39823,8 @@ importers:
         specifier: 'catalog:'
         version: 8.70.0(eslint@8.57.1(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
       assemblyscript:
-        specifier: ^0.28.14
-        version: 0.28.14
+        specifier: 0.28.20
+        version: 0.28.20
       esbuild:
         specifier: 'catalog:'
         version: 0.25.12
@@ -49472,8 +49472,8 @@ packages:
     resolution: {integrity: sha512-S2s3aOytiKdFRdulw2qPE51MzjzVOisppcVv7jVFR+Kw0kxwvFrDcYA0h7Ndqbmj0HkMIXYWaoj7fli8kgx1eg==}
     engines: {node: '>=12.0.0'}
 
-  assemblyscript@0.28.14:
-    resolution: {integrity: sha512-YcFSCNhjvHdvjjqdfc1PyiA60AYalmDH2FDMF9LNmYJjoKf8c826xw3zkOD83PGoyz8RNH9KDt8FYMtkIOJNPw==}
+  assemblyscript@0.28.20:
+    resolution: {integrity: sha512-5PM7GZpvcLypHcLmi30aP8mqm5HjU+LL3BdV1xDyA3USGtL2w+iMiUnhtH+vW8+2kOuHlAyPu7M+QgyEw5he1g==}
     engines: {node: '>=20', npm: '>=10'}
     hasBin: true
 
@@ -49663,8 +49663,8 @@ packages:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
     engines: {node: '>=8'}
 
-  binaryen@123.0.0-nightly.20250530:
-    resolution: {integrity: sha512-d1zPHBN5YlOd3Ff+OUxvVExuFeh8heSnqe+X3bjItFxGLvn4VGBKmrvv7pgy/cRhrIUGuPW138iaWfDhwjyDqg==}
+  binaryen@131.0.0-nightly.20260721:
+    resolution: {integrity: sha512-AAQIkhfbYXh4FBObwBrlO+5L+6Rp6OOMOjh6AdT0M+GLNLyrwKWgtW+EzmizNgx9CWDfTJPfDtKoZi62QESbtg==}
     hasBin: true
 
   bindings@1.5.0:
@@ -61278,9 +61278,9 @@ snapshots:
       pvutils: 1.2.0
       tslib: 2.8.1
 
-  assemblyscript@0.28.14:
+  assemblyscript@0.28.20:
     dependencies:
-      binaryen: 123.0.0-nightly.20250530
+      binaryen: 131.0.0-nightly.20260721
       long: 5.3.2
 
   ast-types@0.13.4:
@@ -61463,7 +61463,7 @@ snapshots:
 
   binary-extensions@2.3.0: {}
 
-  binaryen@123.0.0-nightly.20250530: {}
+  binaryen@131.0.0-nightly.20260721: {}
 
   bindings@1.5.0:
     dependencies:

@@ -38,6 +38,8 @@ jest.mock('@hcengineering/contact-resources', () => ({
 const mockQueryInstances: Array<{ query: jest.Mock, unsubscribe: jest.Mock }> = []
 
 jest.mock('@hcengineering/presentation', () => ({
+  __esModule: true,
+  default: { metadata: { Token: 'presentation:metadata:Token' } },
   createQuery: jest.fn(() => {
     const inst = { query: jest.fn(), unsubscribe: jest.fn() }
     mockQueryInstances.push(inst)
@@ -46,6 +48,11 @@ jest.mock('@hcengineering/presentation', () => ({
   onClient: jest.fn((cb: () => void) => {
     cb()
   })
+}))
+
+// stores.ts fetches ws_members on client start; the store under test does not depend on it.
+jest.mock('@hcengineering/account-client', () => ({
+  getClient: jest.fn(() => ({ getWorkspaceMembers: jest.fn(async () => []) }))
 }))
 
 function makeParticipantInfo (sessionId: string): ParticipantInfo {

@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "./dist/",
+    "rootDir": "./src",
     "noImplicitAny": true,
     "module": "esnext",
     "target": "es2021",
@@ -18,5 +19,7 @@
       "ES2021.String",
       "ESNext.Array"
     ]
-  }
+  },
+  "include": ["./src/**/*"],
+  "exclude": ["node_modules", "dist", "types"]
 }

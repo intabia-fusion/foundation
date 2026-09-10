@@ -135,6 +135,12 @@ export function getSeparators (name: string, float: string | boolean): Separated
   return Array.isArray(result) ? (result as SeparatedItem[]) : (result as SeparatedItem)
 }
 
+/**
+ * Bumped whenever a separator config is saved. Several `Separator` components share one config
+ * (one per gap), so the others have to re-read it instead of keeping their copy from mount time.
+ */
+export const separatorsRevision = writable<Record<string, number>>({})
+
 export function saveSeparator (
   name: string,
   float: string | boolean,
@@ -145,6 +151,7 @@ export function saveSeparator (
     id,
     Array.isArray(separators) && typeof float === 'string' ? JSON.stringify(separators[0]) : JSON.stringify(separators)
   )
+  separatorsRevision.update((r) => ({ ...r, [name]: (r[name] ?? 0) + 1 }))
 }
 
 export const panelSeparators: DefSeparators = [

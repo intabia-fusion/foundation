@@ -1,11 +1,12 @@
+import { describe, it, expect, vi } from 'vitest'
 import { locationToUrl } from '../location'
 import { type Location } from '../types'
 
 // Mock svelte/store to avoid ES module issues in Jest
-jest.mock('svelte/store', () => ({
-  derived: jest.fn(),
-  get: jest.fn(),
-  writable: jest.fn()
+vi.mock('svelte/store', () => ({
+  derived: vi.fn(),
+  get: vi.fn(),
+  writable: vi.fn()
 }))
 
 describe('location', () => {

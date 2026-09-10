@@ -20,11 +20,12 @@
     deviceOptionsStore as deviceInfo,
     getSeparators,
     saveSeparator,
-    SeparatedElement,
+    separatorsRevision,
     separatorsStore,
     SeparatorState
   } from '..'
   import { panelstore } from '../panelup'
+  import { buildLayout, distribute, toSeparators, type LayoutBox } from '../separatorLayout'
 
   export let prevElementSize: SeparatedItem | undefined = undefined
   export let nextElementSize: SeparatedItem | undefined = undefined
@@ -41,9 +42,10 @@
   const checkFullWidth = (): boolean =>
     sState === SeparatorState.FLOAT && $deviceInfo.isMobile && $deviceInfo.isPortrait
 
-  const direction: 'horizontal' | 'vertical' = 'horizontal'
+  export let direction: 'horizontal' | 'vertical' = 'horizontal'
   let separators: SeparatedItem[] | null = null
-  let separatorMap: SeparatedElement[]
+  // The layout boxes carry the index of the DOM child they came from; the public SeparatedElement does not.
+  let separatorMap: Array<LayoutBox & { element: Element, styles: Map<string, string> | null }>
   let prevElSize: SeparatedItem
   let nextElSize: SeparatedItem
   let panel: SeparatedItem
@@ -55,6 +57,8 @@
   let isSeparate: boolean = false
   let excludedIndexes: number[] = []
   let correctedIndex: number = index
+  let revision: number = 0
+  let appliedDirection: 'horizontal' | 'vertical' = direction
   let realIndex: number = index
   let offset: number = 0
   let separatorsSizes: number[] | null = null
@@ -102,9 +106,10 @@
         if (parentElement === null && separator != null) parentElement = separator.parentElement
         checkSibling(true)
         calculateSeparators()
+        // Siblings may have been replaced by the layout switch: size the new ones, not the detached nodes.
+        checkSizes()
       })
-    }
-    checkSizes()
+    } else checkSizes()
   }
 
   const convertSize = (prop: TSeparatedItem): string => (typeof prop === 'number' ? `${prop}px` : '')
@@ -123,7 +128,10 @@
     const rect = element.getBoundingClientRect()
     const sizePx = direction === 'horizontal' ? rect.width : rect.height
     element.setAttribute('data-size', `${sizePx}`)
-    if (sState === SeparatorState.NORMAL) {
+    // A panel pinned by CSS keeps its own width (the mini sidebar is 3.5rem !important). Writing the
+    // measured size back would turn that pin into the stored size and collapse the panel for good.
+    const pinned = typeof size === 'number' && Math.abs(size - sizePx) >= 1
+    if (sState === SeparatorState.NORMAL && !pinned) {
       if (separators != null) separators[index + (next ? 1 : 0)].size = pxToRem(sizePx)
       if (next) nextElSize.size = typeof size === 'number' ? pxToRem(sizePx) : size
       else prevElSize.size = typeof size === 'number' ? pxToRem(sizePx) : size
@@ -151,68 +159,32 @@
     if (parentElement == null || separators === null || separatorsSizes === null) return
     const children: Element[] = Array.from(parentElement.children)
     if (children.length > 1) {
-      const hasSep = children.filter((el) => el.hasAttribute('data-float')).map((el) => el.getAttribute('data-float'))
-      const excluded = separators
-        .filter((separ) => separ.float !== undefined && !hasSep.includes(separ.float))
-        .map((separ) => separ.float)
-      excludedIndexes = []
-      separators.forEach((separ, i) => {
-        if (excluded.includes(separ.float)) excludedIndexes.push(i)
-      })
-      correctedIndex = index - excludedIndexes.filter((i) => i < index).length
-      realIndex = correctedIndex
-      const sm: SeparatedElement[] = []
-      let ind: number = 0
-      let drop: number = 0
-      children.forEach((element, i) => {
-        if (separators != null) {
-          if (separators[ind]?.float !== undefined && excluded.includes(separators[ind].float)) {
-            ind++
-            drop++
-          }
-          const styles: Map<string, string> = getStyles(element)
+      const layout = buildLayout(
+        children.map((element) => {
           const rect = element.getBoundingClientRect()
-          const size = direction === 'horizontal' ? rect.width : rect.height
-          const sep = element.classList.contains('antiSeparator')
-          const extra = !(sep || element.hasAttribute('data-size') || element.hasAttribute('data-auto'))
-          if (extra) realIndex++
-          if (!sep) {
-            sm.push({
-              id: extra ? -1 : ind,
-              element,
-              styles,
-              minSize: extra
-                ? size
-                : typeof separators[ind].minSize === 'number'
-                  ? remToPx(separators[ind].minSize as number)
-                  : remToPx(20),
-              maxSize: extra
-                ? size
-                : typeof separators[ind].maxSize === 'number'
-                  ? remToPx(separators[ind].maxSize as number)
-                  : -1,
-              size,
-              begin: ind - drop <= correctedIndex,
-              resize: false,
-              float: extra ? undefined : separators[ind].float
-            })
-            if (!extra) ind++
+          return {
+            isSeparator: element.classList.contains('antiSeparator'),
+            sized: element.hasAttribute('data-size') || element.hasAttribute('data-auto'),
+            float: element.getAttribute('data-float') ?? undefined,
+            size: direction === 'horizontal' ? rect.width : rect.height
           }
-        }
-      })
-      separatorMap = sm
-      const startBoxes = separatorMap.filter((sm) => sm.begin)
-      const endBoxes = separatorMap.filter((sm) => !sm.begin)
-      containers.minStart = startBoxes.map((box) => box.minSize).reduce((prev, a) => prev + a, 0)
-      containers.minEnd = endBoxes.map((box) => box.minSize).reduce((prev, a) => prev + a, 0)
-      containers.maxStart =
-        startBoxes.filter((box) => box.maxSize === -1).length > 0
-          ? -1
-          : startBoxes.map((box) => box.maxSize).reduce((prev, a) => prev + a, 0)
-      containers.maxEnd =
-        endBoxes.filter((box) => box.maxSize === -1).length > 0
-          ? -1
-          : endBoxes.map((box) => box.maxSize).reduce((prev, a) => prev + a, 0)
+        }),
+        separators,
+        index,
+        remToPx
+      )
+      excludedIndexes = layout.excludedIndexes
+      correctedIndex = layout.correctedIndex
+      realIndex = layout.realIndex
+      separatorMap = layout.boxes.map((box) => ({
+        ...box,
+        element: children[box.childIndex],
+        styles: getStyles(children[box.childIndex])
+      }))
+      containers.minStart = layout.containers.minStart
+      containers.minEnd = layout.containers.minEnd
+      containers.maxStart = layout.containers.maxStart
+      containers.maxEnd = layout.containers.maxEnd
     }
     isSeparate = true
   }
@@ -238,6 +210,16 @@
       element.style.height = sizePx
       element.setAttribute('data-auto', `${rect.height}`)
     }
+  }
+
+  const isSized = (element: HTMLElement): boolean =>
+    element.hasAttribute('data-size') || element.hasAttribute('data-auto')
+
+  /** Only panels that carry no sizes yet, i.e. the ones that just replaced a sibling. */
+  const sizeNewSiblings = (): void => {
+    if (sState !== SeparatorState.NORMAL) return
+    if (prevElement != null && prevElSize != null && !isSized(prevElement)) initSize(prevElement, prevElSize)
+    if (nextElement != null && nextElSize != null && !isSized(nextElement)) initSize(nextElement, nextElSize, true)
   }
 
   const checkSizes = (): void => {
@@ -282,22 +264,6 @@
         item.resize = false
       }
     })
-  }
-
-  const resizeContainer = (id: number, min: number, max: number, count: number, stretch: boolean = false): number => {
-    const diff = max - min
-    if (diff !== 0) {
-      const size = min + (count >= diff ? (stretch ? diff : 0) : stretch ? count : diff - count)
-      separatorMap[id].size = size
-      separatorMap[id].resize = true
-      count = count - diff <= 0 ? 0 : count - diff
-    }
-    return count
-  }
-  const stretchContainer = (id: number, size: number): number => {
-    separatorMap[id].size = size
-    separatorMap[id].resize = true
-    return 0
   }
 
   function pointerMove (event: PointerEvent): void {
@@ -368,64 +334,7 @@
     if (endSizeMax !== -1 && parentCoord < parentSize.size - endSizeMax - separatorSize) {
       parentCoord = parentSize.size - endSizeMax - separatorSize
     }
-    const diff = prevCoord - parentCoord // + <-  - ->
-    let remains = diff
-    if (remains !== 0) {
-      const reverse = remains < 0
-      if (reverse) remains = Math.abs(remains)
-      const minusId = realIndex + (reverse ? 1 : 0)
-      const plusId = realIndex + (reverse ? 0 : 1)
-
-      const minusAutoBoxes = separatorMap.filter(
-        (s, i) => s.maxSize === -1 && ((!reverse && i < realIndex) || (reverse && i > realIndex + 1))
-      )
-      const minusBoxes = separatorMap.filter(
-        (s, i) => s.maxSize !== -1 && ((!reverse && i < realIndex) || (reverse && i > realIndex + 1))
-      )
-      const minusBox = separatorMap[minusId]
-      const startMinus = separatorMap[minusId].maxSize === -1
-      const plusAutoBoxes = separatorMap.filter(
-        (s, i) => s.maxSize === -1 && ((!reverse && i > realIndex + 1) || (reverse && i < realIndex))
-      )
-      const plusBoxes = separatorMap.filter(
-        (s, i) => s.maxSize !== -1 && ((!reverse && i > realIndex + 1) || (reverse && i < realIndex))
-      )
-      const plusBox = separatorMap[plusId]
-      const startPlus = separatorMap[plusId].maxSize === -1
-
-      // Find for crop
-      if (startMinus && minusBox.size - minusBox.minSize > 0) {
-        remains = resizeContainer(minusId, minusBox.minSize, minusBox.size, remains)
-      }
-      if (remains > 0 && minusAutoBoxes.length > 0) {
-        minusAutoBoxes.forEach((box) => {
-          if (remains > 0) remains = resizeContainer(box.id, box.minSize, box.size, remains)
-        })
-      }
-      if (remains > 0 && !startMinus && minusBox.size - minusBox.minSize > 0) {
-        remains = resizeContainer(minusId, minusBox.minSize, minusBox.size, remains)
-      }
-      if (remains > 0 && minusBoxes.length > 0) {
-        minusBoxes.forEach((box) => {
-          if (remains > 0) remains = resizeContainer(box.id, box.minSize, box.size, remains)
-        })
-      }
-      let needAdd: number = Math.abs(diff) - remains
-      // Find for stretch
-      if (needAdd > 0 && startPlus) needAdd = stretchContainer(plusId, plusBox.size + needAdd)
-      if (needAdd > 0 && plusAutoBoxes.length > 0) {
-        const div = needAdd / plusAutoBoxes.length
-        plusAutoBoxes.forEach((box) => (needAdd = stretchContainer(box.id, box.size + div)))
-      }
-      if (needAdd > 0 && plusBox.maxSize - plusBox.size > 0) {
-        needAdd = resizeContainer(plusId, plusBox.size, plusBox.maxSize, needAdd, true)
-      }
-      if (needAdd > 0 && plusBoxes.length > 0) {
-        plusBoxes.forEach((box) => {
-          if (needAdd > 0) needAdd = resizeContainer(box.id, box.size, box.maxSize, needAdd, true)
-        })
-      }
-    }
+    distribute(separatorMap, realIndex, prevCoord - parentCoord) // + <-  - ->
     applyStyles()
     if ($panelstore.panel?.refit !== undefined) $panelstore.panel.refit()
   }
@@ -441,25 +350,14 @@
     if (sState === SeparatorState.NORMAL) {
       applyStyles(true)
       if (index !== -1 && separators != null && separatorMap != null) {
-        let ind: number = 0
-        const sep: SeparatedItem[] = []
-        separatorMap = separatorMap.filter((sm) => sm.id !== -1)
-        separators.forEach((sm, i) => {
-          let save = false
-          if (excludedIndexes.includes(i)) {
-            save = true
-            ind++
-          }
-          if (save) sep.push(sm)
-          else {
-            sep.push({
-              size: separatorMap[i - ind].maxSize === -1 ? 'auto' : pxToRem(separatorMap[i - ind].size),
-              minSize: pxToRem(separatorMap[i - ind].minSize),
-              maxSize: separatorMap[i - ind].maxSize === -1 ? 'auto' : pxToRem(separatorMap[i - ind].maxSize),
-              float: separatorMap[i - ind].float
-            })
-          }
-        })
+        const sep = toSeparators(separatorMap, separators, excludedIndexes, pxToRem)
+        // Keep the in-memory config in step with the store, or a later panel swap resizes to the
+        // sizes the panels had before this drag. saveSeparator bumps separatorsRevision, which is
+        // how the other separators sharing this config pick the change up.
+        separators = sep
+        if (prevElementSize === undefined) prevElSize = sep[index] ?? prevElSize
+        if (nextElementSize === undefined) nextElSize = sep[index + 1] ?? nextElSize
+        revision = ($separatorsRevision[name] ?? 0) + 1
         saveSeparator(name, false, sep)
       }
     } else if (sState === SeparatorState.FLOAT && parentElement != null) {
@@ -512,20 +410,23 @@
     document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize'
   }
 
-  const checkSibling = (start: boolean = false): void => {
-    if (separator === null) return
-    if ((prevElement === null || start) && separator != null) {
-      prevElement = separator.previousElementSibling as HTMLElement
+  /** Returns true when the siblings changed, i.e. the panels around the separator were replaced. */
+  const checkSibling = (start: boolean = false): boolean => {
+    if (separator == null) return false
+    const prev = separator.previousElementSibling as HTMLElement | null
+    const next = separator.nextElementSibling as HTMLElement | null
+    const changed = prev !== prevElement || next !== nextElement
+    if (start || changed) {
+      prevElement = prev
+      nextElement = next
     }
-    if ((nextElement === null || start) && separator != null) {
-      nextElement = separator.nextElementSibling as HTMLElement
-    }
-    if (separators != null && prevElement != null && separators[index].float !== undefined) {
+    if (separators != null && prevElement != null && separators[index]?.float !== undefined) {
       prevElement.setAttribute('data-float', separators[index].float ?? '')
     }
-    if (separators != null && nextElement != null && separators[index + 1].float !== undefined) {
+    if (separators != null && nextElement != null && separators[index + 1]?.float !== undefined) {
       nextElement.setAttribute('data-float', separators[index + 1].float ?? '')
     }
+    return changed
   }
   const checkParent = (): void => {
     if (parentElement === null && separator != null) parentElement = separator.parentElement
@@ -536,9 +437,14 @@
     if (container === null) return
     if (container.hasAttribute('data-float')) container.removeAttribute('data-float')
     if (container.hasAttribute('data-size')) container.removeAttribute('data-size')
+    if (container.hasAttribute('data-auto')) container.removeAttribute('data-auto')
+    // Both axes: a direction switch has to drop the sizes the previous axis left behind.
     container.style.width = ''
     container.style.minWidth = ''
     container.style.maxWidth = ''
+    container.style.height = ''
+    container.style.minHeight = ''
+    container.style.maxHeight = ''
   }
   const clearSibling = (): void => {
     if (separators != null && prevElement != null && separators[index].float !== undefined) {
@@ -661,10 +567,25 @@
   afterUpdate(() => {
     if (mounted) {
       if (sState === SeparatorState.FLOAT) checkParent()
-      else if (sState === SeparatorState.NORMAL) checkSibling()
+      // A swapped panel is a new DOM node with no sizes on it yet. Panels that already carry sizes
+      // are left alone: re-applying the config to them fights whoever set those sizes.
+      else if (sState === SeparatorState.NORMAL && checkSibling()) sizeNewSiblings()
     }
   })
   $: disabled = $separatorsStore.filter((f) => disabledWhen.findIndex((d) => d === f) !== -1).length > 0
+  // Another separator on the same config saved new sizes: re-read them instead of keeping our copy.
+  $: if (mounted && sState === SeparatorState.NORMAL && ($separatorsRevision[name] ?? 0) !== revision) {
+    revision = $separatorsRevision[name] ?? 0
+    fetchSeparators()
+    checkSizes()
+  }
+  // The axis decides which CSS properties carry the sizes, so a switch has to redo them.
+  $: if (mounted && direction !== appliedDirection) {
+    appliedDirection = direction
+    if (prevElement != null) clearContainer(prevElement)
+    if (nextElement != null) clearContainer(nextElement)
+    checkSizes()
+  }
 </script>
 
 {#if sState !== SeparatorState.HIDDEN}

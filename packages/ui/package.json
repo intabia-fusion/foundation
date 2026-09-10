@@ -10,24 +10,27 @@
     "build:docs": "api-extractor run --local",
     "format": "format src",
     "svelte-check": "do-svelte-check",
-    "test": "jest --passWithNoTests --silent",
+    "test": "vitest run --silent",
+    "bench": "vitest bench --run",
     "_phase:svelte-check": "do-svelte-check",
     "_phase:build": "compile build-ui",
     "_phase:format": "format src",
-    "_phase:test": "jest --passWithNoTests --silent"
+    "_phase:test": "vitest run --silent"
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",
+    "@stylistic/eslint-plugin": "catalog:",
+    "@sveltejs/vite-plugin-svelte": "catalog:",
     "@types/dompurify": "catalog:",
-    "@types/jest": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
     "eslint": "catalog:",
+    "eslint-config-standard": "catalog:",
     "eslint-plugin-import": "catalog:",
     "eslint-plugin-n": "catalog:",
     "eslint-plugin-promise": "catalog:",
     "eslint-plugin-svelte": "catalog:",
-    "jest": "catalog:",
+    "jsdom": "catalog:",
     "prettier": "catalog:",
     "prettier-plugin-svelte": "catalog:",
     "sass": "catalog:",
@@ -35,10 +38,9 @@
     "svelte-eslint-parser": "catalog:",
     "svelte-loader": "catalog:",
     "svelte-preprocess": "catalog:",
-    "ts-jest": "catalog:",
     "typescript": "catalog:",
-    "eslint-config-standard": "catalog:",
-    "@stylistic/eslint-plugin": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "dependencies": {
     "@hcengineering/analytics": "workspace:^0.7.17",
@@ -46,13 +48,13 @@
     "@hcengineering/platform": "workspace:^0.7.19",
     "@hcengineering/theme": "workspace:^0.7.0",
     "autolinker": "^4.1.5",
+    "blurhash": "catalog:",
     "date-fns": "catalog:",
     "date-fns-tz": "catalog:",
     "dompurify": "^3.4.14",
     "fast-equals": "catalog:",
-    "svelte": "catalog:",
     "plyr": "catalog:",
-    "blurhash": "catalog:"
+    "svelte": "catalog:"
   },
   "repository": "https://github.com/hcengineering/platform",
   "publishConfig": {

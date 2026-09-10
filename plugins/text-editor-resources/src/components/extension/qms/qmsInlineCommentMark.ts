@@ -39,7 +39,9 @@ export const findQMSInlineCommentMark = (node: Node): ProseMirrorMark | undefine
     return
   }
 
-  return node.marks.find((mark) => mark.type.name === qmsInlineCommentMarkName && mark.attrs[qmsInlineCommentMarkName])
+  return node.marks.find(
+    (mark) => mark.type.name === qmsInlineCommentMarkName && mark.attrs[qmsInlineCommentMarkName] != null
+  )
 }
 
 export function getNodeElement (editor: Editor, uuid: string): Element | null {
@@ -105,7 +107,7 @@ export const QMSInlineCommentMark = Mark.create<QMSInlineCommentMarkOptions>({
     return {
       [qmsInlineCommentMarkName]: {
         default: null,
-        parseHTML: (el) => (el as HTMLSpanElement).getAttribute(qmsInlineCommentMarkName)
+        parseHTML: (el) => el.getAttribute(qmsInlineCommentMarkName)
       }
     }
   },
@@ -115,7 +117,7 @@ export const QMSInlineCommentMark = Mark.create<QMSInlineCommentMarkOptions>({
       {
         tag: `span[${qmsInlineCommentMarkName}]`,
         getAttrs: (el) => {
-          const value = (el as HTMLSpanElement).getAttribute(qmsInlineCommentMarkName)?.trim()
+          const value = el.getAttribute(qmsInlineCommentMarkName)?.trim()
           if (value === null || value === undefined || value.length === 0) {
             return false
           }

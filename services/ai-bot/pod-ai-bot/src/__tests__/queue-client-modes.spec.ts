@@ -89,7 +89,7 @@ describe('AI Bot Queue and Client Modes', () => {
         sampleRate: 16000,
         channels: 1,
         bitsPerSample: 16,
-        audioFormat: 'ogg' as AudioFormat,
+        audioFormat: 'ogg',
         placeholderMessageId: 'msg-123'
       }
     })
@@ -202,7 +202,7 @@ describe('AI Bot Queue and Client Modes', () => {
           sampleRate: 16000,
           channels: 1,
           bitsPerSample: 16,
-          audioFormat: 'ogg' as AudioFormat
+          audioFormat: 'ogg'
         })
       }
 

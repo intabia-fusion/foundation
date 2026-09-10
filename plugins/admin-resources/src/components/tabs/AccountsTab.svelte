@@ -140,15 +140,15 @@
   $: groups =
     sortKey === 'lastVisit'
       ? accounts.reduce<Array<{ label: string | null, items: AccountAggregatedInfo[] }>>((res, a) => {
-        const label = bucketOf(a.lastVisit)
-        const last = res[res.length - 1]
-        if (last?.label === label) {
-          last.items.push(a)
-        } else {
-          res.push({ label, items: [a] })
-        }
-        return res
-      }, [])
+          const label = bucketOf(a.lastVisit)
+          const last = res[res.length - 1]
+          if (last?.label === label) {
+            last.items.push(a)
+          } else {
+            res.push({ label, items: [a] })
+          }
+          return res
+        }, [])
       : [{ label: null, items: accounts }]
 
   function lastVisitDays (lastVisit: number | undefined): string {

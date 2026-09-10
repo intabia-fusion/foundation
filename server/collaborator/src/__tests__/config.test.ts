@@ -31,7 +31,7 @@ describe('config', () => {
   })
 
   afterAll(() => {
-    process.env = originalEnv as any
+    process.env = originalEnv
   })
 
   it('should load config with all required env variables', () => {

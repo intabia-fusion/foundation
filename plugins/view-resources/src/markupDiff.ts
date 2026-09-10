@@ -106,8 +106,7 @@ function prune (node1: MarkupNode, node2: MarkupNode): MarkupNode[] {
     // (table rows excluded: dropping cells would shift the rest into the wrong columns)
     if (
       child1 !== undefined &&
-      child2 !== undefined &&
-      child1.type === child2.type &&
+      child1.type === child2?.type &&
       prunable.has(child1.type) &&
       child1.type !== MarkupNodeType.table_row
     ) {

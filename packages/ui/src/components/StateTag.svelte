@@ -25,7 +25,9 @@
 
   export let type: StateType
   export let label: LabelString
-  export let params: LabelParams = {} as unknown as LabelParams
+  // LabelParams is conditional on the generic, so an empty object literal no longer widens into it.
+  const noParams: any = {}
+  export let params: LabelParams = noParams
 </script>
 
 <div

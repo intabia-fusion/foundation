@@ -59,7 +59,7 @@ export type AttachmentValue = Ref<Blob> | Ref<Attachment> | DraftAttachment | At
 /**
  * @public
  */
-export interface Embedding extends Attachment {}
+export type Embedding = Attachment
 
 /**
  * @public
@@ -69,7 +69,7 @@ export type AttachmentMetadata = BlobMetadata
 /**
  * @public
  */
-export interface Photo extends Attachment {}
+export type Photo = Attachment
 
 /**
  * @public

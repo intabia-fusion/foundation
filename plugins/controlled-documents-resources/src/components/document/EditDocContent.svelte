@@ -269,11 +269,11 @@
   $: refActions = !$isEditable
     ? []
     : defaultRefActions
-      .concat([
-        { label: textEditorPlugin.string.Attach, icon: AttachIcon, action: handleAttach, order: 1001 },
-        { label: textEditorPlugin.string.Table, icon: TableIcon, action: handleTable, order: 1500 }
-      ])
-      .sort((a, b) => a.order - b.order)
+        .concat([
+          { label: textEditorPlugin.string.Attach, icon: AttachIcon, action: handleAttach, order: 1001 },
+          { label: textEditorPlugin.string.Table, icon: TableIcon, action: handleTable, order: 1500 }
+        ])
+        .sort((a, b) => a.order - b.order)
 
   function getState (att: Attachment): DocumentAttachmentState | undefined {
     if (!hierarchy.hasMixin(att, documents.mixin.DocumentAttachment)) return undefined

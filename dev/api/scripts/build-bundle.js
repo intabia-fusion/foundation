@@ -363,8 +363,27 @@ function mergeVersion(existing, incoming, strategy, name, from) {
   return existing
 }
 
+// The bundle is installed by npm outside the workspace, so pnpm's "catalog:" protocol
+// has to be resolved back to a concrete range here.
+function loadCatalogs() {
+  const ws = yaml.load(fs.readFileSync(path.join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8')) || {}
+  return { default: ws.catalog || {}, named: ws.catalogs || {} }
+}
+
+function resolveCatalog(dep, range, catalogs) {
+  if (!range.startsWith('catalog:')) return range
+  const name = range.slice('catalog:'.length).trim()
+  const table = name === '' || name === 'default' ? catalogs.default : catalogs.named[name]
+  const resolved = table && table[dep]
+  if (resolved == null) {
+    throw new Error(`build-bundle: "${dep}": "${range}" has no entry in pnpm-workspace.yaml`)
+  }
+  return resolved
+}
+
 function collectExternalDeps(bundle, projects, partial, strategy, sourceScopes) {
   const deps = {}
+  const catalogs = loadCatalogs()
   for (const name of bundle) {
     if (partial.has(name)) continue
     const pkg = projects.get(name).pkgJson
@@ -374,7 +393,7 @@ function collectExternalDeps(bundle, projects, partial, strategy, sourceScopes) 
       for (const [dep, range] of Object.entries(src)) {
         if (matchScope(dep, sourceScopes)) continue
         if (typeof range !== 'string' || range.startsWith('workspace:')) continue
-        deps[dep] = mergeVersion(deps[dep], range, strategy, dep, name)
+        deps[dep] = mergeVersion(deps[dep], resolveCatalog(dep, range, catalogs), strategy, dep, name)
       }
     }
   }

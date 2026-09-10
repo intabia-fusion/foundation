@@ -162,7 +162,7 @@ export function createMockTx (store: { docs?: Doc[] } = {}): TxOperations {
       }
       if (cls === core.class.Status) {
         if (query._id?.$in !== undefined) {
-          return allDocs.filter((d) => d._class === core.class.Status && query._id.$in.includes(d._id))
+          return allDocs.filter((d) => d._class === core.class.Status && query._id.$in.includes(d._id) === true)
         }
         return allDocs.filter((d) => d._class === core.class.Status)
       }
@@ -184,7 +184,7 @@ export function createMockTx (store: { docs?: Doc[] } = {}): TxOperations {
       }
       if (cls === workflow.class.Screen) {
         if (query._id?.$in !== undefined) {
-          return allDocs.filter((d) => d._class === workflow.class.Screen && query._id.$in.includes(d._id))
+          return allDocs.filter((d) => d._class === workflow.class.Screen && query._id.$in.includes(d._id) === true)
         }
         if (query.projectType !== undefined) {
           return allDocs.filter(
@@ -196,7 +196,8 @@ export function createMockTx (store: { docs?: Doc[] } = {}): TxOperations {
       if (cls === workflow.class.ScreenTab) {
         if (query.attachedTo?.$in !== undefined) {
           return allDocs.filter(
-            (d) => d._class === workflow.class.ScreenTab && query.attachedTo.$in.includes((d as any).attachedTo)
+            (d) =>
+              d._class === workflow.class.ScreenTab && query.attachedTo.$in.includes((d as any).attachedTo) === true
           )
         }
         if (query.attachedTo !== undefined) {
@@ -209,7 +210,8 @@ export function createMockTx (store: { docs?: Doc[] } = {}): TxOperations {
       if (cls === workflow.class.ScreenField) {
         if (query.attachedTo?.$in !== undefined) {
           return allDocs.filter(
-            (d) => d._class === workflow.class.ScreenField && query.attachedTo.$in.includes((d as any).attachedTo)
+            (d) =>
+              d._class === workflow.class.ScreenField && query.attachedTo.$in.includes((d as any).attachedTo) === true
           )
         }
         if (query.attachedTo !== undefined) {
@@ -221,16 +223,18 @@ export function createMockTx (store: { docs?: Doc[] } = {}): TxOperations {
       }
       if (cls === core.class.Enum) {
         if (query._id?.$in !== undefined) {
-          return allDocs.filter((d) => d._class === core.class.Enum && query._id.$in.includes(d._id))
+          return allDocs.filter((d) => d._class === core.class.Enum && query._id.$in.includes(d._id) === true)
         }
         return allDocs.filter((d) => d._class === core.class.Enum)
       }
       if (cls === core.class.Attribute) {
         if (query._id?.$in !== undefined) {
-          return allDocs.filter((d) => d._class === core.class.Attribute && query._id.$in.includes(d._id))
+          return allDocs.filter((d) => d._class === core.class.Attribute && query._id.$in.includes(d._id) === true)
         }
         if (query.name?.$in !== undefined) {
-          return allDocs.filter((d) => d._class === core.class.Attribute && query.name.$in.includes((d as any).name))
+          return allDocs.filter(
+            (d) => d._class === core.class.Attribute && query.name.$in.includes((d as any).name) === true
+          )
         }
         if (query.attributeOf !== undefined) {
           return allDocs.filter(
@@ -249,7 +253,7 @@ export function createMockTx (store: { docs?: Doc[] } = {}): TxOperations {
     }),
     createDoc: jest.fn(async (_cls: Ref<Class<Doc>>, _space: any, props: any): Promise<any> => {
       const id = 'new-id-' + Math.random().toString(36).slice(2, 7)
-      allDocs.push({ _id: id, _class: _cls, ...props } as unknown as Doc)
+      allDocs.push({ _id: id, _class: _cls, ...props })
       return id
     }),
     createMixin: jest.fn(async () => ({})),
@@ -263,7 +267,7 @@ export function createMockTx (store: { docs?: Doc[] } = {}): TxOperations {
         props: any
       ): Promise<any> => {
         const id = 'new-id-' + Math.random().toString(36).slice(2, 7)
-        allDocs.push({ _id: id, _class: _cls, ...props } as unknown as Doc)
+        allDocs.push({ _id: id, _class: _cls, ...props })
         return id
       }
     ),

@@ -18,7 +18,7 @@ import { type Transaction } from '@tiptap/pm/state'
 
 const metaKey = '$editable'
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EditableOptions {}
 
 export interface EditableStorage {

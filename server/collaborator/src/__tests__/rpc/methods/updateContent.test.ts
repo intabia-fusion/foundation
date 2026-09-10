@@ -88,7 +88,7 @@ describe('updateContent', () => {
 
     const result = await updateContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'test-document',
       {
         content: { content: '<p>Updated Content</p>' }
@@ -123,7 +123,7 @@ describe('updateContent', () => {
 
     await updateContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'test-document',
       {
         content: {
@@ -159,7 +159,7 @@ describe('updateContent', () => {
 
     await updateContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'test-document',
       {
         content: { content: '<p>New Content</p>' }
@@ -252,7 +252,7 @@ describe('updateContent', () => {
 
     const result = await updateContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'test-document',
       {
         content: {}

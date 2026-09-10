@@ -478,6 +478,7 @@ class PlatformQueueConsumerImpl implements ConsumerHandle {
     await this.doSubscribe()
 
     await this.cc.run({
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- kafkajs passes these as closures
       eachMessage: async ({ message, pause, heartbeat }) => {
         const msgKey = message.key?.toString() ?? ''
         const msgData = JSON.parse(message.value?.toString() ?? '{}')
@@ -642,6 +643,7 @@ class PlatformQueueBatchConsumerImpl implements ConsumerHandle {
 
     await this.cc.run({
       eachBatchAutoResolve: false,
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- kafkajs passes these as closures
       eachBatch: async ({ batch, resolveOffset, heartbeat, pause, isRunning, isStale }) => {
         const partitionNum = batch.partition
         // Parse all messages upfront so a parse error inside a chunk doesn't desync offsets

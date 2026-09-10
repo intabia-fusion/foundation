@@ -544,7 +544,7 @@
           }
 
           const streamTrack = stream.getAudioTracks()[0]
-          if (streamTrack != null && streamTrack.readyState === 'ended') {
+          if (streamTrack?.readyState === 'ended') {
             problems.push(`${trackKey}: stream audio track ended`)
             needsRecovery = true
             continue

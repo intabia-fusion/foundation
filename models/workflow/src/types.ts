@@ -96,19 +96,19 @@ export class TScreenField extends TAttachedDoc implements ScreenField {
   declare collection: 'fields'
 
   @Prop(TypeRef(core.class.Mixin), core.string.Class)
-    mixin?: Ref<Class<Mixin<Doc>>>
+  mixin?: Ref<Class<Mixin<Doc>>>
 
   @Prop(TypeRef(core.class.Attribute), workflow.string.Attribute)
-    attribute!: Ref<AnyAttribute>
+  attribute!: Ref<AnyAttribute>
 
   @Prop(TypeString(), workflow.string.FieldKey)
-    fieldKey!: string
+  fieldKey!: string
 
   @Prop(TypeBoolean(), workflow.string.Required)
-    required!: boolean
+  required!: boolean
 
   @Prop(TypeString(), task.string.Rank)
-    rank!: Rank
+  rank!: Rank
 }
 
 @Model(workflow.class.ScreenTab, core.class.AttachedDoc, DOMAIN_WORKFLOW)
@@ -118,49 +118,49 @@ export class TScreenTab extends TAttachedDoc implements ScreenTab {
   declare collection: 'tabs'
 
   @Prop(TypeString(), workflow.string.Name)
-    name!: string
+  name!: string
 
   @Prop(TypeString(), task.string.Rank)
-    rank!: Rank
+  rank!: Rank
 
   @Prop(Collection(workflow.class.ScreenField), workflow.string.ScreenField)
-    fields?: number
+  fields?: number
 }
 
 @Model(workflow.class.Screen, core.class.Doc, DOMAIN_WORKFLOW)
 export class TScreen extends TDoc implements Screen {
   @Prop(TypeString(), workflow.string.Name)
-    name!: string
+  name!: string
 
   @Prop(TypeString(), workflow.string.Description)
-    description?: string
+  description?: string
 
   @Prop(TypeRef(task.class.ProjectType), task.string.ProjectType)
-    projectType!: Ref<ProjectType>
+  projectType!: Ref<ProjectType>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    targetClass!: Ref<Class<Task>>
+  targetClass!: Ref<Class<Task>>
 
   @Prop(Collection(workflow.class.ScreenTab), workflow.string.ScreenTab)
-    tabs?: number
+  tabs?: number
 }
 
 @Model(workflow.class.Workflow, core.class.Doc, DOMAIN_WORKFLOW)
 export class TWorkflow extends TDoc implements Workflow {
   @Prop(TypeRef(task.class.ProjectType), task.string.ProjectType)
-    projectType!: Ref<ProjectType>
+  projectType!: Ref<ProjectType>
 
   @Prop(TypeRef(task.class.TaskType), task.string.TaskType)
-    taskType!: Ref<TaskType>
+  taskType!: Ref<TaskType>
 
   @Prop(TypeString(), workflow.string.Name)
-    name!: string
+  name!: string
 
   @Prop(Collection(workflow.class.WorkflowTransition), workflow.string.WorkflowTransition)
-    transitions?: number
+  transitions?: number
 
   @Prop(ArrOf(TypeRef(core.class.Status)), workflow.string.InitialStatuses)
-    initialStatuses?: Ref<Status>[]
+  initialStatuses?: Ref<Status>[]
 }
 
 @Model(workflow.class.WorkflowTransition, core.class.AttachedDoc, DOMAIN_WORKFLOW)
@@ -170,53 +170,53 @@ export class TWorkflowTransition extends TAttachedDoc implements WorkflowTransit
   declare collection: 'transitions'
 
   @Prop(TypeString(), workflow.string.Name)
-    name!: string
+  name!: string
 
   @Prop(ArrOf(TypeRef(core.class.Status)), workflow.string.From)
-    from!: Ref<Status>[] | null
+  from!: Ref<Status>[] | null
 
   @Prop(TypeRef(core.class.Status), workflow.string.To)
-    to!: Ref<Status>
+  to!: Ref<Status>
 
   @Prop(TypeString(), task.string.Rank)
-    rank!: Rank
+  rank!: Rank
 
   @Prop(ArrOf(TypeRecord()), workflow.string.Validators)
-    validators?: WorkflowValidatorConfig[]
+  validators?: WorkflowValidatorConfig[]
 
   @Prop(ArrOf(TypeRecord()), workflow.string.Requests)
-    requests?: WorkflowRequestConfig[]
+  requests?: WorkflowRequestConfig[]
 
   @Prop(ArrOf(TypeRecord()), workflow.string.PostFunctions)
-    postFunctions?: WorkflowPostFunctionConfig[]
+  postFunctions?: WorkflowPostFunctionConfig[]
 }
 
 @TypeMixin(workflow.mixin.ProjectWorkflow, task.class.Project)
 export class TProjectWorkflow extends TProject implements ProjectWorkflow {
   @Prop(TypeRecord(), workflow.string.WorkflowMapping)
-    workflows?: Record<Ref<TaskType>, Ref<Workflow>>
+  workflows?: Record<Ref<TaskType>, Ref<Workflow>>
 }
 
 @Model(workflow.class.WorkflowValueFunction, core.class.Doc, DOMAIN_WORKFLOW)
 export class TWorkflowValueFunction extends TDoc implements WorkflowValueFunction {
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    of!: Ref<Class<Doc>>
+  of!: Ref<Class<Doc>>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    to?: Ref<Class<Doc>>
+  to?: Ref<Class<Doc>>
 
   @Prop(TypeString(), workflow.string.Category)
-    category!: string
+  category!: string
 
   @Prop(TypeRecord(), core.string.Object)
-    label!: IntlString
+  label!: IntlString
 
   @Prop(TypeString(), workflow.string.Type)
-    type!: 'convert' | 'transform'
+  type!: 'convert' | 'transform'
 
   @Prop(TypeAny('', workflow.string.Editor), workflow.string.Editor)
-    editor?: AnyComponent
+  editor?: AnyComponent
 
   @Prop(TypeAny('', workflow.string.PropsLabelPresenter), workflow.string.PropsLabelPresenter)
-    propsLabelPresenter?: Resource<(props: Record<string, any>) => IntlString>
+  propsLabelPresenter?: Resource<(props: Record<string, any>) => IntlString>
 }

@@ -47,22 +47,22 @@ export class TQuestion<QuestionData extends NonNullable<any>> extends TAttachedD
   @Prop(TypeRank(), questions.string.Rank)
   @Index(IndexKind.Indexed)
   @Hidden()
-    rank!: Rank
+  rank!: Rank
 
   @Prop(TypeString(), questions.string.Question)
   @Index(IndexKind.FullText)
-    title: string = ''
+  title: string = ''
 
   @Prop(TypeRef(contact.mixin.Employee), questions.string.Owner)
   @Index(IndexKind.Indexed)
-    owner!: Ref<Employee>
+  owner!: Ref<Employee>
 
   @Prop(TypeTimestamp(), questions.string.ReleasedDate)
   @Index(IndexKind.Indexed)
-    releasedOn: Timestamp | null = null
+  releasedOn: Timestamp | null = null
 
   @Prop(TypeRef(contact.mixin.Employee), questions.string.ReleasedBy)
-    releasedBy: Ref<Employee> | null = null
+  releasedBy: Ref<Employee> | null = null
 
   // Should be overridden and decorated in child classes
   questionData!: QuestionData

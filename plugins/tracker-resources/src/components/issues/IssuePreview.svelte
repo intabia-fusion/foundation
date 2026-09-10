@@ -60,7 +60,7 @@
     }
   }
 
-  $: void getParent(issue?.attachedTo as Ref<Issue>)
+  $: void getParent(issue?.attachedTo)
   $: descriptionKey = {
     key: 'description',
     attr: client.getHierarchy().getAttribute(tracker.class.Issue, 'description')

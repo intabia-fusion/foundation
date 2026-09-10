@@ -85,9 +85,9 @@ function parseDocLegacy<T extends Doc> (doc: DBDoc, schema: Schema, keepHash: bo
       } else {
         ;(rest as any)[key] = null
       }
-    } else if (schema[key] !== undefined && schema[key].type === 'bigint') {
+    } else if (schema[key]?.type === 'bigint') {
       ;(rest as any)[key] = Number.parseInt((rest as any)[key])
-    } else if (schema[key] !== undefined && schema[key].type === 'text[]' && typeof (rest as any)[key] === 'string') {
+    } else if (schema[key]?.type === 'text[]' && typeof (rest as any)[key] === 'string') {
       ;(rest as any)[key] = decodeArray((rest as any)[key])
     }
   }
@@ -124,9 +124,9 @@ function parseDocWithProjectionLegacy<T extends Doc> (
       } else {
         ;(rest as any)[key] = null
       }
-    } else if (schema[key] !== undefined && schema[key].type === 'bigint') {
+    } else if (schema[key]?.type === 'bigint') {
       ;(rest as any)[key] = Number.parseInt((rest as any)[key])
-    } else if (schema[key] !== undefined && schema[key].type === 'text[]' && typeof (rest as any)[key] === 'string') {
+    } else if (schema[key]?.type === 'text[]' && typeof (rest as any)[key] === 'string') {
       ;(rest as any)[key] = decodeArray((rest as any)[key])
     }
   }

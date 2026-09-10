@@ -128,7 +128,7 @@
   )
   let currentProject: Project | undefined = undefined
 
-  $: thisRef !== undefined && thisRef.scrollIntoView({ behavior: 'smooth' })
+  $: thisRef?.scrollIntoView({ behavior: 'smooth' })
 
   $: labelRefs = labels.map((it) => ({ ...(it as unknown as TagReference), _id: generateId(), tag: it._id }))
 </script>

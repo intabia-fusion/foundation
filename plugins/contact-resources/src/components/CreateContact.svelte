@@ -21,7 +21,7 @@
 
         if (component) {
           actions.push({
-            icon: cl.icon as Asset,
+            icon: cl.icon,
             label: cl.label,
             action: async () => {
               closePopup()
@@ -31,7 +31,7 @@
         } else if (create) {
           const action = await getResource(create)
           actions.push({
-            icon: cl.icon as Asset,
+            icon: cl.icon,
             label: cl.label,
             action: async () => {
               await action()

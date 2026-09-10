@@ -732,7 +732,7 @@ export class MarkdownState implements IState {
   }
 
   private updateHardBreakMarks (state: InlineState, index: number): void {
-    if (state.node !== undefined && state.node.type === MarkupNodeType.hard_break) {
+    if (state.node?.type === MarkupNodeType.hard_break) {
       state.marks = this.filterHardBreakMarks(state.marks, index, state)
     }
   }
@@ -753,7 +753,7 @@ export class MarkdownState implements IState {
   }
 
   private isText (node?: MarkupNode): boolean {
-    return node !== undefined && node.type === MarkupNodeType.text && node.text !== undefined
+    return node?.type === MarkupNodeType.text && node.text !== undefined
   }
 
   // :: (Node)

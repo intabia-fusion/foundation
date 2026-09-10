@@ -97,7 +97,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '1.0.0',
         sessionId: 'session-1',
         reconnect: false
-      } as any
+      }
       await client.handleMsg(1, helloResp)
 
       // Simulate disconnect
@@ -176,7 +176,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '1.0.0',
         sessionId: 'session-1',
         reconnect: false
-      } as any
+      }
       client.handleHello(1, helloResp1)
       // Wait for async onConnect callback
       await new Promise((resolve) => setTimeout(resolve, 10))
@@ -189,7 +189,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '1.0.0',
         sessionId: 'session-1',
         reconnect: true
-      } as any
+      }
       client.handleHello(1, helloResp2)
       // Wait for async onConnect callback
       await new Promise((resolve) => setTimeout(resolve, 10))
@@ -238,7 +238,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '1.0.0',
         sessionId: 'session-1',
         reconnect: true
-      } as any
+      }
       client.handleHello(1, helloResp)
 
       // Reconnect callback should be called
@@ -273,7 +273,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '1.0.0',
         sessionId: 'session-1',
         reconnect: false
-      } as any
+      }
       client.handleHello(1, helloResp1)
 
       // Reconnection with version 2.0.0
@@ -283,7 +283,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '2.0.0',
         sessionId: 'session-1',
         reconnect: true
-      } as any
+      }
       client.handleHello(1, helloResp2)
 
       expect(onUpgrade).toHaveBeenCalledWith('2.0.0')
@@ -316,7 +316,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '1.0.0',
         sessionId: 'session-1',
         reconnect: false
-      } as any
+      }
       client.handleHello(1, helloResp)
 
       expect(onHello).toHaveBeenCalled()
@@ -417,7 +417,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '1.0.0',
         sessionId: 'session-1',
         reconnect: true
-      } as any
+      }
       client.handleHello(1, helloResp)
 
       // Wait for async response sending
@@ -509,7 +509,7 @@ describe('ClisrClient disconnect/reconnect behavior', () => {
         serverVersion: '1.0.0',
         sessionId: 'session-1',
         reconnect: false
-      } as any
+      }
       client.handleHello(1, helloResp)
 
       expect((client as any).dialTimer).toBeUndefined()

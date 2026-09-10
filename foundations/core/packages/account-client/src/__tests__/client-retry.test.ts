@@ -31,7 +31,7 @@ describe('AccountClient network retries', () => {
     const fetchMock = jest.fn(async () => {
       throw new TypeError('Failed to fetch')
     })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
+    globalThis.fetch = fetchMock
 
     const client = getClient('http://accounts.test', undefined, 60)
     // Retry window is already over if the deadline is captured at construction time

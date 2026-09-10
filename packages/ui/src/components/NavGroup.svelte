@@ -70,7 +70,7 @@
   $: id = `navGroup-${categoryName}`
   let pressed: boolean = false
 
-  $: isStored = _id ? localStorage.getItem(getCollapsedKey(_id as string, collapsedPrefix)) !== null : false
+  $: isStored = _id ? localStorage.getItem(getCollapsedKey(_id, collapsedPrefix)) !== null : false
   $: isOpen = isStored ? !getTreeCollapsed(_id, collapsedPrefix) : (defaultOpen ?? true)
 
   const handleClick = (e: MouseEvent): void => {
@@ -87,7 +87,7 @@
     if (!empty) {
       isOpen = !isOpen
       if (_id) {
-        const key = getCollapsedKey(_id as string, collapsedPrefix)
+        const key = getCollapsedKey(_id, collapsedPrefix)
         !isOpen ? localStorage.setItem(key, 'COLLAPSED') : localStorage.setItem(key, 'EXPANDED')
       }
       dispatch('toggle', isOpen)

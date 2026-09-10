@@ -95,7 +95,7 @@ export interface BulkUpdateEvent {
 /**
  * @public
  */
-export interface TxModelUpgrade extends Tx {}
+export type TxModelUpgrade = Tx
 
 /**
  * @public
@@ -158,15 +158,15 @@ export interface TxApplyResult {
  * @public
  */
 export type MixinData<D extends Doc, M extends D> = Omit<M, keyof D> &
-PushOptions<Omit<M, keyof D>> &
-IncOptions<Omit<M, keyof D>>
+  PushOptions<Omit<M, keyof D>> &
+  IncOptions<Omit<M, keyof D>>
 
 /**
  * @public
  */
 export type MixinUpdate<D extends Doc, M extends D> = Partial<Omit<M, keyof D>> &
-PushOptions<Omit<M, keyof D>> &
-IncOptions<Omit<M, keyof D>>
+  PushOptions<Omit<M, keyof D>> &
+  IncOptions<Omit<M, keyof D>>
 
 /**
  * Define Create/Update for mixin attributes.
@@ -293,11 +293,11 @@ export interface SpaceUpdate {
  * @public
  */
 export type DocumentUpdate<T extends Doc> = Partial<Data<T>> &
-PushOptions<T> &
-SetEmbeddedOptions<T> &
-IncOptions<T> &
-UnsetOptions &
-SpaceUpdate
+  PushOptions<T> &
+  SetEmbeddedOptions<T> &
+  IncOptions<T> &
+  UnsetOptions &
+  SpaceUpdate
 
 /**
  * @public

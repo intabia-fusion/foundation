@@ -55,7 +55,7 @@
     }
 
     const hierarchy = client.getHierarchy()
-    const panel = hierarchy.classHierarchyMixin(poll._class as Ref<Class<Doc>>, view.mixin.ObjectPanel)
+    const panel = hierarchy.classHierarchyMixin(poll._class, view.mixin.ObjectPanel)
     const loc = await getObjectLinkFragment(hierarchy, poll, {}, panel?.component)
     navigate(loc)
   }

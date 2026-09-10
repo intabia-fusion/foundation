@@ -112,7 +112,7 @@
     forwardedMessageId != null &&
     forwardedMessageId === $replyingToMessageStore?._id
   ) {
-    forwardedMessage = $replyingToMessageStore as WithLookup<ChatMessage>
+    forwardedMessage = $replyingToMessageStore
   }
 
   $: if (forwardedMessageId !== undefined) {
@@ -360,7 +360,7 @@
 </script>
 
 {#if chatMessage === undefined}
-  {#if forwardedMessage !== undefined && forwardedMessage.attachedTo === object._id}
+  {#if forwardedMessage?.attachedTo === object._id}
     <ReplyToMessagePresenter replyTo={forwardedMessage} on:delete={handleReplyMessageDelete} />
   {/if}
 {:else if forwardedMessage !== undefined && currentMessage.forwardedMessage === forwardedMessage._id}

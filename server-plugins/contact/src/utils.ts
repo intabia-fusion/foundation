@@ -69,9 +69,7 @@ export async function getSocialStringsByPersons (
   })
 
   return socialIdentities.reduce<Record<Ref<Person>, PersonId[]>>((acc, s) => {
-    if (acc[s.attachedTo] === undefined) {
-      acc[s.attachedTo] = []
-    }
+    acc[s.attachedTo] ??= []
 
     acc[s.attachedTo].push(s._id)
 
@@ -189,9 +187,7 @@ export async function getSocialIdsByAccounts (
     const employee = employeesMap.get(sid.attachedTo as Ref<Employee>)
     if (employee?.personUuid === undefined) return acc
 
-    if (acc[employee.personUuid] === undefined) {
-      acc[employee.personUuid] = []
-    }
+    acc[employee.personUuid] ??= []
 
     acc[employee.personUuid].push(sid._id)
     return acc

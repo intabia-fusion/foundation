@@ -48,7 +48,7 @@ describe('handlePolarWebhook', () => {
       body: Buffer.from('payload'),
       headers: { 'webhook-signature': 'sig' }
     }
-    res = { status: statusMock as unknown as any }
+    res = { status: statusMock }
 
     publish = jest.fn().mockResolvedValue(undefined)
 

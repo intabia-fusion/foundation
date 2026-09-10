@@ -31,30 +31,6 @@ on:
         type: boolean
 
 env:
-  CacheFolders: |
-    common
-    desktop
-    desktop-package
-    foundations
-    dev
-    models
-    packages
-    plugins
-    pods
-    server
-    server-plugins
-    templates
-    services
-    workers
-    tests
-    pnpm-workspace.yaml
-    pnpm-lock.yaml
-    package.json
-    .prettierrc
-    tools
-    workers
-    ws-tests
-    qms-tests
   PublishTempFolder: publish_artifacts
   INIT_SCRIPTS_BRANCH: "main"
 
@@ -79,7 +55,9 @@ jobs:
       #   run: node common/scripts/check_model_version.js
 
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Checking layer boundaries...
         run: node common/scripts/check-layers.js
@@ -109,16 +87,7 @@ jobs:
           path: dev/api/bundle/intabia-fusion-api-*.tgz
           if-no-files-found: error
 
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
   svelte-check:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -134,22 +103,16 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
 
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
 
+      - name: Building...
+        run: pnpm build
+
       - name: Checking svelte sources...
         run: pnpm svelte-check
   formatting:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -162,17 +125,12 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
+
+      - name: Building...
+        run: pnpm build
 
       - name: Formatting...
         run: pnpm format:branch --branch ${{
@@ -186,7 +144,6 @@ jobs:
           [ -z "$(git diff --name-only '*.js' '*.ts' '*.svelte' '*.json' '*.yaml' | cat)" ]
           echo '================================================================'
   test:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -200,17 +157,16 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
-      - name: Cache build results
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-build-results
-        with:
-          path: ${{ env.CacheFolders}}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.sha }}
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
+
+      - name: Building...
+        run: pnpm build
+
+      # pods/server's compression test reads bundle/model.json, which only the bundle phase writes.
+      - name: Generating model...
+        run: pnpm --filter @hcengineering/pod-server run get-model
 
       - name: Prepare server (with rate limit retry)
         run: |
@@ -254,7 +210,9 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
@@ -308,7 +266,9 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
@@ -364,7 +324,9 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
@@ -419,7 +381,9 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
       - name: Checking for mis-matching dependencies...
-        run: node common/scripts/check-versions.js
+        run: |
+          node common/scripts/check-versions.js
+          node common/scripts/check-catalog.js
 
       - name: Installing...
         run: pnpm install --frozen-lockfile
@@ -554,25 +518,12 @@ jobs:
           node-version-file: ".nvmrc"
           cache: 'pnpm'
 
-      - name: Cache node modules
-        uses: actions/cache@v5
-        env:
-          cache-name: node
-        with:
-          path: |
-            common/temp
-          key:
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('pnpm-lock.yaml')
-            }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('pnpm-lock.yaml') }}
-
       - name: Installing...
         run: pnpm install --frozen-lockfile
       - name: Model version from git tags
         run: pnpm model-version
       - name: Package
-        run: pnpm package --to desktop -v
+        run: pnpm package --to desktop -v --esbuild-emit
       - name: Test desktop update system
         run: |
           cd desktop-package

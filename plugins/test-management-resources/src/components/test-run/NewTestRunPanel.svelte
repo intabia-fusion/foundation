@@ -74,7 +74,7 @@
   const me = getCurrentAccount()
 
   const object: Data<TestRun> = {
-    name: '' as IntlString,
+    name: '',
     description: null,
     dueDate: undefined
   }

@@ -48,7 +48,7 @@ export class NameResolver {
 
   getName<T extends Doc>(ref: Ref<T>, prefix: TokenPrefix): string {
     const token = this.toToken.get(ref)
-    return token !== undefined && token.startsWith(prefix) ? token.slice(prefix.length) : (ref as string)
+    return token?.startsWith(prefix) === true ? token.slice(prefix.length) : ref
   }
 
   getRef<T extends Doc>(prefix: TokenPrefix, name: string): Ref<T> | undefined {

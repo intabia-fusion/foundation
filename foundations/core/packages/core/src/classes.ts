@@ -184,7 +184,7 @@ export interface AttachedDoc<
  * @public
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export interface Type<T extends PropertyType> extends UXObject {}
+export type Type<T extends PropertyType> = UXObject
 
 /**
  * @public
@@ -425,7 +425,7 @@ export interface EnumOf extends Type<string> {
 /**
  * @public
  */
-export interface TypeHyperlink extends Type<Hyperlink> {}
+export type TypeHyperlink = Type<Hyperlink>
 
 /**
  * @public
@@ -522,7 +522,7 @@ export interface Space extends Doc {
 /**
  * @public
  */
-export interface SystemSpace extends Space {}
+export type SystemSpace = Space
 
 /**
  * @public

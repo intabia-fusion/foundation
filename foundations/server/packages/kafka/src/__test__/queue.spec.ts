@@ -497,7 +497,7 @@ describe('queue', () => {
             resolve()
           },
           // Increase sessionTimeout to be safely above KafkaJS internal heartbeat interval.
-          { sessionTimeout: 15000, retryDelay: 50, maxRetryDelay: 3, fromBegining: true } as any
+          { sessionTimeout: 15000, retryDelay: 50, maxRetryDelay: 3, fromBegining: true }
         )
       })
 

@@ -120,13 +120,7 @@
       'class',
       buildRootClass(getCurrentTheme(), getCurrentFontSize(), getCurrentEmoji(), accent)
     )
-    setOptions(
-      getCurrentFontSize(),
-      getCurrentTheme(),
-      getCurrentLanguage(),
-      getCurrentEmoji(),
-      accent as AccentColorType
-    )
+    setOptions(getCurrentFontSize(), getCurrentTheme(), getCurrentLanguage(), getCurrentEmoji(), accent)
   }
 
   setContext('theme', {

@@ -27,7 +27,7 @@ import core, {
 import { getEmbeddedLabel, setPlatformStatus, unknownStatus } from '@hcengineering/platform'
 import setting from '@hcengineering/setting'
 
-import task, { ProjectType, Task, TaskType } from '../index'
+import task, { ProjectType, TaskType } from '../index'
 import { createState, findStatusAttr } from '../utils'
 import { createCustomAttributes } from './attributes'
 import type {
@@ -64,8 +64,7 @@ async function createImportedStatuses (
   statusConfigs: TaskTypeStatusConfig[] | undefined
 ): Promise<Array<Ref<Status>>> {
   const hierarchy = client.getHierarchy()
-  const statusAttr =
-    findStatusAttr(hierarchy, ofClass as Ref<Class<Task>>) ?? hierarchy.getAttribute(task.class.Task, 'status')
+  const statusAttr = findStatusAttr(hierarchy, ofClass) ?? hierarchy.getAttribute(task.class.Task, 'status')
   const statusIds: Array<Ref<Status>> = []
 
   for (const statusCfg of statusConfigs ?? []) {
@@ -285,7 +284,7 @@ export async function importTaskTypeConfig (
       showParentTasks: entry.showParentTasks ?? true,
       descriptor: entry.descriptor,
       ofClass: entry.ofClass,
-      targetClass: targetClassId as Ref<Class<Task>>,
+      targetClass: targetClassId,
       statuses: statusIds,
       statusClass: core.class.Status,
       statusCategories: entry.statusCategories ?? []

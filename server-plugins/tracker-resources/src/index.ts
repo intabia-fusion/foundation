@@ -343,7 +343,7 @@ async function doIssueUpdate (updateTx: TxUpdateDoc<Issue>, control: TriggerCont
     const [newParent] = await control.findAll(
       control.ctx,
       tracker.class.Issue,
-      { _id: updateTx.operations.attachedTo as Ref<Issue> },
+      { _id: updateTx.operations.attachedTo },
       { limit: 1 }
     )
 
@@ -379,14 +379,7 @@ async function doIssueUpdate (updateTx: TxUpdateDoc<Issue>, control: TriggerCont
 
     // Remove from parent estimation list.
     const issue = await getCurrentIssue()
-    updateIssueParentEstimations(
-      issue,
-      res,
-      control,
-      issue.parents,
-      updatedParents,
-      updateTx.operations.attachedTo as Ref<Issue>
-    )
+    updateIssueParentEstimations(issue, res, control, issue.parents, updatedParents, updateTx.operations.attachedTo)
   }
 
   if (
@@ -481,11 +474,11 @@ const issueStatusPresenter: AttributePresenterFn = async (
   value: Ref<IssueStatus>,
   control: PresenterControl
 ): Promise<
-| {
-  intlString?: IntlString
-  value: any
-}
-| undefined
+  | {
+    intlString?: IntlString
+    value: any
+  }
+  | undefined
 > => {
   if (value === null || value === undefined) return undefined
   try {
@@ -516,7 +509,7 @@ const issuePriorityPresenter: AttributePresenterFn = async (
   intlString?: IntlString
   value: any
 }> => {
-  const priority = Number(value) as IssuePriority
+  const priority = Number(value)
   const key = priorityKeys[priority]
 
   return {

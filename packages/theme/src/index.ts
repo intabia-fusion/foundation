@@ -130,7 +130,7 @@ export function initThemeStore (): void {
       isThemeDark(getCurrentTheme()),
       getCurrentLanguage(),
       getCurrentEmoji(),
-      getCurrentAccentColor() as AccentColorType
+      getCurrentAccentColor()
     )
   )
 }

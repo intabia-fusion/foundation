@@ -35,7 +35,7 @@
   $: allProcesses = model.findAllSync(processPlugin.class.Process, {})
 
   function isClassLike (obj: Doc | undefined): boolean {
-    if (!obj || !obj._class) return false
+    if (!obj?._class) return false
     return hierarchy.isDerived(obj._class, core.class.Class)
   }
 

@@ -16,7 +16,7 @@ export async function assessAnswer<Q extends Question<any>, A extends Answer<Q, 
     passed: boolean
   }
   | undefined
-  > {
+> {
   if (!isAssessment(question)) {
     return undefined
   }

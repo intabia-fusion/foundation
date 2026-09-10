@@ -246,7 +246,7 @@ export class IntegrationClientImpl implements IntegrationClient {
       connectionRemoved: boolean
     }
     | undefined
-    > {
+  > {
     if (socialId == null) return
 
     try {

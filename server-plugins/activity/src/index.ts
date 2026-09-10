@@ -20,7 +20,7 @@ import { Class, Mixin, Ref } from '@hcengineering/core'
 
 import { IdentifierPresenter, TitlePresenter, UrlPresenter, AttributePresenter } from './types'
 
-export * from './types'
+export type * from './types'
 
 /**
  * @public

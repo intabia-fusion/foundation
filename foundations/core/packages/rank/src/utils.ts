@@ -52,10 +52,10 @@ export function toRank (str: string | undefined): Rank | undefined {
 /** @public */
 export function makeRank (prev: Rank | undefined, next: Rank | undefined): Rank {
   try {
-    if (prev != null && prev.trim() === '') {
+    if (prev?.trim() === '') {
       prev = undefined
     }
-    if (next != null && next.trim() === '') {
+    if (next?.trim() === '') {
       next = undefined
     }
     if (prev !== undefined && next !== undefined) {

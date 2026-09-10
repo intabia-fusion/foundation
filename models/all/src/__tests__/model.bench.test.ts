@@ -103,7 +103,7 @@ describeBench('model build performance', () => {
   it('isDerived (warm)', async () => {
     let i = 0
     await bench('isDerived (warm)', () => {
-      h.isDerived(all[i++ % all.length] as Ref<Class<Doc>>, core.class.Doc)
+      h.isDerived(all[i++ % all.length], core.class.Doc)
     })
   })
 
@@ -123,7 +123,7 @@ describeBench('model build performance', () => {
   it('findDomain', async () => {
     let i = 0
     await bench('findDomain', () => {
-      h.findDomain(all[i++ % all.length] as Ref<Class<Doc>>)
+      h.findDomain(all[i++ % all.length])
     })
   })
 
@@ -213,8 +213,8 @@ describeBench('model read performance', () => {
       { tag: 'overlay', h: oh, db: new ModelDb(oh, sdb) }
     ]
 
-    classes = aloneDb.findAllSync(core.class.Class, {}).map((it) => it._id) as Ref<Class<Doc>>[]
-    mixins = classes.filter((it) => alone.isMixin(it)) as unknown as Ref<Mixin<Doc>>[]
+    classes = aloneDb.findAllSync(core.class.Class, {}).map((it) => it._id)
+    mixins = classes.filter((it) => alone.isMixin(it))
     const docs = aloneDb.findAllSync(core.class.Doc, {})
     docIds = docs.map((it) => it._id)
     mixinDocs = []

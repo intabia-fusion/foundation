@@ -359,9 +359,9 @@
         const trialActive = asTrial && inferredType === 'tier'
         await accountClient.adminCreateSubscription({
           otpCode: code,
-          workspaceUuid: workspace.uuid as any,
+          workspaceUuid: workspace.uuid,
           plan: selectedPlan,
-          type: inferredType as any,
+          type: inferredType,
           status: trialActive ? 'trialing' : undefined,
           // Trial reuses the period length; trialEnd is what grantsPlan checks for expiry.
           trialEnd: trialActive ? Date.now() + days * 24 * 3600 * 1000 : undefined,

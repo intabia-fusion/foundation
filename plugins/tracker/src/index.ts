@@ -55,7 +55,7 @@ export * from './duration'
 /**
  * @public
  */
-export interface IssueStatus extends Status {}
+export type IssueStatus = Status
 
 /**
  * @public

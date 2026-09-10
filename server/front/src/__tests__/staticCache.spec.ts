@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import type { NextFunction, Request, Response } from 'express'
+import type { NextFunction, Request } from 'express'
 import { mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -71,7 +71,7 @@ function run (
     served = true
     serve?.(res)
   }
-  mw(req, res as unknown as Response, next)
+  mw(req, res, next)
   return { res, served }
 }
 

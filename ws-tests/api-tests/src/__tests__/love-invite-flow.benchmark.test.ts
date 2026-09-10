@@ -135,18 +135,18 @@ dtest('love invite flow benchmark', () => {
       await systemRest.findAll(contact.class.Person, {
         personUuid: user1Token.info.account as any
       })
-    )[0] as Person
+    )[0]
     user2Person = (
       await systemRest.findAll(contact.class.Person, {
         personUuid: user2Token.info.account as any
       })
-    )[0] as Person
+    )[0]
 
     const waitForSpace = async (personId: Ref<Person>): Promise<PersonSpace> => {
       const deadline = Date.now() + 10000
       while (Date.now() < deadline) {
         const found = await systemRest.findAll(contact.class.PersonSpace, { person: personId })
-        if (found.length > 0) return found[0] as PersonSpace
+        if (found.length > 0) return found[0]
         await new Promise((resolve) => setTimeout(resolve, 200))
       }
       throw new Error(`PersonSpace for ${personId} not created within 10s`)
@@ -175,7 +175,7 @@ dtest('love invite flow benchmark', () => {
     let latest: UserMeetingInvite[] = []
     const lq = client.createLiveQuery()
     const unsubscribe = lq.query(love.class.UserMeetingInvite, { space }, (res) => {
-      latest = res as unknown as UserMeetingInvite[]
+      latest = res
     })
     return { snapshot: () => latest, stop: unsubscribe }
   }
@@ -215,12 +215,7 @@ dtest('love invite flow benchmark', () => {
       meeting: meetingMarker,
       status: 'pending'
     }
-    await user1Rest.createDoc(
-      love.class.UserMeetingInvite,
-      user1Space._id as unknown as Ref<Space>,
-      requestData,
-      inviteRequestId
-    )
+    await user1Rest.createDoc(love.class.UserMeetingInvite, user1Space._id, requestData, inviteRequestId)
 
     // 2) Wait for invite-response delivery to recipient.
     const tResponseStart = Date.now()
@@ -241,7 +236,7 @@ dtest('love invite flow benchmark', () => {
     const acceptUpd: DocumentUpdate<UserMeetingInvite> = { status: 'accepted' }
     await user2Rest.updateDoc(
       love.class.UserMeetingInvite,
-      user2Space._id as unknown as Ref<Space>,
+      user2Space._id,
       responseId as Ref<UserMeetingInvite>,
       acceptUpd
     )
@@ -263,7 +258,7 @@ dtest('love invite flow benchmark', () => {
     const lazyMeetingPatchMs = Date.now() - tRespRemoveStart
 
     // 6) Client-driven cleanup: caller removes the invite-request after join.
-    await user1Rest.removeDoc(love.class.UserMeetingInvite, user1Space._id as unknown as Ref<Space>, inviteRequestId)
+    await user1Rest.removeDoc(love.class.UserMeetingInvite, user1Space._id, inviteRequestId)
 
     const tCleanupCallerStart = Date.now()
     await waitFor(

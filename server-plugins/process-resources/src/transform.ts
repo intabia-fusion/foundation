@@ -94,9 +94,7 @@ export async function Insert (
   control: ProcessControl,
   execution: Execution
 ): Promise<any[]> {
-  if (value == null) {
-    value = []
-  }
+  value ??= []
   if (!Array.isArray(value)) return value
   if (props.value == null) return value
   const context = parseContext(props.value)
@@ -115,9 +113,7 @@ export async function Remove (
   control: ProcessControl,
   execution: Execution
 ): Promise<any[]> {
-  if (value == null) {
-    value = []
-  }
+  value ??= []
   if (!Array.isArray(value)) return value
   if (props.value == null) return value
   const context = parseContext(props.value)
@@ -130,17 +126,13 @@ export async function Remove (
 }
 
 export function RemoveFirst (value: any[]): any[] {
-  if (value == null) {
-    value = []
-  }
+  value ??= []
   if (!Array.isArray(value)) return value
   return value.slice(1)
 }
 
 export function RemoveLast (value: any[]): any[] {
-  if (value == null) {
-    value = []
-  }
+  value ??= []
   if (!Array.isArray(value)) return value
   return value.slice(0, -1)
 }

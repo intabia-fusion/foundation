@@ -281,11 +281,7 @@ export const $availableEditorModes = combine(
   }
 )
 
-export const $isProjectEditable = combine(
-  $projectRef,
-  $project,
-  (projectRef, project) => project == null || !project.readonly
-)
+export const $isProjectEditable = combine($projectRef, $project, (projectRef, project) => project?.readonly !== true)
 
 export const $isEditable = combine(
   $documentStateForCurrentUser,

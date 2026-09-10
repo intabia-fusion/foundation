@@ -392,5 +392,5 @@ export function passingProfiles (): ModelProfile[] {
         return undefined
       }
     })
-    .filter((p): p is ModelProfile => p !== undefined && p.ok)
+    .filter((p): p is ModelProfile => p?.ok === true)
 }

@@ -44,7 +44,6 @@
   import { IconPicker } from '@hcengineering/view-resources'
   import setting from '../plugin'
   import { clearSettingsStore } from '../store'
-  import { debug } from 'console'
 
   export let _class: Ref<Class<Doc>>
   export let isCard: boolean = false

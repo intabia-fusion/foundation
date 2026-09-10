@@ -160,7 +160,7 @@ import {
 
 export * from './utils'
 export { employeeByIdStore } from './utils'
-export * from './assignee'
+export type * from './assignee'
 export * from './translation'
 export {
   PersonIdArrayEditor,
@@ -325,7 +325,7 @@ async function kickEmployee (doc: Person): Promise<void> {
 
       if (doc.personUuid != null) {
         const leaveWorkspace = await getResource(login.function.LeaveWorkspace)
-        await leaveWorkspace(doc.personUuid as AccountUuid)
+        await leaveWorkspace(doc.personUuid)
       }
     }
   })

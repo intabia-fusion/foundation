@@ -423,7 +423,7 @@ export function filterProjection<T extends Doc> (data: any, projection: Projecti
   // Determine if this is an inclusion or exclusion projection
   // Exclusion: has any field with value 0
   // Inclusion: has any field with value 1
-  const projectionValues = Object.values(projection as any)
+  const projectionValues = Object.values(projection)
   const hasExclusion = projectionValues.some((v) => v === 0)
   const hasInclusion = projectionValues.some((v) => v === 1 || typeof v === 'object')
 
@@ -507,12 +507,8 @@ export function parseDocWithProjection<T extends Doc> (
 
 export function toWithLookup<T extends Doc> (doc: T): WithLookup<T> {
   const res = doc as WithLookup<T>
-  if (res.$associations === undefined) {
-    res.$associations = {}
-  }
-  if (res.$lookup === undefined) {
-    res.$lookup = {}
-  }
+  res.$associations ??= {}
+  res.$lookup ??= {}
   return res
 }
 

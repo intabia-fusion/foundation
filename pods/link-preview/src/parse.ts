@@ -98,12 +98,12 @@ export class LinkPreviewError extends Error {
   constructor (
     message: string,
     public readonly code?:
-    | 'BLOCKED_URL'
-    | 'INVALID_URL'
-    | 'INVALID_PROTOCOL'
-    | 'TIMEOUT'
-    | 'FETCH_FAILED'
-    | 'LOGIN_REDIRECT',
+      | 'BLOCKED_URL'
+      | 'INVALID_URL'
+      | 'INVALID_PROTOCOL'
+      | 'TIMEOUT'
+      | 'FETCH_FAILED'
+      | 'LOGIN_REDIRECT',
     public readonly cause?: unknown
   ) {
     super(message)
@@ -414,7 +414,7 @@ async function fetchOEmbedData (
     }
 
     const contentType = response.headers.get('content-type')
-    if (contentType === null || !contentType.includes('json')) {
+    if (contentType?.includes('json') !== true) {
       ctx.warn('oEmbed response is not JSON', { contentType: contentType ?? 'null' })
       return null
     }
@@ -622,7 +622,7 @@ async function loadImageSize (ctx: MeasureContext, url: string, config: Config):
 
     // Verify it's actually an image
     const contentType = response.headers.get('content-type')
-    if (contentType === null || !contentType.startsWith('image/')) {
+    if (contentType?.startsWith('image/') !== true) {
       ctx.warn('URL is not an image', { contentType: contentType ?? 'null', url })
       return undefined
     }

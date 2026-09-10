@@ -86,10 +86,10 @@ export type CreateMessageWithTimestampCallback = (
  * Callback type for getting workspace storage info
  */
 export type GetWorkspaceStorageCallback = (workspace: WorkspaceUuid) => Promise<
-| {
-  wsIds: WorkspaceIds
-}
-| undefined
+  | {
+    wsIds: WorkspaceIds
+  }
+  | undefined
 >
 
 /**

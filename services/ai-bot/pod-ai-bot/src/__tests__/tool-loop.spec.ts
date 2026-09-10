@@ -260,7 +260,7 @@ describe('oversized answer', () => {
 
     expect(result?.completion).toBe('short answer')
     // The retry carries the instruction to split the payload.
-    expect(seen[1].some((r) => r.content.includes('has_more=true'))).toBe(true)
+    expect(seen[1].some((r) => r.content.includes('has_more=true') === true)).toBe(true)
     // Tokens burnt on the lost answer are still billed.
     expect(result?.usage?.completionTokens).toBe(4101)
   })

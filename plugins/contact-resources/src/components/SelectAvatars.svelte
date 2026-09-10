@@ -37,8 +37,8 @@
   export let limit: number = 6
   export let hideLimit: boolean = false
 
-  let persons: Employee[] = items.map((p) => $employeeByIdStore.get(p)).filter((p) => p !== undefined) as Employee[]
-  $: persons = items.map((p) => $employeeByIdStore.get(p)).filter((p) => p !== undefined) as Employee[]
+  let persons: Employee[] = items.map((p) => $employeeByIdStore.get(p)).filter((p) => p !== undefined)
+  $: persons = items.map((p) => $employeeByIdStore.get(p)).filter((p) => p !== undefined)
 
   const dispatch = createEventDispatcher()
 

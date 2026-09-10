@@ -339,11 +339,11 @@
         labels:
           p.labels !== undefined
             ? p.labels
-              .map((p) => {
-                const val = tagElements.get(p)
-                return val !== undefined ? tagAsRef(val) : undefined
-              })
-              .filter((p) => p !== undefined)
+                .map((p) => {
+                  const val = tagElements.get(p)
+                  return val !== undefined ? tagAsRef(val) : undefined
+                })
+                .filter((p) => p !== undefined)
             : [],
         status: currentProject?.defaultIssueStatus
       }
@@ -361,11 +361,11 @@
     object.labels =
       labels !== undefined
         ? labels
-          .map((p) => {
-            const val = tagElements.get(p)
-            return val !== undefined ? tagAsRef(val) : undefined
-          })
-          .filter((p) => p !== undefined)
+            .map((p) => {
+              const val = tagElements.get(p)
+              return val !== undefined ? tagAsRef(val) : undefined
+            })
+            .filter((p) => p !== undefined)
         : []
 
     if (object.kind !== undefined) {
@@ -450,7 +450,7 @@
     if (draft.title.trim() !== '') object.title = draft.title
     object.description = draft.description
     descriptionBox?.setContent(draft.description)
-    if (draft.priority !== undefined) object.priority = draft.priority as IssuePriority
+    if (draft.priority !== undefined) object.priority = draft.priority
     if (draft.estimation !== undefined) object.estimation = draft.estimation
     if (draft.dueDate !== undefined) {
       const parsed = Date.parse(draft.dueDate)

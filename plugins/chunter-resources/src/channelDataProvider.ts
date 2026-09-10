@@ -291,9 +291,7 @@ export class ChannelDataProvider implements IChannelDataProvider {
       return
     }
 
-    if (this.tailStart === undefined) {
-      this.tailStart = start
-    }
+    this.tailStart ??= start
 
     this.tailQuery.query(
       this.msgClass,

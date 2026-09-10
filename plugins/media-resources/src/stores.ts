@@ -25,19 +25,19 @@ export const sessions = writable<MediaSession[]>([])
 export const state: Readable<MediaState> = derived(sessions, ($sessions) => {
   const camera = $sessions.some((s) => s.state.camera !== undefined)
     ? $sessions.length > 0
-      ? { enabled: $sessions.some((s) => s.state.camera?.enabled) }
+      ? { enabled: $sessions.some((s) => s.state.camera?.enabled === true) }
       : undefined
     : undefined
   const microphone = $sessions.some((s) => s.state.microphone !== undefined)
     ? $sessions.length > 0
-      ? { enabled: $sessions.some((s) => s.state.microphone?.enabled) }
+      ? { enabled: $sessions.some((s) => s.state.microphone?.enabled === true) }
       : undefined
     : undefined
   return { camera, microphone }
 })
 
-export const camAccess = createPermissionStore('camera' as PermissionName)
-export const micAccess = createPermissionStore('microphone' as PermissionName)
+export const camAccess = createPermissionStore('camera')
+export const micAccess = createPermissionStore('microphone')
 
 function createPermissionStore (name: PermissionName): Readable<PermissionStore> {
   return readable<PermissionStore>({ state: 'prompt', ready: Promise.resolve() }, (set) => {

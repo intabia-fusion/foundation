@@ -142,7 +142,7 @@ export const startServer = async (): Promise<void> => {
         temp.push(d)
       })
       bodyStream.on('end', function () {
-        resolve(Buffer.concat(temp as any))
+        resolve(Buffer.concat(temp))
       })
     })
 
@@ -182,7 +182,7 @@ export const startServer = async (): Promise<void> => {
 
           const textContent = content
             .split(/ |\t|\f/)
-            .filter((it) => it)
+            .filter((it) => it !== '')
             .join(' ')
             .split(/\n+/)
             .join('\n')

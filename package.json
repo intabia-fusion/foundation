@@ -23,6 +23,7 @@
     "format:branch": "./common/scripts/fast-format.sh",
     "profile-test": "node ./common/scripts/profile-tests.js",
     "check-versions": "node ./common/scripts/check-versions.js",
+    "check-catalog": "node ./common/scripts/check-catalog.js",
     "check-layers": "node ./common/scripts/check-layers.js",
     "model-version": "node ./common/scripts/show_version.js",
     "show-model": "pnpm --filter @hcengineering/model-all run show-model",

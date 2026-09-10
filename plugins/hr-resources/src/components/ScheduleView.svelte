@@ -279,7 +279,7 @@
       })
       staffIds.forEach((id) => {
         const filteredDepartments = departments.filter((department) => department.members.includes(id))
-        map.set(id, filteredDepartments as Department[])
+        map.set(id, filteredDepartments)
       })
     }
     return map

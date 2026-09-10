@@ -44,9 +44,9 @@
   import { getPreviewPopup } from './person/utils'
 
   export let person:
-  | (Data<WithLookup<AvatarInfo>> & { _id?: Ref<Person>, personUuid?: PersonUuid })
-  | Person
-  | undefined = undefined
+    | (Data<WithLookup<AvatarInfo>> & { _id?: Ref<Person>, personUuid?: PersonUuid })
+    | Person
+    | undefined = undefined
   export let name: string | null | undefined = undefined
   export let direct: Blob | undefined = undefined
   export let size: IconSize

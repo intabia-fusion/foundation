@@ -295,8 +295,8 @@ function getConversionGroupOptions (
   attr: AnyAttribute
 ): ContextOption[] {
   const functionGroups = new Map<
-  string,
-  { label: IntlString, thisItems: ContextOption[], parentItems: ContextOption[] }
+    string,
+    { label: IntlString, thisItems: ContextOption[], parentItems: ContextOption[] }
   >()
 
   const collectConvertibleItems = (srcAttr: AnyAttribute, isParent: boolean): void => {

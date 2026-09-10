@@ -262,7 +262,7 @@ describe('storage', () => {
       expect(loadedDoc?.getMap('map').get('number')).toBe(123)
       expect(loadedDoc?.getMap('map').get('boolean')).toBe(true)
       expect(loadedDoc?.getArray('array').toArray()).toEqual(['item1', 'item2', 'item3'])
-      expect(String(loadedDoc?.getText('text'))).toBe('Hello World')
+      expect(loadedDoc?.getText('text').toJSON()).toBe('Hello World')
     })
   })
 

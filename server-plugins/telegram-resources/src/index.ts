@@ -189,11 +189,11 @@ async function getTranslatedData (
   inboxNotification: InboxNotification,
   message?: ActivityMessage
 ): Promise<{
-    title: string
-    quote: string | undefined
-    body: string
-    link: string
-  }> {
+  title: string
+  quote: string | undefined
+  body: string
+  link: string
+}> {
   const { hierarchy } = control
 
   let { title, body } = await getTranslatedNotificationContent(
@@ -339,7 +339,7 @@ async function ProviderSettingsHandler (
           })
         )[0]
 
-        if (setting !== undefined && setting.attachedTo === telegram.providers.TelegramNotificationProvider) {
+        if (setting?.attachedTo === telegram.providers.TelegramNotificationProvider) {
           await updateWorkspaceSubscription(
             producer,
             updateTx.operations.enabled,

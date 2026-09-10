@@ -106,7 +106,7 @@ export async function restoreWikiContentMongo (
       const ydoc1 = await loadCollabYdoc(ctx, storageAdapter, wsIds, correctCollabId)
       const ydoc2 = await loadCollabYdoc(ctx, storageAdapter, wsIds, wrongYdocId)
 
-      if (ydoc1 !== undefined && ydoc1.share.has('content')) {
+      if (ydoc1?.share.has('content') === true) {
         // There already is content, we should skip the document
         continue
       }
@@ -274,7 +274,7 @@ export async function restoreControlledDocContentForDoc (
   // the original value here looks like '65b7f82f4d422b89d4cbdd6f:HEAD:0'
   const attribures = tx?.attributes ?? {}
   const value = (attribures as any)[attribute] as string
-  if (value == null || !value.includes(':')) {
+  if (!value?.includes(':')) {
     console.log('no content to restore', doc._class, doc._id)
     return false
   }
@@ -299,7 +299,7 @@ export async function restoreControlledDocContentForDoc (
       }
 
       const data = await storageAdapter.read(ctx, wsIds, currentYdocId)
-      const buffer = Buffer.concat(data as any)
+      const buffer = Buffer.concat(data)
       await storageAdapter.put(ctx, wsIds, ydocId, buffer, 'application/ydoc', buffer.length)
     } catch (err: any) {
       console.error('failed to restore content for', doc._class, doc._id, err)
@@ -359,7 +359,7 @@ export async function restoreMarkupRefsMongo (
 
           try {
             const buffer = await storageAdapter.read(ctx, wsIds, ydocId)
-            const ydoc = yDocFromBuffer(Buffer.concat(buffer as any))
+            const ydoc = yDocFromBuffer(Buffer.concat(buffer))
 
             const jsonId = await saveCollabJson(ctx, storageAdapter, wsIds, collabId, ydoc)
             await collection.updateOne({ _id: doc._id }, { $set: { [attributeName]: jsonId } })

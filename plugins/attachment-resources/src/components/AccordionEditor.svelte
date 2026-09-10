@@ -143,7 +143,7 @@
           {space}
           on:changeContent={(ev) => dispatch('update', { item, value: ev.detail })}
           on:attach={(ev) => {
-            if (ev && ev.detail.action === 'drop') attachments[attachments.length - 1].fileDrop(ev.detail.event)
+            if (ev?.detail.action === 'drop') attachments[attachments.length - 1].fileDrop(ev.detail.event)
             else if (ev.detail.action === 'add') attachments[attachments.length - 1].attach()
             else if (ev.detail.action === 'saved') {
               if (ev.detail.value !== hasAttachments) hasAttachments = ev.detail.value

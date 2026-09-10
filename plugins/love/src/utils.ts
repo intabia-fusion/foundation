@@ -168,9 +168,7 @@ export function getFreeSpace (rooms: Slot[], exclude?: Slot, completeExclusion?:
       y < room.y + room.height + (excluded ? 0 : 1);
       y++
     ) {
-      if (map[y] === undefined) {
-        map[y] = new Array(GRID_WIDTH).fill(true)
-      }
+      map[y] ??= new Array(GRID_WIDTH).fill(true)
       for (
         let x = room.x === 0 ? 0 : excluded ? room.x : room.x - 1;
         x <
@@ -201,9 +199,7 @@ export function getFreePosition (
   const map: boolean[][] = getFreeSpace(rooms)
 
   for (let y = 0; y <= map.length; y++) {
-    if (map[y] === undefined) {
-      map[y] = new Array(GRID_WIDTH).fill(true)
-    }
+    map[y] ??= new Array(GRID_WIDTH).fill(true)
     for (let x = 0; x < map[y].length; x++) {
       if (map[y][x]) {
         let matched = true

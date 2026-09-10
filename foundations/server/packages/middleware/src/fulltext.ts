@@ -207,10 +207,7 @@ export class FullTextMiddleware extends BaseMiddleware implements Middleware {
     }
 
     const childQuery: DocumentQuery<AttachedDoc> = {
-      $search:
-        findQuery.$search != null && findQuery.$search?.startsWith('*')
-          ? findQuery.$search.slice(1)
-          : findQuery.$search,
+      $search: findQuery.$search?.startsWith('*') === true ? findQuery.$search.slice(1) : findQuery.$search,
       attachedToClass: { $in: classes }
     }
     if (findQuery.space !== undefined) {

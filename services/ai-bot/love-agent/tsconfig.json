@@ -3,7 +3,7 @@
     "module": "ESNext",
     "esModuleInterop": true,
     "target": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "sourceMap": true,
 
     "declaration": true,
@@ -22,7 +22,6 @@
     "outDir": "./lib",
     "declarationDir": "./types",
     "tsBuildInfoFile": ".build/build.tsbuildinfo",
-    "baseUrl": ".",
     "paths": {
       "@hcengineering/audio-dsp": ["../../../packages/audio-dsp/src/index.ts"]
     }

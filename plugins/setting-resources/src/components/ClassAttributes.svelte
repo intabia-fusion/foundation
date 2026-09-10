@@ -60,12 +60,12 @@
   export let isCard: boolean = false
   export let showAll: boolean = false
   export let attributeMapper:
-  | {
-    component: AnySvelteComponent
-    label: IntlString
-    props: Record<string, any>
-  }
-  | undefined = undefined
+    | {
+      component: AnySvelteComponent
+      label: IntlString
+      props: Record<string, any>
+    }
+    | undefined = undefined
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
@@ -152,7 +152,7 @@
 
   // For a mixin show the class it is applied to, so it is clear which class the mixin extends.
   $: mixinBase =
-    clazzHierarchy !== undefined && clazzHierarchy.kind === ClassifierKind.MIXIN && clazzHierarchy.extends !== undefined
+    clazzHierarchy?.kind === ClassifierKind.MIXIN && clazzHierarchy.extends !== undefined
       ? hierarchy.getClass(clazzHierarchy.extends)
       : undefined
 

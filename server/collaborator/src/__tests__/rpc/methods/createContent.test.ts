@@ -69,7 +69,7 @@ describe('createContent', () => {
 
     const result = await createContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'workspace-uuid:object-id:class:core:Doc:content',
       {
         content: { content: '<p>Hello World</p>' }
@@ -107,7 +107,7 @@ describe('createContent', () => {
 
     const result = await createContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'workspace-uuid:object-id:class:core:Doc:content',
       {
         content: {
@@ -185,7 +185,7 @@ describe('createContent', () => {
 
     const result = await createContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'workspace-uuid:object-id:class:core:Doc:content',
       {
         content: {}
@@ -245,7 +245,7 @@ describe('createContent', () => {
 
     await createContent(
       mockCtx,
-      mockContext as any,
+      mockContext,
       'custom-workspace:custom-object:class:test:Custom:customAttr',
       {
         content: { customAttr: '<p>Test</p>' }

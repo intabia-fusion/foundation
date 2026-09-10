@@ -185,7 +185,7 @@ function createMockTxOperations (
   return {
     findAll: jest.fn(async <T extends Doc>(classRef: Ref<Class<T>>, query: any): Promise<T[]> => {
       if (classRef === core.class.Space || query._class !== undefined) {
-        return existingSpaces.filter((s) => {
+        return existingSpaces.filter((s): boolean => {
           if (query.name !== undefined && s.name !== query.name) return false
           if (query._class !== undefined && s._class !== query._class) return false
           if (query._id !== undefined) {
@@ -202,7 +202,7 @@ function createMockTxOperations (
     createDoc: jest.fn(
       async <T extends Doc>(classRef: Ref<Class<T>>, space: Ref<Space>, data: any, id?: Ref<T>): Promise<Ref<T>> => {
         const docId = id ?? generateId<T>()
-        createdDocs.push({ _id: docId, _class: classRef, space, ...data } as unknown as Doc)
+        createdDocs.push({ _id: docId, _class: classRef, space, ...data })
         return docId
       }
     ),
@@ -225,7 +225,7 @@ function createMockTxOperations (
           attachedToClass,
           collection,
           ...data
-        } as unknown as Doc)
+        })
         return docId
       }
     ),
@@ -595,7 +595,7 @@ describe('CrossWorkspaceExporter', () => {
       const result = await exporter.export({
         sourceWorkspace: createWorkspaceIds('source-ws'),
         targetWorkspace: createWorkspaceIds('target-ws'),
-        sourceQuery: { _id: SOURCE_DOC_2 as any },
+        sourceQuery: { _id: SOURCE_DOC_2 },
         _class: mockDocClass,
         relations
       })

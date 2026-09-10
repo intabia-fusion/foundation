@@ -58,9 +58,7 @@ export function parseStorageEnv (storageEnv: string, storageConfig: StorageConfi
     }
     let [kindName, url] = st.split('|')
     let [kind, name] = kindName.split(',')
-    if (name == null) {
-      name = kind
-    }
+    name ??= kind
     let hasProtocol = true
     if (!url.includes('://')) {
       // No protocol, add empty one

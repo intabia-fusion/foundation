@@ -36,7 +36,7 @@
       _labelValue = r
     })
   } else {
-    _labelValue = label as string | undefined
+    _labelValue = label
   }
 
   // Allow consumers to set type if needed

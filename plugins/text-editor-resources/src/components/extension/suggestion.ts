@@ -78,7 +78,7 @@ export function findSuggestionMatch (config: Trigger): SuggestionMatch {
 
   const match: any = Array.from(text.matchAll(regexp)).pop()
 
-  if (match === undefined || match === null || match.input === undefined || match.index === undefined) {
+  if (match?.input === undefined || match.index === undefined) {
     return null
   }
 
@@ -198,9 +198,9 @@ export default function Suggestion<I = any> ({
 
           // See how the state changed
           /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-          const moved = prev.active && next.active && prev.range.from !== next.range.from
-          const started = !prev.active && next.active
-          const stopped = prev.active && !next.active
+          const moved: boolean = prev.active && next.active && prev.range.from !== next.range.from
+          const started: boolean = !prev.active && next.active
+          const stopped: boolean = prev.active && !next.active
           const changed = !started && !stopped && prev.query !== next.query
           const handleStart = started || moved
           const handleChange = changed && !moved
@@ -348,7 +348,7 @@ export default function Suggestion<I = any> ({
 
           // Make sure special char was inserted by user
           // Before try to make any match
-          if (prev.specialCharInserted || next.specialCharInserted) {
+          if ((prev.specialCharInserted as boolean) || (next.specialCharInserted as boolean)) {
             // Try to match against where our cursor currently is
             const match = findSuggestionMatch({
               char,
@@ -362,7 +362,7 @@ export default function Suggestion<I = any> ({
             // If we found a match, update the current state to show it
             if (match != null && allow({ editor, state, range: match.range })) {
               next.active = true
-              next.decorationId = prev.decorationId ? prev.decorationId : decorationId
+              next.decorationId = prev.decorationId ?? decorationId
               next.range = match.range
 
               if (next.range.to > next.maxRangeTo || transaction.steps.length !== 0) {

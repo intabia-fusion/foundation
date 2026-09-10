@@ -55,14 +55,14 @@ export interface DocumentSpaceTypeDescriptor extends SpaceTypeDescriptor {
  *
  * Documents space for internal organization documents
  */
-export interface OrgSpace extends DocumentSpace {}
+export type OrgSpace = DocumentSpace
 
 /**
  * @public
  *
  * Documents space for external documents
  */
-export interface ExternalSpace extends DocumentSpace {}
+export type ExternalSpace = DocumentSpace
 
 /**
  * @public
@@ -246,19 +246,19 @@ export enum ControlledDocumentState {
  * @public
  * Base class for all document related requests
  */
-export interface DocumentRequest extends Request {}
+export type DocumentRequest = Request
 
 /**
  * @public
  * Request to review a controlled document
  */
-export interface DocumentReviewRequest extends DocumentRequest {}
+export type DocumentReviewRequest = DocumentRequest
 
 /**
  * @public
  * Request for a controlled document approval
  */
-export interface DocumentApprovalRequest extends DocumentRequest {}
+export type DocumentApprovalRequest = DocumentRequest
 
 /**
  * @public

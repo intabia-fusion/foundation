@@ -34,7 +34,7 @@
 
   $: _id !== undefined &&
     _class !== undefined &&
-    (object === undefined || object._id !== _id) &&
+    object?._id !== _id &&
     query.query(_class, { _id }, async (result) => {
       ;[object] = result
     })

@@ -59,14 +59,14 @@
   }
 
   $: saveAttachmentAction = isSaved
-    ? ({
+    ? {
         label: attachmentPlugin.string.RemoveAttachmentFromSaved,
         action: attachmentPlugin.actionImpl.DeleteAttachmentFromSaved
-      } as unknown as Action)
-    : ({
+      }
+    : {
         label: attachmentPlugin.string.AddAttachmentToSaved,
         action: attachmentPlugin.actionImpl.AddAttachmentToSaved
-      } as unknown as Action)
+      }
 
   const openAction: UIAction = {
     label: view.string.Open,
@@ -91,7 +91,6 @@
     if (isAttachment(attachment)) {
       actions.push({
         label: saveAttachmentAction.label,
-        icon: saveAttachmentAction.icon,
         action: async (props: any, evt: Event) => {
           if (isAttachment(attachment)) {
             const impl = await getResource(saveAttachmentAction.action)

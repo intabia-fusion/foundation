@@ -105,46 +105,46 @@ export const DOMAIN_TASK = 'task' as Domain
 export class TTask extends TAttachedDoc implements Task {
   @Prop(TypeRef(core.class.Status), task.string.TaskState, { _id: task.attribute.State })
   @Index(IndexKind.Indexed)
-    status!: Ref<Status>
+  status!: Ref<Status>
 
   @Prop(TypeRef(task.class.TaskType), task.string.TaskType)
   @Index(IndexKind.Indexed)
   @ReadOnly()
-    kind!: Ref<TaskType>
+  kind!: Ref<TaskType>
 
   @Prop(TypeString(), task.string.TaskNumber)
   @Index(IndexKind.FullText)
   @Hidden()
-    number!: number
+  number!: number
 
   @Prop(TypeRef(contact.mixin.Employee), task.string.TaskAssignee)
-    assignee!: Ref<Person> | null
+  assignee!: Ref<Person> | null
 
   @Prop(TypeDate(), task.string.DueDate, { editor: task.component.DueDateEditor })
-    dueDate!: Timestamp | null
+  dueDate!: Timestamp | null
 
   @Prop(TypeRank(), task.string.Rank)
   @Index(IndexKind.IndexedDsc)
   @Hidden()
-    rank!: Rank
+  rank!: Rank
 
   @Prop(Collection(tags.class.TagReference, task.string.TaskLabels), task.string.TaskLabels)
-    labels?: number
+  labels?: number
 
   @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
-    comments?: number
+  comments?: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
   @Prop(TypeBoolean(), getEmbeddedLabel('isDone'))
   @Hidden()
-    isDone?: boolean
+  isDone?: boolean
 
   @Prop(TypeString(), task.string.Identifier)
   @ReadOnly()
   @Index(IndexKind.Indexed)
-    identifier!: string
+  identifier!: string
 }
 
 @Mixin(task.mixin.KanbanCard, core.class.Class)
@@ -189,58 +189,58 @@ export class TProjectType extends TSpaceType implements ProjectType {
 
   @Prop(TypeString(), task.string.Description)
   @Index(IndexKind.FullText)
-    description!: string
+  description!: string
 
   @Prop(ArrOf(TypeRef(task.class.TaskType)), getEmbeddedLabel('Tasks'))
-    tasks!: Ref<TaskType>[]
+  tasks!: Ref<TaskType>[]
 
   @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('Project statuses'))
-    statuses!: ProjectStatus[]
+  statuses!: ProjectStatus[]
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Target Class'))
   declare targetClass: Ref<Class<Project>>
 
   @Prop(TypeBoolean(), getEmbeddedLabel('Classic'))
-    classic!: boolean
+  classic!: boolean
 }
 
 @Model(task.class.TaskType, core.class.Doc, DOMAIN_MODEL)
 export class TTaskType extends TDoc implements TaskType {
   @Prop(TypeString(), getEmbeddedLabel('Name'))
-    name!: string
+  name!: string
 
   @Prop(TypeRef(task.class.TaskTypeDescriptor), getEmbeddedLabel('Descriptor'))
-    descriptor!: Ref<TaskTypeDescriptor>
+  descriptor!: Ref<TaskTypeDescriptor>
 
   @Prop(TypeRef(task.class.ProjectType), getEmbeddedLabel('Task class'))
-    parent!: Ref<ProjectType> // Base class for task
+  parent!: Ref<ProjectType> // Base class for task
 
   @Prop(TypeBoolean(), task.string.AllowRootTask)
-    isRootTaskType?: boolean
+  isRootTaskType?: boolean
 
   @Prop(TypeBoolean(), task.string.AllowAnyParent)
-    allowAnyParent?: boolean
+  allowAnyParent?: boolean
 
   @Prop(ArrOf(TypeRef(task.class.TaskType)), task.string.AllowedParentTaskTypes)
-    allowedAsChildOf!: Ref<TaskType>[]
+  allowedAsChildOf!: Ref<TaskType>[]
 
   @Prop(TypeBoolean(), task.string.ShowParentTasks)
-    showParentTasks?: boolean
+  showParentTasks?: boolean
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Task class'))
-    ofClass!: Ref<Class<Task>> // Base class for task
+  ofClass!: Ref<Class<Task>> // Base class for task
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Task target class'))
-    targetClass!: Ref<Class<Task>> // Class to hold all user defined attributes.
+  targetClass!: Ref<Class<Task>> // Class to hold all user defined attributes.
 
   @Prop(ArrOf(TypeRef(core.class.Status)), getEmbeddedLabel('Task statuses'))
-    statuses!: Ref<Status>[]
+  statuses!: Ref<Status>[]
 
   @Prop(TypeRef(core.class.Class), getEmbeddedLabel('Task status class'))
-    statusClass!: Ref<Class<Status>>
+  statusClass!: Ref<Class<Status>>
 
   @Prop(TypeRef(core.class.StatusCategory), getEmbeddedLabel('Task status categories'))
-    statusCategories!: Ref<StatusCategory>[]
+  statusCategories!: Ref<StatusCategory>[]
 }
 
 @Model(task.class.ProjectTypeDescriptor, core.class.SpaceTypeDescriptor, DOMAIN_MODEL)

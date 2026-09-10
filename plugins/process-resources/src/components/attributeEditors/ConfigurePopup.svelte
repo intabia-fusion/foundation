@@ -110,8 +110,8 @@
   $: funcs =
     (contextValue.functions?.length ?? 0) > 0
       ? client
-        .getModel()
-        .findAllSync(plugin.class.ProcessFunction, { _id: { $in: contextValue.functions?.map((it) => it.func) } })
+          .getModel()
+          .findAllSync(plugin.class.ProcessFunction, { _id: { $in: contextValue.functions?.map((it) => it.func) } })
       : []
 
   $: sourceFunc =

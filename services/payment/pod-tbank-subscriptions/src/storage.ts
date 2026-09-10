@@ -73,15 +73,15 @@ export class SubscriptionStorage {
     type: string,
     orderFingerprint: string
   ): Promise<{
-      claimed: boolean
-      status: string
-      intentId: string
-      heartbeatAt?: number
-      paymentUrl?: string
-      orderFingerprint?: string
-      paymentId?: string
-      createdOn: number
-    }> {
+    claimed: boolean
+    status: string
+    intentId: string
+    heartbeatAt?: number
+    paymentUrl?: string
+    orderFingerprint?: string
+    paymentId?: string
+    createdOn: number
+  }> {
     // Purchases accumulate, so their slot is per order: an abandoned SKU must not block another.
     const slot = type === SubscriptionType.Purchase ? `${type}:${orderFingerprint}` : type
     const { claimed, intent } = await this.accountClient.claimIntent(`checkout:${workspaceUuid}:${slot}`, 'tbank', {

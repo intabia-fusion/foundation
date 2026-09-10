@@ -123,7 +123,7 @@ export async function canPinMessage (message?: ActivityMessage): Promise<boolean
 }
 
 export async function canUnpinMessage (message?: ActivityMessage): Promise<boolean> {
-  return message !== undefined && message.isPinned === true
+  return message?.isPinned === true
 }
 
 export async function pinMessage (message?: ActivityMessage): Promise<void> {

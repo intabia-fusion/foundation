@@ -71,9 +71,7 @@ export function extractToken (headers: IncomingHttpHeaders): Token | undefined {
         return decoded
       }
       // Keep first valid token without workspace as fallback
-      if (validToken === undefined) {
-        validToken = decoded
-      }
+      validToken ??= decoded
     } catch {
       // Continue to next token
     }

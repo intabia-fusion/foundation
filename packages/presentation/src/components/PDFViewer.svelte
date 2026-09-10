@@ -47,7 +47,7 @@
 
   $: src = file !== undefined ? getFileUrl(file, name) : undefined
 
-  $: isImage = contentType !== undefined && contentType.startsWith('image/')
+  $: isImage = contentType?.startsWith('image/')
 </script>
 
 <ActionContext context={{ mode: 'browser' }} />

@@ -72,14 +72,14 @@
   $: imageDimensions =
     metadata?.imageWidth && metadata.imageHeight
       ? getImageDimensions(
-        { width: metadata.imageWidth, height: metadata.imageHeight },
-        {
-          maxWidth: 24.5,
-          minWidth: 4,
-          maxHeight: 15,
-          minHeight: 4
-        }
-      )
+          { width: metadata.imageWidth, height: metadata.imageHeight },
+          {
+            maxWidth: 24.5,
+            minWidth: 4,
+            maxHeight: 15,
+            minHeight: 4
+          }
+        )
       : undefined
 </script>
 

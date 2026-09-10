@@ -143,8 +143,8 @@ describe('love invite flow (api-tests)', () => {
     })
     expect(u1s.length).toBeGreaterThanOrEqual(1)
     expect(u2s.length).toBeGreaterThanOrEqual(1)
-    user1Person = u1s[0] as Person
-    user2Person = u2s[0] as Person
+    user1Person = u1s[0]
+    user2Person = u2s[0]
 
     // PersonSpace is created asynchronously by the `OnEmployeeCreate`
     // trigger — `ensureEmployee` returns before the trigger has flushed
@@ -154,7 +154,7 @@ describe('love invite flow (api-tests)', () => {
       const deadline = Date.now() + 10000
       while (Date.now() < deadline) {
         const found = await systemRest.findAll(contact.class.PersonSpace, { person: personId })
-        if (found.length > 0) return found[0] as PersonSpace
+        if (found.length > 0) return found[0]
         await new Promise((resolve) => setTimeout(resolve, 200))
       }
       throw new Error(`PersonSpace for ${personId} not created within 10s`)
@@ -215,7 +215,7 @@ describe('love invite flow (api-tests)', () => {
     const snapshots: UserMeetingInvite[][] = []
     const lq = client.createLiveQuery()
     const unsubscribe = lq.query(love.class.UserMeetingInvite, { space }, (res) => {
-      snapshots.push(res as unknown as UserMeetingInvite[])
+      snapshots.push(res)
     })
     return { snapshots, stop: unsubscribe }
   }
@@ -252,12 +252,7 @@ describe('love invite flow (api-tests)', () => {
         to: user2Person._id,
         status: 'pending'
       }
-      await user1Rest.createDoc(
-        love.class.UserMeetingInvite,
-        user1Space._id as unknown as Ref<Space>,
-        requestData,
-        inviteRequestId
-      )
+      await user1Rest.createDoc(love.class.UserMeetingInvite, user1Space._id, requestData, inviteRequestId)
 
       // 3) Server trigger `OnUserMeetingInvite` must create a matching
       //    invite-response in user2's PersonSpace. Recipient WS client
@@ -297,7 +292,7 @@ describe('love invite flow (api-tests)', () => {
 
       // 6) Caller-driven cleanup: client removes its invite-request after
       //    creating the meeting and joining (we just simulate the remove).
-      await user1Rest.removeDoc(love.class.UserMeetingInvite, user1Space._id as unknown as Ref<Space>, inviteRequestId)
+      await user1Rest.removeDoc(love.class.UserMeetingInvite, user1Space._id, inviteRequestId)
 
       // 7) Both liveQueries observe the final state.
       await waitFor(

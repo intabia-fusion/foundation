@@ -111,7 +111,7 @@ export class TUserMixin extends TClass implements UserMixin {}
 @Mixin(setting.mixin.ClassifierOrder, core.class.Class)
 export class TClassifierOrder extends TClass implements ClassifierOrder {
   @Prop(TypeRank(), core.string.Rank)
-    rank!: Rank
+  rank!: Rank
 }
 
 @Model(setting.class.InviteSettings, core.class.Configuration, DOMAIN_SETTING)

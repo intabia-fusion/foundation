@@ -239,9 +239,7 @@ export function resetRegionConfig (): void {
 }
 
 export function getRegionConfig (): RegionConfig {
-  if (_regionConfig === undefined) {
-    _regionConfig = loadRegionConfig()
-  }
+  _regionConfig ??= loadRegionConfig()
   return _regionConfig
 }
 
@@ -356,7 +354,7 @@ export function getAllTransactors (kind: EndpointKind): string[] {
 
 export function hashWithSalt (password: string, salt: Buffer): Buffer {
   // remove "as any" when types in node will be fixed
-  return pbkdf2Sync(password, salt as any, 1000, 32, 'sha256')
+  return pbkdf2Sync(password, salt, 1000, 32, 'sha256')
 }
 
 export function verifyPassword (password: string, hash?: Buffer | null, salt?: Buffer | null): boolean {
@@ -365,7 +363,7 @@ export function verifyPassword (password: string, hash?: Buffer | null, salt?: B
   }
 
   // remove "as any" when types in node will be fixed
-  return Buffer.compare(hash as any, hashWithSalt(password, salt) as any) === 0
+  return Buffer.compare(hash, hashWithSalt(password, salt)) === 0
 }
 
 // 0 or negative value means no limit
@@ -878,9 +876,7 @@ export async function selectWorkspace (
   try {
     const decodedToken = decodeTokenVerbose(ctx, token ?? '')
     accountUuid = decodedToken.account
-    if (workspace == null) {
-      workspace = await getWorkspaceById(db, decodedToken.workspace)
-    }
+    workspace ??= await getWorkspaceById(db, decodedToken.workspace)
     extra = decodedToken.extra
     grant = decodedToken.grant
     sub = decodedToken.sub
@@ -976,9 +972,7 @@ export async function selectWorkspace (
   }
 
   if (role === AccountRole.ReadOnlyGuest) {
-    if (extra == null) {
-      extra = {}
-    }
+    extra ??= {}
     extra.readonly = 'true'
   }
 
@@ -1055,15 +1049,15 @@ export async function updateAllowReadOnlyGuests (
     return undefined
   }
 
-  let guestPerson = await db.person.findOne({ uuid: readOnlyGuestAccountUuid as PersonUuid })
+  let guestPerson = await db.person.findOne({ uuid: readOnlyGuestAccountUuid })
   if (guestPerson == null) {
     await db.person.insertOne({
-      uuid: readOnlyGuestAccountUuid as PersonUuid,
+      uuid: readOnlyGuestAccountUuid,
       firstName: 'Anonymous',
       lastName: 'Guest'
     })
-    await createAccount(db, readOnlyGuestAccountUuid as PersonUuid, true)
-    guestPerson = await db.person.findOne({ uuid: readOnlyGuestAccountUuid as PersonUuid })
+    await createAccount(db, readOnlyGuestAccountUuid, true)
+    guestPerson = await db.person.findOne({ uuid: readOnlyGuestAccountUuid })
   }
   const roleInWorkspace = await db.getWorkspaceRole(readOnlyGuestAccountUuid, workspace)
   if (roleInWorkspace == null) {
@@ -1075,7 +1069,7 @@ export async function updateAllowReadOnlyGuests (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.InternalServerError, {}))
   }
   const guestSocialIds = await db.socialId.find({
-    personUuid: readOnlyGuestAccountUuid as PersonUuid,
+    personUuid: readOnlyGuestAccountUuid,
     verifiedOn: { $gt: 0 }
   })
 

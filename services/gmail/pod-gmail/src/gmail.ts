@@ -454,9 +454,7 @@ export class GmailClient {
   // }
 
   async getMailChannel (): Promise<Card | undefined> {
-    if (this.channel === undefined) {
-      this.channel = await getChannel(this.client, this.email)
-    }
+    this.channel ??= await getChannel(this.client, this.email)
     return this.channel
   }
 

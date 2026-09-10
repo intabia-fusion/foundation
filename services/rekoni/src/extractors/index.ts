@@ -5,7 +5,7 @@ import { htmlExtractor } from './html'
 import { pdfExtractor } from './pdf'
 import { rtfExtractor } from './rtf'
 import { DocumentExtractor } from './types'
-export * from './types'
+export type * from './types'
 
 const extractors: Record<string, DocumentExtractor> = {
   pdf: pdfExtractor,

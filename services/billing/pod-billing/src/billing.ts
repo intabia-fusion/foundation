@@ -605,13 +605,13 @@ export async function resolveWorkspacePlan (
   db: BillingDB,
   workspace: WorkspaceUuid
 ): Promise<{
-    plan: string
-    limitMonth: number
-    balance: number
-    hasPackages: boolean
-    isFree: boolean
-    periodStart: Date
-  }> {
+  plan: string
+  limitMonth: number
+  balance: number
+  hasPackages: boolean
+  isFree: boolean
+  periodStart: Date
+}> {
   try {
     // Balance stays uncached: a token grant must show up on the very next read.
     const subs = await getSubscriptionsCached(workspace)

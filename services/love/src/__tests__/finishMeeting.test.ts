@@ -42,13 +42,13 @@ function createFakeClient (seed: {
   const client = {
     findOne: jest.fn(async <T extends Doc>(_class: Ref<Class<T>>, query: DocumentQuery<T>) => {
       if (_class === love.class.MeetingMinutes) {
-        return meetings.get((query as any)._id as Ref<MeetingMinutes>) as T | undefined
+        return meetings.get((query as any)._id as Ref<MeetingMinutes>)
       }
       return undefined
     }),
     findAll: jest.fn(async <T extends Doc>(_class: Ref<Class<T>>, query: DocumentQuery<T>) => {
       if (_class === love.class.ParticipantInfo) {
-        return participants.filter((p) => p.meeting === (query as any).meeting) as unknown as T[]
+        return participants.filter((p) => p.meeting === (query as any).meeting)
       }
       if (_class === love.class.UserMeetingInvite) {
         const q = query as any
@@ -56,9 +56,9 @@ function createFakeClient (seed: {
           if (q.meeting !== undefined) return it.meeting === q.meeting
           if (q.room !== undefined) return it.room === q.room
           return true
-        }) as unknown as T[]
+        })
       }
-      return [] as unknown as T[]
+      return []
     }),
     update: jest.fn(async (doc: Doc, update: DocumentUpdate<Doc>) => {
       updated.push({ doc, update })

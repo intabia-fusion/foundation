@@ -32,7 +32,7 @@ import type { Preference } from '@hcengineering/preference'
 import type { AnyComponent } from '@hcengineering/ui/src/types'
 import type { AIConversationPurpose, AILevel, AsrLevel } from './rest'
 
-export * from './rest'
+export type * from './rest'
 
 export const aiBotId = 'ai-bot' as Plugin
 

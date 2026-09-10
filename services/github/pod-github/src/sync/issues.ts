@@ -777,17 +777,17 @@ export class IssueSyncManager extends IssueSyncManagerBase implements DocSyncMan
     const body = (await this.provider.getMarkdown(existingIssue.description)) ?? ''
     if (isGHWriteAllowed()) {
       const response:
-      | {
-        createIssue: {
-          issue: IssueExternalData
+        | {
+          createIssue: {
+            issue: IssueExternalData
+          }
         }
-      }
-      | undefined = await okit.graphql(q, {
-        repo: repoId,
-        title: existingIssue.title,
-        body,
-        assigneeIds
-      })
+        | undefined = await okit.graphql(q, {
+          repo: repoId,
+          title: existingIssue.title,
+          body,
+          assigneeIds
+        })
 
       return response?.createIssue?.issue
     }

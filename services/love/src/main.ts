@@ -226,7 +226,7 @@ export const main = async (): Promise<void> => {
       case QueueMeetingEvent.started: {
         const wsClient = await WorkspaceClient.create(msg.workspace, ctx)
         const mm = await wsClient.findMeetingById(queueMsg.meetingId)
-        if (mm !== undefined && mm.startWithRecording === true) {
+        if (mm?.startWithRecording === true) {
           const sysToken = generateToken(systemAccountUuid, msg.workspace, { service: 'love' })
           const wsLoginInfo = await getAccountClient(sysToken).getLoginInfoByToken()
           if (!isWorkspaceLoginInfo(wsLoginInfo)) {
@@ -728,8 +728,8 @@ const checkRecordAvailable = async (
   storageConfig: StorageConfig | undefined,
   s3storageConfig: StorageConfig | undefined
 ): Promise<boolean> => {
-  if (storageConfig !== undefined && storageConfig.kind === 's3') return true
-  if (storageConfig !== undefined && storageConfig.kind === 'datalake' && s3storageConfig !== undefined) return true
+  if (storageConfig?.kind === 's3') return true
+  if (storageConfig?.kind === 'datalake' && s3storageConfig !== undefined) return true
   ctx.error('NO S3 storage config storage:', {
     storageConfig: storageConfig?.kind,
     s3storageConfig: s3storageConfig?.kind

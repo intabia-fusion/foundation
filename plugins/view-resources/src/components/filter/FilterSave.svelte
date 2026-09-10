@@ -25,7 +25,7 @@
       location: loc,
       filterClass: _class,
       filters,
-      attachedTo: loc.path[2] as Ref<Doc>,
+      attachedTo: loc.path[2],
       viewOptions,
       viewletId: getActiveViewletId(),
       sharable,

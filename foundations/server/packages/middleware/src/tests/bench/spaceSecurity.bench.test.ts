@@ -24,7 +24,6 @@ import core, {
   TxFactory,
   toFindResult
 } from '@hcengineering/core'
-import type { Middleware } from '@hcengineering/server-core'
 import { SpaceSecurityMiddleware } from '../../spaceSecurity'
 import { bench, describeBench } from '@hcengineering/measurements'
 import { type BenchHarness, createHarness, makeNextMiddleware, makeSpaces } from './harness'
@@ -52,10 +51,10 @@ describeBench('SpaceSecurityMiddleware.findAll bench', () => {
         return toFindResult<T>([])
       }
     })
-    const mw = await SpaceSecurityMiddleware.create(h.ctx, h.pipelineContext, next as unknown as Middleware)
+    const mw = await SpaceSecurityMiddleware.create(h.ctx, h.pipelineContext, next)
     // Pre-init security state so findAll bench doesn't measure init.
     await (mw as any).init(h.ctx)
-    return { mw, targetClass: core.class.Space as Ref<Class<Doc>>, ctx: h.ctx }
+    return { mw, targetClass: core.class.Space, ctx: h.ctx }
   }
 
   for (const n of [10, 100, 1000]) {
@@ -63,7 +62,7 @@ describeBench('SpaceSecurityMiddleware.findAll bench', () => {
       const { mw, targetClass, ctx } = await setup(n)
       const q = { archived: false }
       await bench(`spaceSecurity findAll (spaces=${n})`, async () => {
-        await mw.findAll(ctx, targetClass, q as any, undefined)
+        await mw.findAll(ctx, targetClass, q, undefined)
       })
     })
   }
@@ -123,7 +122,7 @@ describeBench('SpaceSecurityMiddleware.findAll bench', () => {
     }
     const opts: any = { lookup: { space: core.class.Space } }
     await bench('spaceSecurity findAll(lookup=50)', async () => {
-      await mw.findAll(ctx, targetClass, {} as any, opts)
+      await mw.findAll(ctx, targetClass, {}, opts)
     })
   })
 })
@@ -139,7 +138,7 @@ describeBench('SpaceSecurityMiddleware.tx bench', () => {
     const spaces = makeSpaces(spaceCount, userAcc)
     const h = createHarness({ spaces })
     const next = makeNextMiddleware(h)
-    const mw = await SpaceSecurityMiddleware.create(h.ctx, h.pipelineContext, next as unknown as Middleware)
+    const mw = await SpaceSecurityMiddleware.create(h.ctx, h.pipelineContext, next)
     // Pre-init so tx bench measures the write check, not the space load.
     await (mw as any).init(h.ctx)
     return { mw, h, writable: spaces[0]._id }
@@ -148,7 +147,7 @@ describeBench('SpaceSecurityMiddleware.tx bench', () => {
   function makeBatch (factory: TxFactory, space: Ref<Space>, count: number): TxCUD<Doc>[] {
     const txes: TxCUD<Doc>[] = []
     for (let i = 0; i < count; i++) {
-      txes.push(factory.createTxCreateDoc(core.class.Doc, space, {} as any, generateId()))
+      txes.push(factory.createTxCreateDoc(core.class.Doc, space, {}, generateId()))
     }
     return txes
   }
@@ -200,7 +199,7 @@ describeBench('SpaceSecurityMiddleware.tx bench', () => {
   it('handleBroadcast over 100 derived txes, 1000 spaces', async () => {
     const { mw, h, writable } = await setupTx(1000)
     const txes = makeBatch(derivedFactory, writable, 100)
-    h.ctx.contextData.broadcast.txes = txes as any
+    h.ctx.contextData.broadcast.txes = txes
     await bench('spaceSecurity handleBroadcast (txes=100, spaces=1000)', async () => {
       // processed set is per-request; reset so every iteration walks all 100 txes
       h.ctx.contextData.contextCache.set('processed', new Set())

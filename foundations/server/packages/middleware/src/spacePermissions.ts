@@ -100,9 +100,7 @@ export class SpacePermissionsMiddleware extends BaseMiddleware implements Middle
       const roleMembers: AccountUuid[] = assignment[role._id] ?? []
 
       for (const member of roleMembers) {
-        if (this.permissionsBySpace[spaceId][member] === undefined) {
-          this.permissionsBySpace[spaceId][member] = new Set()
-        }
+        this.permissionsBySpace[spaceId][member] ??= new Set()
 
         for (const permission of role.permissions) {
           const p = permissions.find((p) => p._id === permission)

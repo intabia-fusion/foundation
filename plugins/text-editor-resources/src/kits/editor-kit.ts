@@ -262,9 +262,7 @@ let editorKitPromise: Promise<Extension<EditorKitOptions, any>>
 export async function getEditorKit (
   ...options: Array<Partial<EditorKitOptions>>
 ): Promise<Extension<EditorKitOptions, any>> {
-  if (editorKitPromise === undefined) {
-    editorKitPromise = buildEditorKit()
-  }
+  editorKitPromise ??= buildEditorKit()
 
   const kit = await editorKitPromise
   if ((options ?? []).length < 1) return kit

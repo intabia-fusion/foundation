@@ -319,8 +319,8 @@ function createStatusResolver (
     const stConfig = configStatusById.get(sourceId) ?? configStatusByName.get(sourceId)
     const srcName =
       stConfig?.name ??
-      (resolver !== undefined && resolver.hasRef(sourceId) ? resolver.getName(sourceId, StatusToken) : undefined) ??
-      (sourceId as string)
+      (resolver?.hasRef(sourceId) === true ? resolver.getName(sourceId, StatusToken) : undefined) ??
+      sourceId
     if (srcName !== '') {
       const byName = targetStatusDocs.find((t) => t.name.toLowerCase() === srcName.toLowerCase())
       if (byName !== undefined) return byName._id
@@ -441,7 +441,7 @@ function bindExistingAttribute (
 ): void {
   resolver.add(AttributeToken, existingAttr._id, name)
   if (sourceAttrId !== undefined) {
-    resolver.setRef(AttributeToken, sourceAttrId as string, existingAttr._id)
+    resolver.setRef(AttributeToken, sourceAttrId, existingAttr._id)
   }
   resolver.setRef(AttributeToken, name, existingAttr._id)
 
@@ -487,7 +487,7 @@ async function createAndRegisterAttribute (
   createdAttrNames.add(name)
   resolver.add(AttributeToken, createdAttrId, name)
   if (sourceAttrId !== undefined) {
-    resolver.setRef(AttributeToken, sourceAttrId as string, createdAttrId)
+    resolver.setRef(AttributeToken, sourceAttrId, createdAttrId)
   }
   resolver.setRef(AttributeToken, name, createdAttrId)
 
@@ -537,14 +537,14 @@ async function createImportedMixins (
   const existingMixinByName = new Map<string, Ref<Mixin<Doc>>>()
   for (const m of existingMixins) {
     if (m.label != null) {
-      existingMixinByName.set(String(m.label).toLowerCase(), m._id as Ref<Mixin<Doc>>)
+      existingMixinByName.set(String(m.label).toLowerCase(), m._id)
     }
   }
 
   for (const mixinCfg of mixins) {
     const existingRef =
       existingMixinByName.get(String(mixinCfg.label).toLowerCase()) ??
-      (existingMixins.find((m) => m._id === mixinCfg.id)?._id as Ref<Mixin<Doc>> | undefined)
+      existingMixins.find((m) => m._id === mixinCfg.id)?._id
 
     let mixinDocId: Ref<Mixin<Doc>>
     if (existingRef !== undefined) {
@@ -566,7 +566,7 @@ async function createImportedMixins (
 
       await client.createMixin(mixinDocId, core.class.Class, core.space.Model, setting.mixin.Editable, {
         value: true
-      } as any)
+      })
       await client.createMixin(mixinDocId, core.class.Class, core.space.Model, setting.mixin.UserMixin, {})
     }
 
@@ -625,7 +625,7 @@ async function autoCreateTargetClassAttributes (
   for (const ac of config.attributes ?? []) {
     configAttributesMap.set(ac.name, ac)
     if (ac.id !== undefined) {
-      configAttributesMap.set(ac.id as string, ac)
+      configAttributesMap.set(ac.id, ac)
     }
   }
 
@@ -640,14 +640,14 @@ async function autoCreateTargetClassAttributes (
 
     const attrConfig =
       configAttributesMap.get(fieldKey) ??
-      (usage.sourceAttributeId !== undefined ? configAttributesMap.get(usage.sourceAttributeId as string) : undefined)
+      (usage.sourceAttributeId !== undefined ? configAttributesMap.get(usage.sourceAttributeId) : undefined)
     const attrId = usage.sourceAttributeId ?? (fieldKey as Ref<AnyAttribute>)
     const attrName = attrConfig?.name ?? fieldKey
     const attrType = attrConfig?.type
     const attrLabel = attrRes?.label ?? attrConfig?.label ?? usage.label
 
     if (
-      resolver.getRef(AttributeToken, attrId as string) !== undefined ||
+      resolver.getRef(AttributeToken, attrId) !== undefined ||
       resolver.getRef(AttributeToken, attrName) !== undefined
     ) {
       continue
@@ -658,7 +658,7 @@ async function autoCreateTargetClassAttributes (
     }
 
     if (attrRes?.action === 'map' && attrRes.targetAttributeId !== undefined) {
-      resolver.setRef(AttributeToken, attrId as string, attrRes.targetAttributeId)
+      resolver.setRef(AttributeToken, attrId, attrRes.targetAttributeId)
       resolver.setRef(AttributeToken, attrName, attrRes.targetAttributeId)
       continue
     }
@@ -695,15 +695,14 @@ async function autoCreateTargetClassAttributes (
     const attrRes = attrResolutions[ac.name] ?? (ac.id !== undefined ? attrResolutions[ac.id] : undefined)
     if (attrRes?.action === 'skip') continue
 
-    const wasUsedInConfig =
-      allConfigUsages.has(ac.name) || (ac.id !== undefined && allConfigUsages.has(ac.id as string))
-    const isUsedInActive = activeUsages.has(ac.name) || (ac.id !== undefined && activeUsages.has(ac.id as string))
+    const wasUsedInConfig = allConfigUsages.has(ac.name) || (ac.id !== undefined && allConfigUsages.has(ac.id))
+    const isUsedInActive = activeUsages.has(ac.name) || (ac.id !== undefined && activeUsages.has(ac.id))
     if (wasUsedInConfig && !isUsedInActive) {
       continue
     }
 
     if (
-      resolver.getRef(AttributeToken, ac.id as string) !== undefined ||
+      resolver.getRef(AttributeToken, ac.id) !== undefined ||
       resolver.getRef(AttributeToken, ac.name) !== undefined
     ) {
       continue
@@ -1136,9 +1135,7 @@ export async function importWorkflowConfig (
       const updatedStatuses = [...(currentTaskType.statuses ?? [])]
       let taskTypeUpdated = false
 
-      if (resolution.statusMap === undefined) {
-        resolution.statusMap = {}
-      }
+      resolution.statusMap ??= {}
 
       const statusAttr =
         findStatusAttr(hierarchy, currentTaskType.targetClass) ?? hierarchy.getAttribute(task.class.Task, 'status')

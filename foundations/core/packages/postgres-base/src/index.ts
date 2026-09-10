@@ -313,7 +313,7 @@ class ConnectionInfo {
         reserved = await this.client.reserve()
       }
     } else {
-      reserved = this.available.shift() as DBClient
+      reserved = this.available.shift()
     }
 
     try {
@@ -471,9 +471,7 @@ export class ConnectionMgr {
 
   getConnection (id: string, mgrId: string, managed: boolean = true): ConnectionInfo {
     let conn = this.connections.get(id)
-    if (conn === undefined) {
-      conn = new ConnectionInfo(id, this.client, managed, mgrId)
-    }
+    conn ??= new ConnectionInfo(id, this.client, managed, mgrId)
     if (managed) {
       this.connections.set(id, conn)
     }

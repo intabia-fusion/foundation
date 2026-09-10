@@ -191,9 +191,7 @@ export class PlatformWorker {
     })
 
     this.periodicTimer = setInterval(() => {
-      if (this.periodicSyncPromise === undefined) {
-        this.periodicSyncPromise = this.performPeriodicSync()
-      }
+      this.periodicSyncPromise ??= this.performPeriodicSync()
     }, this.periodicSyncInterval)
   }
 
@@ -996,11 +994,11 @@ export class PlatformWorker {
     const rechecks: string[] = []
     let idx = 0
     const connecting = new Map<
-    string,
-    {
-      time: number
-      version: string
-    }
+      string,
+      {
+        time: number
+        version: string
+      }
     >()
     const st = Date.now()
     const connectingInfo = setInterval(() => {

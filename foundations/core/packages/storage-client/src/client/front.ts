@@ -18,7 +18,7 @@ import { FileStorage, FileStorageUploadOptions } from '../types'
 import { uploadXhr } from '../upload'
 
 const getPathname = (url: string): string => {
-  const base = window?.location?.href !== undefined ? window.location.href : 'http://localhost'
+  const base = window?.location?.href ?? 'http://localhost'
   return new URL(url, base).pathname
 }
 

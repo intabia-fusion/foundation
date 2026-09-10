@@ -250,7 +250,7 @@ async function createWorkSlotDoc (
   dueDate: number,
   participants: Array<Ref<Person>>
 ): Promise<Ref<WorkSlot>> {
-  const space = todo.attachedSpace ?? (owner.space._id as unknown as Ref<Space>)
+  const space = todo.attachedSpace ?? owner.space._id
   return await owner.client.addCollection(time.class.WorkSlot, space, todo._id, todo._class, 'workslots', {
     calendar: owner.calendarId,
     eventId: generateEventId(),
@@ -277,7 +277,7 @@ async function createEventDoc (
 ): Promise<void> {
   await owner.client.addCollection(
     calendarPlugin.class.Event,
-    owner.space._id as unknown as Ref<Space>,
+    owner.space._id,
     calendarPlugin.ids.NoAttached,
     calendarPlugin.class.Event,
     'events',
@@ -308,7 +308,7 @@ async function createRecurringEventDoc (
 ): Promise<void> {
   await owner.client.addCollection(
     calendarPlugin.class.ReccuringEvent,
-    owner.space._id as unknown as Ref<Space>,
+    owner.space._id,
     calendarPlugin.ids.NoAttached,
     calendarPlugin.class.Event,
     'events',

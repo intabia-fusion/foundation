@@ -55,7 +55,7 @@
   }
 
   $: _class = cardObj && (client.getHierarchy().getClass(cardObj?._class) as MasterTag)
-  $: icon = _class && _class.icon
+  $: icon = _class?.icon
 
   $: ids = getCardIds(cardObj, client.getHierarchy())
   $: version = getCardVersion(cardObj, client.getHierarchy())

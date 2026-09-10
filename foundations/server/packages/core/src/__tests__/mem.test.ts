@@ -73,7 +73,7 @@ async function createAdapter (): Promise<DbAdapter> {
       core.class.Class,
       core.space.Model,
       { label: 'Transient' as IntlString, extends: core.class.Doc, kind: ClassifierKind.CLASS },
-      transientClass as Ref<Class<Doc>>
+      transientClass
     )
   )
 

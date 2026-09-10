@@ -73,7 +73,7 @@ function mapLine (line: D2HDiffLine): DiffLine {
     case 'delete':
       return { type: DiffLineType.DELETE, oldNumber, newNumber: undefined, prefix, content }
     default:
-      throw new Error(`Unexpected line type: ${type}`)
+      throw new Error(`Unexpected line type: ${String(type)}`)
   }
 }
 

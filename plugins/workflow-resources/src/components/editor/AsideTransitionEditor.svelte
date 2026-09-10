@@ -111,7 +111,7 @@
     toStatusId = transition.to
   }
 
-  $: isSelf = toStatusId != null && fromStatusItemIds != null && fromStatusItemIds.includes(toStatusId)
+  $: isSelf = toStatusId != null && fromStatusItemIds?.includes(toStatusId) === true
 
   let conflictInfo: ConflictInfo | null = null
   $: {
@@ -166,7 +166,7 @@
 
     const fromVal = data.from
     const toVal = data.to
-    const isSelfTransition = toVal != null && fromVal != null && fromVal.includes(toVal)
+    const isSelfTransition = toVal != null && fromVal?.includes(toVal) === true
     const conflict =
       toVal != null && fromVal != null && fromVal.length > 0
         ? getTransitionConflict({ _id, from: fromVal, to: toVal }, transitions)

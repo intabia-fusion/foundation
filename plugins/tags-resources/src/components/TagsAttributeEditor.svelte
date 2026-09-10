@@ -83,16 +83,32 @@
 
   $: items = draft
     ? rawDraftItems.map((valItem) => {
-      const tagId = getTagId(valItem)
-      const dbItem = dbItems.find((it) => it.tag === tagId)
-      if (dbItem !== undefined) return dbItem
+        const tagId = getTagId(valItem)
+        const dbItem = dbItems.find((it) => it.tag === tagId)
+        if (dbItem !== undefined) return dbItem
 
-      if (typeof valItem === 'object' && valItem != null && 'title' in valItem && valItem.title) {
+        if (typeof valItem === 'object' && valItem != null && 'title' in valItem && valItem.title) {
+          return {
+            _id: tagId as any,
+            tag: tagId,
+            title: valItem.title,
+            color: valItem.color ?? 0,
+            attachedTo: object._id,
+            attachedToClass: object._class,
+            collection: 'labels',
+            modifiedOn: Date.now(),
+            modifiedBy: getCurrentAccount().primarySocialId,
+            space: object.space,
+            _class: tags.class.TagReference
+          }
+        }
+
+        const element = elements.get(tagId)
         return {
           _id: tagId as any,
           tag: tagId,
-          title: valItem.title,
-          color: valItem.color ?? 0,
+          title: element?.title ?? '',
+          color: element?.color ?? 0,
           attachedTo: object._id,
           attachedToClass: object._class,
           collection: 'labels',
@@ -101,23 +117,7 @@
           space: object.space,
           _class: tags.class.TagReference
         }
-      }
-
-      const element = elements.get(tagId)
-      return {
-        _id: tagId as any,
-        tag: tagId,
-        title: element?.title ?? '',
-        color: element?.color ?? 0,
-        attachedTo: object._id,
-        attachedToClass: object._class,
-        collection: 'labels',
-        modifiedOn: Date.now(),
-        modifiedBy: getCurrentAccount().primarySocialId,
-        space: object.space,
-        _class: tags.class.TagReference
-      }
-    })
+      })
     : dbItems
 
   function handleTagChange (newTagIds: Ref<TagElement>[]): void {

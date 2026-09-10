@@ -26,9 +26,7 @@ import config from './config'
 
 let integrationClient: IntegrationClient | undefined
 export function getIntegrationClient (): IntegrationClient {
-  if (integrationClient === undefined) {
-    integrationClient = new IntegrationClientImpl(getAccountClient(serviceToken()), gmailIntegrationKind, 'gmail')
-  }
+  integrationClient ??= new IntegrationClientImpl(getAccountClient(serviceToken()), gmailIntegrationKind, 'gmail')
   return integrationClient
 }
 

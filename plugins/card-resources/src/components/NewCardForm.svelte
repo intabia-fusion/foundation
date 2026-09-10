@@ -88,9 +88,9 @@
   $: extension =
     type != null
       ? client
-        .getModel()
-        .findAllSync(card.mixin.CreateCardExtension, {})
-        .find((it) => hierarchy.isDerived(type, it._id))
+          .getModel()
+          .findAllSync(card.mixin.CreateCardExtension, {})
+          .find((it) => hierarchy.isDerived(type, it._id))
       : undefined
 
   async function okAction (): Promise<void> {

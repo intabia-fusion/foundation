@@ -302,11 +302,9 @@ export function subscribeToIncomingInvites (): void {
         allInvites.set(invites)
       })
 
-      if (heartbeatTimer === undefined) {
-        heartbeatTimer = setInterval(() => {
-          void renewOutgoingInvites()
-        }, HEARTBEAT_MS)
-      }
+      heartbeatTimer ??= setInterval(() => {
+        void renewOutgoingInvites()
+      }, HEARTBEAT_MS)
     }
     trySubscribe()
   })

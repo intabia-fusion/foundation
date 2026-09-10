@@ -39,14 +39,33 @@ async function runEsbuildPackage (packagePath) {
   await generateSvelteTypes({ cwd: packagePath })
 }
 
-function runTsc (packagePath, emitDeclarationOnly) {
+// The pre-tsc7 docker path: esbuild writes JS and nothing else. No type check and no .d.ts,
+// which only downstream *compilation* needs — a bundle never reads them.
+async function runEsbuildEmit (packagePath) {
+  const { collectFiles, performESBuild } = require('../compile.js')
+  const files = collectFiles(join(packagePath, 'src'))
+  if (files.length > 0) {
+    const relative = files.map((f) => f.replace(packagePath + '/', ''))
+    await performESBuild(relative, { srcDir: 'src', cwd: packagePath, outDir: 'lib' })
+  }
+  return { success: true }
+}
+
+function runTsc (packagePath, emitDeclarationOnly, noTypeCheck) {
   return new Promise((resolve) => {
     const args = ['-p', 'tsconfig.json', '--tsBuildInfoFile', join('.build', 'build.tsbuildinfo')]
     if (emitDeclarationOnly) args.push('--emitDeclarationOnly')
+    if (noTypeCheck) args.push('--noCheck')
+    // Bounded: a compiler that floods stdout must not grow the parent's heap without limit.
+    const MAX_OUT = 1 << 20
     let out = ''
+    const append = (d) => {
+      out += d
+      if (out.length > MAX_OUT) out = out.slice(out.length - MAX_OUT)
+    }
     const child = spawn(resolveTsc7(), args, { cwd: packagePath })
-    child.stdout.on('data', (d) => { out += d })
-    child.stderr.on('data', (d) => { out += d })
+    child.stdout.on('data', append)
+    child.stderr.on('data', append)
     child.on('error', (err) => resolve({ success: false, error: err }))
     child.on('close', (code) => {
       if (code === 0) resolve({ success: true })
@@ -64,7 +83,9 @@ function runTsc (packagePath, emitDeclarationOnly) {
  * @param {Map<string, string>} options.packageHashes
  */
 async function runBuildPhase (graph, packageNames, concurrency, options = {}) {
-  const { force = false, packageHashes } = options
+  const { force = false, packageHashes, noTypeCheck = false, esbuildEmit = false } = options
+  // A skipped-check build must never satisfy a checked one, so it caches under its own key.
+  const phaseKey = `build${noTypeCheck ? '-nocheck' : ''}${esbuildEmit ? '-esbuild' : ''}`
   const startTime = performance.now()
   const results = {
     successCount: 0,
@@ -101,7 +122,7 @@ async function runBuildPhase (graph, packageNames, concurrency, options = {}) {
     const packagePath = node.project.fullPath
     const isUi = node.phaseBuild === 'compile build-ui'
     const isEsbuild = node.phaseBuild === 'compile ui-esbuild'
-    const outputDirs = isUi ? ['types'] : ['lib', 'types']
+    const outputDirs = esbuildEmit ? ['lib'] : (isUi ? ['types'] : ['lib', 'types'])
     const pkgStart = performance.now()
 
     // A dependency is visible only through its .d.ts, so that is the input, not its sources.
@@ -112,7 +133,7 @@ async function runBuildPhase (graph, packageNames, concurrency, options = {}) {
     const typesHash = isUi ? outputHash : calculateOutputHashForDirs(packagePath, ['types'])
     if (typesHash) typesHashes.set(name, typesHash)
 
-    const cached = packageHash ? getPhaseMetadata(packagePath, packageHash, 'build') : null
+    const cached = packageHash ? getPhaseMetadata(packagePath, packageHash, phaseKey) : null
     const outputsMatch = cached != null && (cached.outputHash == null || cached.outputHash === outputHash)
     if (!force && packageHash && outputsMatch) {
       results.successCount++
@@ -128,9 +149,17 @@ async function runBuildPhase (graph, packageNames, concurrency, options = {}) {
       } catch {}
     }
 
-    const result = isEsbuild
-      ? await runEsbuildPackage(packagePath).then(() => ({ success: true }), (err) => ({ success: false, error: err }))
-      : await runTsc(packagePath, isUi)
+    let result
+    if (isEsbuild) {
+      result = await runEsbuildPackage(packagePath).then(() => ({ success: true }), (err) => ({ success: false, error: err }))
+    } else if (esbuildEmit) {
+      // UI packages ship sources and only ever emitted declarations, so they have nothing to do here.
+      result = isUi
+        ? { success: true }
+        : await runEsbuildEmit(packagePath).catch((err) => ({ success: false, error: err }))
+    } else {
+      result = await runTsc(packagePath, isUi, noTypeCheck)
+    }
     const pkgTime = Math.round(performance.now() - pkgStart)
 
     if (result.success) {
@@ -138,7 +167,7 @@ async function runBuildPhase (graph, packageNames, concurrency, options = {}) {
       results.changedPackages.add(name)
       const fresh = calculateOutputHashForDirs(packagePath, ['types'])
       if (fresh) typesHashes.set(name, fresh)
-      if (packageHash) markPhaseCompleted(packagePath, packageHash, 'build', null, outputDirs)
+      if (packageHash) markPhaseCompleted(packagePath, packageHash, phaseKey, null, outputDirs)
       console.log(`    ${success('B')} ${dim(completedCount + 1)}/${packageNames.length} ${name} ${success('built')} ${dim(pkgTime + 'ms')}`)
       timings.push({ package: name, time: pkgTime })
     } else {

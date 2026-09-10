@@ -54,7 +54,7 @@ interface ParsingSpecialRule {
   getAttrs?: (tok: Token, state: MarkdownParseState) => Attrs | undefined
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ParsingIgnoreRule {
   // empty
 }
@@ -785,10 +785,7 @@ function convertTodoItem (tokens: Token[], open: number): boolean {
 
     const inline = tokens[open + 2]
 
-    if (tokens[open].attrs == null) {
-      tokens[open].attrs = []
-    }
-
+    tokens[open].attrs ??= []
     ;(tokens[open].attrs as any).push(['checked', isCheckedTodoItem(inline) ? 'true' : 'false'])
 
     if (inline.children !== null) {

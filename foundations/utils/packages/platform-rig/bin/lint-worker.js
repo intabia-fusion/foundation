@@ -8,8 +8,14 @@
 */
 
 const { parentPort, threadId } = require('worker_threads')
-const { join, basename } = require('path')
+const { join, basename, dirname } = require('path')
 const { existsSync, readdirSync, lstatSync } = require('fs')
+
+// typescript-estree switches to its "single run" host when CI=true, and that path hands us a
+// program containing only the current file: type-aware rules then see no types and the parser
+// reports phantom syntax errors. The watch host is what works, so ask for it explicitly.
+process.env.TSESTREE_SINGLE_RUN ??= 'false'
+
 
 const { ESLint } = require('eslint')
 
@@ -31,8 +37,17 @@ function collectSourceFiles(dir, result = []) {
   return result
 }
 
+
+// pnpm 12 does not reliably link plugins into every package, so plugin resolution is anchored to the
+// rig, which declares them all and is a dependency of every package anyway.
+function rigDir (cwd) {
+  // require.resolve cannot be used: the rig's package.json is not listed in its `exports`.
+  const dir = join(cwd, 'node_modules', '@hcengineering', 'platform-rig')
+  return existsSync(dir) ? dir : cwd
+}
+
 async function lintPackage(cwd, options = {}) {
-  const { srcDir = 'src', chunkSize = 50 } = options
+  const { srcDir = 'src', chunkSize = 50, fix = false } = options
   const srcPath = join(cwd, srcDir)
   const startedAt = Date.now()
 
@@ -47,9 +62,11 @@ async function lintPackage(cwd, options = {}) {
   // every git checkout. The phase-level hash still covers dependency type changes,
   // which this cache cannot see.
   let eslint = new ESLint({
-    fix: false,
+    // Fixing rewrites files, so the file cache must not report them as already clean.
+    fix,
+    cache: !fix,
     cwd,
-    cache: true,
+    resolvePluginsRelativeTo: rigDir(cwd),
     cacheLocation: join(cwd, '.eslintcache'),
     cacheStrategy: 'content'
   })
@@ -64,6 +81,7 @@ async function lintPackage(cwd, options = {}) {
   for (let i = 0; i < files.length; i += chunkSize) {
     const chunk = files.slice(i, i + chunkSize)
     let results = await eslint.lintFiles(chunk)
+    if (fix) await ESLint.outputFixes(results)
     for (const r of results) {
       errorCount += r.errorCount
       warningCount += r.warningCount
@@ -97,7 +115,7 @@ if (parentPort) {
 
     if (type === 'lint') {
       try {
-        const result = await lintPackage(cwd, { srcDir: task.srcDir || 'src' })
+        const result = await lintPackage(cwd, { srcDir: task.srcDir || 'src', fix: task.fix === true })
         parentPort.postMessage({ id, threadId, ...result })
       } catch (err) {
         parentPort.postMessage({ id, threadId, success: false, error: err.stack || err.message || String(err) })

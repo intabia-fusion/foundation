@@ -128,7 +128,7 @@
     }
   ]
 
-  let mode: '1:1' | '1:N' | 'N:N' = 'N:N' as '1:1' | '1:N' | 'N:N'
+  let mode: '1:1' | '1:N' | 'N:N' = 'N:N'
 
   $: classA = getAClass(aClass)
 

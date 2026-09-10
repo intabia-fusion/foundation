@@ -97,7 +97,7 @@ describe('plan-trial', () => {
       plan: 'business',
       trialEnd: Date.now() + 14 * 24 * 3600 * 1000,
       limits: { usersLimit: 10, storageLimitGB: 50, trafficLimitGB: 0, tokenLimit: 0, meetingMinutesLimit: 0 }
-    } as any)
+    })
 
     const active = await account.getSubscriptions(workspaceUuid) // activeOnly=true default
     const trial = active.find((s) => s.type === SubscriptionType.Tier)
@@ -121,7 +121,7 @@ describe('plan-trial', () => {
       plan: 'business',
       trialEnd: Date.now() - 24 * 3600 * 1000, // already past
       limits: { usersLimit: 10, storageLimitGB: 50, trafficLimitGB: 0, tokenLimit: 0, meetingMinutesLimit: 0 }
-    } as any)
+    })
 
     const all = await account.getSubscriptions(workspaceUuid, false)
     const trial = all.find((s) => s.type === SubscriptionType.Tier && s.provider === 'trial')
@@ -142,7 +142,7 @@ describe('plan-trial', () => {
       status: SubscriptionStatus.Trialing,
       plan: 'business',
       trialEnd: Date.now() + 14 * 24 * 3600 * 1000
-    } as any)
+    })
 
     // Simulate a completed purchase (any provider): an active Business tier is written.
     const paid = tierId()
@@ -156,7 +156,7 @@ describe('plan-trial', () => {
       status: SubscriptionStatus.Active,
       plan: 'business',
       limits: { usersLimit: 3, storageLimitGB: 15, trafficLimitGB: 0, tokenLimit: 0, meetingMinutesLimit: 0 }
-    } as any)
+    })
 
     const tiers = await activeTiers()
     expect(tiers).toHaveLength(1)

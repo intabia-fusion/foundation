@@ -42,7 +42,7 @@ describe('action logs', () => {
   })
 
   afterAll(() => {
-    process.stdout.write = original as any
+    process.stdout.write = original
   })
 
   function fileFor (name: string): string {

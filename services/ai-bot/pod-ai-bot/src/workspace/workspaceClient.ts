@@ -218,12 +218,10 @@ export class WorkspaceClient {
   /** A workspace touched while it is upgrading answers 403; a cached rejection would leave the
    *  bot blind to it until the pod restarts, so the next caller re-runs the init. */
   private async ensureInited (): Promise<void> {
-    if (this.initPromise === undefined) {
-      this.initPromise = this.initClient().catch((err) => {
-        this.initPromise = undefined
-        throw err
-      })
-    }
+    this.initPromise ??= this.initClient().catch((err) => {
+      this.initPromise = undefined
+      throw err
+    })
     await this.initPromise
   }
 
@@ -780,7 +778,7 @@ export class WorkspaceClient {
 
     let client = this.userClients.get(personUuid)
     if (client === undefined) {
-      const token = generateToken(personUuid as AccountUuid, this.wsIds.uuid, { service: 'aibot' })
+      const token = generateToken(personUuid, this.wsIds.uuid, { service: 'aibot' })
       client = connectPlatform(token, this.wsIds.uuid, this.transactorUrl)
       this.userClients.set(personUuid, client)
     }
@@ -791,7 +789,7 @@ export class WorkspaceClient {
   private async readMarkupBlobAsMarkdown (blob: Ref<Blob>): Promise<string | undefined> {
     try {
       const readable = await this.storage.read(this.ctx, this.wsIds, blob)
-      const markup = Buffer.concat(readable as any).toString()
+      const markup = Buffer.concat(readable).toString()
       return markupToMarkdown(markupToJSON(markup), { refUrl: '', imageUrl: '' })
     } catch (err: any) {
       this.ctx.error('failed to read markup blob as markdown', { _id: blob, workspace: this.wsIds.uuid })
@@ -860,7 +858,7 @@ export class WorkspaceClient {
     rootClass: Ref<Class<Doc>>
   ): Promise<{ targetId: Ref<Doc>, targetClass: Ref<Class<Doc>>, targetAttr: string } | undefined> {
     const root = await this.client.findOne<Doc>(rootClass, { _id: rootId })
-    if (root === undefined || root._class !== aiBot.class.AIContextMessage) return undefined
+    if (root?._class !== aiBot.class.AIContextMessage) return undefined
     const link = root as AIContextMessage
     const targetAttr = await this.editTargetAttr(link.objectClass)
     if (targetAttr === undefined) return undefined
@@ -938,7 +936,7 @@ export class WorkspaceClient {
   // The issue this thread is linked to, when it is one - the parent for a split proposal.
   async resolveLinkedIssue (rootId: Ref<Doc>, rootClass: Ref<Class<Doc>>): Promise<Ref<Doc> | undefined> {
     const root = await this.client.findOne<Doc>(rootClass, { _id: rootId })
-    if (root === undefined || root._class !== aiBot.class.AIContextMessage) return undefined
+    if (root?._class !== aiBot.class.AIContextMessage) return undefined
     const link = root as AIContextMessage
     const hierarchy = await this.getHierarchy()
     return hierarchy.isDerived(link.objectClass, tracker.class.Issue) ? link.objectId : undefined
@@ -1292,7 +1290,7 @@ export class WorkspaceClient {
         contextMode,
         memory.sharedPrompt,
         memory.personalContext,
-        personUuid as AccountUuid,
+        personUuid,
         this.ctx,
         this.wsIds.uuid,
         [...systemPrompts, ...useHistory],

@@ -374,9 +374,9 @@ export default class OpenAIProvider implements LLMProvider {
       const tools =
         toolDefinitions.length > 0
           ? toolDefinitions.map((t) => ({
-            type: 'function' as const,
-            function: { name: t.name, description: t.description, parameters: t.parameters }
-          }))
+              type: 'function' as const,
+              function: { name: t.name, description: t.description, parameters: t.parameters }
+            }))
           : undefined
 
       if (config.LLMDebug) {
@@ -452,7 +452,7 @@ export default class OpenAIProvider implements LLMProvider {
 
   countTokens (messages: ChatMessage[]): number {
     try {
-      return countTokens(messages as any, this.encoding)
+      return countTokens(messages, this.encoding)
     } catch {
       // Best-effort fallback: return 0 if token counting fails for any reason
       return 0

@@ -798,7 +798,7 @@ abstract class MongoAdapterBase implements DbAdapter {
     clazz: Ref<Class<T>>,
     mixins?: Set<Ref<Class<Doc>>>
   ): { key: string, lookup: boolean } {
-    const arr = key.split('.').filter((p) => p)
+    const arr = key.split('.').filter((p) => p !== '')
     let tKey = ''
     let lookup = false
 
@@ -1029,10 +1029,10 @@ abstract class MongoAdapterBase implements DbAdapter {
 
   private collectSort<T extends Doc>(
     options:
-    | (FindOptions<T> & {
-      domain?: Domain | undefined // Allow to find for Doc's in specified domain only.
-    })
-    | undefined,
+      | (FindOptions<T> & {
+        domain?: Domain | undefined // Allow to find for Doc's in specified domain only.
+      })
+      | undefined,
     _class: Ref<Class<T>>
   ): Sort | undefined {
     if (options?.sort === undefined) {
@@ -1054,10 +1054,10 @@ abstract class MongoAdapterBase implements DbAdapter {
 
   private calcProjection<T extends Doc>(
     options:
-    | (FindOptions<T> & {
-      domain?: Domain | undefined // Allow to find for Doc's in specified domain only.
-    })
-    | undefined,
+      | (FindOptions<T> & {
+        domain?: Domain | undefined // Allow to find for Doc's in specified domain only.
+      })
+      | undefined,
     _class: Ref<Class<T>>
   ): Projection<T> | undefined {
     if (options?.projection === undefined) {
@@ -1126,17 +1126,15 @@ abstract class MongoAdapterBase implements DbAdapter {
 
     return {
       next: async () => {
-        if (iterator === undefined) {
-          iterator = coll.find(
-            {},
-            {
-              projection: {
-                '%hash%': 1,
-                _id: 1
-              }
+        iterator ??= coll.find(
+          {},
+          {
+            projection: {
+              '%hash%': 1,
+              _id: 1
             }
-          )
-        }
+          }
+        )
         const d = await ctx.with('next', {}, () => iterator.next())
         const result: DocInfo[] = []
         if (d != null) {
@@ -1169,9 +1167,7 @@ abstract class MongoAdapterBase implements DbAdapter {
 
     return {
       find: async () => {
-        if (iterator === undefined) {
-          iterator = coll.find({})
-        }
+        iterator ??= coll.find({})
         const d = await ctx.with('next', {}, () => iterator.next())
         const result: Doc[] = []
         if (d != null) {
@@ -1518,7 +1514,7 @@ class MongoAdapter extends MongoAdapterBase {
                   modifiedOn: tx.modifiedOn,
                   '%hash%': this.curHash()
                 }
-              } as unknown as UpdateFilter<Document>,
+              },
               { returnDocument: 'after', includeResultMetadata: true }
             )
             this.handleEvent(domain, 'read', 1)
@@ -1733,15 +1729,11 @@ function fillEnumSort (
       }
     }
   })
-  if (options.sort === undefined) {
-    options.sort = {}
-  }
+  options.sort ??= {}
   sort[`sort_${key}`] = options.sort[_key] === SortingOrder.Ascending ? 1 : -1
 }
 function fillDateSort (key: string, pipeline: any[], sort: any, options: FindOptions<Doc>, _key: string): void {
-  if (options.sort === undefined) {
-    options.sort = {}
-  }
+  options.sort ??= {}
   pipeline.push({
     $addFields: {
       [`sort_isNull_${key}`]: { $or: [{ $eq: [`$${key}`, null] }, { $eq: [{ $type: `$${key}` }, 'missing'] }] }
@@ -1783,9 +1775,7 @@ function fillCustomSort<T extends Doc> (
       }
     }
   })
-  if (options.sort === undefined) {
-    options.sort = {}
-  }
+  options.sort ??= {}
   sort[`sort_${key}`] = rules.order === SortingOrder.Ascending ? 1 : -1
 }
 

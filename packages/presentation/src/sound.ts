@@ -150,9 +150,7 @@ export function playThrottledSound (soundKey: string): void {
     return
   }
   // Otherwise ensure a single trailing play at window end.
-  if (st.timer === undefined) {
-    st.timer = setTimeout(fire, THROTTLE_WINDOW_MS - elapsed)
-  }
+  st.timer ??= setTimeout(fire, THROTTLE_WINDOW_MS - elapsed)
 }
 
 export async function playNotificationSound (

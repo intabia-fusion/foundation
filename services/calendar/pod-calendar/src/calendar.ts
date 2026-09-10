@@ -186,7 +186,7 @@ export class CalendarClient {
     if (event.access === 'owner' || event.access === 'writer') {
       try {
         const space = this.workspace.calendarsById.get(event.calendar as Ref<ExternalCalendar>)
-        if (space !== undefined && space.externalUser === this.user.email) {
+        if (space?.externalUser === this.user.email) {
           if (!(await this.update(event, space))) {
             await this.create(event, space)
           }

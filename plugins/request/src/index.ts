@@ -38,7 +38,7 @@ export interface Request extends AttachedDoc {
 /**
  * @public
  */
-export interface RequestDecisionComment extends ChatMessage {}
+export type RequestDecisionComment = ChatMessage
 
 /**
  * @public

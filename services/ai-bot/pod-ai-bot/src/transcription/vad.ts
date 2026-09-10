@@ -95,13 +95,13 @@ export function analyzeAudio (
  * @returns Parsed WAV parameters or undefined if invalid
  */
 export function parseWavHeader (wavBuffer: Buffer):
-| {
-  sampleRate: number
-  channels: number
-  bitsPerSample: number
-  dataSize: number
-}
-| undefined {
+  | {
+    sampleRate: number
+    channels: number
+    bitsPerSample: number
+    dataSize: number
+  }
+  | undefined {
   // Use audio-dsp library for WAV header parsing
   const header = parseWavHeaderDsp(wavBuffer)
 

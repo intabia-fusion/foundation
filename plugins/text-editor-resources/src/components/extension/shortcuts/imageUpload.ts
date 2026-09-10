@@ -82,7 +82,7 @@ export const ImageUploadExtension = Extension.create<ImageUploadExtensionOptions
       if (files !== undefined && attachFile !== undefined) {
         for (let i = 0; i < files.length; i++) {
           const file = files.item(i)
-          if (file != null && file.type.startsWith('image/')) {
+          if (file?.type.startsWith('image/') === true) {
             result = true
             void handleImageUpload(file, view, pos, attachFile, getFileUrl)
           }

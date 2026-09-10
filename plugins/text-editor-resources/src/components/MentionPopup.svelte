@@ -67,8 +67,8 @@
 
     const versions = await client.findAll(
       doc._class,
-      { baseId: versionedDoc.baseId } as any,
-      { sort: { version: SortingOrder.Descending } } as any
+      { baseId: versionedDoc.baseId },
+      { sort: { version: SortingOrder.Descending } }
     )
 
     return await Promise.all(

@@ -12,7 +12,7 @@ module.exports = {
         useESM: true,
         tsconfig: {
           module: 'ESNext',
-          moduleResolution: 'node',
+          moduleResolution: 'bundler',
           esModuleInterop: true,
           allowSyntheticDefaultImports: true
         }

@@ -160,7 +160,7 @@ describe('fulltext batch-removal scenarios', () => {
   }
 
   function removeTx<T extends Doc> (_class: Ref<any>, space: Ref<any>, objectId: Ref<T>): TxCUD<Doc> {
-    return txFactory.createTxRemoveDoc(_class, space, objectId) as any as TxCUD<Doc>
+    return txFactory.createTxRemoveDoc(_class, space, objectId)
   }
 
   it('A: create + remove in the SAME batch -> not indexed, cleaned', async () => {
@@ -205,17 +205,17 @@ describe('fulltext batch-removal scenarios', () => {
       title: 'doc-C',
       description: 'sceneC-' + generateId()
     })
-    const txs: TxCUD<Doc>[] = [create as any as TxCUD<Doc>]
+    const txs: TxCUD<Doc>[] = [create]
     for (let i = 0; i < 10; i++) {
       txs.push(
         txFactory.createTxUpdateDoc<TestDocument>(
-          test.class.TestDocument as Ref<any>,
+          test.class.TestDocument,
           core.space.Workspace,
           create.objectId as Ref<TestDocument>,
           {
             title: `doc-C-upd-${i}`
           }
-        ) as any as TxCUD<Doc>
+        )
       )
     }
     txs.push(removeTx(test.class.TestDocument, core.space.Workspace, create.objectId as Ref<TestDocument>))
@@ -276,7 +276,7 @@ describe('fulltext batch-removal scenarios', () => {
 
     // Now send a stray update after the doc is already removed
     const update = txFactory.createTxUpdateDoc<TestDocument>(
-      test.class.TestDocument as Ref<any>,
+      test.class.TestDocument,
       core.space.Workspace,
       create.objectId as Ref<TestDocument>,
       {
@@ -389,7 +389,7 @@ describe('fulltext batch-removal scenarios', () => {
         .filter((d) => d.wsId === wsId && d.removed)
         .map((d) => removeTx(test.class.TestDocument, core.space.Workspace, d.id))
       if (removes.length > 0) {
-        await txProducer.send(toolCtx, wsId, removes as Tx[])
+        await txProducer.send(toolCtx, wsId, removes)
       }
     })
     await Promise.all(phase2)

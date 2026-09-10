@@ -250,7 +250,7 @@ export class AIControl {
         channels: metadata.channels,
         bitsPerSample: metadata.bitsPerSample,
         audioFormat: metadata.audioFormat,
-        placeholderMessageId: placeholderMessageId as string | undefined
+        placeholderMessageId
       }
 
       // Queue for transcription with partition key based on workspace+participant

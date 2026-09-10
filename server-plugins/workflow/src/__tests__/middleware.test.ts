@@ -379,10 +379,10 @@ describe('WorkflowMiddleware', () => {
         jest.spyOn(privateMiddleware, 'provideFindAll').mockResolvedValue([])
 
         const tx = createMockCreateTx(workflow.class.WorkflowTransition, 'trans-1' as Ref<WorkflowTransition>, {
-          attachedTo: 'wf-1' as Ref<Workflow>,
+          attachedTo: 'wf-1',
           name: 'Move to Progress',
           from: ['todo' as Ref<DocStatus>],
-          to: 'in-progress' as Ref<DocStatus>
+          to: 'in-progress'
         })
 
         await expect(middleware.tx(defaultCtx, [tx])).resolves.not.toThrow()
@@ -393,7 +393,7 @@ describe('WorkflowMiddleware', () => {
           attachedTo: null,
           name: 'Invalid Transition',
           from: ['todo' as Ref<DocStatus>],
-          to: 'in-progress' as Ref<DocStatus>
+          to: 'in-progress'
         })
 
         await expect(middleware.tx(defaultCtx, [tx])).rejects.toThrow('workflow:status:WorkflowNotFound')
@@ -401,10 +401,10 @@ describe('WorkflowMiddleware', () => {
 
       it('should throw SelfTransitionNotAllowed when transition source contains destination status', async () => {
         const tx = createMockCreateTx(workflow.class.WorkflowTransition, 'trans-1' as Ref<WorkflowTransition>, {
-          attachedTo: 'wf-1' as Ref<Workflow>,
+          attachedTo: 'wf-1',
           name: 'Self transition',
           from: ['open' as Ref<DocStatus>, 'in-progress' as Ref<DocStatus>],
-          to: 'in-progress' as Ref<DocStatus>
+          to: 'in-progress'
         })
 
         await expect(middleware.tx(defaultCtx, [tx])).rejects.toThrow('workflow:status:SelfTransitionNotAllowed')
@@ -429,10 +429,10 @@ describe('WorkflowMiddleware', () => {
         jest.spyOn(privateMiddleware, 'provideFindAll').mockResolvedValue([existingTransition])
 
         const tx = createMockCreateTx(workflow.class.WorkflowTransition, 't-new' as Ref<WorkflowTransition>, {
-          attachedTo: 'wf-1' as Ref<Workflow>,
+          attachedTo: 'wf-1',
           name: 'Duplicate Transition',
           from: ['todo' as Ref<DocStatus>],
-          to: 'in-progress' as Ref<DocStatus>
+          to: 'in-progress'
         })
 
         try {
@@ -464,10 +464,10 @@ describe('WorkflowMiddleware', () => {
         jest.spyOn(privateMiddleware, 'provideFindAll').mockResolvedValue([existingTransition])
 
         const tx = createMockCreateTx(workflow.class.WorkflowTransition, 't-new' as Ref<WorkflowTransition>, {
-          attachedTo: 'wf-1' as Ref<Workflow>,
+          attachedTo: 'wf-1',
           name: 'New General Conflict',
           from: null,
-          to: 'done' as Ref<DocStatus>
+          to: 'done'
         })
 
         await expect(middleware.tx(defaultCtx, [tx])).rejects.toThrow('workflow:status:TransitionConflict')
@@ -541,7 +541,7 @@ describe('WorkflowMiddleware', () => {
         })
 
         const updateTx = createMockUpdateTx(workflow.class.WorkflowTransition, 'trans-1' as Ref<WorkflowTransition>, {
-          to: 'todo' as Ref<DocStatus>
+          to: 'todo'
         })
 
         await expect(middleware.tx(defaultCtx, [updateTx])).rejects.toThrow('workflow:status:SelfTransitionNotAllowed')

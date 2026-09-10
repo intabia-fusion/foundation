@@ -148,7 +148,7 @@
     object.labels = [...object.labels, tagAsRef(tag)]
   }
 
-  $: thisRef && thisRef.scrollIntoView({ behavior: 'smooth' })
+  $: thisRef?.scrollIntoView({ behavior: 'smooth' })
   $: canSave = getTitle(object.title ?? '').length > 0
 
   $: objectId = object._id

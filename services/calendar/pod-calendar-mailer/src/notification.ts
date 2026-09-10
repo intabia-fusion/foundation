@@ -73,14 +73,12 @@ export async function createNotification (
 
   const docNotifyContext = await client.findOne(notification.class.DocNotifyContext, { objectId, user })
   let docNotifyContextId = docNotifyContext?._id
-  if (docNotifyContextId === undefined) {
-    docNotifyContextId = await client.createDoc(notification.class.DocNotifyContext, space._id, {
-      objectId,
-      objectClass,
-      objectSpace,
-      user
-    })
-  }
+  docNotifyContextId ??= await client.createDoc(notification.class.DocNotifyContext, space._id, {
+    objectId,
+    objectClass,
+    objectSpace,
+    user
+  })
 
   if (notificationMessages[type] === undefined) {
     throw new Error('Invalid notification type')

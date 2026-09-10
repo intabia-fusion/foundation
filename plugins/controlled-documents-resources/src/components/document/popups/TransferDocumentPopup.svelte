@@ -170,7 +170,7 @@
           autoSelect={true}
         />
       </div>
-      {#if targetSpace && targetSpaceType && targetSpaceType.projects}
+      {#if targetSpace && targetSpaceType?.projects}
         <div class="space">
           <ProjectSelector
             value={targetProjectId}

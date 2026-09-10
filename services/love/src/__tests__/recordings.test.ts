@@ -85,7 +85,7 @@ describe('RecordingProcessor.startRecording', () => {
   ): {
       startRecording: (...a: Parameters<RecordingProcessor['startRecording']>) => Promise<StartVerdict>
       stopRecording: (...a: Parameters<RecordingProcessor['stopRecording']>) => Promise<StopVerdict>
-    } => p as never
+    } => p
 
   function createProcessor (): RecordingProcessor {
     return new RecordingProcessor(

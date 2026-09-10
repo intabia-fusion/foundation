@@ -62,7 +62,7 @@ function createSessionData (account: Account): SessionData {
     sessionId: 'test-session',
     workspace: { uuid: 'test-workspace' as any, url: 'test', dataId: 'test' as any },
     socialStringsToUsers: new Map()
-  } as any
+  }
 }
 
 /**
@@ -135,7 +135,7 @@ describe('SpaceSecurityMiddleware - Performance (20K spaces, 250 users)', () => 
       workspace: { uuid: 'test-workspace' as any, url: 'test', dataId: 'test' as any },
       hierarchy,
       modelDb,
-      branding: null as any,
+      branding: null,
       adapterManager: {} as any,
       storageAdapter: {} as any,
       contextVars: {},
@@ -187,8 +187,8 @@ describe('SpaceSecurityMiddleware - Performance (20K spaces, 250 users)', () => 
 
     // Build the map in an isolated scope to measure via ArrayBuffer trick
     const spacesMap = new Map<
-    string,
-    { _id: string, _class: string, members: Set<string>, private: boolean, archived: boolean }
+      string,
+      { _id: string, _class: string, members: Set<string>, private: boolean, archived: boolean }
     >()
     for (const space of spaces) {
       spacesMap.set(space._id, {
@@ -321,7 +321,7 @@ describe('SpaceSecurityMiddleware - Performance (20K spaces, 250 users)', () => 
 
     // Mock for broadcast: no collaborator security
     jest.spyOn(modelDb, 'findAllSync').mockReturnValue(toFindResult([]))
-    jest.spyOn(hierarchy, 'getAncestors').mockReturnValue([core.class.Space, core.class.Doc as any])
+    jest.spyOn(hierarchy, 'getAncestors').mockReturnValue([core.class.Space, core.class.Doc])
     ;(nextMiddleware.findAll as jest.Mock).mockImplementation(async () => toFindResult([]))
 
     // Generate txes targeting random spaces

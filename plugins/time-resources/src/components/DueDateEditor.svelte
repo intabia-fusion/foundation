@@ -38,7 +38,7 @@
         },
         'top',
         (result) => {
-          if (result != null && result.value !== undefined) {
+          if (result?.value !== undefined) {
             dispatch('change', result.value)
             value = result.value ? result.value.getTime() : null
           }

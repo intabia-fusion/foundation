@@ -29,7 +29,7 @@ jest.mock('@hcengineering/platform', () => {
     ...actual,
     translate: jest.fn(async (str: unknown) => `translated:${String(str)}`),
     getMetadata: jest.fn((key: unknown) => {
-      if (key != null && String(key).includes('FrontUrl')) {
+      if (typeof key === 'string' && key.includes('FrontUrl')) {
         return 'http://test.local:8080'
       }
       return undefined

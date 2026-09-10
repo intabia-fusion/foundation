@@ -77,9 +77,7 @@ export function languageReminder (lang: string): string {
 
 /** Load templates once. Throws if prompts.yaml is missing/incomplete. */
 function templates (): PromptTemplates {
-  if (cached === undefined) {
-    cached = loadPromptTemplates()
-  }
+  cached ??= loadPromptTemplates()
   return cached
 }
 

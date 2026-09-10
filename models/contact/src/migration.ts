@@ -181,7 +181,7 @@ async function assignWorkspaceRoles (client: MigrationClient): Promise<void> {
       continue
     }
     const employee = client.hierarchy.as(personObj, contact.mixin.Employee)
-    if (employee === undefined || !employee.active) {
+    if (!employee?.active) {
       continue
     }
     const socialKey = getSocialKeyByOldEmail(email)
@@ -213,7 +213,7 @@ async function assignEmployeeRoles (client: MigrationClient): Promise<void> {
       const updates: { filter: MigrationDocumentQuery<Contact>, update: MigrateUpdate<Contact> }[] = []
       for (const d of docs) {
         const employee = client.hierarchy.as(d, contact.mixin.Employee)
-        if (employee === undefined || !employee.active) {
+        if (!employee?.active) {
           continue
         }
         if (!employee.active) continue

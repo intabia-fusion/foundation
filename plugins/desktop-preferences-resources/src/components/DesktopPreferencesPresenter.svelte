@@ -16,7 +16,7 @@
       await client.update($activePreferences, { [propName]: value })
     } else {
       await client.createDoc(desktopPreferences.class.DesktopNotificationPreference, core.space.Workspace, {
-        attachedTo: '' as Ref<Doc>,
+        attachedTo: '',
         ...$activePreferences,
         [propName]: value
       })

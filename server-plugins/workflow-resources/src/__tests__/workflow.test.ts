@@ -27,7 +27,7 @@ import core, {
   type WithLookup
 } from '@hcengineering/core'
 import { type TriggerControl, type PipelineContext } from '@hcengineering/server-core'
-import task, { type Task, type Project, type TaskType, type Rank } from '@hcengineering/task'
+import task, { type Task, type Project, type TaskType } from '@hcengineering/task'
 import workflow from '@hcengineering/model-workflow'
 import { type Workflow, type WorkflowTransition } from '@hcengineering/workflow'
 import { WorkflowMiddleware } from '@hcengineering/server-workflow'
@@ -80,7 +80,7 @@ function createCreateTx (t: WithLookup<Task>): TxCreateDoc<Task> {
     modifiedOn: Date.now(),
     modifiedBy: testAccount,
     createdBy: testAccount,
-    attributes: attributes as any
+    attributes
   } satisfies TxCreateDoc<Task>
 }
 
@@ -163,7 +163,7 @@ async function createMockMiddleware (findAllImpl: FindAllFn): Promise<WorkflowMi
     modelDb: {} as any,
     branding: null,
     contextVars: {}
-  } as any
+  }
   const middleware = (await WorkflowMiddleware.create({} as any, context)) as WorkflowMiddleware
   jest.spyOn(middleware as any, 'provideFindAll').mockImplementation(async (...args: any[]) => {
     return await findAllImpl(args[0], args[1], args[2], args[3])
@@ -174,7 +174,7 @@ async function createMockMiddleware (findAllImpl: FindAllFn): Promise<WorkflowMi
 describe('PostFunctionsTrigger', () => {
   it('should allow all transitions if project has no workflow scheme', async () => {
     const project: Partial<Project> = {
-      _id: testSpace as any,
+      _id: testSpace,
       _class: task.class.Project,
       space: core.space.Model
     }
@@ -221,7 +221,7 @@ describe('PostFunctionsTrigger', () => {
       name: 'Create',
       from: [],
       to: statusTodo,
-      rank: 'a0' as Rank,
+      rank: 'a0',
       modifiedOn: 0,
       modifiedBy: testAccount
     }
@@ -266,7 +266,7 @@ describe('PostFunctionsTrigger', () => {
       name: 'Create',
       from: [],
       to: statusTodo,
-      rank: 'a0' as Rank,
+      rank: 'a0',
       modifiedOn: 0,
       modifiedBy: testAccount
     }
@@ -326,7 +326,7 @@ describe('PostFunctionsTrigger', () => {
       name: 'Start Work',
       from: [statusTodo],
       to: statusInProgress,
-      rank: 'a0' as Rank,
+      rank: 'a0',
       modifiedOn: 0,
       modifiedBy: testAccount
     }
@@ -374,7 +374,7 @@ describe('PostFunctionsTrigger', () => {
       name: 'Start Work',
       from: [statusTodo],
       to: 'in-progress-status' as Ref<Status>,
-      rank: 'a0' as Rank,
+      rank: 'a0',
       modifiedOn: 0,
       modifiedBy: testAccount
     }
@@ -420,7 +420,7 @@ describe('PostFunctionsTrigger', () => {
       name: 'Fix Bug',
       from: [statusTodo],
       to: statusInProgress,
-      rank: 'a0' as Rank,
+      rank: 'a0',
       modifiedOn: 0,
       modifiedBy: testAccount
     }
@@ -472,7 +472,7 @@ describe('PostFunctionsTrigger', () => {
       name: 'Start Work',
       from: [statusTodo],
       to: statusInProgress,
-      rank: 'a0' as Rank,
+      rank: 'a0',
       modifiedOn: 0,
       modifiedBy: testAccount,
       validators: [
@@ -546,7 +546,7 @@ describe('PostFunctionsTrigger', () => {
       name: 'Start Work',
       from: [statusTodo],
       to: statusInProgress,
-      rank: 'a0' as Rank,
+      rank: 'a0',
       modifiedOn: 0,
       modifiedBy: testAccount,
       validators: [
@@ -619,7 +619,7 @@ describe('PostFunctionsTrigger', () => {
       name: 'Start Work',
       from: [statusTodo],
       to: statusInProgress,
-      rank: 'a0' as Rank,
+      rank: 'a0',
       modifiedOn: 0,
       modifiedBy: testAccount,
       validators: [

@@ -410,9 +410,7 @@ export async function readChannelMessages (messages: ActivityMessage[], readStat
     }
 
     const notifications = get(inboxClient.activityInboxNotifications)
-      .filter((n) =>
-        shouldReadNotification(n, allIds.includes(n.attachedTo), n.$lookup?.attachedTo as ActivityMessage | undefined)
-      )
+      .filter((n) => shouldReadNotification(n, allIds.includes(n.attachedTo), n.$lookup?.attachedTo))
       .map((n) => n._id)
 
     const relatedMentions = get(inboxClient.otherInboxNotifications)
@@ -686,9 +684,9 @@ export async function getChatDocTitle (
   doc: Doc,
   lang: string
 ): Promise<{
-    identifier?: string
-    title: string
-  }> {
+  identifier?: string
+  title: string
+}> {
   const { _class } = doc
   const client = getClient()
   const hierarchy = client.getHierarchy()

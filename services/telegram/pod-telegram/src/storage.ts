@@ -7,9 +7,7 @@ const clientRef: MongoClientReference = getMongoClient(config.MongoURI)
 let client: MongoClient | undefined
 export const getDB = (() => {
   return async () => {
-    if (client === undefined) {
-      client = await clientRef.getClient()
-    }
+    client ??= await clientRef.getClient()
 
     return client.db(config.MongoDB)
   }

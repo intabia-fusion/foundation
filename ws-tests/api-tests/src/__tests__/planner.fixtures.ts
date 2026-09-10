@@ -155,7 +155,7 @@ async function setupPlannerAccount (
  * (`getCurrentEmployeeSpace()`) that a headless client never populates.
  */
 export function workSlotSpaceFor (todo: Pick<ToDo, 'attachedSpace'>, owner: PlannerAccount): Ref<Space> {
-  return todo.attachedSpace ?? (owner.space._id as unknown as Ref<Space>)
+  return todo.attachedSpace ?? owner.space._id
 }
 
 /** A team project (tracker.class.Project) private to `owner` + `members`. */
@@ -194,10 +194,7 @@ export async function waitForProjectToDo (
   issueId: Ref<Issue>,
   timeoutMs = 15000
 ): Promise<ProjectToDo> {
-  return await eventually(
-    async () => (await client.findOne(time.class.ProjectToDo, { attachedTo: issueId })) as ProjectToDo | undefined,
-    timeoutMs
-  )
+  return await eventually(async () => await client.findOne(time.class.ProjectToDo, { attachedTo: issueId }), timeoutMs)
 }
 
 export async function createPersonalTodo (
@@ -293,7 +290,7 @@ export async function createCalendarEvent (
   const dueDate = opts.dueDate ?? date + 60 * 60 * 1000
   await owner.client.addCollection(
     calendar.class.Event,
-    owner.space._id as unknown as Ref<Space>,
+    owner.space._id,
     calendar.ids.NoAttached,
     calendar.class.Event,
     'events',
@@ -330,7 +327,7 @@ export async function createRecurringCalendarEvent (
   const dueDate = opts.dueDate ?? date + 60 * 60 * 1000
   await owner.client.addCollection(
     calendar.class.ReccuringEvent,
-    owner.space._id as unknown as Ref<Space>,
+    owner.space._id,
     calendar.ids.NoAttached,
     calendar.class.Event,
     'events',

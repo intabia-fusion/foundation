@@ -80,6 +80,12 @@ pnpm run build
 
 Not every package defines `lint`. On "command not defined", use `pnpm run build` or `pnpm build:lint --to <pkg>`.
 
+Two TypeScript versions are in play: packages depend on 6.0.3, which eslint, ts-jest and a package's
+own `node_modules/.bin/tsc` use, while the build compiles with the `typescript7` alias
+(`npm:typescript@7.0.2`) through `compile`. The two are companion releases of the same checker (7 is
+the Go port), so `./node_modules/.bin/tsc --noEmit -p tsconfig.json` inside a package is a valid
+quick typecheck — `pnpm run build` remains the authoritative one.
+
 Do NOT:
 - Run `pnpm build` without `--to` for error checking (hits unrelated broken packages).
 - Run `pnpm run format` (user handles it).

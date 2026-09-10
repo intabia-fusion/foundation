@@ -23,7 +23,7 @@
   const resultQuery: DocumentQuery<CustomEmoji> = {}
 
   function showCreateDialog (ev: Event): void {
-    showPopup(CreateCustomEmojiPopup, ev.target as HTMLElement)
+    showPopup(CreateCustomEmojiPopup, ev.target)
   }
 </script>
 

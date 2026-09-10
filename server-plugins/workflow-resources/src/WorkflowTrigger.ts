@@ -44,7 +44,7 @@ export async function OnWorkflowDelete (txes: TxRemoveDoc<Workflow>[], control: 
     if (modified) {
       result.push(
         control.txFactory.createTxMixin<Project, ProjectWorkflow>(
-          project._id as Ref<Project>,
+          project._id,
           project._class,
           project.space,
           workflow.mixin.ProjectWorkflow,

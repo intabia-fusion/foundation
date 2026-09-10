@@ -56,8 +56,8 @@ class WsCache {
 
   private isSettingsLoaded = false
   private readonly notificationProviderSettings = new Map<
-  Ref<NotificationProviderSetting>,
-  NotificationProviderSetting
+    Ref<NotificationProviderSetting>,
+    NotificationProviderSetting
   >()
 
   private readonly notificationTypeSettings = new Map<Ref<NotificationTypeSetting>, NotificationTypeSetting>()
@@ -86,7 +86,7 @@ class WsCache {
     }
 
     if (tx._class === core.class.TxRemoveDoc) {
-      this.txRemoveDoc(tx as TxRemoveDoc<Doc>)
+      this.txRemoveDoc(tx)
     }
   }
 
@@ -399,7 +399,7 @@ class WsCache {
     } else {
       this.docs.delete(_id)
     }
-    return doc as T | undefined
+    return doc
   }
 
   public async getContexts (_id: Ref<Doc>): Promise<DocNotifyContext[]> {

@@ -96,10 +96,7 @@
   }
 
   $: needUpdate =
-    (status === undefined ||
-      status.name.trim() !== value.trim() ||
-      description !== finalDescription ||
-      color !== finalColor) &&
+    (status?.name.trim() !== value.trim() || description !== finalDescription || color !== finalColor) &&
     value.trim() !== '' &&
     !selectableStates.some((it) => it.name === value)
 
@@ -170,7 +167,7 @@
       for (const status of _type.statuses) {
         if (status._id === _id) {
           status.color = color
-          status.icon = icon as any // Fix me
+          status.icon = icon // Fix me
           status.description = description
           found = true
         }

@@ -477,13 +477,13 @@ class PostgresDB implements BillingDB {
       ORDER BY day;
     `
     const result = await this.execute<
-    {
-      day: string
-      total_minutes: string
-      max_participants: string
-      avg_meeting_duration_minutes: string
-      max_meeting_duration_minutes: string
-    }[]
+      {
+        day: string
+        total_minutes: string
+        max_participants: string
+        avg_meeting_duration_minutes: string
+        max_meeting_duration_minutes: string
+      }[]
     >(query, [workspace, start, end])
 
     return result.map((row) => ({

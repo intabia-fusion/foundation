@@ -67,9 +67,8 @@
 
   function onUpdateIntegration (data: IntegrationUpdatedData): void {
     if (
-      integration !== undefined &&
-      data.integration?.socialId === integration.socialId &&
-      data.integration?.workspaceUuid === integration.workspaceUuid
+      data.integration?.socialId === integration?.socialId &&
+      data.integration?.workspaceUuid === integration?.workspaceUuid
     ) {
       integration = { ...integration, ...data.integration }
     }

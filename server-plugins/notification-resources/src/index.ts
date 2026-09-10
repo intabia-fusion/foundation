@@ -336,7 +336,7 @@ export async function OnDocClassChanged (txes: TxUpdateDoc<Doc>[], control: Trig
 }
 
 export * from './push'
-export * from './types'
+export type * from './types'
 export * from './utils'
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type

@@ -27,6 +27,16 @@
     "_phase:test": "echo done",
     "_phase:format": "echo done"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-standard": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-n": "catalog:",
+    "eslint-plugin-promise": "catalog:",
+    "eslint-plugin-svelte": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:"
+  },
   "dependencies": {}
 }

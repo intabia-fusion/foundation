@@ -52,13 +52,13 @@ function createFakeClient (meetings: MeetingMinutes[]): {
         const exclude = new Set<Ref<MeetingMinutes>>((q._id?.$nin as Ref<MeetingMinutes>[]) ?? [])
         return Array.from(store.values()).filter(
           (m) => !exclude.has(m._id) && matchStatus(m.status, q.status) && matchModifiedOn(m.modifiedOn, q.modifiedOn)
-        ) as unknown as T[]
+        )
       }
-      return [] as unknown as T[]
+      return []
     }),
     findOne: jest.fn(async <T extends Doc>(_class: Ref<Class<T>>, query: DocumentQuery<T>) => {
       if (_class === love.class.MeetingMinutes) {
-        return store.get((query as any)._id as Ref<MeetingMinutes>) as T | undefined
+        return store.get((query as any)._id as Ref<MeetingMinutes>)
       }
       return undefined
     }),

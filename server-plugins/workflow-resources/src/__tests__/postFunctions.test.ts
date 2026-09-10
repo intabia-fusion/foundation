@@ -861,7 +861,7 @@ describe('Workflow Post-Functions', () => {
         }
         return []
       })
-    } as any
+    }
 
     const addRes = await UpdateFieldValue(controlEmptyCol, currentTask, transition, {
       fields: [
@@ -885,7 +885,7 @@ describe('Workflow Post-Functions', () => {
     const currentTask = createMockTask({
       _id: 'task-arr-1' as any,
       _class: task.class.Task,
-      tags: ['tag-1', 'tag-2'] as any
+      tags: ['tag-1', 'tag-2']
     })
 
     const hierarchy = {
@@ -1062,7 +1062,7 @@ describe('Workflow Post-Functions', () => {
     const currentTask = createMockTask({
       _id: 'task-members-1' as any,
       _class: task.class.Task,
-      members: ['other-user-uuid'] as any
+      members: ['other-user-uuid']
     })
 
     const hierarchy = {
@@ -1123,7 +1123,7 @@ describe('Workflow Post-Functions', () => {
     const taskWithCurrentUser = createMockTask({
       _id: 'task-members-1' as any,
       _class: task.class.Task,
-      members: ['other-user-uuid', 'current-user-uuid'] as any
+      members: ['other-user-uuid', 'current-user-uuid']
     })
 
     const removeRes = await UpdateFieldValue(control, taskWithCurrentUser, transition, {
@@ -1207,7 +1207,7 @@ describe('Workflow Post-Functions', () => {
     const currentTask = createMockTask({
       _id: 'task-multi-1' as any,
       _class: task.class.Task,
-      tags: ['tag-old'] as any
+      tags: ['tag-old']
     })
 
     const hierarchy = {
@@ -1297,7 +1297,7 @@ describe('Workflow Post-Functions', () => {
     const currentTask = createMockTask({
       _id: 'task-direct-1' as any,
       _class: task.class.Task,
-      tags: ['tag-1'] as any
+      tags: ['tag-1']
     })
 
     const tagAttr = {

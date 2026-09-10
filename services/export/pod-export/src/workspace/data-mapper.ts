@@ -219,9 +219,7 @@ export class DataMapper {
     data.seqNumber = minAvailable
 
     // Track this value in uniqueFieldValues per prefix
-    if (this.state.uniqueFieldValues === undefined) {
-      this.state.uniqueFieldValues = new Map()
-    }
+    this.state.uniqueFieldValues ??= new Map()
     const classKey = docClass
     if (!this.state.uniqueFieldValues.has(classKey)) {
       this.state.uniqueFieldValues.set(classKey, new Map())

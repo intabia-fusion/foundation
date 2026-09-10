@@ -120,22 +120,22 @@ export class TTypeMilestoneStatus extends TType {}
 export class TProject extends TTaskProject implements Project {
   @Prop(TypeString(), tracker.string.ProjectIdentifier)
   @Index(IndexKind.FullText)
-    identifier!: IntlString
+  identifier!: IntlString
 
   @Prop(TypeNumber(), tracker.string.Number)
   @Hidden()
-    sequence!: number
+  sequence!: number
 
   @Prop(TypeRef(tracker.class.IssueStatus), tracker.string.DefaultIssueStatus)
-    defaultIssueStatus?: Ref<IssueStatus>
+  defaultIssueStatus?: Ref<IssueStatus>
 
   @Prop(TypeRef(contact.mixin.Employee), tracker.string.DefaultAssignee)
-    defaultAssignee!: Ref<Employee>
+  defaultAssignee!: Ref<Employee>
 
   declare defaultTimeReportDay: TimeReportDayType
 
   @Prop(Collection(tracker.class.RelatedIssueTarget), tracker.string.RelatedIssues)
-    relatedIssueTargets!: number
+  relatedIssueTargets!: number
 }
 /**
  * @public
@@ -145,7 +145,7 @@ export class TProject extends TTaskProject implements Project {
 @UX(tracker.string.RelatedIssues)
 export class TRelatedIssueTarget extends TDoc implements RelatedIssueTarget {
   @Prop(TypeRef(tracker.class.Project), tracker.string.Project)
-    target!: Ref<Project>
+  target!: Ref<Project>
 
   rule!: RelatedClassRule | RelatedSpaceRule
 }
@@ -184,12 +184,12 @@ export class TIssue extends TTask implements Issue {
   @Prop(TypeString(), tracker.string.Title)
   @Index(IndexKind.FullText)
   @Activity({ set: tracker.string.TitleChangedTo })
-    title!: string
+  title!: string
 
   @Prop(TypeCollaborativeDoc(), tracker.string.Description)
   @Index(IndexKind.FullText)
   @Activity({ set: tracker.string.DescriptionChangedTo })
-    description!: MarkupBlobRef | null
+  description!: MarkupBlobRef | null
 
   @Prop(TypeRef(tracker.class.IssueStatus), tracker.string.Status, {
     _id: tracker.attribute.IssueStatus,
@@ -205,7 +205,7 @@ export class TIssue extends TTask implements Issue {
   })
   @Index(IndexKind.Indexed)
   @Activity({ set: tracker.string.PriorityChangedTo })
-    priority!: IssuePriority
+  priority!: IssuePriority
 
   @Prop(TypeNumber(), tracker.string.Number)
   @Index(IndexKind.FullText)
@@ -220,20 +220,20 @@ export class TIssue extends TTask implements Issue {
   @Prop(TypeRef(tracker.class.Component), tracker.string.Component, { icon: tracker.icon.Component })
   @Index(IndexKind.Indexed)
   @Activity({ set: tracker.string.ComponentChangedTo, unset: tracker.string.ComponentUnset })
-    component!: Ref<Component> | null
+  component!: Ref<Component> | null
 
   @Prop(Collection(tracker.class.Issue), tracker.string.SubIssues)
   @Activity({ set: tracker.string.SubIssueAdded, unset: tracker.string.SubIssueRemoved })
-    subIssues!: number
+  subIssues!: number
 
   @Prop(ArrOf(TypeRef(core.class.TypeRelatedDocument)), tracker.string.BlockedBy)
   @Activity({ set: tracker.string.AddedBlocker, unset: tracker.string.RemovedBlocker })
-    blockedBy!: RelatedDocument[]
+  blockedBy!: RelatedDocument[]
 
   @Prop(ArrOf(TypeRef(core.class.TypeRelatedDocument)), tracker.string.RelatedTo)
   @Index(IndexKind.Indexed)
   @Activity({ set: tracker.string.AddedRelation, unset: tracker.string.RemovedRelation })
-    relations!: RelatedDocument[]
+  relations!: RelatedDocument[]
 
   parents!: IssueParentInfo[]
 
@@ -252,30 +252,30 @@ export class TIssue extends TTask implements Issue {
   @Prop(TypeRef(tracker.class.Milestone), tracker.string.Milestone, { icon: tracker.icon.Milestone })
   @Index(IndexKind.Indexed)
   @Activity({ set: tracker.string.MilestoneChangedTo, unset: tracker.string.MilestoneUnset })
-    milestone!: Ref<Milestone> | null
+  milestone!: Ref<Milestone> | null
 
   @Prop(TypeEstimation(), tracker.string.Estimation, {
     icon: tracker.icon.Estimation
   })
   @Activity({ set: tracker.string.EstimationChangedTo, unset: tracker.string.EstimationUnset })
-    estimation!: number
+  estimation!: number
 
   @Prop(TypeReportedTime(), tracker.string.ReportedTime)
-    reportedTime!: number
+  reportedTime!: number
 
   @Prop(TypeRemainingTime(), tracker.string.RemainingTime)
   @ReadOnly()
-    remainingTime!: number
+  remainingTime!: number
 
   @Prop(Collection(tracker.class.TimeSpendReport), tracker.string.TimeSpendReports)
   @Activity({ set: tracker.string.TimeSpentAdded, unset: tracker.string.TimeSpentRemoved })
-    reports!: number
+  reports!: number
 
   declare childInfo: IssueChildInfo[]
 
   @Prop(Collection(time.class.ToDo), getEmbeddedLabel('Action Items'))
   @Hidden()
-    todos?: CollectionSize<ToDo>
+  todos?: CollectionSize<ToDo>
 }
 /**
  * @public
@@ -294,51 +294,51 @@ export class TIssue extends TTask implements Issue {
 export class TIssueTemplate extends TDoc implements IssueTemplate {
   @Prop(TypeString(), tracker.string.Title)
   @Index(IndexKind.FullText)
-    title!: string
+  title!: string
 
   @Prop(TypeMarkup(), tracker.string.Description)
   @Index(IndexKind.FullText)
-    description!: Markup
+  description!: Markup
 
   @Prop(TypeIssuePriority(), tracker.string.Priority, {
     iconComponent: tracker.component.PriorityIconPresenter
   })
-    priority!: IssuePriority
+  priority!: IssuePriority
 
   @Prop(TypeRef(contact.class.Person), tracker.string.Assignee)
-    assignee!: Ref<Person> | null
+  assignee!: Ref<Person> | null
 
   @Prop(TypeRef(tracker.class.Component), tracker.string.Component)
-    component!: Ref<Component> | null
+  component!: Ref<Component> | null
 
   @Prop(ArrOf(TypeRef(tags.class.TagElement)), tracker.string.Labels)
-    labels?: Ref<TagElement>[]
+  labels?: Ref<TagElement>[]
 
   @Prop(TypeRef(task.class.TaskType), task.string.TaskType)
-    kind?: Ref<TaskType>
+  kind?: Ref<TaskType>
 
   declare space: Ref<Project>
 
   @Prop(TypeDate(DateRangeMode.DATETIME), tracker.string.DueDate)
-    dueDate!: Timestamp | null
+  dueDate!: Timestamp | null
 
   @Prop(TypeRef(tracker.class.Milestone), tracker.string.Milestone)
-    milestone!: Ref<Milestone> | null
+  milestone!: Ref<Milestone> | null
 
   @Prop(TypeEstimation(), tracker.string.Estimation)
-    estimation!: number
+  estimation!: number
 
   @Prop(ArrOf(TypeRef(tracker.class.IssueTemplate)), tracker.string.IssueTemplate)
-    children!: IssueTemplateChild[]
+  children!: IssueTemplateChild[]
 
   @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
-    comments!: number
+  comments!: number
 
   @Prop(Collection(attachment.class.Attachment), tracker.string.Attachments)
-    attachments!: number
+  attachments!: number
 
   @Prop(ArrOf(TypeRef(core.class.TypeRelatedDocument)), tracker.string.RelatedTo)
-    relations!: RelatedDocument[]
+  relations!: RelatedDocument[]
 }
 /**
  * @public
@@ -351,16 +351,16 @@ export class TTimeSpendReport extends TAttachedDoc implements TimeSpendReport {
   declare attachedTo: Ref<Issue>
 
   @Prop(TypeRef(contact.mixin.Employee), contact.string.Employee)
-    employee!: Ref<Employee>
+  employee!: Ref<Employee>
 
   @Prop(TypeDate(), tracker.string.TimeSpendReportDate)
-    date!: Timestamp | null
+  date!: Timestamp | null
 
   @Prop(TypeNumber(), tracker.string.TimeSpendReportValue)
-    value!: number
+  value!: number
 
   @Prop(TypeString(), tracker.string.TimeSpendReportDescription)
-    description!: string
+  description!: string
 }
 /**
  * @public
@@ -379,19 +379,19 @@ export class TTimeSpendReport extends TAttachedDoc implements TimeSpendReport {
 export class TComponent extends TDoc implements Component {
   @Prop(TypeString(), tracker.string.Title)
   @Index(IndexKind.FullText)
-    label!: string
+  label!: string
 
   @Prop(TypeMarkup(), tracker.string.Description)
-    description?: Markup
+  description?: Markup
 
   @Prop(TypeRef(contact.mixin.Employee), tracker.string.ComponentLead)
-    lead!: Ref<Employee> | null
+  lead!: Ref<Employee> | null
 
   @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
-    comments!: number
+  comments!: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
   declare space: Ref<Project>
 }
@@ -404,25 +404,25 @@ export class TComponent extends TDoc implements Component {
 export class TMilestone extends TDoc implements Milestone {
   @Prop(TypeString(), tracker.string.Title)
   // @Index(IndexKind.FullText)
-    label!: string
+  label!: string
 
   @Prop(TypeMarkup(), tracker.string.Description)
-    description?: Markup
+  description?: Markup
 
   @Prop(TypeMilestoneStatus(), tracker.string.Status, {
     iconComponent: tracker.component.MilestoneStatusIcon
   })
   @Index(IndexKind.Indexed)
-    status!: MilestoneStatus
+  status!: MilestoneStatus
 
   @Prop(Collection(chunter.class.ChatMessage, chunter.string.Comment), chunter.string.Comments)
-    comments!: number
+  comments!: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
   @Prop(TypeDate(), tracker.string.TargetDate)
-    targetDate!: Timestamp
+  targetDate!: Timestamp
 
   declare space: Ref<Project>
 }
@@ -445,10 +445,10 @@ export class TProjectTargetPreference extends TPreference implements ProjectTarg
   declare attachedTo: Ref<Project>
 
   @Prop(TypeDate(), tracker.string.LastUpdated)
-    usedOn!: Timestamp
+  usedOn!: Timestamp
 
   @Prop(TypeRecord(), getEmbeddedLabel('Properties'))
-    props?: { key: string, value: any }[]
+  props?: { key: string, value: any }[]
 }
 
 @Mixin(tracker.mixin.ClassicProjectTypeData, tracker.class.Project)

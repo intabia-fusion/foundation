@@ -45,9 +45,7 @@
   })
 
   $: canDelete =
-    (skipCheck ||
-      (creators !== undefined && creators.length === 1 && creators[0] === me) ||
-      getCurrentAccount().role === AccountRole.Owner) &&
+    (skipCheck || (creators?.length === 1 && creators[0] === me) || getCurrentAccount().role === AccountRole.Owner) &&
     canDeleteExtra
   $: label = canDelete ? (title ?? view.string.DeleteObject) : view.string.DeletePopupNoPermissionTitle
 </script>

@@ -178,9 +178,7 @@ export async function joinOrCreateMeetingByInvite (meetingId: Ref<MeetingMinutes
     const delay = 100 // ms
 
     while (attempts < maxAttempts) {
-      if (meeting === undefined) {
-        meeting = await client.findOne(love.class.MeetingMinutes, { _id: meetingId })
-      }
+      meeting ??= await client.findOne(love.class.MeetingMinutes, { _id: meetingId })
 
       if (meeting !== undefined) {
         break

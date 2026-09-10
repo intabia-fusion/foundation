@@ -62,7 +62,7 @@
 
   async function viewProfile (): Promise<void> {
     if (employee === undefined) return
-    const panelComponent = hierarchy.classHierarchyMixin(employee._class as Ref<Class<Doc>>, view.mixin.ObjectPanel)
+    const panelComponent = hierarchy.classHierarchyMixin(employee._class, view.mixin.ObjectPanel)
     const comp = panelComponent?.component ?? view.component.EditDoc
     const loc = await getObjectLinkFragment(hierarchy, employee, {}, comp)
     navigate(loc)

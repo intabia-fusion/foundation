@@ -22,12 +22,21 @@
     "@hcengineering/task": "workspace:^0.7.0",
     "@hcengineering/rank": "workspace:^0.7.17",
     "@hcengineering/rpc": "workspace:^0.7.17",
-    "snappyjs": "^0.7.0"
+    "snappyjs": "catalog:"
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3",
-    "@types/node": "^24.13.3"
+    "ts-node": "catalog:",
+    "typescript": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-standard": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-n": "catalog:",
+    "eslint-plugin-promise": "catalog:",
+    "eslint-plugin-svelte": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:"
   }
 }

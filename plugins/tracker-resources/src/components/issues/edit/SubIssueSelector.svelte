@@ -14,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import core, { IdMap, Ref, SortingOrder, StatusCategory, WithLookup, toIdMap } from '@hcengineering/core'
+  import core, { IdMap, Ref, SortingOrder, Status, StatusCategory, WithLookup, toIdMap } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import task from '@hcengineering/task'
   import { Issue, IssueStatus } from '@hcengineering/tracker'
@@ -128,7 +128,8 @@
   }
 
   $: subIssueValue = sortedSubIssues.map((iss) => {
-    const status = iss.$lookup?.status as WithLookup<IssueStatus> | undefined
+    // The lookup type widens to Status | WithLookup<Status>; only the looked-up shape is used here.
+    const status = iss.$lookup?.status as WithLookup<Status> | undefined
     const icon = status?.$lookup?.category?.icon
     const color = status?.color ?? status?.$lookup?.category?.color
 

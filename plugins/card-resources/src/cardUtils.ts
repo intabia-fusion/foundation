@@ -50,7 +50,7 @@ export function getCardIds (object: Card | undefined, hierarchy: Hierarchy): str
 export function getCardVersion (val: Card | undefined, hierarchy: Hierarchy): string {
   if (val === undefined) return ''
   const mixin = hierarchy.classHierarchyMixin(val._class, core.mixin.VersionableClass)
-  if (mixin != null && mixin.enabled) {
+  if (mixin?.enabled === true) {
     return 'v' + (val.version ?? 1)
   }
   return ''

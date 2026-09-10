@@ -92,7 +92,7 @@ describe('billing read-only admin - read access', () => {
   })
 
   test('listWorkspaces: billing allowed, regular forbidden', async () => {
-    getWorkspacesSpy.mockResolvedValue([] as any)
+    getWorkspacesSpy.mockResolvedValue([])
     const db = {} as unknown as AccountDB
 
     setToken(BILLING)

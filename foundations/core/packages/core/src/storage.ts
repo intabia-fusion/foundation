@@ -232,7 +232,7 @@ export interface DomainResult<T = any> {
 /**
  * @public
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface TxResult {}
 
 /**
@@ -274,8 +274,8 @@ export interface SearchResultDoc {
   emojiIcon?: string
   score?: number
   doc: Pick<Doc, '_id' | '_class' | 'createdOn'> &
-  Partial<Pick<AttachedDoc, 'attachedTo' | 'attachedToClass'>> &
-  Partial<Pick<VersionableDoc, 'baseId'>>
+    Partial<Pick<AttachedDoc, 'attachedTo' | 'attachedToClass'>> &
+    Partial<Pick<VersionableDoc, 'baseId'>>
 }
 
 /**

@@ -105,7 +105,7 @@
         autoSelect={true}
       />
     </div>
-    {#if space && spaceType && spaceType.projects}
+    {#if space && spaceType?.projects}
       <div class="space">
         <ProjectSelector
           value={projectRef}

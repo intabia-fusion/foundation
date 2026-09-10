@@ -114,7 +114,7 @@
     <div class="hulyComponent-content__column p-6">
       {#if boxesLoading || optionsLoading}
         <Loading />
-      {:else if mailboxOptions !== undefined && mailboxOptions.availableDomains.length === 0}
+      {:else if mailboxOptions?.availableDomains.length === 0}
         <div class="hulyComponent-content__empty">
           <Label label={setting.string.MailboxNoDomains} />
         </div>

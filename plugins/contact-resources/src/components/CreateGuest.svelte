@@ -164,7 +164,7 @@
     const data = event.detail as AttachedData<Channel>
     const editedChannel = event.detail.channel as Channel | null
 
-    if (editedChannel != null && editedChannel.provider === contact.channelProvider.Email) {
+    if (editedChannel?.provider === contact.channelProvider.Email) {
       const firstEmail = channels.find((it) => it.provider === contact.channelProvider.Email)
       if (firstEmail !== undefined && firstEmail.value !== email) {
         email = firstEmail.value
@@ -179,7 +179,7 @@
   function onChannelRemove (event: CustomEvent): void {
     const ch = event.detail as AttachedData<Channel> | null
 
-    if (ch != null && ch.provider === contact.channelProvider.Email && email === ch.value) {
+    if (ch?.provider === contact.channelProvider.Email && email === ch.value) {
       email = channels.find((it) => it.provider === contact.channelProvider.Email && it.value !== ch.value)?.value ?? ''
     }
   }

@@ -58,7 +58,7 @@
   let spaces: Project[] = []
   $: spacesQ.query<Project>(
     task.class.Project,
-    { type: $selectedTypeStore as Ref<ProjectType> },
+    { type: $selectedTypeStore },
     (result) => {
       spaces = result
     },

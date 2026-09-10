@@ -38,7 +38,7 @@
       try {
         return JSON.stringify(metadata.query, null, 2)
       } catch {
-        return String(metadata.query)
+        return Object.prototype.toString.call(metadata.query)
       }
     }
     return undefined

@@ -83,7 +83,7 @@
   ]
 
   // eslint-disable-next-line no-unused-vars
-  const stepComponents: { [key in DocumentWizardStep]: AnySvelteComponent } = {
+  const stepComponents: Record<DocumentWizardStep, AnySvelteComponent> = {
     location: LocationStep,
     template: TemplateStep,
     info: InfoStep,

@@ -666,9 +666,7 @@ function buildState (
       textContent: node.textContent
     }
 
-    const patch =
-      nodeStatePatchByPos?.get(pos) ??
-      (nodeStatePatch !== undefined && pos === nodeStatePatch.pos ? nodeStatePatch : undefined)
+    const patch = nodeStatePatchByPos?.get(pos) ?? (nodeStatePatch?.pos === pos ? nodeStatePatch : undefined)
     if (patch !== undefined) {
       newState.folded = patch.folded
       newState.selected = patch.selected

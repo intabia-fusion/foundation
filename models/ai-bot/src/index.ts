@@ -73,165 +73,165 @@ export class TAIPersonalData extends TPreference implements AIPersonalData {
   declare attachedTo: AccountUuid
 
   @Prop(TypeString(), core.string.String)
-    personalContext!: string
+  personalContext!: string
 
   @Prop(TypeString(), core.string.String)
-    language?: string
+  language?: string
 }
 
 @Model(aiBot.class.AIRequest, core.class.Doc, DOMAIN_AI)
 export class TAIRequest extends TDoc implements AIRequest {
   @Prop(TypeString(), core.string.String)
-    status!: AIRequestStatus
+  status!: AIRequestStatus
 
   @Prop(TypeString(), core.string.String)
-    level!: AILevel
+  level!: AILevel
 
   @Prop(TypeString(), core.string.String)
-    modelId!: string
+  modelId!: string
 
   @Prop(TypeString(), core.string.String)
-    kind!: string
+  kind!: string
 
   @Prop(TypeNumber(), core.string.Number)
-    promptTokens!: number
+  promptTokens!: number
 
   @Prop(TypeNumber(), core.string.Number)
-    completionTokens!: number
+  completionTokens!: number
 
   @Prop(TypeNumber(), core.string.Number)
-    billedTokens!: number
+  billedTokens!: number
 
   @Prop(TypeString(), core.string.String)
-    error?: string
+  error?: string
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    objectId?: Ref<Doc>
+  objectId?: Ref<Doc>
 
   @Prop(TypeNumber(), core.string.Number)
-    iteration?: number
+  iteration?: number
 
   @Prop(TypeNumber(), core.string.Number)
-    contextTokens?: number
+  contextTokens?: number
 
   @Prop(TypeNumber(), core.string.Number)
-    contextCompactAt?: number
+  contextCompactAt?: number
 
   @Prop(TypeBoolean(), core.string.Boolean)
-    compacted?: boolean
+  compacted?: boolean
 }
 
 @Model(aiBot.class.AISpaceSettings, core.class.Doc, DOMAIN_AI)
 export class TAISpaceSettings extends TDoc implements AISpaceSettings {
   @Prop(TypeRef(core.class.Space), core.string.Space)
-    attachedTo?: Ref<Space>
+  attachedTo?: Ref<Space>
 
   @Prop(TypeString(), core.string.String)
-    level!: AILevel
+  level!: AILevel
 
   @Prop(TypeString(), core.string.String)
-    asrLevel?: AsrLevel
+  asrLevel?: AsrLevel
 
   @Prop(TypeString(), core.string.String)
-    language?: string
+  language?: string
 
   @Prop(TypeString(), core.string.String)
-    sharedPrompt?: string
+  sharedPrompt?: string
 
   @Prop(TypeBoolean(), core.string.Boolean)
-    meetingSummary?: boolean
+  meetingSummary?: boolean
 }
 
 @Model(aiBot.class.AIContextMessage, chunter.class.ChatMessage)
 export class TAIContextMessage extends TChatMessage implements AIContextMessage {
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    objectId!: Ref<Doc>
+  objectId!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    objectClass!: Ref<Class<Doc>>
+  objectClass!: Ref<Class<Doc>>
 
   @Prop(TypeRef(core.class.Space), core.string.Space)
-    direct!: Ref<Space>
+  direct!: Ref<Space>
 
   @Prop(TypeRef(core.class.Blob), core.string.Object)
-    snapshotBlob?: Ref<Blob>
+  snapshotBlob?: Ref<Blob>
 
   @Prop(TypeBoolean(), core.string.Boolean)
-    archived?: boolean
+  archived?: boolean
 
   @Prop(TypeString(), core.string.String)
-    level?: AILevel
+  level?: AILevel
 
   @Prop(TypeString(), core.string.String)
-    purpose?: AIConversationPurpose
+  purpose?: AIConversationPurpose
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    resultId?: Ref<Doc>
+  resultId?: Ref<Doc>
 
   @Prop(TypeString(), core.string.String)
-    workingContext?: string
+  workingContext?: string
 }
 
 @Model(aiBot.class.AIEditProposalMessage, chunter.class.ThreadMessage)
 export class TAIEditProposalMessage extends TThreadMessage implements AIEditProposalMessage {
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    targetId!: Ref<Doc>
+  targetId!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    targetClass!: Ref<Class<Doc>>
+  targetClass!: Ref<Class<Doc>>
 
   @Prop(TypeString(), core.string.String)
-    targetAttr!: string
+  targetAttr!: string
 
   @Prop(TypeMarkup(), core.string.String)
-    proposedMarkup?: Markup
+  proposedMarkup?: Markup
 
   @Prop(TypeString(), core.string.String)
-    proposedTitle?: string
+  proposedTitle?: string
 
   @Prop(TypeBoolean(), core.string.Boolean)
-    applied?: boolean
+  applied?: boolean
 }
 
 @Model(aiBot.class.AITaskProposalMessage, chunter.class.ThreadMessage)
 export class TAITaskProposalMessage extends TThreadMessage implements AITaskProposalMessage {
   @Prop(TypeString(), core.string.String)
-    title!: string
+  title!: string
 
   @Prop(TypeString(), core.string.String)
-    description?: string
+  description?: string
 
   // Plain array of {title, description} - not a collection: the card edits them inline and they
   // become real issues only on confirm.
   @Prop(TypeAny(view.component.ObjectPresenter, core.string.Object), core.string.Object)
-    subtasks?: AITaskProposal[]
+  subtasks?: AITaskProposal[]
 
   @Prop(TypeRef(core.class.Space), core.string.Space)
-    project?: Ref<Space>
+  project?: Ref<Space>
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    parent?: Ref<Doc>
+  parent?: Ref<Doc>
 
   @Prop(TypeAny(view.component.ObjectPresenter, core.string.Object), core.string.Object)
-    createdIds?: Ref<Doc>[]
+  createdIds?: Ref<Doc>[]
 }
 
 @Model(aiBot.class.AudioTranscribe, attachment.class.Attachment)
 export class TAudioTranscribe extends TAttachment implements AudioTranscribe {
   @Prop(TypeString(), core.string.String)
-    state!: AudioTranscribeState
+  state!: AudioTranscribeState
 
   @Prop(TypeString(), core.string.String)
-    text?: string
+  text?: string
 
   @Prop(TypeNumber(), core.string.Number)
-    durationSec?: number
+  durationSec?: number
 
   @Prop(TypeString(), core.string.String)
-    lang?: string
+  lang?: string
 
   @Prop(TypeBoolean(), core.string.Boolean)
-    edited?: boolean
+  edited?: boolean
 }
 
 export function createModel (builder: Builder): void {

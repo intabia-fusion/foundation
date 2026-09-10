@@ -1032,7 +1032,7 @@ export async function updateWorkspaceRoleBySocialKey (
   const { extra } = decodeTokenVerbose(ctx, token)
   verifyAllowedServices(['workspace', 'tool'], extra)
 
-  const socialId = await getSocialIdByKey(db, socialKey.toLowerCase() as PersonId)
+  const socialId = await getSocialIdByKey(db, socialKey.toLowerCase())
   if (socialId == null) {
     throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, {}))
   }
@@ -2007,8 +2007,7 @@ async function doUpsertSubscription (ctx: MeasureContext, db: AccountDB, params:
   const wasActive = existing?.status === SubscriptionStatus.Active
   const isActive = params.status === SubscriptionStatus.Active
   const planChanged =
-    existing === null ||
-    existing.plan !== params.plan ||
+    existing?.plan !== params.plan ||
     wasActive !== isActive ||
     JSON.stringify(existing.limits ?? null) !== JSON.stringify(params.limits ?? null)
   if (planChanged) {
@@ -2396,9 +2395,7 @@ export async function getAllSubscriptions (
   const socialIds = await db.socialId.find({ personUuid: { $in: accountIds }, type: SocialIdType.EMAIL })
   const emailMap: Record<string, string> = {}
   for (const si of socialIds) {
-    if (emailMap[si.personUuid] === undefined) {
-      emailMap[si.personUuid] = si.value
-    }
+    emailMap[si.personUuid] ??= si.value
   }
 
   // Resolve payer names in one batch query (avoids an N+1 person lookup per subscription).

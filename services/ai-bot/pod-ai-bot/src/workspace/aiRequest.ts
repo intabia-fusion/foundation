@@ -18,7 +18,7 @@ import { type TokenUsage } from '../llms/types'
 
 /** Fields set when a request is first enqueued (status is added by the caller). */
 type AIRequestSeed = Pick<AIRequest, 'level' | 'modelId' | 'kind'> &
-Pick<AIRequest, 'promptTokens' | 'completionTokens' | 'billedTokens'>
+  Pick<AIRequest, 'promptTokens' | 'completionTokens' | 'billedTokens'>
 
 /** Initial AIRequest data at enqueue time: zero tokens. */
 export function queuedRequest (level: AILevel, modelId: string, kind: string): AIRequestSeed {

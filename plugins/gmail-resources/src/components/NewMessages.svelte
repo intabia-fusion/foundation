@@ -196,6 +196,7 @@
   )
 
   function getName (channel: Channel): string {
+    // Channel.attachedTo is typed as a plain Doc ref; a contact channel always hangs off a Contact.
     const contact = contactMap.get(channel.attachedTo as Ref<Contact>)
     if (contact === undefined) return channel.value
     return `${getContactName(client.getHierarchy(), contact)} (${channel.value})`

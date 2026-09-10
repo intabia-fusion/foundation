@@ -55,9 +55,7 @@ class SessionManager {
   }
 
   static getInstance (): SessionManager {
-    if (SessionManager.instance === undefined) {
-      SessionManager.instance = new SessionManager()
-    }
+    SessionManager.instance ??= new SessionManager()
     return SessionManager.instance
   }
 

@@ -65,7 +65,7 @@
       status = loginStatus
 
       if (result != null) {
-        setLoginInfo(result as any)
+        setLoginInfo(result)
         navigate({ path: [workbenchId, result.workspaceUrl] })
       }
     }

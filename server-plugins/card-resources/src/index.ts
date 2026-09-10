@@ -416,7 +416,7 @@ async function OnMasterTagCreate (ctx: TxCreateDoc<MasterTag | Tag>[], control: 
   )
 
   if (tag._class === card.class.MasterTag) {
-    res.push(...(await createNotificationTypes(control, tag as MasterTag)))
+    res.push(...(await createNotificationTypes(control, tag)))
     const viewlets = await control.findAll(control.ctx, view.class.Viewlet, {
       attachTo: tag.extends,
       variant: { $exists: false }

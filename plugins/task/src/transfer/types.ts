@@ -151,7 +151,11 @@ export interface TaskTypeExportOptions {
  * @public
  */
 export interface TaskTypeImportOptions {
-  selectedTypeNames?: string[]
+  /**
+   * Ids of the entries to import. Names are not usable as a key here: a hand-edited or
+   * API-produced file may well repeat one.
+   */
+  selectedTypeIds?: Array<Ref<TaskType>>
   renameDuplicates?: boolean
 }
 

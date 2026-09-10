@@ -88,9 +88,7 @@ export default class ContactCache {
   }
 
   public static get instance (): ContactCache {
-    if (this._instance === undefined) {
-      this._instance = new ContactCache()
-    }
+    this._instance ??= new ContactCache()
 
     return this._instance
   }

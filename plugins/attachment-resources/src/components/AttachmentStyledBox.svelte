@@ -357,8 +357,7 @@
 
     const items = evt.clipboardData?.items ?? []
     const files: File[] = []
-    for (const index in items) {
-      const item = items[index]
+    for (const item of items) {
       if (item.kind === 'file') {
         const blob = item.getAsFile()
         if (blob !== null) {

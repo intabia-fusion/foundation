@@ -193,7 +193,7 @@
 
   function updateChannelSpace (channelId: string, space: Space): void {
     const channel = channels.find((c) => c.id === channelId)
-    if (channel !== undefined && channel?.syncEnabled) {
+    if (channel?.syncEnabled === true) {
       channel.space = space._id
       channels = channels
       dispatch('channelUpdated', { channelId, field: 'space', value: space._id })

@@ -262,7 +262,7 @@
 
 {#if loading}
   <Loading />
-{:else if viewlet && viewlet?.$lookup?.descriptor?.component}
+{:else if viewlet?.$lookup?.descriptor?.component}
   <Component
     is={viewlet.$lookup.descriptor.component}
     props={{

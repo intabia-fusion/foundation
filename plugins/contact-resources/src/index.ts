@@ -35,8 +35,9 @@ import {
   type RelatedDocument,
   type WithLookup
 } from '@hcengineering/core'
+import { planLimits } from '@hcengineering/billing-resources'
 import login from '@hcengineering/login'
-import { getResource, type IntlString, type Resources } from '@hcengineering/platform'
+import platform, { PlatformError, getResource, type IntlString, type Resources } from '@hcengineering/platform'
 import { MessageBox, getBlobRef, getClient, type ObjectSearchResult, isDisabled } from '@hcengineering/presentation'
 import {
   getPlatformAvatarColorByName,
@@ -159,7 +160,7 @@ import {
 
 export * from './utils'
 export { employeeByIdStore } from './utils'
-export * from './assignee'
+export type * from './assignee'
 export * from './translation'
 export {
   PersonIdArrayEditor,
@@ -294,7 +295,20 @@ async function resendInvite (doc: Person): Promise<void> {
     message: contact.string.ResendInviteDescr,
     action: async () => {
       const _resendInvite = await getResource(login.function.ResendInvite)
-      await _resendInvite(emailSocialId?.value, AccountRole.User)
+      try {
+        await _resendInvite(emailSocialId?.value, AccountRole.User)
+      } catch (err: any) {
+        if (err instanceof PlatformError && err.status.code === platform.status.PlanLimitExceeded) {
+          showPopup(MessageBox, {
+            label: contact.string.ResendInvite,
+            message: contact.string.SeatLimitReached,
+            params: { limit: get(planLimits)?.usersLimit ?? 0 },
+            canSubmit: false
+          })
+          return
+        }
+        throw err
+      }
     }
   })
 }
@@ -311,7 +325,7 @@ async function kickEmployee (doc: Person): Promise<void> {
 
       if (doc.personUuid != null) {
         const leaveWorkspace = await getResource(login.function.LeaveWorkspace)
-        await leaveWorkspace(doc.personUuid as AccountUuid)
+        await leaveWorkspace(doc.personUuid)
       }
     }
   })

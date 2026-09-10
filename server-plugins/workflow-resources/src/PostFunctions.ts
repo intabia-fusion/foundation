@@ -53,6 +53,12 @@ async function processTaskPostFunctions (updateTx: TxUpdateDoc<Task>, control: T
     return [] // not a status change - nothing for this trigger to do
   }
 
+  // A real type change takes no transition, so post-functions would act on one that never
+  // happened. The old kind comes from the meta: the stored task already holds the new one.
+  const toKind = updateTx.operations.kind
+  const fromKind = updateTx.meta?.fromKind as Ref<TaskType> | undefined
+  if (toKind != null && fromKind != null && toKind !== fromKind) return []
+
   const fromStatus: Ref<Status> | undefined = updateTx.meta?.fromStatus as Ref<Status> | undefined
 
   if (fromStatus == null) return []
@@ -79,7 +85,7 @@ async function processTaskPostFunctions (updateTx: TxUpdateDoc<Task>, control: T
   if (allowedTransitions.length === 0) return []
 
   const transition =
-    allowedTransitions.find((t) => t.from != null && t.from.includes(fromStatus)) ??
+    allowedTransitions.find((t) => t.from?.includes(fromStatus) === true) ??
     allowedTransitions.find((t) => t.from == null || t.from.length === 0)
 
   if (transition === undefined) return []

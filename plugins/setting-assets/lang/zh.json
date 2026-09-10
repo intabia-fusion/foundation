@@ -228,7 +228,9 @@
     "OtpCode": "验证码",
     "OtpSent": "验证码已发送到您的邮箱",
     "OtpSendFailed": "验证码发送失败",
-    "SendCode": "发送验证码"
+    "SendCode": "发送验证码",
+    "SeatLimitReached": "没有空闲席位",
+    "SeatLimitReachedDescription": "工作区已达到套餐席位上限。请释放一个席位或升级套餐后再分配此角色。"
   },
   "emailTemplate": {
     "IntegrationDisabledNotificationText": "Integration with {doc} was disabled",

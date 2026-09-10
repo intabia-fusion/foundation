@@ -87,7 +87,7 @@ function makeNext (): { next: Middleware, passed: () => boolean } {
 async function runTx (
   mw: SeatLimitsMiddleware,
   account: { uuid: AccountUuid, role: AccountRole },
-  txes: Tx[] = [WRITE_TX as unknown as Tx]
+  txes: Tx[] = [WRITE_TX]
 ): Promise<{ rejected: boolean }> {
   const ctx = new MeasureMetricsContext('test', {})
   ;(ctx as any).contextData = { account: { ...account, fullSocialIds: [] } }

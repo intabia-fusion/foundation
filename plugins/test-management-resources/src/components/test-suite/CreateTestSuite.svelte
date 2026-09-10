@@ -30,7 +30,7 @@
   const client = getClient()
 
   const object: Data<TestSuite> = {
-    name: '' as IntlString,
+    name: '',
     description: '',
     parent: parentId
   }

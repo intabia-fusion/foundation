@@ -76,7 +76,7 @@
   const client = getClient()
 
   export function canClose (): boolean {
-    return title !== undefined && title.trim().length === 0 && participants.length === 0
+    return title?.trim().length === 0 && participants.length === 0
   }
 
   async function saveEvent () {

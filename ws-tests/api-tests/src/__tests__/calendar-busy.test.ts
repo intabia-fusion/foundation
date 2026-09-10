@@ -31,7 +31,6 @@ import {
   type DocumentUpdate,
   type PersonId,
   type Ref,
-  type Space,
   type SocialId
 } from '@hcengineering/core'
 import contact, { ensureEmployee, type Person, type PersonSpace } from '@hcengineering/contact'
@@ -155,7 +154,7 @@ describe('calendar busy slots (api-tests)', () => {
     const dueDate = opts.dueDate ?? date + 60 * 60 * 1000
     await user1Rest.addCollection(
       calendar.class.Event,
-      user1Space._id as unknown as Ref<Space>,
+      user1Space._id,
       calendar.ids.NoAttached,
       calendar.class.Event,
       'events',
@@ -183,7 +182,7 @@ describe('calendar busy slots (api-tests)', () => {
   async function updateEvent (id: Ref<Event>, update: DocumentUpdate<Event>): Promise<void> {
     await user1Rest.updateCollection(
       calendar.class.Event,
-      user1Space._id as unknown as Ref<Space>,
+      user1Space._id,
       id,
       calendar.ids.NoAttached,
       calendar.class.Event,
@@ -205,7 +204,7 @@ describe('calendar busy slots (api-tests)', () => {
     const dueDate = opts.dueDate ?? date + 60 * 60 * 1000
     await user1Rest.addCollection(
       calendar.class.ReccuringEvent,
-      user1Space._id as unknown as Ref<Space>,
+      user1Space._id,
       calendar.ids.NoAttached,
       calendar.class.Event,
       'events',
@@ -229,7 +228,7 @@ describe('calendar busy slots (api-tests)', () => {
       },
       id
     )
-    createdEventIds.push(id as unknown as Ref<Event>)
+    createdEventIds.push(id)
     return { id, eventId, date, dueDate }
   }
 
@@ -237,7 +236,7 @@ describe('calendar busy slots (api-tests)', () => {
   async function updateRecurringEvent (id: Ref<ReccuringEvent>, update: DocumentUpdate<ReccuringEvent>): Promise<void> {
     await user1Rest.updateCollection(
       calendar.class.ReccuringEvent,
-      user1Space._id as unknown as Ref<Space>,
+      user1Space._id,
       id,
       calendar.ids.NoAttached,
       calendar.class.Event,
@@ -260,7 +259,7 @@ describe('calendar busy slots (api-tests)', () => {
     const duration = opts.master.dueDate - opts.master.date
     await user1Rest.addCollection(
       calendar.class.ReccuringInstance,
-      user1Space._id as unknown as Ref<Space>,
+      user1Space._id,
       calendar.ids.NoAttached,
       calendar.class.Event,
       'events',
@@ -286,14 +285,14 @@ describe('calendar busy slots (api-tests)', () => {
       },
       id
     )
-    createdEventIds.push(id as unknown as Ref<Event>)
+    createdEventIds.push(id)
     return { id, eventId }
   }
 
   async function removeEvent (id: Ref<Event>): Promise<void> {
     await user1Rest.removeCollection(
       calendar.class.Event,
-      user1Space._id as unknown as Ref<Space>,
+      user1Space._id,
       id,
       calendar.ids.NoAttached,
       calendar.class.Event,
@@ -398,7 +397,7 @@ describe('calendar busy slots (api-tests)', () => {
     const rules: RecurringRule[] = [{ freq: 'DAILY', count: 5 }]
     await user1Rest.addCollection(
       calendar.class.ReccuringEvent,
-      user1Space._id as unknown as Ref<Space>,
+      user1Space._id,
       calendar.ids.NoAttached,
       calendar.class.Event,
       'events',
@@ -422,7 +421,7 @@ describe('calendar busy slots (api-tests)', () => {
       },
       id
     )
-    createdEventIds.push(id as unknown as Ref<Event>)
+    createdEventIds.push(id)
 
     const slots = await eventually(async () => {
       const found = await findSlots(eventId)
@@ -449,7 +448,7 @@ describe('calendar busy slots (api-tests)', () => {
 
     const masterEvents = await systemRest.findAll(calendar.class.Event, {
       eventId,
-      space: user1Space._id as unknown as Ref<Space>
+      space: user1Space._id
     })
     expect(masterEvents.length).toBe(1)
 
@@ -533,7 +532,7 @@ describe('calendar busy slots (api-tests)', () => {
       return found.length === 2 ? found : undefined
     }, 15000)
 
-    await removeEvent(id as unknown as Ref<Event>)
+    await removeEvent(id)
 
     await eventually(async () => {
       const found = await findSlots(eventId)
@@ -649,7 +648,7 @@ describe('calendar busy slots (api-tests)', () => {
       return (found[0]?.exdate ?? []).includes(originalStartTime) ? found : undefined
     }, 15000)
 
-    await removeEvent(instance.id as unknown as Ref<Event>)
+    await removeEvent(instance.id)
 
     await eventually(async () => {
       const found = await findSlots(eventId)

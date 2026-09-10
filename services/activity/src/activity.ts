@@ -395,13 +395,7 @@ function combineMessages (
 const getRemoveTx = (items: DocUpdateMessage[], factory: TxFactory): TxRemoveDoc<DocUpdateMessage>[] => {
   const removes = items.map((it) => {
     const innerTx = factory.createTxRemoveDoc(it._class, it.space, it._id)
-    return factory.createTxCollectionCUD(
-      it.attachedToClass,
-      it.attachedTo,
-      it.space,
-      'docUpdateMessages',
-      innerTx
-    ) as TxRemoveDoc<DocUpdateMessage>
+    return factory.createTxCollectionCUD(it.attachedToClass, it.attachedTo, it.space, 'docUpdateMessages', innerTx)
   })
   return removes
 }

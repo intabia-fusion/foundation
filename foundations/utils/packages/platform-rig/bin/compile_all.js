@@ -32,16 +32,24 @@ function parseArgs(args) {
   let doPackage = false
   let doDockerBuild = false
   let doSvelteCheck = false
+  let noTypeCheck = false
+  let esbuildEmit = false
   let help = false
   let list = false
   let toPackage = null
   let rootDir = ''
   let forceWorkers = false
+  let groupTests = true
+  let lintFix = false
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     if (arg === '--force-workers') {
       forceWorkers = true
+    } else if (arg === '--no-test-group') {
+      groupTests = false
+    } else if (arg === '--fix') {
+      lintFix = true
     } else if (arg === '--parallel' || arg === '-p') {
       const next = args[i + 1]
       if (next !== undefined && !next.startsWith('-')) {
@@ -77,6 +85,10 @@ function parseArgs(args) {
       doBundle = true  // docker-build implies bundle
     } else if (arg === '--svelte-check') {
       doSvelteCheck = true
+    } else if (arg === '--no-type-check') {
+      noTypeCheck = true
+    } else if (arg === '--esbuild-emit') {
+      esbuildEmit = true
     } else if (arg === '--list' || arg === '-l') {
       list = true
     } else if (arg === '--to') {
@@ -107,7 +119,7 @@ function parseArgs(args) {
     verbose = process.env.VERBOSE === '1'
   }
 
-  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, help, list, toPackage, rootDir, forceWorkers }
+  return { parallel, verbose, doTest, doLint, doFormat, force, doBundle, doPackage, doDockerBuild, doSvelteCheck, noTypeCheck, esbuildEmit, help, list, toPackage, rootDir, forceWorkers, groupTests, lintFix }
 }
 
 function printUsage() {
@@ -122,6 +134,8 @@ Options:
                        If no number specified, uses CPU count (limited by available memory)
                        Parallel compilation respects dependency order (builds in waves)
   --force-workers      Force exact worker count, ignore memory limits (use with caution!)
+  --no-test-group      Run every package's tests in its own jest process
+  --fix                Apply eslint's automatic fixes while linting
   --verbose, -v        Show detailed output for each package
   --validate           Accepted for compatibility: type checking is part of the build
   --test               Run tests for packages with "_phase:test"
@@ -132,6 +146,9 @@ Options:
   --docker-build       Run docker-build phase (implies --bundle)
   --svelte-check       Run svelte-check for packages with "_phase:svelte-check"
   --list, -l           Only print the list of packages in compilation order (no actual compilation)
+  --no-type-check      Emit without checking types (tsc --noCheck); outputs are identical,
+                       type errors are left to the build/lint jobs
+  --esbuild-emit       Emit JS with esbuild and leave tsc declarations only (the pre-tsc7 split)
   --to <package>       Only compile the specified package and its dependencies
   --help, -h           Show this help message
 
@@ -453,7 +470,14 @@ function printErrorSummary(allErrors) {
   console.error(`=== ERROR SUMMARY (${allErrors.length} error(s)) ===`)
   console.error(`${'='.repeat(60)}`)
   for (const err of allErrors) {
-    const errMsg = err.error?.stderr || err.error?.stdout || err.error?.message || err.error || 'Unknown error'
+    // Both streams: webpack and friends report the actual failure on stdout while stderr only
+    // carries the runner's own noise, so picking one hides the reason.
+    const tail = (text, lines = 200) => text.trim().split('\n').slice(-lines).join('\n')
+    const parts = []
+    if (err.error?.stderr?.trim()) parts.push(tail(err.error.stderr))
+    if (err.error?.stdout?.trim()) parts.push(tail(err.error.stdout))
+    if (parts.length === 0) parts.push(String(err.error?.message || err.error || 'Unknown error'))
+    const errMsg = parts.join('\n')
     const output = err.output || ''
     console.error(`\n[${err.phase}] ${error(err.package)}:`)
     console.error(errMsg)
@@ -476,6 +500,8 @@ async function compileAll(rootDir, options = {}) {
     doPackage = false,
     doDockerBuild = false,
     doSvelteCheck = false,
+    noTypeCheck = false,
+    esbuildEmit = false,
     list = false,
     toPackage = null,
     forceWorkers = false
@@ -633,7 +659,9 @@ async function compileAll(rootDir, options = {}) {
   // Single build phase: one tsc pass per package emits JS and .d.ts together.
   const buildPhaseResults = await runBuildPhase(graph, packagesToBuild, tscWorkers, {
     force: forcePrerequisites,
-    packageHashes
+    packageHashes,
+    noTypeCheck,
+    esbuildEmit
   })
 
   if (buildPhaseResults.errors.length > 0) {
@@ -655,7 +683,7 @@ async function compileAll(rootDir, options = {}) {
     const packagesToLint = packagesToBuild.filter((name) => graph.get(name)?.phaseFormat)
     if (packagesToLint.length > 0) {
       console.log(`\n=== Phase: Linting ${packagesToLint.length} packages ===`)
-      const lintResults = await runLintPhase(graph, packagesToLint, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph) })
+      const lintResults = await runLintPhase(graph, packagesToLint, validationWorkers, { force, packageHashes, typesHashes: computeTypesHashes(graph), fix: options.lintFix })
       console.log(`Linted: ${lintResults.successCount}/${lintResults.total} packages in ${Math.round(lintResults.time)}ms`)
       recordPhase('lint', lintResults, null, null)
       if (lintResults.cacheHits > 0) console.log(`  (${lintResults.cacheHits} from cache)`)
@@ -688,7 +716,7 @@ async function compileAll(rootDir, options = {}) {
   // Phase: Test
   if (doTest && packagesToTest.length > 0) {
     console.log(`\n=== Phase: Testing ${packagesToTest.length} packages ===`)
-    const testResults = await runTestPhase(graph, packagesToTest, validationWorkers, { force, packageHashes, verbose })
+    const testResults = await runTestPhase(graph, packagesToTest, validationWorkers, { force, packageHashes, verbose, group: options.groupTests })
     console.log(`Tested: ${testResults.successCount}/${testResults.total} packages in ${Math.round(testResults.time)}ms`)
     recordPhase('test', testResults, validationWorkers, null)
     if (testResults.cacheHits > 0) console.log(`  (${testResults.cacheHits} from cache)`)

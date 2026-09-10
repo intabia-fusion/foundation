@@ -110,6 +110,12 @@ async function main () {
   }
   console.error(`[telemetry] sampling ${containers.length} containers every ${interval}ms -> ${out}`)
 
+  // `network_mode: service:x` shares the netns, so docker reports the host container's interface
+  // counters for both - print looked like it moved 2.2GB that actually belonged to nginx.
+  const sharedNet = new Set(
+    containers.filter((c) => String(c.HostConfig?.NetworkMode ?? '').startsWith('container:')).map((c) => c.Id)
+  )
+
   let stopping = false
   let ticks = 0
   const overhead = []
@@ -127,7 +133,12 @@ async function main () {
     for (let i = 0; i < results.length; i++) {
       if (results[i] === undefined) continue
       const row = sample(results[i], now, nameOf(containers[i]))
-      if (row !== undefined) lines += JSON.stringify(row) + '\n'
+      if (row === undefined) continue
+      if (sharedNet.has(containers[i].Id)) {
+        row.rx = 0
+        row.tx = 0
+      }
+      lines += JSON.stringify(row) + '\n'
     }
     if (lines !== '') stream.write(lines)
     ticks++

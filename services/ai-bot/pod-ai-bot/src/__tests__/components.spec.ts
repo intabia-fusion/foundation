@@ -42,7 +42,7 @@ describe('AI Bot Components', () => {
         sampleRate: 16000,
         channels: 1,
         bitsPerSample: 16,
-        audioFormat: 'ogg' as AudioFormat
+        audioFormat: 'ogg'
       }
 
       processor.process.mockResolvedValue({ success: true, taskId: task.blobId })
@@ -69,7 +69,7 @@ describe('AI Bot Components', () => {
         sampleRate: 16000,
         channels: 1,
         bitsPerSample: 16,
-        audioFormat: 'ogg' as AudioFormat
+        audioFormat: 'ogg'
       }
 
       processor.validate.mockReturnValue(true)
@@ -95,7 +95,7 @@ describe('AI Bot Components', () => {
         sampleRate: 16000,
         channels: 1,
         bitsPerSample: 16,
-        audioFormat: 'ogg' as AudioFormat
+        audioFormat: 'ogg'
       }
 
       processor.retry.mockResolvedValue({ success: true, attempt: 2 })

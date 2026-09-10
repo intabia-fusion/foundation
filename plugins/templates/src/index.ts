@@ -21,7 +21,7 @@ import { type AnyComponent } from '@hcengineering/ui/src/types'
 /**
  * @public
  */
-export interface TemplateCategory extends Space {}
+export type TemplateCategory = Space
 
 /**
  * @public

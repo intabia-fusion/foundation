@@ -432,9 +432,9 @@
   $: byLastVisit = sortingRule === SortingRule.LastVisit
   $: groupped = byLastVisit
     ? groupByArray(sortedWorkspaces, (it) => {
-      const lastUsageDays = Math.round((10 * (now - (it.lastVisit ?? 0))) / (1000 * 3600 * 24)) / 10
-      return Object.entries(dayRanges).find(([_k, v]) => v[0] < lastUsageDays && lastUsageDays <= v[1])?.[0] ?? '> 3m'
-    })
+        const lastUsageDays = Math.round((10 * (now - (it.lastVisit ?? 0))) / (1000 * 3600 * 24)) / 10
+        return Object.entries(dayRanges).find(([_k, v]) => v[0] < lastUsageDays && lastUsageDays <= v[1])?.[0] ?? '> 3m'
+      })
     : new Map([['', sortedWorkspaces]])
   $: groupKeys = byLastVisit ? Object.keys(dayRanges) : ['']
 

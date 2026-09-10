@@ -121,11 +121,9 @@ class TelegramConnection {
   }
 
   setReadinessInterval (): void {
-    if (this.readinessInterval === undefined) {
-      this.readinessInterval = setInterval(() => {
-        void this.reconnect()
-      }, 30 * 1000)
-    }
+    this.readinessInterval ??= setInterval(() => {
+      void this.reconnect()
+    }, 30 * 1000)
   }
 
   async tryReconnect (): Promise<void> {
@@ -208,7 +206,7 @@ class TelegramConnection {
         }
 
         const user = await update.message.getChat()
-        if (user === undefined || user.className !== 'User') {
+        if (user?.className !== 'User') {
           return
         }
 
@@ -314,7 +312,7 @@ class TelegramConnection {
   getToken (): string | undefined {
     // TODO: Need recheck
     // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
-    return (this.client.session.save() as never as string) ?? undefined
+    return (this.client.session.save() as never) ?? undefined
   }
 }
 

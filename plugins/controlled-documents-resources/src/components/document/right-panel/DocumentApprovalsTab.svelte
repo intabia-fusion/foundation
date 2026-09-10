@@ -63,8 +63,7 @@
     ControlledDocumentState.Rejected,
     ControlledDocumentState.InApproval
   ]
-  $: hasGuide =
-    doc && doc.state === DocumentState.Draft && !noGuideStates.includes(doc.controlledState) && $isDocumentOwner
+  $: hasGuide = doc?.state === DocumentState.Draft && !noGuideStates.includes(doc.controlledState) && $isDocumentOwner
 </script>
 
 <RightPanelTabHeader>

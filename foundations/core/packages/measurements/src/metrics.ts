@@ -123,9 +123,7 @@ export function updateMeasure (
     // Update top results for params after the first one. Walk params again
     // without Object.entries alloc; skip the first key we already used.
     if (extraCount > 0) {
-      if (param.topResult === undefined) {
-        param.topResult = []
-      }
+      param.topResult ??= []
       const top = param.topResult
       const dt = value ?? ed - st
       for (const fk in params) {

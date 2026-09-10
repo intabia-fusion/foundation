@@ -139,7 +139,7 @@ describe('Import transfer helpers (import.ts)', () => {
     expect(ptUpdate.update.tasks).toContain(result.importedTaskTypes[0]._id)
   })
 
-  it('respects selective inclusion via selectedTypeNames', async () => {
+  it('respects selective inclusion via selectedTypeIds', async () => {
     const createdDocs: any[] = []
     const mockClient = {
       findOne: jest.fn().mockImplementation(async (clazz: any) => {
@@ -197,12 +197,74 @@ describe('Import transfer helpers (import.ts)', () => {
     }
 
     const result = await importTaskTypeConfig(mockClient, projectType1, config, {
-      selectedTypeNames: ['Issue']
+      selectedTypeIds: ['issue-id' as Ref<TaskType>]
     })
 
     expect(result.createdCount).toBe(1)
     expect(result.importedTaskTypes.length).toBe(1)
     expect(result.importedTaskTypes[0].name).toBe('Issue')
+  })
+
+  it('selects by id, so entries sharing a name are not conflated', async () => {
+    const createdDocs: any[] = []
+    const mockClient = {
+      findOne: jest.fn().mockImplementation(async (clazz: any) => {
+        if (clazz === task.class.ProjectType) {
+          return { _id: projectType1, name: 'Classic Project', tasks: [], statuses: [] }
+        }
+        return undefined
+      }),
+      findAll: jest.fn().mockResolvedValue([]),
+      getHierarchy: jest.fn().mockReturnValue({
+        findClass: jest.fn().mockReturnValue({ icon: 'icon' }),
+        getAttribute: jest.fn().mockReturnValue({ _id: 'status-attr' }),
+        getAllAttributes: jest.fn().mockReturnValue(new Map())
+      }),
+      createDoc: jest.fn().mockImplementation(async (clazz: any, space: any, data: any, id?: any) => {
+        const doc = { _id: id ?? 'id-' + createdDocs.length, _class: clazz, ...data }
+        createdDocs.push(doc)
+        return doc._id
+      }),
+      createMixin: jest.fn().mockResolvedValue(true),
+      update: jest.fn().mockResolvedValue(true)
+    } as any
+
+    // A hand-edited or API-produced file may repeat a name; ids stay unique.
+    const config: TaskTypeExportConfig = {
+      version: 1,
+      exportDate: new Date().toISOString(),
+      mode: 'hierarchy',
+      taskTypeName: 'Issue',
+      taskTypeId: 'issue-a' as Ref<TaskType>,
+      workspace: ws1,
+      projectTypeId: projectType1,
+      taskTypes: [
+        {
+          id: 'issue-a' as Ref<TaskType>,
+          name: 'Issue',
+          descriptor: 'desc' as any,
+          ofClass: 'tracker:class:Issue' as any,
+          statusCategories: [],
+          statuses: []
+        },
+        {
+          id: 'issue-b' as Ref<TaskType>,
+          name: 'Issue',
+          descriptor: 'desc' as any,
+          ofClass: 'tracker:class:Issue' as any,
+          statusCategories: [],
+          statuses: []
+        }
+      ]
+    }
+
+    const result = await importTaskTypeConfig(mockClient, projectType1, config, {
+      selectedTypeIds: ['issue-b' as Ref<TaskType>]
+    })
+
+    // Only the picked entry is imported; a name-keyed selection would have pulled in both.
+    expect(result.createdCount).toBe(1)
+    expect(result.importedTaskTypes).toHaveLength(1)
   })
 
   it('generates new unique task type ID and preserves status IDs', async () => {

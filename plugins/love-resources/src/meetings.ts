@@ -21,6 +21,7 @@ import {
 import { get, writable } from 'svelte/store'
 import { LoveServiceError } from './loveClient'
 import {
+  aiBotPerson,
   infos,
   rooms,
   myConnectingSessionId,
@@ -84,8 +85,11 @@ export async function createMeeting (room: Room, meeting?: MeetingMinutes): Prom
       return { meeting }
     }
 
-    // Participants but no meeting we can see: a private meeting is running, knock instead.
-    const roomParticipants = get(infos).filter((p) => p.room === room._id)
+    // Occupied means a live person other than me: an agent or my own leftover row made Connect
+    // refuse and knock at myself until the server cleaned them up.
+    const roomParticipants = get(infos).filter(
+      (p) => p.room === room._id && p.kind !== 'agent' && p.person !== me && p.person !== get(aiBotPerson)
+    )
     if (roomParticipants.length > 0) {
       return { refused: 'room-occupied' }
     }
@@ -174,9 +178,7 @@ export async function joinOrCreateMeetingByInvite (meetingId: Ref<MeetingMinutes
     const delay = 100 // ms
 
     while (attempts < maxAttempts) {
-      if (meeting === undefined) {
-        meeting = await client.findOne(love.class.MeetingMinutes, { _id: meetingId })
-      }
+      meeting ??= await client.findOne(love.class.MeetingMinutes, { _id: meetingId })
 
       if (meeting !== undefined) {
         break

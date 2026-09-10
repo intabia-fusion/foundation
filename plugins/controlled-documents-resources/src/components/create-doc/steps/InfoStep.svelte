@@ -134,7 +134,7 @@
     !prefixNotUnique &&
     !codeNotUnique &&
     (!isTemplate || !!docObject.docPrefix)
-  $: if (docObject !== undefined && docObject.code === '' && !loadingCodes) {
+  $: if (docObject?.code === '' && !loadingCodes) {
     void setInitialCode()
   }
   // Re-pick the next free code when the previewed auto-code collides with a doc created meanwhile,

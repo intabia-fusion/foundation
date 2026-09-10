@@ -59,7 +59,7 @@ export default async (): Promise<Resources> => ({
       }
       const integrationClient = await getIntegrationClient()
       const result = await integrationClient.removeIntegration(integration.socialId, integration.workspaceUuid)
-      if (result !== undefined && result.connectionRemoved) {
+      if (result?.connectionRemoved === true) {
         await signout()
       }
     },

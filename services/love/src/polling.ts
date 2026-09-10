@@ -254,9 +254,7 @@ export class LiveKitPollingService {
         }
       } catch (err: any) {
         const now = Date.now()
-        if (this.livekitFailureSince === null) {
-          this.livekitFailureSince = now
-        }
+        this.livekitFailureSince ??= now
         this.livekitFailures++
         const outageMs = now - this.livekitFailureSince
         this.ctx.error('[PollingService] LiveKit listRooms failed', {

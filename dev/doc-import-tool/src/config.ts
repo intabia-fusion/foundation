@@ -8,7 +8,6 @@ import { type HtmlConversionBackend } from './convert/convert'
 export interface Config {
   doc: string
   token: string
-  collaborator?: string
   collaboratorURL: string
   uploadURL: string
   workspaceId: WorkspaceUuid

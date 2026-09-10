@@ -297,7 +297,8 @@ const PHASE_MEMORY = {
   typescript: { minHeapMB: 1536, heapMB: 2048, maxWorkers: 6 },
   'svelte-check': { minHeapMB: 3072, heapMB: 3072 },
   format: { minHeapMB: 1280, heapMB: 1536 },
-  lint: { minHeapMB: 1024, heapMB: 2048 },
+  // @typescript-eslint 8 builds a bigger type graph than 6 did: pod-gmail OOMs below 2048.
+  lint: { minHeapMB: 2048, heapMB: 2560 },
   bundle: { minHeapMB: 512, heapMB: 800 },
   docker: { minHeapMB: 256, heapMB: 500 },
   default: { minHeapMB: 512, heapMB: 1000 }
@@ -329,9 +330,12 @@ function getOptimalWorkerCount(requestedWorkers, taskType = 'default', overrides
   const requested = Number.isFinite(envWorkers) && envWorkers > 0 ? envWorkers : requestedWorkers
 
   const byMemory = Math.max(1, Math.floor(budgetMB / spec.minHeapMB))
-  // `spec.workers` is a fixed count for phases whose worker is itself multi-threaded:
-  // the CPU count says nothing useful there, only memory does. --force-workers still wins.
-  const byCpu = spec.workers ?? Math.min(requested, cpuCount, spec.maxWorkers ?? cpuCount)
+  // `spec.workers` is a ceiling for phases whose worker is itself multi-threaded (tsgo saturates
+  // several cores on its own), so it is capped by the CPU count but never drops below 2 —
+  // one process alone leaves the pipeline serial. --force-workers still wins.
+  const byCpu = spec.workers != null
+    ? Math.max(2, Math.min(spec.workers, cpuCount))
+    : Math.min(requested, cpuCount, spec.maxWorkers ?? cpuCount)
   const workers = Math.max(1, Math.min(byCpu, byMemory))
 
   // Split the budget across the workers we settled on. Never hand out more than the

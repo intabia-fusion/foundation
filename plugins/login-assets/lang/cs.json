@@ -21,7 +21,7 @@
     "HaveWorkspace": "Již máte pracovní prostor?",
     "LastName": "Příjmení",
     "FirstName": "Jméno",
-    "Join": "Připojit se",
+    "Join": "Připojit se k",
     "Email": "E-mail",
     "Password": "Heslo",
     "PhoneNumber": "Telefonní číslo",
@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "Vytvořte si vlastní pracovní prostor, nebo si vyžádejte odkaz s přístupem od vlastníka existujícího prostoru.",
     "CheckingLink": "Kontrolujeme odkaz...",
     "InvalidLink": "Tento odkaz již není platný",
-    "ConfirmationFailed": "Registraci se nepodařilo dokončit"
+    "ConfirmationFailed": "Registraci se nepodařilo dokončit",
+    "NoFreeSeats": "Žádná volná místa",
+    "NoFreeSeatsDescription": "Tento pracovní prostor dosáhl limitu míst tarifu. Obraťte se prosím na správce pracovního prostoru.",
+    "NoFreeSeatsForInvite": "Tarif nemá volná místa, nový odkaz s pozvánkou nelze vytvořit."
   }
 }

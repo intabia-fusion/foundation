@@ -55,7 +55,7 @@ export * from './duration'
 /**
  * @public
  */
-export interface IssueStatus extends Status {}
+export type IssueStatus = Status
 
 /**
  * @public
@@ -613,6 +613,7 @@ const pluginState = plugin(trackerId, {
     CopyIssueTitle: '' as Ref<Action<Doc, any>>,
     CopyIssueLink: '' as Ref<Action<Doc, any>>,
     MoveToProject: '' as Ref<Action>,
+    ChangeTaskType: '' as Ref<Action>,
     Duplicate: '' as Ref<Action<Doc, any>>,
     Relations: '' as Ref<Action<Doc, any>>,
     NewIssue: '' as Ref<Action<Doc, any>>,

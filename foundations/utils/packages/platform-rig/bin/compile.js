@@ -87,6 +87,32 @@ function copyJsonFiles(srcDir, outDir, cwd) {
   }
 }
 
+// Plain per-file transpile, no type information involved. Restored from the pre-tsc7 rig so the
+// build phase can emit JS here and leave tsc with declarations only.
+async function performESBuild(filesToTranspile, options = {}) {
+  const { srcDir = 'src', cwd = process.cwd(), outDir = 'lib' } = options
+
+  if (filesToTranspile.length === 0) {
+    return
+  }
+
+  copyJsonFiles(srcDir, outDir, cwd)
+
+  await esbuild.build({
+    entryPoints: filesToTranspile,
+    bundle: false,
+    minify: false,
+    outdir: outDir,
+    keepNames: true,
+    sourcemap: 'linked',
+    allowOverwrite: true,
+    format: 'cjs',
+    color: true,
+    logLevel: 'error',
+    absWorkingDir: cwd
+  })
+}
+
 async function performESBuildWithSvelte(filesToTranspile, options = {}) {
   const { cwd = process.cwd() } = options
 
@@ -143,7 +169,10 @@ async function performESBuildWithSvelte(filesToTranspile, options = {}) {
       absWorkingDir: cwd,
       plugins: [
         sveltePlugin({
-          preprocess: sveltePreprocess(),
+          // svelte-preprocess 6 elides imports that only the markup uses (a store referenced
+          // as $store) unless this is set. Deliberately not in tsconfig: esbuild reads it too
+          // and would then keep type-only imports, pulling .svelte source into node bundles.
+          preprocess: sveltePreprocess({ typescript: { compilerOptions: { verbatimModuleSyntax: true } } }),
           compilerOptions: {
             css: 'injected',
             generate: 'ssr'
@@ -291,6 +320,7 @@ if (require.main === module) {
 // Export functions for use by other modules
 module.exports = {
   collectFiles,
+  performESBuild,
   performESBuildWithSvelte,
   generateSvelteTypes,
   tscCompile,

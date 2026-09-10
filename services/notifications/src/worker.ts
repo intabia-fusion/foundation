@@ -340,6 +340,6 @@ export class Worker {
     clearInterval(this.clearInterval)
     clearInterval(this.flushInterval)
     this.pendingStatusUpdates.clear()
-    await Promise.allSettled([this.userEventProducer.close, this.producer.close])
+    await Promise.allSettled([this.userEventProducer.close(), this.producer.close()])
   }
 }

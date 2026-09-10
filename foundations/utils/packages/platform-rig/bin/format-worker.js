@@ -8,9 +8,15 @@
 */
 
 const { parentPort, threadId } = require('worker_threads')
-const { join, relative, basename } = require('path')
+const { join, relative, basename, dirname } = require('path')
 const { createRequire } = require('module')
 const { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync } = require('fs')
+
+// typescript-estree switches to its "single run" host when CI=true, and that path hands us a
+// program containing only the current file: type-aware rules then see no types and the parser
+// reports phantom syntax errors. The watch host is what works, so ask for it explicitly.
+process.env.TSESTREE_SINGLE_RUN ??= 'false'
+
 
 const prettier = require('prettier')
 const { ESLint } = require('eslint')
@@ -57,6 +63,8 @@ function collectSourceFiles(dir, result = []) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
     const stat = lstatSync(full)
+    // node_modules is never ours to format, and a symlink (a junction on Windows) would walk into it.
+    if (entry === 'node_modules' || stat.isSymbolicLink()) continue
     if (stat.isDirectory()) {
       collectSourceFiles(full, result)
     } else {
@@ -75,6 +83,15 @@ function collectSourceFiles(dir, result = []) {
  * then write to disk ONLY if final content differs from original. No intermediate
  * writes — webpack watchers never see half-formatted files.
  */
+
+// pnpm 12 does not reliably link plugins into every package, so plugin resolution is anchored to the
+// rig, which declares them all and is a dependency of every package anyway.
+function rigDir (cwd) {
+  // require.resolve cannot be used: the rig's package.json is not listed in its `exports`.
+  const dir = join(cwd, 'node_modules', '@hcengineering', 'platform-rig')
+  return existsSync(dir) ? dir : cwd
+}
+
 async function formatPackage(cwd, options = {}) {
   const { srcDir = 'src' } = options
   const srcPath = join(cwd, srcDir)
@@ -85,7 +102,9 @@ async function formatPackage(cwd, options = {}) {
     return { success: true, changed: 0, total: 0, errors: [], memoryMB: 0, durationMs: Date.now() - startedAt }
   }
 
-  let eslint = new ESLint({ fix: true, cwd, cache: false })
+  let eslint = new ESLint({ fix: true, cwd, cache: false, resolvePluginsRelativeTo: rigDir(cwd) })
+  let parseReports = 0
+  let errorReports = 0
 
   const errors = []
   let changedCount = 0
@@ -127,12 +146,123 @@ async function formatPackage(cwd, options = {}) {
     try {
       const lintResults = await eslint.lintText(content, { filePath: file })
       const r = lintResults[0]
+      // A parse error says nothing on its own: report which parser eslint actually resolved, once
+      // per package, so a config that failed to reach the files is visible in the log.
+      if (parseReports < 3 && r?.messages.some((m) => m.ruleId == null)) {
+        parseReports++
+        try {
+          const resolved = await eslint.calculateConfigForFile(file)
+          const first = r.messages.find((m) => m.ruleId == null)
+          const lines = content.split('\n')
+          // Does the unformatted source parse? Separates a prettier problem from a parser one.
+          let originalParseErrors = 'threw'
+          try {
+            const orig = await eslint.lintText(original, { filePath: file })
+            originalParseErrors = orig[0].messages.filter((m) => m.ruleId == null).length
+          } catch (e) { originalParseErrors = 'threw: ' + e.message }
+          // Same parser, no program: tells whether parserOptions.project is what breaks it.
+          let bareParse = 'ok'
+          try {
+            const p = require(resolved.parser)
+            p.parseForESLint(content, { filePath: file, sourceType: 'module', ecmaVersion: 2022, range: true, loc: true })
+          } catch (e) { bareParse = 'threw: ' + e.message.slice(0, 120) }
+          // What does the program built from parserOptions.project actually contain?
+          let program = 'n/a'
+          try {
+            const p = require(resolved.parser)
+            const res = p.parseForESLint(content, {
+              filePath: file,
+              project: resolved.parserOptions?.project,
+              tsconfigRootDir: resolved.parserOptions?.tsconfigRootDir ?? cwd,
+              sourceType: 'module',
+              ecmaVersion: 2022,
+              range: true,
+              loc: true
+            })
+            const prog = res.services?.program
+            const sf = prog?.getSourceFile(file)
+            program = {
+              files: prog?.getSourceFiles?.().length ?? null,
+              hasFile: sf != null,
+              scriptKind: sf?.scriptKind ?? null,
+              languageVersion: sf?.languageVersion ?? null,
+              syntactic: sf != null ? prog.getSyntacticDiagnostics(sf).length : null
+            }
+          } catch (e) { program = 'threw: ' + e.message.slice(0, 160) }
+          // Read the tsconfig the way typescript-estree would, to see what the program is missing.
+          let tsconfig = 'n/a'
+          try {
+            const ts = require(require.resolve('typescript', { paths: [cwd] }))
+            const cfgPath = join(cwd, 'tsconfig.json')
+            const read = ts.readConfigFile(cfgPath, ts.sys.readFile)
+            const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, cwd)
+            const prog = ts.createProgram(parsed.fileNames, parsed.options)
+            tsconfig = {
+              tsPath: require.resolve('typescript', { paths: [cwd] }),
+              version: ts.version,
+              readError: read.error != null ? ts.flattenDiagnosticMessageText(read.error.messageText, ' ') : null,
+              fileNames: parsed.fileNames.length,
+              configErrors: parsed.errors.map((e) => ts.flattenDiagnosticMessageText(e.messageText, ' ')).slice(0, 3),
+              programFiles: prog.getSourceFiles().length,
+              defaultLib: ts.getDefaultLibFilePath(parsed.options),
+              defaultLibExists: existsSync(ts.getDefaultLibFilePath(parsed.options))
+            }
+          } catch (e) { tsconfig = 'threw: ' + e.message.slice(0, 200) }
+          let tsVersion = 'unknown'
+          try {
+            tsVersion = require(require.resolve('typescript/package.json', { paths: [cwd] })).version
+          } catch (e) { tsVersion = 'unresolved: ' + e.message }
+          console.error(
+            'PARSE-DIAG ' +
+              JSON.stringify({
+                file: relative(cwd, file),
+                at: `${first?.line}:${first?.column}`,
+                message: first?.message,
+                line: (lines[(first?.line ?? 1) - 1] ?? '').slice(0, 200),
+                prev: (lines[(first?.line ?? 1) - 2] ?? '').slice(0, 200),
+                head: content.slice(0, 120),
+                bytes: content.length,
+                prettierChanged: content !== original,
+                originalParseErrors,
+                bareParse,
+                program,
+                tsconfig,
+                tsVersion,
+                parser: resolved.parser ?? '(eslint default)',
+                project: resolved.parserOptions?.project,
+                tsconfigRootDir: resolved.parserOptions?.tsconfigRootDir,
+                ecmaVersion: resolved.parserOptions?.ecmaVersion,
+                sourceType: resolved.parserOptions?.sourceType
+              })
+          )
+        } catch (e) {
+          console.error(`PARSE-DIAG ${relative(cwd, file)}: could not resolve config: ${e.message}`)
+        }
+      }
       if (r) {
         errorCount += r.errorCount
         warningCount += r.warningCount
         if (r.errorCount > 0 || r.warningCount > 0) {
           if (!failingResults) failingResults = []
           failingResults.push(r)
+        }
+        if (r.errorCount > 0 && errorReports < 3) {
+          errorReports++
+          const lines = content.split('\n')
+          const first = r.messages.find((m) => m.severity === 2)
+          const at = first?.line ?? 1
+          console.error(
+            'LINT-DIAG ' +
+              JSON.stringify({
+                file: relative(cwd, file),
+                onDisk: original.split('\n').length,
+                linted: lines.length,
+                prettierChanged: content !== original,
+                at: `${at}:${first?.column}`,
+                rule: first?.ruleId,
+                around: lines.slice(Math.max(0, at - 3), at + 2)
+              })
+          )
         }
         if (r.output !== undefined) content = r.output
       }

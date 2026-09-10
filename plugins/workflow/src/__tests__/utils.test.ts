@@ -88,7 +88,7 @@ describe('Workflow Utilities', () => {
   describe('Workflow CRUD', () => {
     it('should create a workflow with expected parameters', async () => {
       const mockClient = createMockClient({
-        createDoc: jest.fn().mockResolvedValue('wf-new-id' as Ref<Workflow>)
+        createDoc: jest.fn().mockResolvedValue('wf-new-id')
       })
 
       const res = await createWorkflow(mockClient, projectTypeId, taskTypeId, 'Default Workflow')
@@ -116,7 +116,7 @@ describe('Workflow Utilities', () => {
     it('should add a transition with initial rank when no transitions exist', async () => {
       const mockClient = createMockClient({
         findOne: jest.fn().mockResolvedValue(null),
-        addCollection: jest.fn().mockResolvedValue('trans-new-id' as Ref<WorkflowTransition>)
+        addCollection: jest.fn().mockResolvedValue('trans-new-id')
       })
 
       const res = await addTransition(mockClient, workflowId, 'Start Work', [statusOpen], statusInProgress)
@@ -145,7 +145,7 @@ describe('Workflow Utilities', () => {
     it('should add a transition with incremental rank when last transition exists', async () => {
       const mockClient = createMockClient({
         findOne: jest.fn().mockResolvedValue({ rank: defaultRank }),
-        addCollection: jest.fn().mockResolvedValue('trans-2-id' as Ref<WorkflowTransition>)
+        addCollection: jest.fn().mockResolvedValue('trans-2-id')
       })
 
       const expectedRank = makeRank(defaultRank, undefined)
@@ -284,7 +284,7 @@ describe('Workflow Utilities', () => {
           ruleClass: workflow.class.WorkflowValidator,
           rule: validatorType,
           props: {}
-        } as unknown as AnyRuleConfig)
+        })
       ).rejects.toThrow('Transition non-existent not found')
     })
 
@@ -449,7 +449,7 @@ describe('Workflow Utilities', () => {
           ruleClass: workflow.class.WorkflowRequest,
           rule: requestType,
           props: {}
-        } as unknown as AnyRuleConfig)
+        })
       ).rejects.toThrow('Transition non-existent not found')
     })
 
@@ -579,7 +579,7 @@ describe('Workflow Utilities', () => {
           ruleClass: workflow.class.WorkflowPostFunction,
           rule: postFunctionType,
           props: {}
-        } as unknown as AnyRuleConfig)
+        })
       ).rejects.toThrow('Transition non-existent not found')
     })
 
@@ -851,7 +851,7 @@ describe('Workflow Utilities', () => {
     it('should add a screen tab with initial rank when no tabs exist', async () => {
       const mockClient = createMockClient({
         findOne: jest.fn().mockResolvedValue(null),
-        addCollection: jest.fn().mockResolvedValue('tab-new-id' as Ref<ScreenTab>)
+        addCollection: jest.fn().mockResolvedValue('tab-new-id')
       })
 
       const res = await addScreenTab(mockClient, screenId, 'General')
@@ -878,7 +878,7 @@ describe('Workflow Utilities', () => {
     it('should add a screen tab with incremental rank when last tab exists', async () => {
       const mockClient = createMockClient({
         findOne: jest.fn().mockResolvedValue({ rank: defaultRank }),
-        addCollection: jest.fn().mockResolvedValue('tab-2-id' as Ref<ScreenTab>)
+        addCollection: jest.fn().mockResolvedValue('tab-2-id')
       })
 
       const expectedRank = makeRank(defaultRank, undefined)
@@ -926,7 +926,7 @@ describe('Workflow Utilities', () => {
     it('should add a screen field with initial rank when no fields exist', async () => {
       const mockClient = createMockClient({
         findOne: jest.fn().mockResolvedValue(null),
-        addCollection: jest.fn().mockResolvedValue('field-new-id' as Ref<ScreenField>)
+        addCollection: jest.fn().mockResolvedValue('field-new-id')
       })
 
       const res = await addScreenField(mockClient, tabId, fieldData)
@@ -953,7 +953,7 @@ describe('Workflow Utilities', () => {
     it('should add a screen field with incremental rank when last field exists', async () => {
       const mockClient = createMockClient({
         findOne: jest.fn().mockResolvedValue({ rank: defaultRank }),
-        addCollection: jest.fn().mockResolvedValue('field-2-id' as Ref<ScreenField>)
+        addCollection: jest.fn().mockResolvedValue('field-2-id')
       })
 
       const expectedRank = makeRank(defaultRank, undefined)

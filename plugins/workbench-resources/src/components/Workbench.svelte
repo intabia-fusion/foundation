@@ -407,8 +407,8 @@
     if ($tabIdStore !== $prevTabIdStore) {
       if ($prevTabIdStore != null) {
         const prevTab = tabs.find((t) => t._id === $prevTabIdStore)
-        const prevTabLoc = prevTab != null ? getTabLocation(prevTab) : undefined
-        if (prevTabLoc === undefined || prevTabLoc.path[2] !== loc.path[2]) {
+        const prevTabLoc = prevTab ? getTabLocation(prevTab) : undefined
+        if (prevTabLoc?.path[2] !== loc.path[2]) {
           clear(1)
         }
       }
@@ -537,7 +537,7 @@
     if (props.length >= 3) {
       const _class = props[2] as Ref<Class<Doc>>
       const _id = await parseLinkId(linkProviders, props[1], _class)
-      const doc = await client.findOne<Doc>(_class, { _id })
+      const doc = await client.findOne<Doc>(client.getHierarchy().getParentClass(_class), { _id })
       panelDoc = { _class, _id }
 
       if (doc !== undefined) {
@@ -566,7 +566,8 @@
   const panelQuery = createQuery()
 
   $: if (panelDoc !== undefined) {
-    panelQuery.query(panelDoc._class, { _id: panelDoc._id }, (r) => {
+    const watchClass = client.getHierarchy().getParentClass(panelDoc._class)
+    panelQuery.query(watchClass, { _id: panelDoc._id }, (r) => {
       if (r.length === 0) {
         closePanel(false)
         panelDoc = undefined
@@ -973,7 +974,7 @@
                 on:open={checkOnHide}
               />
               <NavFooter>
-                {#if currentApplication?.navFooterComponent != null}
+                {#if currentApplication?.navFooterComponent}
                   <Component is={currentApplication.navFooterComponent} props={{ currentSpace }} />
                 {/if}
               </NavFooter>
@@ -1004,7 +1005,7 @@
             !(mobileAdaptive && $deviceInfo.isPortrait)}
           data-id={'contentPanel'}
         >
-          {#if currentApplication?.component != null}
+          {#if currentApplication?.component}
             <Component
               is={currentApplication.component}
               props={{

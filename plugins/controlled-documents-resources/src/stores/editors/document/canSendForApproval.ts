@@ -45,7 +45,7 @@ export const $canSendForApproval = combine(
     return (
       isLatestVersion &&
       ((state === DocumentState.Draft && !haveBeenReviewedOnce) || state === ControlledDocumentState.Reviewed) &&
-      comments.every((comment) => comment.resolved) &&
+      comments.every((comment) => comment.resolved === true) &&
       (training === null || training.state === TrainingState.Released)
     )
   }

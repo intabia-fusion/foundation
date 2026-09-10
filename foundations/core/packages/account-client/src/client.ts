@@ -70,6 +70,7 @@ import type {
   SubscriptionInfo,
   UserProfile,
   WorkspaceInviteInfo,
+  WorkspaceSeatsInfo,
   WorkspaceLoginInfo,
   WorkspaceOperation,
   AccountWorkspaceBadgeStatus,
@@ -151,6 +152,7 @@ export interface AccountClient {
   joinByInvite: (inviteId: string) => Promise<WorkspaceLoginInfo>
   checkAutoJoin: (inviteId: string, firstName?: string, lastName?: string) => Promise<WorkspaceLoginInfo>
   getInviteInfo: (inviteId: string) => Promise<WorkspaceInviteInfo>
+  getWorkspaceSeats: () => Promise<WorkspaceSeatsInfo>
   getWorkspaceInfo: (updateLastVisit?: boolean) => Promise<WorkspaceInfoWithStatus>
   getWorkspacesInfo: (workspaces: WorkspaceUuid[]) => Promise<WorkspaceInfoWithStatus[]>
   updateLastVisit: (workspaces: WorkspaceUuid[]) => Promise<void>
@@ -746,6 +748,15 @@ class AccountClientImpl implements AccountClient {
     const request = {
       method: 'getInviteInfo' as const,
       params: { inviteId }
+    }
+
+    return await this.rpc(request)
+  }
+
+  async getWorkspaceSeats (): Promise<WorkspaceSeatsInfo> {
+    const request = {
+      method: 'getWorkspaceSeats' as const,
+      params: {}
     }
 
     return await this.rpc(request)

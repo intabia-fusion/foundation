@@ -224,11 +224,11 @@ class BackupWorker {
   }
 
   failedWorkspaces = new Map<
-  WorkspaceUuid,
-  {
-    info: WorkspaceInfoWithStatus
-    counter: number
-  }
+    WorkspaceUuid,
+    {
+      info: WorkspaceInfoWithStatus
+      counter: number
+    }
   >()
 
   processed = 0

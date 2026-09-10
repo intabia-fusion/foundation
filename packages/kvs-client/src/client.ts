@@ -155,10 +155,7 @@ class KeyValueClientImpl implements KeyValueClient {
 
     // Parse JSON response when needed
     const contentType = response.headers.get('content-type')
-    if (
-      response.status !== 204 &&
-      (options.method === 'GET' || (contentType != null && contentType.includes('application/json')))
-    ) {
+    if (response.status !== 204 && (options.method === 'GET' || (contentType?.includes('application/json') ?? false))) {
       return await response.json()
     }
 

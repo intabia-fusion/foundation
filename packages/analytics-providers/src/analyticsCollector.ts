@@ -36,8 +36,8 @@ export class AnalyticsCollectorProvider implements AnalyticProvider {
   // Measurements fold into one event per name+labels: a find-heavy run produced 61k single-value
   // events, more than the transactor logged operations.
   private readonly metricBuckets = new Map<
-  string,
-  { metric: string, labels: Record<string, any>, count: number, sum: number, min: number, max: number }
+    string,
+    { metric: string, labels: Record<string, any>, count: number, sum: number, min: number, max: number }
   >()
 
   private collectTimer: any = null

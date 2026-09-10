@@ -536,15 +536,15 @@ export class ReviewCommentSyncManager implements DocSyncManager {
 
       if (isGHWriteAllowed()) {
         const response:
-        | {
-          addPullRequestReviewThreadReply: {
-            comment: ReviewCommentExternalData
+          | {
+            addPullRequestReviewThreadReply: {
+              comment: ReviewCommentExternalData
+            }
           }
-        }
-        | undefined = await okit.graphql(q, {
-          prID: existingReview.reviewThreadId,
-          body: (await this.provider.getMarkdown(existingReview.body)) ?? ''
-        })
+          | undefined = await okit.graphql(q, {
+            prID: existingReview.reviewThreadId,
+            body: (await this.provider.getMarkdown(existingReview.body)) ?? ''
+          })
 
         const reviewExternal = response?.addPullRequestReviewThreadReply?.comment
 

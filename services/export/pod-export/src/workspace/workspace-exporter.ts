@@ -186,7 +186,7 @@ export class CrossWorkspaceExporter {
           resolvedRelations = relations.map((doc) => ({
             field: doc.field,
             class: doc.targetClass,
-            direction: (doc.direction ?? 'forward') as 'forward' | 'inverse'
+            direction: doc.direction ?? 'forward'
           }))
         }
       } catch (err: any) {

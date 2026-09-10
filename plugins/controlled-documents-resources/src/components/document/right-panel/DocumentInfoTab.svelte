@@ -73,7 +73,7 @@
     )
   }
 
-  $: isEditableDraft = $isEditable && $controlledDocument != null && $controlledDocument.state === DocumentState.Draft
+  $: isEditableDraft = $isEditable && $controlledDocument?.state === DocumentState.Draft
   $: isInitialEditableDraft = isEditableDraft && $documentAllVersions.length === 1
 
   $: isTemplate =

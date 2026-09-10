@@ -51,12 +51,12 @@
 
   export let ofClass: Ref<Class<Obj>> | undefined = undefined
   export let attributeMapper:
-  | {
-    component: AnySvelteComponent
-    label: IntlString
-    props: Record<string, any>
-  }
-  | undefined = undefined
+    | {
+      component: AnySvelteComponent
+      label: IntlString
+      props: Record<string, any>
+    }
+    | undefined = undefined
   export let withoutHeader = false
   export let useOfClassAttributes = true
 

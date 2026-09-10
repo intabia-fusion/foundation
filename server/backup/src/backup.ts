@@ -184,9 +184,7 @@ export async function backup (
     }
     backupInfo.version = '0.6.2'
 
-    if (backupInfo.migrations == null) {
-      backupInfo.migrations = {}
-    }
+    backupInfo.migrations ??= {}
 
     // Apply verification to backup, since we know it should have broken blobs
     if (backupInfo.migrations.zeroCheckSize == null) {
@@ -194,19 +192,15 @@ export async function backup (
       if (await storage.exists(infoFile)) {
         backupInfo = JSON.parse(gunzipSync(new Uint8Array(await storage.loadFile(infoFile))).toString())
       }
-      if (backupInfo.migrations == null) {
-        backupInfo.migrations = {}
-      }
+      backupInfo.migrations ??= {}
       backupInfo.migrations.zeroCheckSize = true
       await storage.writeFile(infoFile, gzipSync(JSON.stringify(backupInfo, undefined, 2), { level: defaultLevel }))
     }
 
     backupInfo.workspace = workspaceId
 
-    if (backupInfo.domainHashes === undefined) {
-      // Migration
-      backupInfo.domainHashes = {}
-    }
+    // Migration
+    backupInfo.domainHashes ??= {}
 
     let fullCheck = options.fullVerify === true
     let forceCompact = options.forceCompact === true
@@ -401,34 +395,34 @@ export async function backup (
               st = Date.now()
             }
             const serverDocHash = doTrimHash(hash) as string
-            const currentHash = doTrimHash(digest.get(id as Ref<Doc>) ?? oldHash.get(id as Ref<Doc>))
+            const currentHash = doTrimHash(digest.get(id) ?? oldHash.get(id as Ref<Doc>))
             if (currentHash !== undefined) {
-              const oldD = digest.get(id as Ref<Doc>)
-              if (digest.delete(id as Ref<Doc>)) {
+              const oldD = digest.get(id)
+              if (digest.delete(id)) {
                 if (oldD !== undefined) {
                   same.set(id as Ref<Doc>, oldD)
                 }
                 oldHash.set(id as Ref<Doc>, currentHash)
               }
               if (currentHash !== serverDocHash) {
-                if (changes.updated.has(id as Ref<Doc>)) {
+                if (changes.updated.has(id)) {
                   removeFromNeedRetrieve(needRetrieve, id as Ref<Doc>)
                 }
-                changes.updated.set(id as Ref<Doc>, serverDocHash)
+                changes.updated.set(id, serverDocHash)
                 needRetrieve.set(id as Ref<Doc>, { size, contentType, hash })
                 changed++
-              } else if (changes.updated.has(id as Ref<Doc>)) {
+              } else if (changes.updated.has(id)) {
                 // We have same
-                changes.updated.delete(id as Ref<Doc>)
+                changes.updated.delete(id)
                 removeFromNeedRetrieve(needRetrieve, id as Ref<Doc>)
                 processed -= 1
               }
             } else {
-              if (domain === DOMAIN_BLOB && changes.added.has(id as Ref<Doc>)) {
+              if (domain === DOMAIN_BLOB && changes.added.has(id)) {
                 // We need to clean old need retrieve in case of duplicates.
                 removeFromNeedRetrieve(needRetrieve, id as Ref<Doc>)
               }
-              changes.added.set(id as Ref<Doc>, serverDocHash)
+              changes.added.set(id, serverDocHash)
               needRetrieve.set(id as Ref<Doc>, { size, contentType, hash })
               changed++
             }
@@ -561,9 +555,7 @@ export async function backup (
               for (const localDoc of docs) {
                 if (TxProcessor.isExtendsCUD(localDoc._class)) {
                   const tx = localDoc as TxCUD<Doc>
-                  if (tx.objectSpace == null) {
-                    tx.objectSpace = core.space.Workspace
-                  }
+                  tx.objectSpace ??= core.space.Workspace
                 }
                 const serverDoc = smap.get(localDoc._id)
                 if (serverDoc === undefined) {
@@ -851,7 +843,7 @@ export async function backup (
                 }
               })
 
-              const finalBuffer = Buffer.concat(buffers as any)
+              const finalBuffer = Buffer.concat(buffers)
               if (!found) {
                 missingBlobs++
               } else if (finalBuffer.length !== blob.size) {

@@ -241,8 +241,8 @@ describe('utils - parseUpdate', () => {
 
     const result = parseUpdate(update, mockSchema)
 
-    expect(result.extractedFields).toHaveProperty('space')
-    expect(result.remainingData).toHaveProperty('customField')
+    expect(result.extractedFields).toHaveProperty('space', 'space:123')
+    expect(result.remainingData).toHaveProperty('customField', 'value')
   })
 
   it('should handle $set operator correctly', () => {
@@ -255,10 +255,8 @@ describe('utils - parseUpdate', () => {
 
     const result = parseUpdate(update, mockSchema)
 
-    // BUG FOUND: The function has `val[key]` instead of `val[k]`
-    // This would cause it to access the wrong property
-    expect(result.extractedFields).toHaveProperty('space')
-    expect(result.remainingData).toHaveProperty('customField')
+    expect(result.extractedFields).toHaveProperty('space', 'space:123')
+    expect(result.remainingData).toHaveProperty('customField', 'value')
   })
 
   it('should handle $push operator', () => {
@@ -269,7 +267,7 @@ describe('utils - parseUpdate', () => {
     }
 
     const result = parseUpdate(update, mockSchema)
-    expect(result.remainingData).toHaveProperty('tags')
+    expect(result.remainingData).toHaveProperty('tags', 'newtag')
   })
 
   it('should handle $pull operator', () => {
@@ -280,7 +278,7 @@ describe('utils - parseUpdate', () => {
     }
 
     const result = parseUpdate(update, mockSchema)
-    expect(result.remainingData).toHaveProperty('tags')
+    expect(result.remainingData).toHaveProperty('tags', 'removetag')
   })
 
   it('should handle $inc operator', () => {
@@ -291,7 +289,7 @@ describe('utils - parseUpdate', () => {
     }
 
     const result = parseUpdate(update, mockSchema)
-    expect(result.remainingData).toHaveProperty('count')
+    expect(result.remainingData).toHaveProperty('count', 1)
   })
 
   it('should handle empty update', () => {
@@ -314,9 +312,19 @@ describe('utils - parseUpdate', () => {
 
     const result = parseUpdate(update, mockSchema)
 
-    expect(result.extractedFields).toHaveProperty('space')
-    expect(result.extractedFields).toHaveProperty('_class')
-    expect(result.remainingData).toHaveProperty('custom')
+    expect(result.extractedFields).toHaveProperty('space', 'space:123')
+    expect(result.extractedFields).toHaveProperty('_class', 'class:Test')
+    expect(result.remainingData).toHaveProperty('custom', 'value')
+  })
+
+  it('should keep every value of a multi-key operator', () => {
+    const update: DocumentUpdate<any> = {
+      $set: { first: 'one', second: 'two' }
+    } as any
+
+    const result = parseUpdate(update, mockSchema)
+
+    expect(result.remainingData).toEqual({ first: 'one', second: 'two' })
   })
 })
 

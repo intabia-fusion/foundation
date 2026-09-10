@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "Create your own workspace, or ask the owner of an existing one for an access link.",
     "CheckingLink": "Checking the link...",
     "InvalidLink": "This link is no longer valid",
-    "ConfirmationFailed": "Could not complete the registration"
+    "ConfirmationFailed": "Could not complete the registration",
+    "NoFreeSeats": "No free seats",
+    "NoFreeSeatsDescription": "This workspace has reached its plan seat limit. Please contact the workspace administrator.",
+    "NoFreeSeatsForInvite": "The plan has no free seats left, so a new invite link cannot be created."
   }
 }

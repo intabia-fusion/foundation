@@ -114,12 +114,12 @@
   $: resultFields = rows
     .filter((r) => r.fieldKey.trim() !== '' && r.attribute != null)
     .map<UpdateFieldValueConfig>((r) => ({
-    attribute: (r.attribute?._id ?? '') as Ref<AnyAttribute>,
-    fieldKey: r.fieldKey,
-    value: r.value,
-    operation: r.operation,
-    mixin: r.mixin
-  }))
+      attribute: (r.attribute?._id ?? '') as Ref<AnyAttribute>,
+      fieldKey: r.fieldKey,
+      value: r.value,
+      operation: r.operation,
+      mixin: r.mixin
+    }))
 
   $: canSave = resultFields.length > 0
   $: dispatch('update', { fields: resultFields })
@@ -190,7 +190,7 @@
     const ed: AnySvelteComponent | undefined = await getAttributeEditor(client, targetClass, attr.name)
 
     const row = rows.find((r) => r.id === rowId)
-    if (row != null && row.fieldKey === key) {
+    if (row?.fieldKey === key) {
       let changed = false
       if (row.attribute !== attr) {
         row.attribute = attr

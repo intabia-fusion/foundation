@@ -47,7 +47,7 @@
   const liveQuery = createQuery()
   let live: VoiceAttachment = value
   $: liveQuery.query(attachment.class.Attachment, { _id: value._id }, (res) => {
-    if (res[0] !== undefined) live = res[0] as VoiceAttachment
+    if (res[0] !== undefined) live = res[0]
   })
 
   $: state = live.state
@@ -69,7 +69,7 @@
     editing = false
     const md = markupToMarkdown(markupToJSON(editMarkup)).trim()
     if (md !== text) {
-      await client.updateDoc(live._class, live.space, live._id, { text: md, edited: true } as any)
+      await client.updateDoc(live._class, live.space, live._id, { text: md, edited: true })
     }
   }
 </script>

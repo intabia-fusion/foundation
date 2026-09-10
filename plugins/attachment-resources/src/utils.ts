@@ -15,7 +15,7 @@
 // limitations under the License.
 //
 
-import { type Attachment, type AttachmentValue, type DraftAttachment } from '@hcengineering/attachment'
+import { type Attachment, type AttachmentValue } from '@hcengineering/attachment'
 import {
   type BlobMetadata,
   type Blob,
@@ -312,7 +312,7 @@ export async function attachmentsApplier (
         txes.push(tx)
       }
     } else if (typeof item === 'object' && item != null) {
-      const att = item as DraftAttachment
+      const att = item
       const blobRef = att.file
       if (blobRef != null && !existingFileIds.has(blobRef)) {
         const createTx = client.txFactory.createTxCreateDoc<Attachment>(attachment.class.Attachment, doc.space, {
@@ -331,10 +331,8 @@ export async function attachmentsApplier (
     }
   }
 
-  const valueFiles = new Set(
-    value.map((v) => (typeof v === 'string' ? v : (v as DraftAttachment)?.file)).filter(Boolean)
-  )
-  const valueIds = new Set(value.map((v) => (typeof v === 'string' ? v : (v as DraftAttachment)?._id)).filter(Boolean))
+  const valueFiles = new Set(value.map((v) => (typeof v === 'string' ? v : v?.file)).filter(Boolean))
+  const valueIds = new Set(value.map((v) => (typeof v === 'string' ? v : v?._id)).filter(Boolean))
 
   for (const existingAtt of existing) {
     if (!valueFiles.has(existingAtt.file) && !valueIds.has(existingAtt._id)) {

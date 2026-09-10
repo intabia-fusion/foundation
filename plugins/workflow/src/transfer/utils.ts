@@ -151,9 +151,7 @@ export async function findOrCreateEnum (
   const existingEnums = await client.findAll(core.class.Enum, {})
 
   const isMatchingValues = (e: Enum): boolean =>
-    e.enumValues !== undefined &&
-    e.enumValues.length === enumValues.length &&
-    e.enumValues.every((v) => enumValues.includes(v))
+    e.enumValues?.length === enumValues.length && e.enumValues.every((v) => enumValues.includes(v))
 
   const matched =
     existingEnums.find((e) => e.name === enumName && isMatchingValues(e)) ??

@@ -136,9 +136,7 @@
     if (ignored) return true
 
     if (provider.ignoreAll === true) {
-      return !providerDefaults.some(
-        (it) => provider._id === it.provider && it.excludeIgnore !== undefined && it.excludeIgnore.includes(type)
-      )
+      return !providerDefaults.some((it) => provider._id === it.provider && it.excludeIgnore?.includes(type) === true)
     }
 
     return false

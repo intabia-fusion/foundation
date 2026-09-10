@@ -175,11 +175,7 @@
     if (p === undefined) return
 
     for (const publication of p.trackPublications.values()) {
-      if (
-        publication.track !== undefined &&
-        publication.track.kind === Track.Kind.Video &&
-        publication.track.source !== Track.Source.ScreenShare
-      ) {
+      if (publication.track?.kind === Track.Kind.Video && publication.track?.source !== Track.Source.ScreenShare) {
         attachTrack(publication.track)
         break
       }

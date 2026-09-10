@@ -1,3 +1,4 @@
+diff --git a/src/network/requestQueue/index.js b/src/network/requestQueue/index.js
 --- a/src/network/requestQueue/index.js
 +++ b/src/network/requestQueue/index.js
 @@ -309,15 +309,20 @@

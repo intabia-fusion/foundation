@@ -21,7 +21,7 @@ import { type AnalyticsConfig } from './types'
 
 export * from './analyticsCollector'
 export * from './utils'
-export * from './types'
+export type * from './types'
 
 export function configureAnalyticsProviders (config: AnalyticsConfig): void {
   const providers: AnalyticProvider[] = [new AnalyticsCollectorProvider(), new YandexMetrikaProvider()]

@@ -90,7 +90,7 @@ async function canCloseRoom (mm?: MeetingMinutes): Promise<boolean> {
 }
 
 async function canOpenRoom (mm?: MeetingMinutes): Promise<boolean> {
-  if (mm === undefined || !mm.private) return false
+  if (mm?.private !== true) return false
   return await isRoomOwner(mm)
 }
 

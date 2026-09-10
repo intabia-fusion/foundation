@@ -208,7 +208,7 @@
     "StepGeneral": "Основное",
     "StepStatuses": "Маппинг статусов",
     "StepGeneralAndStatuses": "Основное и статусы",
-    "StepSelectFile": "Выбор файла",
+    "StepSelectSource": "Выбор источника",
     "StepTaskTypeAndStatuses": "Тип задачи и статусы",
     "StepScreens": "Экраны",
     "StepAttributes": "Атрибуты и правила",

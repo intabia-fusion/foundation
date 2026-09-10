@@ -249,7 +249,7 @@ export async function getLinkData (
     return undefined
   }
 
-  if (person !== undefined && person._id === linkObject._id) {
+  if (person?._id === linkObject._id) {
     return undefined
   }
 

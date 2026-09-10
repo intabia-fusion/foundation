@@ -66,7 +66,7 @@ function createEvent (opts?: { participants?: Array<Ref<Person>>, date?: number 
   const ev = {
     _id: eventRef,
     _class: calendar.class.Event,
-    space: core.space.Workspace as unknown as Ref<Space>,
+    space: core.space.Workspace,
     title: 'Test Event',
     description: '',
     date: opts?.date ?? Date.now(),
@@ -100,7 +100,7 @@ function createUpdateTx (ops: Partial<Event>): TxUpdateDoc<Event> {
     space: core.space.DerivedTx,
     objectId: eventRef,
     objectClass: calendar.class.Event,
-    objectSpace: core.space.Workspace as unknown as Ref<Space>,
+    objectSpace: core.space.Workspace,
     modifiedOn: Date.now(),
     modifiedBy: 'creator' as PersonId,
     operations: ops
@@ -194,10 +194,7 @@ describe('OnEventUpdate', () => {
         buildFindAll({
           meeting: createMeetingDoc({ members: [accountA] }),
           event: createEvent({ participants: [personA, personB] }),
-          persons: [
-            createPersonDoc(personA, accountA as unknown as PersonUuid),
-            createPersonDoc(personB, accountB as unknown as PersonUuid)
-          ]
+          persons: [createPersonDoc(personA, accountA), createPersonDoc(personB, accountB)]
         })
       )
 
@@ -218,10 +215,7 @@ describe('OnEventUpdate', () => {
         buildFindAll({
           meeting: createMeetingDoc({ members: [accountA, accountB] }),
           event: createEvent({ participants: [personA, personB] }),
-          persons: [
-            createPersonDoc(personA, accountA as unknown as PersonUuid),
-            createPersonDoc(personB, accountB as unknown as PersonUuid)
-          ]
+          persons: [createPersonDoc(personA, accountA), createPersonDoc(personB, accountB)]
         })
       )
 
@@ -237,7 +231,7 @@ describe('OnEventUpdate', () => {
           meeting: createMeetingDoc({ members: [accountA] }),
           event: createEvent({ participants: [personA, personB] }),
           persons: [
-            createPersonDoc(personA, accountA as unknown as PersonUuid),
+            createPersonDoc(personA, accountA),
             createPersonDoc(personB, undefined) // no personUuid
           ]
         })
@@ -322,10 +316,7 @@ describe('OnEventUpdate', () => {
         buildFindAll({
           meeting: createMeetingDoc({ members: [accountA] }),
           event: createEvent({ participants: [personA, personB], date: newDate }),
-          persons: [
-            createPersonDoc(personA, accountA as unknown as PersonUuid),
-            createPersonDoc(personB, accountB as unknown as PersonUuid)
-          ]
+          persons: [createPersonDoc(personA, accountA), createPersonDoc(personB, accountB)]
         })
       )
 

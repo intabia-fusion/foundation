@@ -58,7 +58,7 @@ describe('Utils - parseParticipantMetadata', () => {
   })
 
   it('should handle null metadata', () => {
-    const result = parseParticipantMetadata(null as any)
+    const result = parseParticipantMetadata(null)
     expect(result).toEqual({})
   })
 
@@ -68,7 +68,7 @@ describe('Utils - parseParticipantMetadata', () => {
   })
 
   it('should handle undefined metadata', () => {
-    const result = parseParticipantMetadata(undefined as any)
+    const result = parseParticipantMetadata(undefined)
     expect(result).toEqual({})
   })
 

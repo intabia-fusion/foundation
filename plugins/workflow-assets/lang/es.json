@@ -206,7 +206,7 @@
     "StepGeneral": "General",
     "StepStatuses": "Asignación de estados",
     "StepGeneralAndStatuses": "General y estados",
-    "StepSelectFile": "Seleccionar archivo",
+    "StepSelectSource": "Seleccionar origen",
     "StepTaskTypeAndStatuses": "Tipo de tarea y estados",
     "StepScreens": "Pantallas",
     "StepAttributes": "Atributos y reglas",

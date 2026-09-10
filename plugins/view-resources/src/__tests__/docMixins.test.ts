@@ -75,7 +75,7 @@ function prepare (): Hierarchy {
     mixin(test.mixin.ChildOfOnTask, test.mixin.OnTask),
     mixin(test.mixin.Ignored, core.class.Doc),
     // Base class is Class, so it never shows up as an applicable mixin of a Doc.
-    mixin(setting.mixin.ClassifierOrder as Ref<Class<Obj>>, core.class.Class)
+    mixin(setting.mixin.ClassifierOrder, core.class.Class)
   ]
   for (const tx of txes) hierarchy.tx(tx)
   return hierarchy

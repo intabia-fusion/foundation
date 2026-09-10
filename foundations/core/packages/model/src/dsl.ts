@@ -117,7 +117,7 @@ function clearAttrs (target: any, prop: string): void {
   const props = attributes.get(target)
   props?.delete(prop)
 
-  if (props !== undefined && props.size === 0) {
+  if (props?.size === 0) {
     attributes.delete(target)
   }
 }

@@ -17,6 +17,8 @@ import { expect, type Locator } from '@playwright/test'
 import { CommonTrackerPage } from './common-tracker-page'
 import { retryIntervals, waitStable } from '../../retry'
 
+const DROP_ZONE = '[data-id="kanban-column"], [data-id="kanban-swimlane-cell"]'
+
 export class KanbanBoardPage extends CommonTrackerPage {
   column (state: string): Locator {
     return this.page.locator(`[data-id="kanban-column"][data-state="${state}"]`)
@@ -39,10 +41,14 @@ export class KanbanBoardPage extends CommonTrackerPage {
   }
 
   async expectCardInColumn (cardId: string, state: string): Promise<void> {
+    // Past the column's limit the card is simply not in the DOM, and the assertion then reports it
+    // as missing - other specs leave hundreds of issues in the shared project.
+    await this.revealCard(cardId)
     await expect(this.column(state).locator(`[data-id="kanban-card"][data-card-id="${cardId}"]`)).toBeVisible()
   }
 
   async expectCardInSwimLaneCell (cardId: string, laneId: string, state: string): Promise<void> {
+    await this.revealCard(cardId)
     await expect(
       this.swimLaneCell(laneId, state).locator(`[data-id="kanban-card"][data-card-id="${cardId}"]`)
     ).toBeVisible()
@@ -66,7 +72,13 @@ export class KanbanBoardPage extends CommonTrackerPage {
     const legacy = this.column(targetState)
     let target
     if ((await legacy.count()) > 0) {
-      target = legacy
+      // Aim at a card, not at the column's centre: with a full column that centre lands inside some
+      // card's content, and the drop is never delivered there.
+      const cardInColumn = legacy.locator('[data-id="kanban-card"]').first()
+      target =
+        (await cardInColumn.count()) > 0 && (await cardInColumn.getAttribute('data-card-id')) !== cardId
+          ? cardInColumn
+          : legacy
     } else {
       const cell = this.page.locator(`[data-id="kanban-swimlane-cell"][data-state="${targetState}"]`).first()
       // Prefer dropping onto a card inside the cell — drop handler is more reliable on cards.
@@ -93,11 +105,38 @@ export class KanbanBoardPage extends CommonTrackerPage {
     await this.dragPointer(this.card(cardId), target)
   }
 
-  /** Scrolling can race the board re-rendering, which detaches the node mid-action. */
+  /** Through the DOM: `scrollIntoViewIfNeeded` waits for a stable element, and the board keeps
+   *  animating while other specs add issues to the same project - it then never scrolls at all. */
   private async ensureVisible (locator: Locator): Promise<void> {
     await expect(async () => {
-      await locator.scrollIntoViewIfNeeded({ timeout: 5000 })
+      await locator.first().waitFor({ state: 'attached', timeout: 5000 })
+      await locator.first().evaluate((el) => {
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      })
     }).toPass({ intervals: retryIntervals, timeout: 15000 })
+  }
+
+  /** The centre of the part of the target that is on screen: a swim lane cell is taller than the
+   *  window, and its own centre then sits below the fold where the pointer hits nothing. */
+  private async visiblePointOf (target: Locator): Promise<{ x: number, y: number }> {
+    // The board keeps scrolling for a frame or two after scrollIntoView, so a box read right away
+    // points where the target no longer is - and the drop then lands on the neighbouring column.
+    const raw = await waitStable(async () => JSON.stringify(await target.boundingBox()), {
+      stableFor: 200,
+      interval: 50,
+      timeout: 5000
+    })
+    const box = JSON.parse(raw)
+    if (box === null) throw new Error('Drop target has no bounding box')
+    const view = this.page.viewportSize()
+    const left = Math.max(box.x, 0)
+    const right = Math.min(box.x + box.width, view?.width ?? box.x + box.width)
+    const top = Math.max(box.y, 0)
+    const bottom = Math.min(box.y + box.height, view?.height ?? box.y + box.height)
+    if (right <= left || bottom <= top) {
+      throw new Error(`drop target is off screen: box ${raw}, viewport ${JSON.stringify(view)}`)
+    }
+    return { x: (left + right) / 2, y: (top + bottom) / 2 }
   }
 
   /**
@@ -112,6 +151,7 @@ export class KanbanBoardPage extends CommonTrackerPage {
     await target.waitFor({ state: 'attached', timeout: 5000 })
     await source.hover()
     const sourceBox = await source.boundingBox()
+    let released = false
     await this.page.mouse.down()
     try {
       // Start the drag before anything else moves: `move()` bails out when `dragCard` is unset, so
@@ -125,28 +165,121 @@ export class KanbanBoardPage extends CommonTrackerPage {
       // before that points outside the viewport. Scroll through the DOM - scrollIntoViewIfNeeded
       // waits for the element to be stable, and the board animates for as long as a card is held.
       await target.evaluate((el) => {
-        el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+        el.scrollIntoView({ block: 'center', inline: 'nearest' })
       })
-      // The board keeps scrolling for a frame or two after scrollIntoView, so a box read right away
-      // points where the target no longer is - and the drop then lands on the neighbouring column.
-      const raw = await waitStable(async () => JSON.stringify(await target.boundingBox()), {
-        stableFor: 200,
-        interval: 50,
-        timeout: 5000
-      })
-      const box = JSON.parse(raw)
-      if (box === null) throw new Error('Drop target has no bounding box')
-      const x = box.x + box.width / 2
-      const y = box.y + box.height / 2
+      // Lane and state together: with swim lanes on, every lane has a cell per status, so a drop
+      // that lands one lane off matches by data-state alone and passes every check below.
+      const wanted = await target.evaluate((el, zone) => {
+        const cell = el.closest(zone)
+        return cell === null
+          ? null
+          : `${cell.getAttribute('data-swimlane-id') ?? ''}|${cell.getAttribute('data-state') ?? ''}`
+      }, DROP_ZONE)
+      // A drop that never reaches the board is the whole flake: no error, no status change. The
+      // browser fires it only after a dragover on the cell, so the release below waits for one.
+      await this.page.evaluate((zone) => {
+        const w = window as any
+        w.__dropSeen = null
+        w.__dragOverCell = null
+        w.__dragOvers = 0
+        w.__dragEnded = false
+        w.__dragOverHandler = (e: Event): void => {
+          const cell = (e.target as HTMLElement)?.closest?.(zone)
+          w.__dragOvers++
+          w.__dragOverCell =
+            cell == null
+              ? 'outside'
+              : `${cell.getAttribute('data-swimlane-id') ?? ''}|${cell.getAttribute('data-state') ?? ''}`
+        }
+        document.addEventListener('dragover', w.__dragOverHandler, true)
+        // A drag the browser has already ended cannot deliver a drop however long we nudge.
+        document.addEventListener(
+          'dragend',
+          () => {
+            w.__dragEnded = true
+          },
+          { capture: true, once: true }
+        )
+        document.addEventListener(
+          'drop',
+          (e) => {
+            const cell = (e.target as HTMLElement)?.closest?.(zone)
+            w.__dropSeen =
+              cell == null
+                ? 'outside'
+                : `${cell.getAttribute('data-swimlane-id') ?? ''}|${cell.getAttribute('data-state') ?? ''}`
+          },
+          { capture: true, once: true }
+        )
+      }, DROP_ZONE)
 
-      await this.page.mouse.move(x, y, { steps: 10 })
-      // The column becomes the drop target only once its dragover ran, and dragover only fires on
-      // movement - so pause, then move again, and release while that last one is still fresh.
-      await this.page.waitForTimeout(150)
-      await this.page.mouse.move(x + 2, y + 2)
-      await this.page.mouse.move(x, y)
-    } finally {
+      // The board rearranges once the card is taken out of its own cell, so the target moves under
+      // the pointer after it was measured. Measure, move, check what is really there - and redo the
+      // whole thing while the card is still held rather than failing the caller's attempt.
+      let x = 0
+      let y = 0
+      let under: string | null = null
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const point = await this.visiblePointOf(target)
+        x = point.x
+        y = point.y
+        await this.page.mouse.move(x, y, { steps: 10 })
+        // The column becomes the drop target only once its dragover ran, and dragover only fires on
+        // movement - so pause, then move again, and release while that last one is still fresh.
+        await this.page.waitForTimeout(150)
+        await this.page.mouse.move(x + 2, y + 2)
+        await this.page.mouse.move(x, y)
+        under = await this.page.evaluate(
+          ({ px, py, zone }) => {
+            const cell = document.elementFromPoint(px, py)?.closest(zone)
+            return cell == null
+              ? null
+              : `${cell.getAttribute('data-swimlane-id') ?? ''}|${cell.getAttribute('data-state') ?? ''}`
+          },
+          { px: x, py: y, zone: DROP_ZONE }
+        )
+        if (wanted === null || under === wanted) break
+      }
+      if (wanted !== null && under !== wanted) {
+        throw new Error(`drop point (${x}, ${y}) is over cell "${under ?? 'nothing'}", not "${wanted}"`)
+      }
+      // A column the card's task type does not allow swallows the drop without a word.
+      if (await target.evaluate((el) => el.closest('.drop-disabled') !== null)) {
+        throw new Error(`cell "${String(wanted)}" is disabled for this card - its task type does not allow the status`)
+      }
+      // The browser turns a synthesized mousemove into dragover a tick later, and a release that
+      // overtakes it ends the drag with no drop at all. Nudge until the cell has really seen one.
+      for (let attempt = 0; attempt < (wanted === null ? 0 : 20); attempt++) {
+        const state = await this.page.evaluate(() => {
+          const w = window as any
+          return { cell: w.__dragOverCell, ended: w.__dragEnded }
+        })
+        if (state.cell === wanted || state.ended === true) break
+        await this.page.mouse.move(x + (attempt % 2 === 0 ? 2 : -2), y)
+        await this.page.mouse.move(x, y)
+        await this.page.waitForTimeout(50)
+      }
       await this.page.mouse.up()
+      released = true
+      const after = await this.page.evaluate(() => {
+        const w = window as any
+        document.removeEventListener('dragover', w.__dragOverHandler, true)
+        return { seen: w.__dropSeen, cell: w.__dragOverCell, overs: w.__dragOvers, ended: w.__dragEnded }
+      })
+      if (after.seen !== wanted) {
+        // A lost drop leaves the board mid-drag: the card keeps its `dragged` class and every later
+        // mouse.down starts no drag at all. Escape clears that in ms, a reload costs seconds.
+        await this.page.keyboard.press('Escape')
+        if ((await this.page.locator('[data-id="kanban-card"].dragged').count()) > 0) {
+          await this.page.reload()
+        }
+        throw new Error(
+          `drop was not delivered to cell "${String(wanted)}" (landed on "${String(after.seen)}", ` +
+            `last dragover "${String(after.cell)}" of ${String(after.overs)}, dragend ${String(after.ended)})`
+        )
+      }
+    } finally {
+      if (!released) await this.page.mouse.up()
     }
   }
 
@@ -223,6 +356,13 @@ export class KanbanBoardPage extends CommonTrackerPage {
   async revealCard (cardId: string, attempts: number = 30): Promise<void> {
     for (let i = 0; i < attempts; i++) {
       if ((await this.card(cardId).count()) > 0) return
+      // A drag that ended without a drop leaves the board's optimistic copy of the card nowhere:
+      // it is gone from the DOM and no transaction is coming to bring it back. Reload once.
+      if (i === Math.floor(attempts / 2)) {
+        await this.page.reload()
+        await this.page.locator('[data-id="kanban-card"]').first().waitFor({ state: 'attached', timeout: 15000 })
+        continue
+      }
       // Every Show more on the board per pass, not one: the card can sit behind any column's limit
       // and other specs leave hundreds of issues in the shared project, so round-robin spent two
       // thirds of its clicks on columns that did not hold the card.
@@ -242,6 +382,10 @@ export class KanbanBoardPage extends CommonTrackerPage {
       }
       await this.page.waitForTimeout(150)
     }
+    // Silence here costs the caller its whole budget on a card that is not on the board at all.
+    const cards = await this.page.locator('[data-id="kanban-card"]').count()
+    const lanes = await this.page.locator('[data-id="kanban-swimlane"]').count()
+    throw new Error(`card ${cardId} never rendered: ${cards} cards on the board, ${lanes} swim lanes`)
   }
 
   // Click every "Show more" button on the board until no truncated cells remain.

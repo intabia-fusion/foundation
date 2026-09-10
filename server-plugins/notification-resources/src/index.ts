@@ -18,6 +18,7 @@ import contact, { Employee, type Person } from '@hcengineering/contact'
 import core, {
   AccountUuid,
   AnyAttribute,
+  type Class,
   Doc,
   Ref,
   Space,
@@ -244,6 +245,24 @@ async function OnDocUpdate (txes: TxUpdateDoc<Doc>[], control: TriggerControl): 
 
 export { getClassNotificationGroup, generateAttributeNotificationType } from './utils'
 
+export async function OnDocClassChanged (txes: TxUpdateDoc<Doc>[], control: TriggerControl): Promise<Tx[]> {
+  const result: Tx[] = []
+
+  for (const tx of txes) {
+    const objectClass = (tx.operations as any)._class as Ref<Class<Doc>> | undefined
+    if (objectClass == null || objectClass === tx.objectClass) continue
+
+    const contexts = await control.findAll(control.ctx, notification.class.DocNotifyContext, {
+      objectId: tx.objectId
+    })
+    for (const context of contexts) {
+      result.push(control.txFactory.createTxUpdateDoc(context._class, context.space, context._id, { objectClass }))
+    }
+  }
+
+  return result
+}
+
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   trigger: {
@@ -253,6 +272,7 @@ export default async () => ({
     OnDocUpdate,
     OnDocRemove,
     OnDocSpaceChanged,
+    OnDocClassChanged,
     OnEmployeeDeactivate
   },
   function: {

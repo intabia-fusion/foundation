@@ -74,13 +74,13 @@ class StaleVersionError extends Error {
  */
 export class ChatViewport implements IChatViewport {
   private static readonly chatCache = new Map<
-  string,
-  { viewport: ChatViewport, lastAccessed: number, lastAccessedTime: number }
+    string,
+    { viewport: ChatViewport, lastAccessed: number, lastAccessedTime: number }
   >()
 
   private static readonly threadCache = new Map<
-  string,
-  { viewport: ChatViewport, lastAccessed: number, lastAccessedTime: number }
+    string,
+    { viewport: ChatViewport, lastAccessed: number, lastAccessedTime: number }
   >()
 
   private static readonly MAX_CACHE_SIZE = 10
@@ -637,7 +637,7 @@ export class ChatViewport implements IChatViewport {
    * Sets up a LiveQuery subscription to listen to real-time chat messages arriving in the channel.
    */
   private subscribeToLiveTail (start?: Timestamp, skipIds?: Array<Ref<ActivityMessage>>): void {
-    if (this.tailStartTs === undefined) this.tailStartTs = start
+    this.tailStartTs ??= start
 
     const version = this.viewportVersion
 

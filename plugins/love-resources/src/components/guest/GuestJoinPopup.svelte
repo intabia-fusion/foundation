@@ -169,7 +169,7 @@
   function handleTrackUnsubscribed (_track: RemoteTrack, publication: RemoteTrackPublication): void {
     try {
       const el = document.getElementById(publication.trackSid)
-      if (el != null && el.parentElement === videoContainer) {
+      if (el?.parentElement === videoContainer) {
         videoContainer?.removeChild(el)
       }
     } catch (err) {
@@ -190,7 +190,7 @@
       }
       // Attach local camera preview if available (from LiveKit)
       for (const pub of lk.localParticipant.trackPublications.values()) {
-        if (pub.track != null && pub.track.kind === 'video') {
+        if (pub.track?.kind === 'video') {
           const attachable = pub.track as any
           const el = attachable.attach()
           if (el != null && videoContainer?.querySelector(`#${pub.trackSid}`) == null) {

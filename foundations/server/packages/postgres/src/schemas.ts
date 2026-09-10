@@ -444,7 +444,7 @@ const activitySchema: Schema = {
 
 type CustomIndexType = 'unique' | 'custom'
 
-export const customIndexes: Record<string, { [key in CustomIndexType]: string[] }[]> = {
+export const customIndexes: Record<string, Record<CustomIndexType, string[]>[]> = {
   [translateDomain('chunter_doc')]: [
     {
       unique: ['attachedTo', 'attachedToClass', 'account'],

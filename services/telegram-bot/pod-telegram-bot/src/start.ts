@@ -106,10 +106,10 @@ export const start = async (): Promise<void> => {
   // )
 
   const onClose = (): void => {
+    server.close()
     void Promise.all([
       // consumer.close(),
-      worker.close(),
-      server.close()
+      worker.close()
     ]).then(() => {
       process.exit()
     })

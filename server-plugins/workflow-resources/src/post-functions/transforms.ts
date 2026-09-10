@@ -53,31 +53,31 @@ function applyTransformFunction (val: unknown, call: WorkflowTransformCall): unk
 // ----------------------------------------------------------------------------
 
 const STRING_TRANSFORMS: Record<Ref<WorkflowValueFunction>, TransformFn> = {
-  [workflow.function.UpperCase]: (v) => (v != null ? String(v).toUpperCase() : v),
-  [workflow.function.LowerCase]: (v) => (v != null ? String(v).toLowerCase() : v),
-  [workflow.function.Trim]: (v) => (v != null ? String(v).trim() : v),
-  [workflow.function.Prepend]: (v, p) => String(p.value ?? '') + String(v ?? ''),
-  [workflow.function.Append]: (v, p) => String(v ?? '') + String(p.value ?? ''),
+  [workflow.function.UpperCase]: (v) => (v != null ? stringifyValue(v).toUpperCase() : v),
+  [workflow.function.LowerCase]: (v) => (v != null ? stringifyValue(v).toLowerCase() : v),
+  [workflow.function.Trim]: (v) => (v != null ? stringifyValue(v).trim() : v),
+  [workflow.function.Prepend]: (v, p) => stringifyValue(p.value ?? '') + stringifyValue(v ?? ''),
+  [workflow.function.Append]: (v, p) => stringifyValue(v ?? '') + stringifyValue(p.value ?? ''),
   [workflow.function.Replace]: (v, p) => {
     if (v == null) return v
-    const search = String(p.search ?? p.from ?? p.target ?? '')
+    const search = stringifyValue(p.search ?? p.from ?? p.target ?? '')
     if (search == null) return v
-    const replacement = String(p.replacement ?? p.to ?? '')
-    return String(v).replace(search, replacement)
+    const replacement = stringifyValue(p.replacement ?? p.to ?? '')
+    return stringifyValue(v).replace(search, replacement)
   },
   [workflow.function.ReplaceAll]: (v, p) => {
     if (v == null) return v
-    const search = String(p.search ?? p.from ?? p.target ?? '')
+    const search = stringifyValue(p.search ?? p.from ?? p.target ?? '')
     if (search == null) return v
-    const replacement = String(p.replacement ?? p.to ?? '')
-    return String(v).replaceAll(search, replacement)
+    const replacement = stringifyValue(p.replacement ?? p.to ?? '')
+    return stringifyValue(v).replaceAll(search, replacement)
   },
   [workflow.function.Cut]: cutString
 }
 
 function cutString (val: unknown, props: Record<string, unknown>): unknown {
   if (val == null) return val
-  const str = String(val)
+  const str = stringifyValue(val)
   const start = Number(props.start ?? 0)
   if (props.length != null) return str.substring(start, start + Number(props.length))
   if (props.end != null) return str.substring(start, Number(props.end))
@@ -97,26 +97,26 @@ export const ALL_CONVERSIONS: Record<Ref<WorkflowValueFunction>, TransformFn> = 
 
 function stringifyValue (val: unknown): string {
   if (val == null) return ''
-  if (typeof val === 'object' && val !== null) {
-    const obj = val as Record<string, unknown>
-    const label = obj.name ?? obj.label ?? obj._id
-    if (label != null) return String(label)
-  }
-  return String(val)
+  if (typeof val !== 'object') return String(val as string | number | boolean | bigint | symbol)
+  const obj = val as Record<string, unknown>
+  const label = obj.name ?? obj.label ?? obj._id
+  // Cast keeps no-base-to-string quiet; String() here is the long-standing contract -
+  // Date and array render via their own toString, a plain object as "[object Object]".
+  return String((label ?? val) as { toString: () => string })
 }
 
 function parseNumber (val: unknown): number | null {
   if (val == null) return null
   if (typeof val === 'number') return val
   if (val instanceof Date) return val.getTime()
-  const num = parseFloat(String(val))
+  const num = parseFloat(stringifyValue(val))
   return isNaN(num) ? null : num
 }
 
 function parseDate (val: unknown): number | null {
   if (val == null) return null
   if (typeof val === 'number') return val
-  const timestamp = Date.parse(String(val))
+  const timestamp = Date.parse(stringifyValue(val))
   return isNaN(timestamp) ? null : timestamp
 }
 

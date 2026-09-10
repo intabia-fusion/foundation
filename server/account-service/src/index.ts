@@ -51,7 +51,7 @@ import {
 
 import { handlePresenceBatch } from './presence'
 export * from './migration/utils'
-export * from './migration/types'
+export type * from './migration/types'
 
 const SERVICE_ID = 'account'
 const AUTH_TOKEN_COOKIE = 'account-metadata-Token'

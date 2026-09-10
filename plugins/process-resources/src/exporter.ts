@@ -397,9 +397,7 @@ function buildNormalizationMap (docs: Doc[]): Record<string, string> {
       for (const action of tr.actions) {
         idMap[action._id] = `__ACTION_${actionCount++}__`
         if (action.context !== undefined && action.context !== null) {
-          if (idMap[action.context._id] === undefined) {
-            idMap[action.context._id] = `__CONTEXT_${contextCount++}__`
-          }
+          idMap[action.context._id] ??= `__CONTEXT_${contextCount++}__`
         }
         if (action.results !== undefined) {
           for (const res of action.results) {
@@ -451,9 +449,7 @@ export function denormalizeIds (docs: Doc[], masterTag: Ref<MasterTag>, bindings
   const findPlaceholders = (val: any): void => {
     if (typeof val === 'string') {
       for (const m of val.matchAll(/(__[a-zA-Z0-9_]+__)/g)) {
-        if (idMap[m[1]] === undefined) {
-          idMap[m[1]] = generateId()
-        }
+        idMap[m[1]] ??= generateId()
       }
     } else if (Array.isArray(val)) {
       val.forEach(findPlaceholders)

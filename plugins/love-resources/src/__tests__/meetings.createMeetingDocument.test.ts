@@ -111,6 +111,7 @@ jest.mock('../liveKitClient', () => {
 jest.mock('../stores', () => {
   const { writable } = require('svelte/store')
   return {
+    aiBotPerson: writable(undefined),
     infos: writable([]),
     rooms: writable([]),
     myConnectingSessionId: writable(null),

@@ -986,9 +986,7 @@ export async function restoreFromv6All (
 
     // Generate UUIDs for workspaces where missing
     for (const workspace of v6Workspaces) {
-      if (workspace.uuid == null) {
-        workspace.uuid = generateUuid() as WorkspaceUuid
-      }
+      workspace.uuid ??= generateUuid() as WorkspaceUuid
     }
 
     // Mapping between <ObjectId, UUID>

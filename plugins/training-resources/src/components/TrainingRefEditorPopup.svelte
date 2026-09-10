@@ -27,7 +27,7 @@
   const _class = training.class.Training
   const searchField: ComponentProps<ObjectPopup>['searchField'] = 'title'
 
-  $: ({ ...rest } = $$props as $$Props)
+  $: ({ ...rest } = $$props)
 
   $: canReadAny = checkMyPermission(
     training.permission.ViewSomeoneElsesTrainingOverview,

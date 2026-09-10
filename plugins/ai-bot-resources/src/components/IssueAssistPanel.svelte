@@ -310,7 +310,7 @@
       dueDate: proposal.dueDate,
       labels: proposal.labels
     })
-    applied = new Set([...applied, proposal._id as Ref<Doc>])
+    applied = new Set([...applied, proposal._id])
   }
 
   // The wide layout belongs to the card+panel row, which lives in another component: the class

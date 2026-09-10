@@ -52,7 +52,7 @@ interface PdfTable {
   title: string
   sub?: string
   headers: string[]
-  rows: unknown[][]
+  rows: Array<Array<string | number>>
 }
 
 // CSV export takes headers/rows (full data dump).
@@ -62,13 +62,13 @@ interface Report {
   title: string
   sub?: string
   headers: string[]
-  rows: unknown[][]
+  rows: Array<Array<string | number>>
   kpis: Kpi[]
   charts: BarChart[]
   pdfTables: PdfTable[]
 }
 
-function csvEscape (v: unknown): string {
+function csvEscape (v: string | number | null | undefined): string {
   if (v === null || v === undefined) return ''
   const s = String(v)
   return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s
@@ -87,7 +87,7 @@ function downloadCsv (r: Report): void {
   URL.revokeObjectURL(link.href)
 }
 
-function escapeHtml (v: unknown): string {
+function escapeHtml (v: string | number | null | undefined): string {
   return String(v ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')

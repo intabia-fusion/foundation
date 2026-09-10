@@ -37,7 +37,7 @@
 
   onMount(async () => {
     object = testResultIteratorProvider.getIterator()?.next()
-    testCase = object?.$lookup?.testCase as TestCase | undefined
+    testCase = object?.$lookup?.testCase
   })
   onDestroy(() => {
     testResultIteratorProvider.reset()
@@ -46,7 +46,7 @@
 
   async function goToNextItem (): Promise<void> {
     object = testResultIteratorProvider.getIterator()?.next()
-    testCase = object?.$lookup?.testCase as TestCase | undefined
+    testCase = object?.$lookup?.testCase
   }
 </script>
 

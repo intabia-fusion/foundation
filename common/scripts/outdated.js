@@ -105,8 +105,6 @@ function listPackageFiles (dir, acc = []) {
   return acc
 }
 
-const stripJsonComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
-
 function parse (v) {
   const m = /^[^\d]*(\d+)\.(\d+)\.(\d+)(?:[-+](.*))?$/.exec(String(v).trim())
   return m === null ? undefined : { major: +m[1], minor: +m[2], patch: +m[3], pre: m[4] }
@@ -136,16 +134,12 @@ function cmp (x, y) {
 
 const isStable = (v) => parse(v)?.pre === undefined
 
-// Node typings must not run ahead of the runtime the repo targets (rush.json nodeSupportedVersionRange).
+// Node typings must not run ahead of the runtime the repo targets (root package.json engines.node).
 function nodeTargetMajor () {
   if (process.env.NODE_TARGET_MAJOR !== undefined) return Number(process.env.NODE_TARGET_MAJOR)
-  try {
-    const range = JSON.parse(stripJsonComments(fs.readFileSync(path.join(ROOT, 'rush.json'), 'utf8'))).nodeSupportedVersionRange
-    const max = /<\s*(\d+)\./.exec(range ?? '')
-    if (max !== null) return Number(max[1]) - 1
-  } catch (err) {
-    /* fall through */
-  }
+  const range = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).engines?.node
+  const max = /<\s*(\d+)\./.exec(range ?? '')
+  if (max !== null) return Number(max[1]) - 1
   return Number(process.versions.node.split('.')[0])
 }
 const NODE_MAJOR = nodeTargetMajor()
@@ -220,7 +214,7 @@ async function npmMeta (pkg) {
 function collectDeps () {
   const deps = new Map()
   const workspaceNames = new Set()
-  // every package.json in the tree: rush.json misses nested workspaces (foundations/net, foundations/core)
+  // every package.json in the tree: nested workspaces (foundations/net, foundations/core) too
   const files = listPackageFiles(ROOT).filter((f) => {
     try {
       return JSON.parse(fs.readFileSync(f, 'utf8')).name !== undefined

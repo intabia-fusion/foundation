@@ -110,14 +110,14 @@
   $: (() => {
     const newSortedItems = sortByScore
       ? items.sort((a, b) => {
-        const scoreDiff = getScore(b) - getScore(a)
-        if (scoreDiff !== 0) return scoreDiff
-        return (a.title ?? a.identifier).localeCompare(b.title ?? b.identifier)
-      })
+          const scoreDiff = getScore(b) - getScore(a)
+          if (scoreDiff !== 0) return scoreDiff
+          return (a.title ?? a.identifier).localeCompare(b.title ?? b.identifier)
+        })
       : sortFn(items, {
-        contextByDoc: $contextByDocStore,
-        userStatusByAccount: $statusByUserStore
-      })
+          contextByDoc: $contextByDocStore,
+          userStatusByAccount: $statusByUserStore
+        })
 
     // Check if the underlying identifiers (ids) changed order to skip Svelte updates if unnecessary
     const oldIds = sortedItems.map((i) => i.id).join()

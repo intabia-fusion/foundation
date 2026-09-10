@@ -99,9 +99,7 @@ export function prepareTools (): {
   version: Data<Version>
   migrateOperations: [string, MigrateOperation][]
 } {
-  if (modelTxes === undefined) {
-    modelTxes = builder().getTxes()
-  }
+  modelTxes ??= builder().getTxes()
   return { ...prepareToolsRaw(modelTxes), version: getModelVersion(), migrateOperations }
 }
 

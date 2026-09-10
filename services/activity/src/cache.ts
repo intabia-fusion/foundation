@@ -67,7 +67,7 @@ class WsCache {
     }
 
     if (tx._class === core.class.TxRemoveDoc) {
-      this.txRemoveDoc(tx as TxRemoveDoc<Doc>)
+      this.txRemoveDoc(tx)
     }
   }
 

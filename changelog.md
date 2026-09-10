@@ -2,6 +2,22 @@
 
 Changelog.
 
+## [0.8.40] - 2026-09-08
+
+* 🐛 BUG FIXES: · Fix desktop build
+
+## [0.8.39] - 2026-09-08
+
+* 🚀 FEATURES: · FUSIO-1284 Ability to change task type · FUSIO-1308 Rework calendar for recurrent meetings ([#411](https://github.com/hcengineering/platform/issues/411)) · FUSIO-1073 Blocking for invite-joining when limit exceeded ([#409](https://github.com/hcengineering/platform/issues/409))
+* 🐛 BUG FIXES: · FUSIO-452 Workaround for db search ([#423](https://github.com/hcengineering/platform/issues/423)) · Fix love-agent lockfile drift ([#418](https://github.com/hcengineering/platform/issues/418)) · Fix desktop build
+* 🧩 OTHER: · Typescript7 ([#416](https://github.com/hcengineering/platform/issues/416)) · Speedup tests for fulltext + test profile ([#422](https://github.com/hcengineering/platform/issues/422))
+
+## [0.8.38] - 2026-09-07
+
+* 🚀 FEATURES: · FUSIO-1325 Auto close meeting with AIbot ([#413](https://github.com/hcengineering/platform/issues/413)) · FUSIO-1268 Доработка отображения оценок и репортов ([#408](https://github.com/hcengineering/platform/issues/408)) · FUSIO-1319 Доработка выгрузки задач в csv ([#412](https://github.com/hcengineering/platform/issues/412))
+* 🐛 BUG FIXES: · Fix desktop update procedure ([#417](https://github.com/hcengineering/platform/issues/417)) · FUSIO-1310 Fix create issue button ([#410](https://github.com/hcengineering/platform/issues/410))
+* 🧩 OTHER: · FUSIO-1305 Use msgpack protocol by default ([#414](https://github.com/hcengineering/platform/issues/414)) · Update base images ([#407](https://github.com/hcengineering/platform/issues/407)) · Test stability ([#405](https://github.com/hcengineering/platform/issues/405))
+
 ## [0.8.37] - 2026-09-03
 
 * 🐛 BUG FIXES: · FUSIO-1316 Fix access checks ([#403](https://github.com/hcengineering/platform/issues/403)) · FUSIO-1266 Fixing logic for backfill ([#404](https://github.com/hcengineering/platform/issues/404))

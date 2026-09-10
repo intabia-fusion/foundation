@@ -347,14 +347,14 @@
     </svelte:fragment>
 
     <svelte:fragment slot="header">
-      {#if mainEditor && mainEditor.editor && mainEditor.pinned}
+      {#if mainEditor?.editor && mainEditor.pinned}
         <div class="flex-col flex-grow my-4">
           <Component is={mainEditor.editor} props={{ object, readonly }} on:open={handleOpen} />
         </div>
       {/if}
     </svelte:fragment>
 
-    {#if mainEditor && mainEditor.editor && !mainEditor.pinned}
+    {#if mainEditor?.editor && !mainEditor.pinned}
       <div class="flex-col flex-grow flex-no-shrink step-tb-6">
         <Component is={mainEditor.editor} props={{ object, readonly }} on:open={handleOpen} />
       </div>

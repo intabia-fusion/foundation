@@ -252,7 +252,7 @@ export async function connect (title: string): Promise<Client | undefined> {
   invalidError.set(false)
   versionError.set(undefined)
   // Update window title
-  document.title = [wsUrl, title].filter((it) => it).join(' - ')
+  document.title = [wsUrl, title].filter((it) => it !== '').join(' - ')
   _clientSet = true
   await setClient(_client)
 

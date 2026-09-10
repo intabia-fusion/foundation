@@ -103,7 +103,7 @@
           )
         }
       })
-    } else if (chat != null && chat.pinned) {
+    } else if (chat?.pinned === true) {
       result.push({
         icon: view.icon.Star,
         label: chunter.string.Unstar,

@@ -64,7 +64,7 @@
     templateProvider?.destroy()
   })
 
-  $: templateProvider !== undefined && templateProvider.set(contact.class.Contact, object)
+  $: templateProvider?.set(contact.class.Contact, object)
 
   async function sendMsg (): Promise<void> {
     await client.createDoc(

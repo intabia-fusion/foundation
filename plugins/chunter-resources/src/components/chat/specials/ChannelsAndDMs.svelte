@@ -87,7 +87,7 @@
       selected={currentTab}
       items={tabs}
       on:select={(result) => {
-        if (result !== undefined && result.detail.id !== undefined) {
+        if (result?.detail.id !== undefined) {
           currentTab = result.detail.id
           $userSearch = ''
         }

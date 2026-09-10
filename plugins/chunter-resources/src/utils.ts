@@ -543,9 +543,9 @@ export async function getChatDocTitle (
   doc: Doc,
   lang: string
 ): Promise<{
-    identifier?: string
-    title: string
-  }> {
+  identifier?: string
+  title: string
+}> {
   const { _class } = doc
   const client = getClient()
   const hierarchy = client.getHierarchy()

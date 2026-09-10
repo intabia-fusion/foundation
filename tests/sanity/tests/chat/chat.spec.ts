@@ -6,12 +6,12 @@ import { SignUpData } from '../model/common-types'
 import { LeftSideMenuPage } from '../model/left-side-menu-page'
 import { SidebarPage } from '../model/sidebar-page'
 import {
-  createAccountAndWorkspace,
   generateTestData,
   getInviteLink,
   generateUser,
   createAccount,
-  getSecondPageByInvite
+  getSecondPageByInvite,
+  loginByToken
 } from '../utils'
 
 test.describe.configure({ mode: 'parallel' })
@@ -24,9 +24,19 @@ test.describe('Channel tests', () => {
   let api: ApiEndpoint
   let newUser2: SignUpData
   let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
+  let message: string
+  let secondMessage: string
 
-  test.beforeEach(async ({ page, request }) => {
-    data = generateTestData()
+  test.beforeEach(async ({ page, request, sharedWorkspace }, testInfo) => {
+    // The workspace is shared with the other tests of this worker, so general and random keep their
+    // messages: everything this test asserts on has to carry an id of its own, retry included.
+    const shared = await sharedWorkspace(testInfo.tags.includes('@invite') ? 1 : 0)
+    const uniq = `${testInfo.testId}${testInfo.retry}`
+    // faker's word list is short enough to repeat a channel name inside one workspace, and the
+    // navigator then matches both channels by prefix.
+    data = { ...shared.data, channelName: `${generateTestData().channelName}${uniq}` }
+    message = `Test message ${uniq}`
+    secondMessage = `One two ${uniq}`
     newUser2 = generateUser()
 
     leftSideMenuPage = new LeftSideMenuPage(page)
@@ -36,116 +46,125 @@ test.describe('Channel tests', () => {
     api = new ApiEndpoint(request)
     // Straight into the workspace from the account token: the login form plus the workspace picker
     // are three page loads and cost about a second per test.
-    await createAccountAndWorkspace(page, request, data, 'chunter')
+    await loginByToken(page, shared.token, shared.ws, 'chunter')
   })
 
   test('Create new private channel and check if the messages stays on it', async ({ browser, page }) => {
     await chunterPage.clickAddChannel()
     await chunterPage.createChannel(data.channelName, true)
     await channelPage.checkIfChannelDefaultExist(true, data.channelName)
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.checkMessageExist(message, true, message)
     await channelPage.clickChannel('general')
-    await channelPage.checkMessageExist('Test message', false, 'Test message')
+    await channelPage.checkMessageExist(message, false, message)
     await channelPage.clickChannel(data.channelName)
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.checkMessageExist(message, true, message)
     await page.reload()
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.checkMessageExist(message, true, message)
   })
 
   test('Create new public channel and check if the messages stays on it', async ({ browser, page }) => {
     await chunterPage.clickAddChannel()
     await chunterPage.createChannel(data.channelName, false)
     await channelPage.checkIfChannelDefaultExist(true, data.channelName)
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.checkMessageExist(message, true, message)
     await channelPage.clickChannel('general')
-    await channelPage.checkMessageExist('Test message', false, 'Test message')
+    await channelPage.checkMessageExist(message, false, message)
     await channelPage.clickChannel(data.channelName)
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.checkMessageExist(message, true, message)
     await page.reload()
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.checkMessageExist(message, true, message)
   })
 
-  test('Create new private channel tests and check if the new user have access to it', async ({ browser, page }) => {
+  test(
+    'Create new private channel tests and check if the new user have access to it',
+    { tag: '@invite' },
+    async ({ browser, page }) => {
+      await chunterPage.clickAddChannel()
+      await chunterPage.createChannel(data.channelName, true)
+      await channelPage.checkIfChannelDefaultExist(true, data.channelName)
+      await channelPage.sendMessage(message)
+      await channelPage.checkMessageExist(message, true, message)
+
+      const linkText = await getInviteLink(page)
+      await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
+      using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
+      const page2 = _page2.page
+
+      const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
+      const channelPageSecond = new ChannelPage(page2)
+
+      await leftSideMenuPageSecond.clickChunter()
+      await channelPageSecond.checkIfChannelDefaultExist(false, data.channelName)
+      await channelPageSecond.clickChannelTab()
+      await channelPageSecond.checkIfChannelTableExist(data.channelName, false)
+    }
+  )
+
+  test(
+    'Create new public channel tests and check if the new user have access to it by default',
+    { tag: '@invite' },
+    async ({ browser, page }) => {
+      await chunterPage.clickAddChannel()
+      await chunterPage.createChannel(data.channelName, false)
+      await channelPage.checkIfChannelDefaultExist(true, data.channelName)
+      await channelPage.sendMessage(message)
+      await channelPage.checkMessageExist(message, true, message)
+
+      const linkText = await getInviteLink(page)
+      await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
+      using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
+      const page2 = _page2.page
+
+      const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
+      const channelPageSecond = new ChannelPage(page2)
+      await leftSideMenuPageSecond.clickChunter()
+      await channelPageSecond.checkIfChannelDefaultExist(false, data.channelName)
+      await channelPageSecond.clickChannelTab()
+      await channelPageSecond.checkIfChannelTableExist(data.channelName, true)
+    }
+  )
+
+  test(
+    'Create new private channel and test if the user can exchange the messages',
+    { tag: '@invite' },
+    async ({ browser, page }) => {
+      await chunterPage.clickAddChannel()
+      await chunterPage.createChannel(data.channelName, false)
+      await channelPage.checkIfChannelDefaultExist(true, data.channelName)
+      await channelPage.sendMessage(message)
+      await channelPage.checkMessageExist(message, true, message)
+
+      const linkText = await getInviteLink(page)
+      await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
+      using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
+      const page2 = _page2.page
+
+      const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
+      const channelPageSecond = new ChannelPage(page2)
+
+      await leftSideMenuPageSecond.clickChunter()
+      await channelPageSecond.checkIfChannelDefaultExist(false, data.channelName)
+      await channelPageSecond.clickChannelTab()
+      await channelPageSecond.checkIfChannelTableExist(data.channelName, true)
+      await channelPageSecond.clickJoinChannelButton(data.channelName)
+      await channelPageSecond.clickChooseChannel(data.channelName)
+      const checkJoinButton = await page2.locator('button[data-id="btnJoin"]').isVisible({ timeout: 1500 })
+      if (checkJoinButton) await page2.locator('button[data-id="btnJoin"]').click()
+      await channelPageSecond.checkMessageExist(message, true, message)
+      await channelPageSecond.sendMessage('My dream is to fly')
+      await channelPageSecond.checkMessageExist('My dream is to fly', true, 'My dream is to fly')
+      await channelPage.checkMessageExist('My dream is to fly', true, 'My dream is to fly')
+    }
+  )
+
+  test('Create new private channel add user to it', { tag: '@invite' }, async ({ browser, page }) => {
     await chunterPage.clickAddChannel()
     await chunterPage.createChannel(data.channelName, true)
     await channelPage.checkIfChannelDefaultExist(true, data.channelName)
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
-
-    const linkText = await getInviteLink(page)
-    await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
-    using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
-    const page2 = _page2.page
-
-    const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
-    const channelPageSecond = new ChannelPage(page2)
-
-    await leftSideMenuPageSecond.clickChunter()
-    await channelPageSecond.checkIfChannelDefaultExist(false, data.channelName)
-    await channelPageSecond.clickChannelTab()
-    await channelPageSecond.checkIfChannelTableExist(data.channelName, false)
-  })
-
-  test('Create new public channel tests and check if the new user have access to it by default', async ({
-    browser,
-    page
-  }) => {
-    await chunterPage.clickAddChannel()
-    await chunterPage.createChannel(data.channelName, false)
-    await channelPage.checkIfChannelDefaultExist(true, data.channelName)
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
-
-    const linkText = await getInviteLink(page)
-    await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
-    using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
-    const page2 = _page2.page
-
-    const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
-    const channelPageSecond = new ChannelPage(page2)
-    await leftSideMenuPageSecond.clickChunter()
-    await channelPageSecond.checkIfChannelDefaultExist(false, data.channelName)
-    await channelPageSecond.clickChannelTab()
-    await channelPageSecond.checkIfChannelTableExist(data.channelName, true)
-  })
-
-  test('Create new private channel and test if the user can exchange the messages', async ({ browser, page }) => {
-    await chunterPage.clickAddChannel()
-    await chunterPage.createChannel(data.channelName, false)
-    await channelPage.checkIfChannelDefaultExist(true, data.channelName)
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
-
-    const linkText = await getInviteLink(page)
-    await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
-    using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
-    const page2 = _page2.page
-
-    const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
-    const channelPageSecond = new ChannelPage(page2)
-
-    await leftSideMenuPageSecond.clickChunter()
-    await channelPageSecond.checkIfChannelDefaultExist(false, data.channelName)
-    await channelPageSecond.clickChannelTab()
-    await channelPageSecond.checkIfChannelTableExist(data.channelName, true)
-    await channelPageSecond.clickJoinChannelButton()
-    await channelPageSecond.clickChooseChannel(data.channelName)
-    const checkJoinButton = await page2.locator('button[data-id="btnJoin"]').isVisible({ timeout: 1500 })
-    if (checkJoinButton) await page2.locator('button[data-id="btnJoin"]').click()
-    await channelPageSecond.checkMessageExist('Test message', true, 'Test message')
-    await channelPageSecond.sendMessage('My dream is to fly')
-    await channelPageSecond.checkMessageExist('My dream is to fly', true, 'My dream is to fly')
-    await channelPage.checkMessageExist('My dream is to fly', true, 'My dream is to fly')
-  })
-
-  test('Create new private channel add user to it', async ({ browser, page }) => {
-    await chunterPage.clickAddChannel()
-    await chunterPage.createChannel(data.channelName, true)
-    await channelPage.checkIfChannelDefaultExist(true, data.channelName)
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.checkMessageExist(message, true, message)
 
     const linkText = await getInviteLink(page)
     await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
@@ -157,25 +176,25 @@ test.describe('Channel tests', () => {
 
     await leftSideMenuPageSecond.clickChunter()
     await channelPage.clickChannelTab()
-    await channelPage.clickOnUser(data.lastName + ' ' + data.firstName)
+    await channelPage.clickOnUser(data.lastName + ' ' + data.firstName, data.channelName)
     await channelPage.addMemberToChannel(newUser2.lastName + ' ' + newUser2.firstName)
     await channelPage.pressEscape()
     await channelPageSecond.checkIfChannelDefaultExist(true, data.channelName)
     await channelPageSecond.clickChannelTab()
     await channelPageSecond.checkIfChannelTableExist(data.channelName, true)
     await channelPageSecond.clickChooseChannel(data.channelName)
-    await channelPageSecond.checkMessageExist('Test message', true, 'Test message')
-    await channelPageSecond.sendMessage('One two')
-    await channelPageSecond.checkMessageExist('One two', true, 'One two')
+    await channelPageSecond.checkMessageExist(message, true, message)
+    await channelPageSecond.sendMessage(secondMessage)
+    await channelPageSecond.checkMessageExist(secondMessage, true, secondMessage)
     await channelPage.clickChooseChannel(data.channelName)
-    await channelPage.checkMessageExist('One two', true, 'One two')
+    await channelPage.checkMessageExist(secondMessage, true, secondMessage)
   })
 
-  test('Go to general channel add user to it', async ({ browser, page }) => {
+  test('Go to general channel add user to it', { tag: '@invite' }, async ({ browser, page }) => {
     await channelPage.clickChannel('general')
 
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.checkMessageExist(message, true, message)
 
     const linkText = await getInviteLink(page)
     await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
@@ -187,19 +206,19 @@ test.describe('Channel tests', () => {
 
     await leftSideMenuPageSecond.clickChunter()
     await channelPageSecond.clickChannel('general')
-    await channelPageSecond.checkMessageExist('Test message', true, 'Test message')
-    await channelPageSecond.sendMessage('One two')
-    await channelPageSecond.checkMessageExist('One two', true, 'One two')
+    await channelPageSecond.checkMessageExist(message, true, message)
+    await channelPageSecond.sendMessage(secondMessage)
+    await channelPageSecond.checkMessageExist(secondMessage, true, secondMessage)
     await channelPage.clickChannel('random')
     await channelPage.clickChannel('general')
-    await channelPage.checkMessageExist('One two', true, 'One two')
+    await channelPage.checkMessageExist(secondMessage, true, secondMessage)
   })
 
-  test('Go to random channel add user to it', async ({ browser, page }) => {
+  test('Go to random channel add user to it', { tag: '@invite' }, async ({ browser, page }) => {
     await channelPage.clickChannel('random')
 
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.checkMessageExist(message, true, message)
 
     const linkText = await getInviteLink(page)
     await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
@@ -211,35 +230,35 @@ test.describe('Channel tests', () => {
 
     await leftSideMenuPageSecond.clickChunter()
     await channelPageSecond.clickChannel('random')
-    await channelPageSecond.checkMessageExist('Test message', true, 'Test message')
-    await channelPageSecond.sendMessage('One two')
-    await channelPageSecond.checkMessageExist('One two', true, 'One two')
+    await channelPageSecond.checkMessageExist(message, true, message)
+    await channelPageSecond.sendMessage(secondMessage)
+    await channelPageSecond.checkMessageExist(secondMessage, true, secondMessage)
     await channelPage.clickChannel('general')
     await channelPage.clickChannel('random')
-    await channelPage.checkMessageExist('One two', true, 'One two')
+    await channelPage.checkMessageExist(secondMessage, true, secondMessage)
   })
 
   test('Check if user can add emoji', async () => {
     await channelPage.clickChannel('random')
-    await channelPage.sendMessage('Test message')
-    await channelPage.checkMessageExist('Test message', true, 'Test message')
-    await channelPage.addEmoji('Test message', '😤')
+    await channelPage.sendMessage(message)
+    await channelPage.checkMessageExist(message, true, message)
+    await channelPage.addEmoji(message, '😤')
     await channelPage.checkIfEmojiIsAdded('😤')
   })
 
   test('Check if user can save message', async () => {
     await channelPage.clickChannel('random')
-    await channelPage.sendMessage('Test message')
-    await channelPage.saveMessage('Test message')
-    await channelPage.sendMessage('Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.saveMessage(message)
+    await channelPage.sendMessage(message)
     await channelPage.clickSaveMessageTab()
-    await channelPage.checkIfMessageExist(true, 'Test message')
+    await channelPage.checkIfMessageExist(true, message)
   })
 
   test('Check if user can reply message', async () => {
     await channelPage.clickChannel('random')
-    await channelPage.sendMessage('Test message')
-    await channelPage.replyMessage('Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.replyMessage(message)
     await sidebarPage.checkIfSidebarIsOpen(true)
     await sidebarPage.checkIfSidebarHasVerticalTab(true, 'random')
     await sidebarPage.checkIfChatSidebarTabIsOpen(true, 'Thread')
@@ -252,15 +271,15 @@ test.describe('Channel tests', () => {
 
   test('Check if user can edit message', async ({ page }) => {
     await channelPage.clickChannel('random')
-    await channelPage.sendMessage('Test message')
-    await channelPage.clickOpenMoreButton('Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.clickOpenMoreButton(message)
     await channelPage.clickEditMessageButton(' edited message')
     await page.keyboard.press('Enter')
-    await channelPage.checkIfMessageExist(true, 'Test message edited message')
-    await channelPage.clickOpenMoreButton('Test message edited message')
+    await channelPage.checkIfMessageExist(true, `${message} edited message`)
+    await channelPage.clickOpenMoreButton(`${message} edited message`)
     await channelPage.clickEditMessageButton(' 1')
     await channelPage.clickOnUpdateButton()
-    await channelPage.checkIfMessageExist(true, 'Test message edited message 1')
+    await channelPage.checkIfMessageExist(true, `${message} edited message 1`)
   })
 
   test('Check if user can copy message', async ({ page }) => {
@@ -271,8 +290,8 @@ test.describe('Channel tests', () => {
     // account service appends a suffix, and the workspace url stops matching its name.
     const workspaceUrl = new URL(page.url()).pathname.split('/')[2]
     const expectedUrl = `${baseURL}/workbench/${workspaceUrl}/chunter/chunter%3Aspace%3ARandom%7Cchunter%3Aclass%3AChannel?message=`
-    await channelPage.sendMessage('Test message')
-    await channelPage.clickOpenMoreButton('Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.clickOpenMoreButton(message)
     await channelPage.clickCopyLinkButton()
     const clipboardContent = await page.evaluate(async () => {
       return await navigator.clipboard.readText()
@@ -282,11 +301,11 @@ test.describe('Channel tests', () => {
 
   test('Check if user can delete messages', async ({ page }) => {
     await channelPage.clickChannel('random')
-    await channelPage.sendMessage('Test message')
-    await channelPage.clickOpenMoreButton('Test message')
+    await channelPage.sendMessage(message)
+    await channelPage.clickOpenMoreButton(message)
     await channelPage.clickDeleteMessageButton()
     await channelPage.clickDeleteMessageConfirmationButton()
-    await channelPage.checkIfMessageExist(false, 'Test message')
+    await channelPage.checkIfMessageExist(false, message)
   })
 
   test('Check if user can change the name of chat', async ({ browser, page }) => {
@@ -315,7 +334,7 @@ test.describe('Channel tests', () => {
     await channelPage.changeChannelPrivacyOrAutoJoin('N/A', 'Yes', 'Yes', true)
   })
 
-  test('Check if the user can be added through preview tab', async ({ browser, page }) => {
+  test('Check if the user can be added through preview tab', { tag: '@invite' }, async ({ browser, page }) => {
     const linkText = await getInviteLink(page)
     await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
     using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
@@ -330,28 +349,29 @@ test.describe('Channel tests', () => {
     await channelPageSecond.checkIfUserIsAdded(data.lastName + ' ' + data.firstName, false)
   })
 
-  test('Check if we can create new public channel tests and check if the new user have can be added through preview', async ({
-    browser,
-    page
-  }) => {
-    await chunterPage.clickAddChannel()
-    await chunterPage.createChannel(data.channelName, false)
-    await channelPage.checkIfChannelDefaultExist(true, data.channelName)
+  test(
+    'Check if we can create new public channel tests and check if the new user have can be added through preview',
+    { tag: '@invite' },
+    async ({ browser, page }) => {
+      await chunterPage.clickAddChannel()
+      await chunterPage.createChannel(data.channelName, false)
+      await channelPage.checkIfChannelDefaultExist(true, data.channelName)
 
-    const linkText = await getInviteLink(page)
-    await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
-    using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
-    const page2 = _page2.page
-    const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
-    await leftSideMenuPageSecond.clickChunter()
+      const linkText = await getInviteLink(page)
+      await api.createAccount(newUser2.email, newUser2.password, newUser2.firstName, newUser2.lastName)
+      using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
+      const page2 = _page2.page
+      const leftSideMenuPageSecond = new LeftSideMenuPage(page2)
+      await leftSideMenuPageSecond.clickChunter()
 
-    await channelPage.clickChannel('general')
-    await channelPage.clickChannel(data.channelName)
-    await channelPage.clickOnOpenChannelDetails()
-    await channelPage.addMemberToChannelPreview(newUser2.lastName + ' ' + newUser2.firstName)
-  })
+      await channelPage.clickChannel('general')
+      await channelPage.clickChannel(data.channelName)
+      await channelPage.clickOnOpenChannelDetails()
+      await channelPage.addMemberToChannelPreview(newUser2.lastName + ' ' + newUser2.firstName)
+    }
+  )
 
-  test('Checking backlinks in the Chat', async ({ browser, page, request }) => {
+  test('Checking backlinks in the Chat', { tag: '@invite' }, async ({ browser, page, request }) => {
     await createAccount(request, newUser2)
     const linkText = await getInviteLink(page)
     using _page2 = await getSecondPageByInvite(browser, linkText, newUser2)
@@ -416,8 +436,8 @@ test.describe('Channel tests', () => {
       await channelPage.checkIfChannelDefaultExist(true, data.channelName)
 
       await channelPage.clickChooseChannel(data.channelName)
-      await channelPage.sendMessage('Test message')
-      await channelPage.checkMessageExist('Test message', true, 'Test message')
+      await channelPage.sendMessage(message)
+      await channelPage.checkMessageExist(message, true, message)
     })
 
     await test.step('Leave channel #1', async () => {
@@ -428,10 +448,10 @@ test.describe('Channel tests', () => {
       await channelPage.checkIfChannelDefaultExist(false, data.channelName)
       await channelPage.clickChannelTab()
       await channelPage.checkIfChannelTableExist(data.channelName, true)
-      await channelPage.clickJoinChannelButton()
+      await channelPage.clickJoinChannelButton(data.channelName)
       await channelPage.checkIfChannelDefaultExist(true, data.channelName)
       await channelPage.clickChooseChannel(data.channelName)
-      await channelPage.checkMessageExist('Test message', true, 'Test message')
+      await channelPage.checkMessageExist(message, true, message)
     })
 
     await test.step('Open another channel and check that joined channel is visible', async () => {
@@ -490,7 +510,7 @@ test.describe('Channel tests', () => {
       await chunterPage.createChannel(data.channelName, false)
       await channelPage.checkIfChannelDefaultExist(true, data.channelName)
       await channelPage.clickChooseChannel(data.channelName)
-      await channelPage.sendMessage('Test message')
+      await channelPage.sendMessage(message)
     })
 
     await test.step('Open channel in sidebar', async () => {
@@ -598,12 +618,12 @@ test.describe('Channel tests', () => {
       await chunterPage.createChannel(data.channelName, false)
       await channelPage.checkIfChannelDefaultExist(true, data.channelName)
       await channelPage.clickChooseChannel(data.channelName)
-      await channelPage.sendMessage('Test message')
+      await channelPage.sendMessage(message)
       await channelPage.sendMessage('Second message')
     })
 
     await test.step('Open channel in Sidebar', async () => {
-      await channelPage.replyMessage('Test message')
+      await channelPage.replyMessage(message)
       await sidebarPage.checkIfSidebarIsOpen(true)
       await sidebarPage.checkIfSidebarHasVerticalTab(true, data.channelName)
       await sidebarPage.checkIfChatSidebarTabIsOpen(true, 'Thread')

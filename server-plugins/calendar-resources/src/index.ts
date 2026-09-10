@@ -198,7 +198,7 @@ async function OnEvent (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
         result.push(...(await syncBusySlot(event, control)))
       }
     } else if (ctx._class === core.class.TxRemoveDoc) {
-      result.push(...(await onRemoveEvent(ctx as TxRemoveDoc<Event>, control)))
+      result.push(...(await onRemoveEvent(ctx, control)))
       const removed = control.removedMap.get(ctx.objectId) as Event | undefined
       if (removed !== undefined) {
         result.push(...(await removeBusySlot(removed, control)))
@@ -485,7 +485,7 @@ async function onEventCreate (ctx: TxCreateDoc<Event>, control: TriggerControl):
   const personSpaces = await getPersonSpaces(control)
   const access = AccessLevel.Reader
   for (const part of event.participants) {
-    const socialIds = await getSocialIds(control, part as Ref<Person>)
+    const socialIds = await getSocialIds(control, part)
     if (socialIds.length === 0) continue
     const socialStrings = socialIds.map((si) => si._id)
     if (socialStrings.includes(event.user ?? event.createdBy ?? event.modifiedBy)) continue

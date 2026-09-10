@@ -100,18 +100,18 @@ export const DOMAIN_MEETING_MINUTES = 'meeting-minutes' as Domain
 export class TRoom extends TDoc implements Room {
   @Prop(TypeString(), core.string.Name)
   @Index(IndexKind.FullText)
-    name!: string
+  name!: string
 
   @Prop(TypeCollaborativeDoc(), core.string.Description)
   @Index(IndexKind.FullText)
-    description!: MarkupBlobRef | null
+  description!: MarkupBlobRef | null
 
   type!: RoomType
 
   @Prop(TypeRef(love.class.Floor), love.string.Floor)
   @ReadOnly()
   // @Index(IndexKind.Indexed)
-    floor!: Ref<Floor>
+  floor!: Ref<Floor>
 
   width!: number
   height!: number
@@ -120,22 +120,22 @@ export class TRoom extends TDoc implements Room {
 
   @Prop(TypeString(), love.string.Language, { editor: love.component.RoomLanguageEditor })
   @Hidden()
-    language!: RoomLanguage
+  language!: RoomLanguage
 
   @Prop(TypeBoolean(), love.string.StartWithTranscription)
-    startWithTranscription!: boolean
+  startWithTranscription!: boolean
 
   @Prop(TypeBoolean(), love.string.StartWithRecording)
-    startWithRecording!: boolean
+  startWithRecording!: boolean
 
   @Prop(TypeBoolean(), love.string.StartPrivate)
-    startPrivate!: boolean
+  startPrivate!: boolean
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
   @Prop(PropCollection(chunter.class.ChatMessage), activity.string.Messages)
-    messages?: number
+  messages?: number
 }
 
 @Model(love.class.Office, love.class.Room)
@@ -144,7 +144,7 @@ export class TOffice extends TRoom implements Office {
   @Prop(TypeRef(contact.mixin.Employee), contact.string.Employee)
   @Index(IndexKind.Indexed)
   @ReadOnly()
-    person!: Ref<Employee> | null
+  person!: Ref<Employee> | null
 }
 
 @Model(love.class.Floor, core.class.Doc, DOMAIN_LOVE)
@@ -156,13 +156,13 @@ export class TFloor extends TDoc implements Floor {
 export class TParticipantInfo extends TDoc implements ParticipantInfo {
   name!: string
   @Prop(TypeRef(contact.class.Person), getEmbeddedLabel('Person'))
-    person!: Ref<Person>
+  person!: Ref<Person>
 
   @Prop(TypeRef(love.class.MeetingMinutes), love.string.MeetingMinutes)
-    meeting!: Ref<MeetingMinutes>
+  meeting!: Ref<MeetingMinutes>
 
   @Prop(TypeRef(love.class.Room), love.string.Room)
-    room!: Ref<Room>
+  room!: Ref<Room>
 
   x!: number
   y!: number
@@ -185,21 +185,21 @@ export class TPendingRecording extends TAttachedDoc implements PendingRecording 
   egressId?: string
 
   @Prop(TypeString(), love.string.Recording)
-    format!: RecordingFormat
+  format!: RecordingFormat
 
   @Prop(TypeTimestamp(), love.string.MeetingStart)
-    startedAt!: Timestamp
+  startedAt!: Timestamp
 
   roomName!: string
 
   @Prop(TypeString(), core.string.Name)
-    name!: string
+  name!: string
 
   @Prop(TypeNumber(), getEmbeddedLabel('Size'))
-    size?: number
+  size?: number
 
   @Prop(TypeString(), getEmbeddedLabel('Status'))
-    status!: 'active' | 'cancelled' | 'completed'
+  status!: 'active' | 'cancelled' | 'completed'
 }
 
 @Model(love.class.DevicesPreference, preference.class.Preference)
@@ -240,22 +240,22 @@ export class TMeetingMinutes extends TSpace implements MeetingMinutes, Todoable 
   // Use descriptionRef for MarkupBlobRef storage
   @Prop(TypeCollaborativeDoc(), core.string.Description)
   @Index(IndexKind.FullText)
-    descriptionRef!: MarkupBlobRef | null
+  descriptionRef!: MarkupBlobRef | null
 
   @Prop(TypeCollaborativeDoc(), love.string.Summary)
   @Index(IndexKind.FullText)
-    summary!: MarkupBlobRef | null
+  summary!: MarkupBlobRef | null
 
   @Prop(TypeRef(love.class.Room), love.string.Room)
   @Index(IndexKind.Indexed)
   @ReadOnly()
-    roomId?: Ref<Room>
+  roomId?: Ref<Room>
 
   @Prop(TypeAny(love.component.MeetingMinutesStatusPresenter, love.string.Status), love.string.Status, {
     editor: love.component.MeetingMinutesStatusPresenter
   })
   @ReadOnly()
-    status!: MeetingStatus
+  status!: MeetingStatus
 
   @Prop(
     TypeAny(love.component.MeetingMinutesTranscriptionStatePresenter, love.string.TranscriptionState),
@@ -265,7 +265,7 @@ export class TMeetingMinutes extends TSpace implements MeetingMinutes, Todoable 
     }
   )
   @ReadOnly()
-    transcriptionState!: TranscriptionState
+  transcriptionState!: TranscriptionState
 
   @Prop(
     TypeAny(love.component.MeetingMinutesRecordingStatePresenter, love.string.RecordingState),
@@ -275,21 +275,21 @@ export class TMeetingMinutes extends TSpace implements MeetingMinutes, Todoable 
     }
   )
   @ReadOnly()
-    recordingState!: RecordingState
+  recordingState!: RecordingState
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 
   @Prop(Collection(love.class.PendingRecording), love.string.Recording, {
     collectionEditor: love.component.PendingRecordingPresenter
   })
-    recordings?: number
+  recordings?: number
 
   @Prop(PropCollection(chunter.class.ChatMessage), love.string.Transcription)
-    transcription?: number
+  transcription?: number
 
   @Prop(PropCollection(chunter.class.ChatMessage), activity.string.Messages)
-    messages?: number
+  messages?: number
 
   @Prop(TypeDate(DateRangeMode.DATETIME), love.string.MeetingStart, { editor: view.component.DateTimePresenter })
   @ReadOnly()
@@ -298,10 +298,10 @@ export class TMeetingMinutes extends TSpace implements MeetingMinutes, Todoable 
 
   @Prop(TypeDate(DateRangeMode.DATETIME), love.string.MeetingEnd, { editor: view.component.DateTimePresenter })
   @ReadOnly()
-    meetingEnd?: Timestamp
+  meetingEnd?: Timestamp
 
   @Prop(Collection(time.class.ToDo), getEmbeddedLabel('Action Items'))
-    todos?: CollectionSize<ToDo>
+  todos?: CollectionSize<ToDo>
 
   language!: RoomLanguage
 
@@ -326,32 +326,32 @@ export class TLegacyMeetingMinutes extends TDoc {}
 export class TUserMeetingInvite extends TDoc implements UserMeetingInvite {
   @Prop(TypeString(), love.string.Kind)
   @Index(IndexKind.Indexed)
-    kind!: 'invite-request' | 'invite-response'
+  kind!: 'invite-request' | 'invite-response'
 
   @Prop(TypeRef(contact.class.Person), love.string.From)
   @Index(IndexKind.Indexed)
-    from!: Ref<Person>
+  from!: Ref<Person>
 
   @Prop(TypeRef(contact.class.Person), love.string.To)
   @Index(IndexKind.Indexed)
-    to!: Ref<Person>
+  to!: Ref<Person>
 
   @Prop(TypeRef(love.class.MeetingMinutes), love.string.Meeting)
-    meeting?: Ref<MeetingMinutes>
+  meeting?: Ref<MeetingMinutes>
 
   @Prop(TypeRef(love.class.Room), love.string.Room)
-    room?: Ref<Room>
+  room?: Ref<Room>
 
   @Prop(TypeString(), love.string.Status)
-    status!: 'pending' | 'accepted' | 'declined'
+  status!: 'pending' | 'accepted' | 'declined'
 
   @Prop(TypeString(), getEmbeddedLabel('AcceptedSessionId'))
   @Hidden()
-    acceptedSessionId?: string
+  acceptedSessionId?: string
 
   @Prop(TypeString(), getEmbeddedLabel('SenderSessionId'))
   @Hidden()
-    senderSessionId?: string
+  senderSessionId?: string
 }
 
 export default love

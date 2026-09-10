@@ -46,7 +46,7 @@
       ? clazz?.icon
       : null
 
-  $: if (_class != null && _id != null && hierarchy.hasClass(_class) && !withoutDoc.includes(_id as any)) {
+  $: if (_class != null && _id != null && hierarchy.hasClass(_class) && !withoutDoc.includes(_id)) {
     docQuery.query(_class, { _id }, (r) => {
       doc = r.shift()
       broken = doc === undefined

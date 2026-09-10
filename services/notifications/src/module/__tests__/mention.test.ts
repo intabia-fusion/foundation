@@ -82,9 +82,7 @@ jest.mock('@hcengineering/core', () => {
         if (prop === '__esModule') {
           return true
         }
-        if (actual == null) {
-          actual = jest.requireActual('@hcengineering/core')
-        }
+        actual ??= jest.requireActual('@hcengineering/core')
         return actual[prop]
       }
     }

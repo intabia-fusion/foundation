@@ -21,7 +21,7 @@
     "HaveWorkspace": "Já tem um espaço de trabalho?",
     "LastName": "Apelido",
     "FirstName": "Nome",
-    "Join": "Participar",
+    "Join": "Participar em",
     "Email": "Email",
     "Password": "Palavra-Passe",
     "PhoneNumber": "Número de telefone",
@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "Crie o seu próprio espaço de trabalho ou peça ao proprietário de um espaço existente uma ligação de acesso.",
     "CheckingLink": "A verificar a ligação...",
     "InvalidLink": "Esta ligação já não é válida",
-    "ConfirmationFailed": "Não foi possível concluir o registo"
+    "ConfirmationFailed": "Não foi possível concluir o registo",
+    "NoFreeSeats": "Sem lugares livres",
+    "NoFreeSeatsDescription": "Este espaço de trabalho atingiu o limite de lugares do plano. Contacte o administrador do espaço de trabalho.",
+    "NoFreeSeatsForInvite": "O plano não tem lugares livres, não é possível criar uma nova ligação de convite."
   }
 }

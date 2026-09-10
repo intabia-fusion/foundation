@@ -47,7 +47,7 @@ export async function signout (integration: Integration, client: IntegrationClie
 export async function disconnect (integration: Integration): Promise<void> {
   const integrationClient = await getIntegrationClient()
   const result = await integrationClient.removeIntegration(integration.socialId, integration.workspaceUuid)
-  if (result !== undefined && result.connectionRemoved) {
+  if (result?.connectionRemoved === true) {
     await signout(integration, integrationClient)
   }
 }

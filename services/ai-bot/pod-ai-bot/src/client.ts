@@ -59,9 +59,9 @@ export const startClient = async (): Promise<void> => {
   const transcriptionConfig: TranscriptionConfig = asrDisabled
     ? { provider: '' }
     : resolveTranscriptionConfig(config.AsrProviders, config.AsrDefaultLevel, {
-      vadRmsThreshold: config.VadRmsThreshold,
-      vadSpeechRatioThreshold: config.VadSpeechRatioThreshold
-    })
+        vadRmsThreshold: config.VadRmsThreshold,
+        vadSpeechRatioThreshold: config.VadSpeechRatioThreshold
+      })
 
   ctx.info('Transcription config', {
     provider: transcriptionConfig.provider,

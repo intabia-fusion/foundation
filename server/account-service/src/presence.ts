@@ -17,7 +17,6 @@ import { type AccountDB } from '@hcengineering/account'
 import core, {
   type AccountUuid,
   type MeasureContext,
-  type Ref,
   generateId,
   type TxCreateDoc,
   type WorkspaceUuid,
@@ -31,7 +30,6 @@ import {
   type PlatformQueueProducer
 } from '@hcengineering/server-core'
 import pulse, { type WorkspacesNotification } from '@hcengineering/pulse'
-import { type PersonSpace } from '@hcengineering/contact'
 
 export async function handlePresenceBatch (
   ctx: MeasureContext,
@@ -78,7 +76,7 @@ export async function handlePresenceBatch (
           _class: core.class.TxCreateDoc,
           objectId: generateId(),
           objectClass: pulse.class.WorkspacesNotification,
-          objectSpace: core.space.Workspace as Ref<PersonSpace>, // Replace it with real person space in middleware
+          objectSpace: core.space.Workspace, // Replace it with real person space in middleware
           space: core.space.DerivedTx,
           modifiedBy: core.account.System,
           modifiedOn: Date.now(),

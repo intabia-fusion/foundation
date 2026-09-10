@@ -314,7 +314,7 @@ export const loveOperation: MigrateOperation = {
           for (const si of socialIdentities) {
             const employee = employeeById.get(si.attachedTo as Ref<Employee>)
             if (employee?.personUuid != null) {
-              personIdToAccountUuid.set(si._id as PersonId, employee.personUuid)
+              personIdToAccountUuid.set(si._id, employee.personUuid)
             }
           }
           client.logger.log('Built PersonId to AccountUuid mapping', { count: personIdToAccountUuid.size })

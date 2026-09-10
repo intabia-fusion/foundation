@@ -177,7 +177,7 @@ export function isIndexedAttribute (attr: AnyAttribute): boolean {
 /**
  * @public
  */
-export interface IdMap<T extends Doc> extends Map<Ref<T>, T> {}
+export type IdMap<T extends Doc> = Map<Ref<T>, T>
 
 /**
  * @public
@@ -602,7 +602,9 @@ async function hasPermission (
 
   const me = getCurrentAccount()
   const asMixin = client.getHierarchy().as(space, mixin)
-  const myRoles = type.$lookup?.roles?.filter((role) => ((asMixin as any)[role._id] ?? []).includes(me.uuid)) as Role[]
+  const myRoles = type.$lookup?.roles?.filter(
+    (role) => ((asMixin as any)[role._id] ?? []).includes(me.uuid) === true
+  ) as Role[]
 
   if (myRoles === undefined) {
     return false

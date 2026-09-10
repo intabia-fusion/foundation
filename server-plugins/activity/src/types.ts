@@ -18,8 +18,8 @@ import { Asset, IntlString, Resource } from '@hcengineering/platform'
 import { TriggerControl } from '@hcengineering/server-core'
 
 export type PresenterControl = Pick<
-TriggerControl,
-'hierarchy' | 'ctx' | 'modelDb' | 'findAll' | 'branding' | 'workspace'
+  TriggerControl,
+  'hierarchy' | 'ctx' | 'modelDb' | 'findAll' | 'branding' | 'workspace'
 >
 
 export interface PresenterOptions {
@@ -82,11 +82,11 @@ export type AttributePresenterFn<T extends Doc = Doc, V = any> = (
   control: PresenterControl,
   lang?: string
 ) => Promise<
-| {
-  intlString?: IntlString
-  value: any
-}
-| undefined
+  | {
+    intlString?: IntlString
+    value: any
+  }
+  | undefined
 >
 
 export interface AttributePresenter<T extends Doc = Doc> extends Doc {

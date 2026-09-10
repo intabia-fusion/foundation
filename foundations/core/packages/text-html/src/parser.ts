@@ -22,7 +22,7 @@ import {
 } from '@hcengineering/text-core'
 import { Parser } from 'htmlparser2'
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface HtmlParserOptions {}
 
 interface HtmlTagHandler {
@@ -47,7 +47,7 @@ interface HtmlSpecialRule {
   handleCloseTag: (state: HtmlParseState, tag: string) => void
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface HtmlIgnoreRule {}
 
 interface HtmlStyleRule {

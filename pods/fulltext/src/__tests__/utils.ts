@@ -103,7 +103,7 @@ export async function preparePipeline (
 }
 
 export const fullTextDbURL = 'http://localhost:9201'
-export const dbUrl = 'postgresql://root@localhost:26258/defaultdb?sslmode=disable'
+export const dbUrl = process.env.DB_URL ?? 'postgresql://postgres:postgres@localhost:5433/postgres'
 export const kafkaBroker = 'localhost:19093'
 export const elasticIndexName = 'testing'
 

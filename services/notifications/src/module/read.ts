@@ -95,7 +95,7 @@ async function readContext (client: Client, result: Result, context: DocNotifyCo
   }
 
   if (unreadMessagesToRead.length > 0) {
-    const decrease = unreadMessagesToRead.filter((it) => it.notified).length
+    const decrease = unreadMessagesToRead.filter((it) => it.notified === true).length
     const updateOps: DocumentUpdate<DocNotifyContext> = {
       $pull: {
         unreadMessages: { id: { $in: unreadMessagesToRead.map((it) => it.id) } }

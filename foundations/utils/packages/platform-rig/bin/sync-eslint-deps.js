@@ -9,7 +9,7 @@ const fs = require('fs')
 const path = require('path')
 
 // ESLint related dependency prefixes to sync
-const ESLINT_PATTERNS = ['eslint', '@typescript-eslint/', 'eslint-plugin-', 'eslint-config-']
+const ESLINT_PATTERNS = ['eslint', '@typescript-eslint/', '@stylistic/', 'eslint-plugin-', 'eslint-config-']
 
 /**
  * Workspace projects from pnpm-workspace.yaml.

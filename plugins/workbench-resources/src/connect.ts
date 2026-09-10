@@ -158,9 +158,7 @@ export async function connect (title: string): Promise<Client | undefined> {
   // DISABLED_FEATURES disables features globally; a workspace's disabledFeaturesOverride re-enables them.
   // _globalDisabledFeatures is captured once so switching workspaces always recomputes from the true
   // global set, not from a previous workspace's already-narrowed metadata.
-  if (_globalDisabledFeatures === undefined) {
-    _globalDisabledFeatures = new Set(getMetadata(presentation.metadata.DisabledFeatures) ?? [])
-  }
+  _globalDisabledFeatures ??= new Set(getMetadata(presentation.metadata.DisabledFeatures) ?? [])
   const disabledFeaturesOverride = new Set(workspaceLoginInfo.disabledFeaturesOverride ?? [])
   const effectiveDisabledFeatures = new Set(
     [..._globalDisabledFeatures].filter((f) => !disabledFeaturesOverride.has(f))
@@ -606,7 +604,7 @@ export async function connect (title: string): Promise<Client | undefined> {
   errorActions.set([])
 
   // Update window title
-  document.title = [wsUrl, title].filter((it) => it).join(' - ')
+  document.title = [wsUrl, title].filter((it) => it !== '').join(' - ')
   _clientSet = true
   await ctx.with('set-client', {}, async () => {
     await setClient(newClient)

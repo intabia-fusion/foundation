@@ -40,7 +40,7 @@
       for (const key in action.params) {
         const value = (action.params as any)[key]
         const request = parseContext(value)
-        if (request !== undefined && request.type === 'userRequest') {
+        if (request?.type === 'userRequest') {
           contexts.push(request)
         }
       }

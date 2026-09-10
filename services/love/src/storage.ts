@@ -46,7 +46,7 @@ export async function getS3UploadParams (
     const dataId = wsIds.dataId ?? (wsIds.uuid as unknown as WorkspaceDataId)
     return await getS3UploadParamsS3(ctx, dataId, storageConfig as S3Config)
   } else if (storageConfig.kind === 'datalake') {
-    if (s3StorageConfig === undefined || s3StorageConfig.kind !== 's3') {
+    if (s3StorageConfig?.kind !== 's3') {
       throw new Error('Please provide S3 storage config')
     }
     return await getS3UploadParamsDatalake(
@@ -70,7 +70,7 @@ export async function saveFile (
   if (storageConfig.kind === 's3') {
     return await saveFileToS3(ctx, wsIds, storageConfig as S3Config, filename)
   } else if (storageConfig.kind === 'datalake') {
-    if (s3StorageConfig === undefined || s3StorageConfig.kind !== 's3') {
+    if (s3StorageConfig?.kind !== 's3') {
       throw new Error('Please provide S3 storage config')
     }
     return await saveFileToDatalake(ctx, wsIds, storageConfig as DatalakeConfig, s3StorageConfig as S3Config, filename)

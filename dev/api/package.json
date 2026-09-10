@@ -10,12 +10,21 @@
     "_phase:format": "echo 'all good'"
   },
   "dependencies": {
-    "js-yaml": "^5.4.1",
+    "js-yaml": "catalog:",
     "semver": "^7.6.0"
   },
   "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^24.13.3",
-    "@types/semver": "^7.5.8"
+    "@types/js-yaml": "catalog:",
+    "@types/node": "catalog:",
+    "@types/semver": "^7.5.8",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-standard": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-n": "catalog:",
+    "eslint-plugin-promise": "catalog:",
+    "eslint-plugin-svelte": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:"
   }
 }

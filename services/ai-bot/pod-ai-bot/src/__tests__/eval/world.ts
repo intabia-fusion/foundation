@@ -136,7 +136,7 @@ export class FakeWorkspaceClient {
   // A rename is staged like any other change; the user applies it (see applyPending).
   async proposeRename (ctx: ReqCtx, target: EvalLink, title: string): Promise<boolean> {
     const current =
-      this.world.document !== undefined && this.world.document.id === target.targetId
+      this.world.document?.id === target.targetId
         ? this.world.document.title
         : this.world.issues.find((i) => i.id === target.targetId)?.title
     if (current === undefined || current === title) return false
@@ -195,7 +195,7 @@ function normalize (md: string): string {
 export function applyPending (world: EvalWorld, pending: PendingProposal | undefined): string[] {
   if (pending === undefined) return []
   if (pending.kind === 'edit') {
-    if (world.document !== undefined && world.document.id === pending.targetId) {
+    if (world.document?.id === pending.targetId) {
       if (pending.markdown !== undefined) world.document.body = pending.markdown
       if (pending.title !== undefined) world.document.title = pending.title
       return [`document:${world.document.title}`]

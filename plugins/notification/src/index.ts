@@ -47,7 +47,7 @@ import {
   CreateNotificationAction
 } from './types'
 
-export * from './types'
+export type * from './types'
 export * from './utils'
 
 export const DOMAIN_DOC_NOTIFY = 'notification-dnc' as Domain

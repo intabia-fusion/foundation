@@ -43,7 +43,7 @@
       resAttachments = attachments
       return
     }
-    if (value && value.attachments && value.attachments > 0) {
+    if (value?.attachments && value.attachments > 0) {
       query.query(
         attachment.class.Attachment,
         {

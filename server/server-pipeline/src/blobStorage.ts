@@ -65,13 +65,13 @@ class StorageBlobAdapter implements DbAdapter {
   }
 
   init?:
-  | ((
-    ctx: MeasureContext,
-    contextVars: Record<string, any>,
-    domains?: string[],
-    excludeDomains?: string[]
-  ) => Promise<void>)
-  | undefined
+    | ((
+      ctx: MeasureContext,
+      contextVars: Record<string, any>,
+      domains?: string[],
+      excludeDomains?: string[]
+    ) => Promise<void>)
+    | undefined
 
   on?: ((handler: DbAdapterHandler) => void) | undefined
 

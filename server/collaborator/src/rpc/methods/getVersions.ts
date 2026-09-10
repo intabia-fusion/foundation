@@ -19,7 +19,7 @@ import {
   type GetVersionsResponse,
   decodeDocumentId
 } from '@hcengineering/collaborator-client'
-import { type MarkupBlobRef, MeasureContext } from '@hcengineering/core'
+import { MeasureContext } from '@hcengineering/core'
 import { Context } from '../../context'
 import { RpcMethodParams } from '../rpc'
 
@@ -52,7 +52,7 @@ export async function getVersions (
         if (isNaN(createdOn)) continue
 
         versions.push({
-          blobId: blob._id as MarkupBlobRef,
+          blobId: blob._id,
           createdOn,
           size: blob.size ?? 0
         })

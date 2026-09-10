@@ -67,7 +67,7 @@
 
     await waitForOfficeLoaded()
 
-    roomEl && roomEl.addEventListener('fullscreenchange', handleFullScreen)
+    roomEl?.addEventListener('fullscreenchange', handleFullScreen)
     loading = false
     console.log('[Room.onMount] Room component mounted', {
       roomId: room._id,

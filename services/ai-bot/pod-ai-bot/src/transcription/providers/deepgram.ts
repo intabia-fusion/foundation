@@ -22,12 +22,12 @@ interface DeepgramResponse {
     channels: number
     models: string[]
     model_info: Record<
-    string,
-    {
-      name: string
-      version: string
-      arch: string
-    }
+      string,
+      {
+        name: string
+        version: string
+        arch: string
+      }
     >
   }
   results?: {

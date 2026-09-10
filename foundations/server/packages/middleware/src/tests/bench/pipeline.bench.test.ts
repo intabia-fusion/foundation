@@ -78,7 +78,7 @@ function buildContext (): PipelineContext {
     workspace: { uuid: 'bench-ws' as any, url: 'b', dataId: 'b' as any },
     hierarchy,
     modelDb,
-    branding: null as any,
+    branding: null,
     adapterManager: {} as any,
     storageAdapter: {} as any,
     contextVars: {},
@@ -157,7 +157,7 @@ describeBench('pipeline shortcut wiring bench', () => {
 
     it(`tx through ${noopCount} no-op middlewares (wired)`, async () => {
       const { head } = await buildPipeline(noopCount)
-      const tx = factory.createTxCreateDoc(testClass, 'bench:S' as any, { name: 'x' } as any)
+      const tx = factory.createTxCreateDoc(testClass, 'bench:S' as any, { name: 'x' })
       await bench(`pipeline tx wired (noops=${noopCount})`, async () => {
         await head.tx(ctx, [tx])
       })
@@ -166,7 +166,7 @@ describeBench('pipeline shortcut wiring bench', () => {
     it(`tx through ${noopCount} no-op middlewares (unwired baseline)`, async () => {
       const { head } = await buildPipeline(noopCount)
       unwire(head)
-      const tx = factory.createTxCreateDoc(testClass, 'bench:S' as any, { name: 'x' } as any)
+      const tx = factory.createTxCreateDoc(testClass, 'bench:S' as any, { name: 'x' })
       await bench(`pipeline tx UNWIRED (noops=${noopCount})`, async () => {
         await head.tx(ctx, [tx])
       })

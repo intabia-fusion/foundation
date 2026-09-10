@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "Créez votre propre espace de travail, ou demandez un lien d'accès au propriétaire d'un espace existant.",
     "CheckingLink": "Vérification du lien...",
     "InvalidLink": "Ce lien n'est plus valide",
-    "ConfirmationFailed": "Impossible de finaliser l'inscription"
+    "ConfirmationFailed": "Impossible de finaliser l'inscription",
+    "NoFreeSeats": "Aucune place disponible",
+    "NoFreeSeatsDescription": "Cet espace de travail a atteint la limite de places de son forfait. Veuillez contacter l'administrateur de l'espace de travail.",
+    "NoFreeSeatsForInvite": "Le forfait n'a plus de places disponibles, un nouveau lien d'invitation ne peut pas être créé."
   }
 }

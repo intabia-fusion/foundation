@@ -150,7 +150,7 @@ describe('middleware', () => {
         status: jest.fn().mockReturnThis(),
         json: jest.fn().mockReturnThis()
       }
-      next = jest.fn() as unknown as NextFunction
+      next = jest.fn()
     })
 
     it('should authorize with correct workspace token from cookies', () => {

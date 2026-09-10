@@ -2,7 +2,7 @@
 
 const config = {
   webpackFinal: async (config) => {
-    config.module.rules.find(r => r.loader && r.loader.includes('svelte-loader')).options.preprocess = require('svelte-preprocess')();
+    config.module.rules.find(r => r.loader && r.loader.includes('svelte-loader')).options.preprocess = require('svelte-preprocess')({ typescript: { compilerOptions: { verbatimModuleSyntax: true } } });
     config.resolve.alias['@hcengineering/platform-rig/profiles/ui/svelte'] = require('path').resolve('../../common/temp/node_modules', 'svelte');
     return config;
   },

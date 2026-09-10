@@ -195,11 +195,11 @@ export class SessionDataImpl implements SessionData {
     _contextCache: Map<string, any> | undefined,
     readonly modelDb: ModelDb,
     readonly socialStringsToUsers: Map<
-    PersonId,
-    {
-      accountUuid: AccountUuid
-      role: AccountRole
-    }
+      PersonId,
+      {
+        accountUuid: AccountUuid
+        role: AccountRole
+      }
     >,
     readonly service: string,
     readonly grant?: PermissionsGrant
@@ -210,28 +210,22 @@ export class SessionDataImpl implements SessionData {
   }
 
   get broadcast (): SessionData['broadcast'] {
-    if (this._broadcast === undefined) {
-      this._broadcast = {
-        targets: {},
-        txes: [],
-        queue: [],
-        sessions: {}
-      }
+    this._broadcast ??= {
+      targets: {},
+      txes: [],
+      queue: [],
+      sessions: {}
     }
     return this._broadcast
   }
 
   get removedMap (): Map<Ref<Doc>, Doc> {
-    if (this._removedMap === undefined) {
-      this._removedMap = new Map()
-    }
+    this._removedMap ??= new Map()
     return this._removedMap
   }
 
   get contextCache (): Map<string, any> {
-    if (this._contextCache === undefined) {
-      this._contextCache = new Map()
-    }
+    this._contextCache ??= new Map()
     return this._contextCache
   }
 }
@@ -519,7 +513,7 @@ export class OneSecondCountersImpl implements OneSecondCounters {
         yield [k, v.value]
       }
     }
-    return gen() as unknown as MapIterator<[string, number]>
+    return gen()
   }
 
   entriesFull (): MapIterator<[string, CounterEntry]> {

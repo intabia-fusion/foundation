@@ -191,7 +191,7 @@ export class NetworkClientImpl implements NetworkClient {
         for (const agentRecord of this._agents.values()) {
           const agent = agentRecord.agent as any
           const statelessContainers = agent.statelessContainers as Map<ContainerUuid, any> | undefined
-          if (statelessContainers !== undefined && statelessContainers.has(containerEvent.container.uuid)) {
+          if (statelessContainers?.has(containerEvent.container.uuid) === true) {
             console.log(
               `HA: Container ${containerEvent.container.uuid} removed, attempting to re-register from agent ${agent.uuid}`
             )

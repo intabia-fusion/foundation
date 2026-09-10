@@ -46,7 +46,7 @@
     .filter((it) => it.enabled)
     .sort((a, b) => a.modifiedOn - b.modifiedOn)
     .map((it) => widgets.find((widget) => widget._id === it.attachedTo))
-    .filter((widget): widget is Widget => widget !== undefined && widget.type === WidgetType.Configurable)
+    .filter((widget): widget is Widget => widget?.type === WidgetType.Configurable)
 </script>
 
 <div class="root">

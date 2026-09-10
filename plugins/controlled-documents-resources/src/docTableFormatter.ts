@@ -34,12 +34,12 @@ function formatVersion (major: number | undefined, minor: number | undefined): s
  * Get state value from document (handles both state and controlledState)
  */
 function getDocumentState (doc: Record<string, unknown>): string | undefined {
-  const controlledState: unknown = doc.controlledState
-  if (controlledState !== undefined && controlledState !== null) {
-    return String(controlledState)
+  const controlledState = doc.controlledState
+  if (typeof controlledState === 'string') {
+    return controlledState
   }
-  const state: unknown = doc.state
-  return state !== undefined && state !== null ? String(state) : undefined
+  const state = doc.state
+  return typeof state === 'string' ? state : undefined
 }
 
 /**
@@ -104,9 +104,7 @@ export async function formatControlledDocumentValue (
     // Translate label to determine which field to extract
     let labelText = ''
     if (typeof attr.label === 'string') {
-      labelText = isIntlString(attr.label)
-        ? await translate(attr.label as unknown as IntlString, {}, language)
-        : attr.label
+      labelText = isIntlString(attr.label) ? await translate(attr.label, {}, language) : attr.label
     } else {
       labelText = await translate(attr.label, {}, language)
     }
@@ -210,9 +208,7 @@ export async function formatControlledDocumentValue (
       // Translate label to determine which field to extract for template
       let labelText = ''
       if (typeof attr.label === 'string') {
-        labelText = isIntlString(attr.label)
-          ? await translate(attr.label as unknown as IntlString, {}, language)
-          : attr.label
+        labelText = isIntlString(attr.label) ? await translate(attr.label, {}, language) : attr.label
       } else {
         labelText = await translate(attr.label, {}, language)
       }
@@ -229,7 +225,7 @@ export async function formatControlledDocumentValue (
             }
             return nestedValue
           }
-          return String(nestedValue)
+          return JSON.stringify(nestedValue)
         }
       }
       // For template: check label to determine if it's code or version

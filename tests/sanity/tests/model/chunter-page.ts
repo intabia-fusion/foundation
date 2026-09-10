@@ -1,10 +1,12 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { CommonPage } from './common-page'
 import { SignUpData } from './common-types'
 
-export class ChunterPage {
+export class ChunterPage extends CommonPage {
   readonly page: Page
 
   constructor (page: Page) {
+    super(page)
     this.page = page
   }
 
@@ -67,6 +69,9 @@ export class ChunterPage {
   }
 
   async createDirectChat ({ firstName, lastName }: SignUpData): Promise<void> {
+    // Retried by the caller, and a failed attempt leaves its modal up: every later click then
+    // lands on the overlay instead of the page and waits out its whole timeout.
+    await this.closePopups()
     await this.clickAddDirect()
     await this.inputNewDirectChatEmployee().fill(`${lastName}`)
     await this.rowEmployeeInNewDirectChatModal()
@@ -75,5 +80,6 @@ export class ChunterPage {
     await this.buttonNewDirectChatModalNext().click()
     await this.buttonNewDirectChatModalCreate().click()
     await expect(this.directMessagesButtonInLeftMenu()).toBeVisible()
+    await expect(this.page.locator('div.modal-overlay')).toHaveCount(0, { timeout: 5000 })
   }
 }

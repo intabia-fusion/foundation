@@ -549,7 +549,7 @@ export type WorkspaceStatusData = Omit<WorkspaceStatus, 'workspaceUuid'>
 
 export type WorkspaceInviteData = Omit<WorkspaceInvite, 'id'>
 
-export type DBFlavor = 'postgres' | 'cockroach' | 'unknown'
+export type { DBFlavor } from '@hcengineering/postgres'
 
 /* ========= D A T A B A S E  C O L L E C T I O N S ========= */
 export interface AccountDB {
@@ -783,10 +783,18 @@ export interface LicenseInfo {
   maxUsers: number
 }
 
+export interface WorkspaceSeatsInfo {
+  // True when the plan has a free seat, or the plan is unlimited / free-fallback.
+  available: boolean
+  seatsLeft?: number
+}
+
 export interface WorkspaceInviteInfo {
   workspace: WorkspaceUuid
   email?: string
   name?: string
+  // False when the workspace plan has no free seats: the join page must not offer sign up / sign in.
+  seatsAvailable?: boolean
 }
 
 export interface MailboxOptions {

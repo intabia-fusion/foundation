@@ -20,9 +20,7 @@ const mockHasClass = jest.fn()
 
 let actualCore: any
 const getActualCore = (): any => {
-  if (actualCore == null) {
-    actualCore = jest.requireActual('@hcengineering/core')
-  }
+  actualCore ??= jest.requireActual('@hcengineering/core')
   return actualCore
 }
 

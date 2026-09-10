@@ -117,7 +117,7 @@ module.exports = [
     },
     resolve: {
       extensions: ['.ts', '.js'],
-      conditionNames: ['svelte', 'browser', 'import'],
+      conditionNames: ['node', 'svelte', 'browser', 'import'],
       alias: {
         ws: path.resolve('node_modules', 'ws/index.js')
       }
@@ -199,6 +199,8 @@ module.exports = [
               emitCss: true,
               hotReload: !prod,
               preprocess: require('svelte-preprocess')({
+                // Keeps imports that only the markup uses; see platform-rig/bin/compile.js.
+                typescript: { compilerOptions: { verbatimModuleSyntax: true } },
                 postcss: true,
                 sourceMap: true,
                 scss: {

@@ -28,7 +28,7 @@
   const query = createQuery()
 
   $: query.query(setting.class.OfficeSettings, {}, (set) => {
-    existingOfficeSettings = set as unknown as OfficeSettings[]
+    existingOfficeSettings = set
     if (existingOfficeSettings !== undefined && existingOfficeSettings.length > 0) {
       defaultStartWithTranscription = existingOfficeSettings[0].defaultStartWithTranscription ?? false
       defaultStartWithRecording = existingOfficeSettings[0].defaultStartWithRecording ?? false

@@ -34,9 +34,7 @@ const mockGetNotificationMessageId = jest.fn()
 
 let actualNotification: any
 const getActualNotification = (): any => {
-  if (actualNotification == null) {
-    actualNotification = jest.requireActual('@hcengineering/notification')
-  }
+  actualNotification ??= jest.requireActual('@hcengineering/notification')
   return actualNotification
 }
 
@@ -64,9 +62,7 @@ const mockTranslate = jest.fn()
 
 let actualPlatform: any
 const getActualPlatform = (): any => {
-  if (actualPlatform == null) {
-    actualPlatform = jest.requireActual('@hcengineering/platform')
-  }
+  actualPlatform ??= jest.requireActual('@hcengineering/platform')
   return actualPlatform
 }
 
@@ -91,9 +87,7 @@ const mockGenerateId = jest.fn()
 
 let actualCore: any
 const getActualCore = (): any => {
-  if (actualCore == null) {
-    actualCore = jest.requireActual('@hcengineering/core')
-  }
+  actualCore ??= jest.requireActual('@hcengineering/core')
   return actualCore
 }
 

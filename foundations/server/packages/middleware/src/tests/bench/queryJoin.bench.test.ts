@@ -13,8 +13,7 @@
 // limitations under the License.
 //
 
-import core, { type Class, type Doc, type Ref, toFindResult } from '@hcengineering/core'
-import type { Middleware } from '@hcengineering/server-core'
+import core, { type Doc, toFindResult } from '@hcengineering/core'
 import { QueryJoinMiddleware } from '../../queryJoin'
 import { bench, describeBench } from '@hcengineering/measurements'
 import { createHarness, makeNextMiddleware } from './harness'
@@ -25,14 +24,14 @@ describeBench('QueryJoinMiddleware bench', () => {
     const next = makeNextMiddleware(h, {
       findAll: async <T extends Doc>(): Promise<ReturnType<typeof toFindResult<T>>> => toFindResult<T>([])
     })
-    return await QueryJoinMiddleware.create(h.ctx, h.pipelineContext, next as unknown as Middleware)
+    return await QueryJoinMiddleware.create(h.ctx, h.pipelineContext, next)
   }
 
   it('findAll - small simple query', async () => {
     const mw = await setup()
     const q = { archived: false }
     await bench('queryJoin findAll(simple)', async () => {
-      await mw.findAll({} as any, core.class.Space as Ref<Class<Doc>>, q, undefined)
+      await mw.findAll({} as any, core.class.Space, q, undefined)
     })
   })
 
@@ -56,7 +55,7 @@ describeBench('QueryJoinMiddleware bench', () => {
       sort: { modifiedOn: -1 }
     }
     await bench('queryJoin findAll(large)', async () => {
-      await mw.findAll({} as any, core.class.Space as Ref<Class<Doc>>, q, opts)
+      await mw.findAll({} as any, core.class.Space, q, opts)
     })
   })
 
@@ -66,7 +65,7 @@ describeBench('QueryJoinMiddleware bench', () => {
     await bench('queryJoin findAll(parallel x16)', async () => {
       const ps: Promise<any>[] = []
       for (let i = 0; i < 16; i++) {
-        ps.push(mw.findAll({} as any, core.class.Space as Ref<Class<Doc>>, q, undefined))
+        ps.push(mw.findAll({} as any, core.class.Space, q, undefined))
       }
       await Promise.all(ps)
     })

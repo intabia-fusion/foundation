@@ -59,14 +59,12 @@ export function createRemoteProvider (ydoc: Ydoc, doc: CollaborativeDoc, content
     },
     onClose: (data) => {
       if (data.event.code === 1006) {
-        if (reconnectGraceTimeout === undefined) {
-          reconnectGraceTimeout = setTimeout(() => {
-            reconnectGraceTimeout = undefined
-            console.error('Failed to connect to collaborator', data.event)
-            const status = new Status(Severity.ERROR, plugin.string.CannotConnectToCollaborationService, {})
-            void setPlatformStatus(status)
-          }, COLLABORATOR_RECONNECT_GRACE_MS)
-        }
+        reconnectGraceTimeout ??= setTimeout(() => {
+          reconnectGraceTimeout = undefined
+          console.error('Failed to connect to collaborator', data.event)
+          const status = new Status(Severity.ERROR, plugin.string.CannotConnectToCollaborationService, {})
+          void setPlatformStatus(status)
+        }, COLLABORATOR_RECONNECT_GRACE_MS)
       }
     }
   })

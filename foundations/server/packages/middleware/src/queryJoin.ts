@@ -38,9 +38,7 @@ export class QueryJoiner {
     // Will find a query or add + 1 to callbacks
     const q = this.getQuery(key)
     try {
-      if (q.result === undefined) {
-        q.result = retrieve(ctx)
-      }
+      q.result ??= retrieve(ctx)
       if (q.result instanceof Promise) {
         q.result = await q.result
       }

@@ -18,10 +18,10 @@ import type { Ref } from '@hcengineering/core'
 import { Screen } from './screens'
 import { WorkflowRule, WorkflowRuleConfig } from './rules'
 
-export interface WorkflowRequest extends WorkflowRule {}
+export type WorkflowRequest = WorkflowRule
 export type WorkflowRequestConfig<TProps extends Record<string, any> = Record<string, any>> = WorkflowRuleConfig<
-WorkflowRequest,
-TProps
+  WorkflowRequest,
+  TProps
 >
 
 export interface ScreenProps {

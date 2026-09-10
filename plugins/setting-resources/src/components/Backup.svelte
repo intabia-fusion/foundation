@@ -31,14 +31,14 @@
   const workspaceDataId = getMetadata(presentation.metadata.WorkspaceDataId)
 
   let backupInfo:
-  | {
-    files: { name: string, size: number }[]
-    extraBlobs: { name: string, size: number, contentType: string }[]
-    extraBlobsTotal?: number
-    error?: string
-    info?: BackupInfo
-  }
-  | undefined
+    | {
+      files: { name: string, size: number }[]
+      extraBlobs: { name: string, size: number, contentType: string }[]
+      extraBlobsTotal?: number
+      error?: string
+      info?: BackupInfo
+    }
+    | undefined
 
   $: fileSizes = new Map(backupInfo?.files?.map((it) => [it.name, it.size ?? 0]))
 

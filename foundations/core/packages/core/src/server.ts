@@ -66,11 +66,11 @@ export interface SessionData {
   hasDomainBroadcast?: boolean
   workspace: WorkspaceIds
   socialStringsToUsers: Map<
-  PersonId,
-  {
-    accountUuid: AccountUuid
-    role: AccountRole
-  }
+    PersonId,
+    {
+      accountUuid: AccountUuid
+      role: AccountRole
+    }
   >
   grant?: PermissionsGrant
 

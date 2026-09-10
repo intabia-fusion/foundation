@@ -29,7 +29,7 @@
   const client = getClient()
 
   const object: Data<Component> = {
-    label: '' as IntlString,
+    label: '',
     description: '',
     lead: null,
     comments: 0,

@@ -66,7 +66,7 @@ import {
   getLastPasswordChangeEvent,
   isPasswordChangedSince,
   resetRegionConfig,
-  assertSeatAvailableOnJoin
+  assertSeatAvailable
 } from '../utils'
 // eslint-disable-next-line import/no-named-default
 import platform, { getMetadata, PlatformError, Severity, Status } from '@hcengineering/platform'
@@ -256,12 +256,12 @@ describe('account utils', () => {
     // Helper function to convert transactors string to REGION_CONFIG_JSON
     const transactorsToRegionConfig = (transactors: string): string => {
       const regions: Record<
-      string,
-      {
-        name?: string
-        transactors: Array<{ external: string, internal: string }>
-        collaborators: Array<{ external: string, internal: string }>
-      }
+        string,
+        {
+          name?: string
+          transactors: Array<{ external: string, internal: string }>
+          collaborators: Array<{ external: string, internal: string }>
+        }
       > = {}
 
       transactors.split(',').forEach((t) => {
@@ -274,9 +274,7 @@ describe('account utils', () => {
           const externalUrl = parts[1].trim()
           const region = parts[2].trim()
 
-          if (regions[region] === undefined) {
-            regions[region] = { transactors: [], collaborators: [] }
-          }
+          regions[region] ??= { transactors: [], collaborators: [] }
           regions[region].transactors.push({ external: externalUrl, internal: internalUrl })
           regions[region].collaborators.push({ external: externalUrl, internal: internalUrl })
         }
@@ -377,12 +375,12 @@ describe('account utils', () => {
       // Helper function to convert transactors string to REGION_CONFIG_JSON
       const transactorsToRegionConfig = (transactors: string): string => {
         const regions: Record<
-        string,
-        {
-          name?: string
-          transactors: Array<{ external: string, internal: string }>
-          collaborators: Array<{ external: string, internal: string }>
-        }
+          string,
+          {
+            name?: string
+            transactors: Array<{ external: string, internal: string }>
+            collaborators: Array<{ external: string, internal: string }>
+          }
         > = {}
 
         transactors.split(',').forEach((t) => {
@@ -395,9 +393,7 @@ describe('account utils', () => {
             const externalUrl = parts[1].trim()
             const region = parts[2].trim()
 
-            if (regions[region] === undefined) {
-              regions[region] = { transactors: [], collaborators: [] }
-            }
+            regions[region] ??= { transactors: [], collaborators: [] }
             regions[region].transactors.push({ external: externalUrl, internal: internalUrl })
             regions[region].collaborators.push({ external: externalUrl, internal: internalUrl })
           }
@@ -2063,7 +2059,7 @@ describe('account utils', () => {
       const mockSocialId = { key: 'email:test@example.com' as PersonId }
       ;(mockDb.socialId.findOne as jest.Mock).mockResolvedValue(mockSocialId)
 
-      const result = await getSocialIdByKey(mockDb, 'email:test@example.com' as PersonId)
+      const result = await getSocialIdByKey(mockDb, 'email:test@example.com')
       expect(result).toEqual(mockSocialId)
       expect(mockDb.socialId.findOne).toHaveBeenCalledWith({ key: 'email:test@example.com' })
     })
@@ -2071,7 +2067,7 @@ describe('account utils', () => {
     test('should return null when social id not found', async () => {
       ;(mockDb.socialId.findOne as jest.Mock).mockResolvedValue(null)
 
-      const result = await getSocialIdByKey(mockDb, 'nonexistent' as PersonId)
+      const result = await getSocialIdByKey(mockDb, 'nonexistent')
       expect(result).toBeNull()
     })
   })
@@ -2507,8 +2503,8 @@ describe('account utils', () => {
     })
   })
 
-  describe('assertSeatAvailableOnJoin', () => {
-    const ctx = { info: jest.fn(), error: jest.fn() } as unknown as MeasureContext
+  describe('assertSeatAvailable', () => {
+    const ctx = { info: jest.fn() } as unknown as MeasureContext
     const workspace = 'ws-1' as WorkspaceUuid
     const DAY = 24 * 60 * 60 * 1000
 
@@ -2521,6 +2517,7 @@ describe('account utils', () => {
     const mockDb = (subscriptions: any[]): any => ({
       subscription: { find: jest.fn().mockResolvedValue(subscriptions) },
       getWorkspaceMembers: jest.fn().mockResolvedValue(members),
+      // getSeatMembers resolves the AI bot social id to exclude it from the seat count.
       socialId: { findOne: jest.fn().mockResolvedValue(null) }
     })
 
@@ -2532,7 +2529,7 @@ describe('account utils', () => {
     })
 
     const join = async (db: any): Promise<void> => {
-      await assertSeatAvailableOnJoin(ctx, db, workspace, AccountRole.User)
+      await assertSeatAvailable(ctx, db, workspace, AccountRole.User)
     }
 
     test('should reject a join when a live trial is full', async () => {
@@ -2567,7 +2564,7 @@ describe('account utils', () => {
     test('should not cap seatless roles', async () => {
       const db = mockDb([tier(SubscriptionStatus.Active, 2)])
 
-      await expect(assertSeatAvailableOnJoin(ctx, db, workspace, AccountRole.Guest)).resolves.toBeUndefined()
+      await expect(assertSeatAvailable(ctx, db, workspace, AccountRole.Guest)).resolves.toBeUndefined()
       expect(db.subscription.find).not.toHaveBeenCalled()
     })
   })

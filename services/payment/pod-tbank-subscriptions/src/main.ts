@@ -66,13 +66,13 @@ export const main = async (): Promise<void> => {
   const mockPair =
     config.TbankMock === true
       ? createMockTbank({
-        terminalKey: config.TbankTerminalKey ?? 'mock-terminal',
-        webhookUrl: `http://localhost:${config.Port}/api/v1/webhooks/tbank`,
-        checkoutBase: `${config.FrontUrl}/_tbank_subscriptions`,
-        info: (msg, data) => {
-          metricsContext.info(msg, data)
-        }
-      })
+          terminalKey: config.TbankTerminalKey ?? 'mock-terminal',
+          webhookUrl: `http://localhost:${config.Port}/api/v1/webhooks/tbank`,
+          checkoutBase: `${config.FrontUrl}/_tbank_subscriptions`,
+          info: (msg, data) => {
+            metricsContext.info(msg, data)
+          }
+        })
       : undefined
   const tbankVerboseLogging = process.env.TBANK_DEBUG_LOG === 'true'
   const tbank =
@@ -139,7 +139,15 @@ export const main = async (): Promise<void> => {
     'tbank-webhook-processor',
     async (ctx, msg) => {
       try {
-        await processWebhook(ctx, config, tbank, storage, msg.value.notification, msg.value.verified)
+        await processWebhook(
+          ctx,
+          config,
+          tbank,
+          storage,
+          msg.value.notification,
+          msg.value.verified,
+          msg.value.receivedAt
+        )
       } catch (err: any) {
         const poison = err instanceof TypeError || err instanceof RangeError || err instanceof SyntaxError
         ctx.error(poison ? 'Poison TBank webhook dropped' : 'Failed to process TBank webhook, will retry', {

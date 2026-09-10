@@ -29,7 +29,7 @@ const TARGET_PEAK = 0.95
 export function normalizeAudio (wavBuffer: Buffer): Buffer {
   const header = parseWavHeader(wavBuffer)
 
-  if (header === undefined || header.bitsPerSample !== 16) {
+  if (header?.bitsPerSample !== 16) {
     // Return original if we can't parse or unsupported format
     return wavBuffer
   }
@@ -80,15 +80,15 @@ export function normalizeAudio (wavBuffer: Buffer): Buffer {
  * @returns Audio statistics or undefined if parsing fails
  */
 export function getAudioStats (wavBuffer: Buffer):
-| {
-  rms: number
-  peak: number
-  suggestedScaling: number
-}
-| undefined {
+  | {
+    rms: number
+    peak: number
+    suggestedScaling: number
+  }
+  | undefined {
   const header = parseWavHeader(wavBuffer)
 
-  if (header === undefined || header.bitsPerSample !== 16) {
+  if (header?.bitsPerSample !== 16) {
     return undefined
   }
 

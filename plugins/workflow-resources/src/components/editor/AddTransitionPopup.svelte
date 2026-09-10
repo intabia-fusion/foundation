@@ -73,14 +73,11 @@
     })
   )
 
-  $: isSelf = to != null && fromStatusItemIds != null && fromStatusItemIds.includes(to)
+  $: isSelf = to != null && fromStatusItemIds?.includes(to)
 
   let conflictInfo: ConflictInfo | null = null
   $: {
-    const fromVal =
-      fromStatusItemIds !== undefined && fromStatusItemIds.includes('null')
-        ? null
-        : (fromStatusItemIds as Ref<Status>[])
+    const fromVal = fromStatusItemIds?.includes('null') === true ? null : (fromStatusItemIds as Ref<Status>[])
     conflictInfo =
       to != null && fromStatusItemIds != null && fromStatusItemIds.length > 0
         ? getTransitionConflict({ from: fromVal, to }, transitions)

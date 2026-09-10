@@ -98,32 +98,30 @@ const expose: IPCMainExposed = {
   },
 
   config: async () => {
-    if (configPromise === undefined) {
-      configPromise = new Promise((resolve, reject) => {
-        ipcRenderer.invoke(IpcMessage.GetMainConfig).then(
-          async (mainConfig) => {
-            const serverConfig = await loadServerConfig(concatLink(mainConfig.FRONT_URL, mainConfig.CONFIG_URL))
-            const combinedConfig = {
-              ...serverConfig,
-              ...mainConfig,
-              INITIAL_URL: openArg ?? '',
-              UPLOAD_URL: (serverConfig.UPLOAD_URL as string).includes('://')
-                ? serverConfig.UPLOAD_URL
-                : concatLink(mainConfig.FRONT_URL, serverConfig.UPLOAD_URL),
-              MODEL_VERSION: mainConfig.MODEL_VERSION,
-              VERSION: mainConfig.VERSION
-            }
-
-            ipcRenderer.send(IpcMessage.SetCombinedConfig, combinedConfig)
-
-            resolve(combinedConfig)
-          },
-          (err) => {
-            reject(err)
+    configPromise ??= new Promise((resolve, reject) => {
+      ipcRenderer.invoke(IpcMessage.GetMainConfig).then(
+        async (mainConfig) => {
+          const serverConfig = await loadServerConfig(concatLink(mainConfig.FRONT_URL, mainConfig.CONFIG_URL))
+          const combinedConfig = {
+            ...serverConfig,
+            ...mainConfig,
+            INITIAL_URL: openArg ?? '',
+            UPLOAD_URL: (serverConfig.UPLOAD_URL as string).includes('://')
+              ? serverConfig.UPLOAD_URL
+              : concatLink(mainConfig.FRONT_URL, serverConfig.UPLOAD_URL),
+            MODEL_VERSION: mainConfig.MODEL_VERSION,
+            VERSION: mainConfig.VERSION
           }
-        )
-      })
-    }
+
+          ipcRenderer.send(IpcMessage.SetCombinedConfig, combinedConfig)
+
+          resolve(combinedConfig)
+        },
+        (err) => {
+          reject(err)
+        }
+      )
+    })
 
     return await configPromise
   },

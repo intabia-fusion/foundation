@@ -41,7 +41,7 @@
         return
       }
       const context = parseContext(val)
-      if (context !== undefined && context.type === 'context') {
+      if (context?.type === 'context') {
         if (process.context[context.id] === undefined) {
           error = true
           return

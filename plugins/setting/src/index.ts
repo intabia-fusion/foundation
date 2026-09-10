@@ -35,7 +35,7 @@ import { type Integration as AccountIntegration } from '@hcengineering/account-c
 
 import { SpaceTypeCreator, SpaceTypeEditor } from './spaceTypeEditor'
 
-export * from './spaceTypeEditor'
+export type * from './spaceTypeEditor'
 export * from './utils'
 export * from './analytics'
 
@@ -90,7 +90,7 @@ export interface Editable extends Class<Doc> {
  *
  * Mixin to allow delete of Custom classes.
  */
-export interface UserMixin extends Class<Doc> {}
+export type UserMixin = Class<Doc>
 
 /**
  * @public
@@ -291,6 +291,8 @@ export default plugin(settingId, {
     CreateMailboxPlaceholder: '' as IntlString,
     MailboxNoDomains: '' as IntlString,
     MailboxLimitReached: '' as IntlString,
+    SeatLimitReached: '' as IntlString,
+    SeatLimitReachedDescription: '' as IntlString,
     OfficeSettings: '' as IntlString,
     OfficeDefaultSettings: '' as IntlString,
     DefaultStartWithTranscription: '' as IntlString,

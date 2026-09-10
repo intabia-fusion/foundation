@@ -451,7 +451,7 @@ describe('Attribute transfer helpers (attributes.ts)', () => {
       expect(createdAttrs.find((a) => a.name === 'missing_org_ref')).toBeUndefined()
     })
 
-    it('handles findIncompatibleAttributes when client has no getHierarchy or when filtering by selectedTypeNames', () => {
+    it('handles findIncompatibleAttributes when client has no getHierarchy or when filtering by selectedTypeIds', () => {
       const mockClientNoHierarchy = {} as any
       const exportConfig: TaskTypeExportConfig = {
         version: 1,
@@ -505,8 +505,10 @@ describe('Attribute transfer helpers (attributes.ts)', () => {
         })
       } as any
 
-      // Filtered by selectedTypeNames: only Test Feature
-      const filteredIncompatible = findIncompatibleAttributes(mockClientWithHierarchy, exportConfig, ['Test Feature'])
+      // Filtered by id: only Test Feature
+      const filteredIncompatible = findIncompatibleAttributes(mockClientWithHierarchy, exportConfig, [
+        'feature-id' as Ref<TaskType>
+      ])
       expect(filteredIncompatible).toHaveLength(1)
       expect(filteredIncompatible[0].taskTypeName).toBe('Test Feature')
       expect(filteredIncompatible[0].attributeName).toBe('missing_ref_feature')

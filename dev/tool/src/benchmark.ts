@@ -235,46 +235,44 @@ export async function benchmark (
 
       try {
         const fetchUrl = endpoint.replace('ws:/', 'http:/') + '/api/v1/statistics'
-        if (p === undefined) {
-          p = fetch(fetchUrl, {
-            headers: {
-              Authorization: 'Bearer ' + token
-            },
-            keepalive: true
+        p ??= fetch(fetchUrl, {
+          headers: {
+            Authorization: 'Bearer ' + token
+          },
+          keepalive: true
+        })
+          .then((res) => {
+            void res
+              .json()
+              .then((json) => {
+                memUsed = json.statistics.memoryUsed
+                memTotal = json.statistics.memoryTotal
+                memRSS = json.statistics.memoryRSS
+                memArrays = json.statistics.memoryArrayBuffers
+                cpu = json.statistics.cpuUsage
+                // operations = 0
+                requestTime = 0
+                // transfer = 0
+                const r = extract(json.metrics as Metrics, '🧲 session', 'client', 'process', 'find-all')
+                operations = (r?.operations ?? 0) - oldOperations
+                oldOperations = r?.operations ?? 0
+
+                requestTime = (r?.value ?? 0) / (((r?.operations as number) ?? 0) + 1)
+
+                const tr = extract(json.metrics as Metrics, '🧲 session', 'client', '#send-data')
+                transfer = (tr?.value ?? 0) - oldTransfer
+                oldTransfer = tr?.value ?? 0
+                p = undefined
+              })
+              .catch((err) => {
+                console.log(err)
+                p = undefined
+              })
           })
-            .then((res) => {
-              void res
-                .json()
-                .then((json) => {
-                  memUsed = json.statistics.memoryUsed
-                  memTotal = json.statistics.memoryTotal
-                  memRSS = json.statistics.memoryRSS
-                  memArrays = json.statistics.memoryArrayBuffers
-                  cpu = json.statistics.cpuUsage
-                  // operations = 0
-                  requestTime = 0
-                  // transfer = 0
-                  const r = extract(json.metrics as Metrics, '🧲 session', 'client', 'process', 'find-all')
-                  operations = (r?.operations ?? 0) - oldOperations
-                  oldOperations = r?.operations ?? 0
-
-                  requestTime = (r?.value ?? 0) / (((r?.operations as number) ?? 0) + 1)
-
-                  const tr = extract(json.metrics as Metrics, '🧲 session', 'client', '#send-data')
-                  transfer = (tr?.value ?? 0) - oldTransfer
-                  oldTransfer = tr?.value ?? 0
-                  p = undefined
-                })
-                .catch((err) => {
-                  console.log(err)
-                  p = undefined
-                })
-            })
-            .catch((err) => {
-              console.log(err)
-              p = undefined
-            })
-        }
+          .catch((err) => {
+            console.log(err)
+            p = undefined
+          })
       } catch (err) {
         console.log(err)
       }

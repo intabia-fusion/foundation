@@ -43,7 +43,7 @@ export function getDocRules<T extends Doc> (documents: Doc | Doc[], field: strin
         if (r.field === field) {
           const _docs = docs
             .map((doc) => (r.mixin !== undefined ? (h.hasMixin(doc, r.mixin) ? h.as(doc, r.mixin) : undefined) : doc))
-            .filter((it) => it) as Doc[]
+            .filter((it) => it != null) as Doc[]
           if (_docs.length === 0) {
             continue
           }

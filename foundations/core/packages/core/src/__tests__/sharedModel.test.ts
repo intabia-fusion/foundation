@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import type { Class, Classifier, Data, Doc, Obj, Ref } from '../classes'
+import type { Class, Classifier, Doc, Obj, Ref } from '../classes'
 import { ClassifierKind, DOMAIN_MODEL } from '../classes'
 import core from '../component'
 import { Hierarchy } from '../hierarchy'
@@ -32,20 +32,20 @@ function classTx (_id: Ref<Class<Obj>>, ext: Ref<Class<Obj>> | undefined): Tx {
   return factory.createTxCreateDoc(
     core.class.Class,
     core.space.Model,
-    { kind: ClassifierKind.CLASS, extends: ext, label: '' as any, domain: DOMAIN_MODEL } as unknown as Data<Class<Obj>>,
+    { kind: ClassifierKind.CLASS, extends: ext, label: '' as any, domain: DOMAIN_MODEL },
     _id
   )
 }
 
 function docTx (_class: Ref<Class<Doc>>, _id: string, label: string): Tx {
-  return factory.createTxCreateDoc(_class, core.space.Model, { label } as any, _id as Ref<Doc>)
+  return factory.createTxCreateDoc(_class, core.space.Model, { label }, _id as Ref<Doc>)
 }
 
 function attrTx (_id: string, name: string, _class: Ref<Class<Doc>> = SYS): Tx {
   return factory.createTxCreateDoc(
     core.class.Attribute,
     core.space.Model,
-    { attributeOf: _class, name, label: '' as any, type: { _class: core.class.TypeString } } as any,
+    { attributeOf: _class, name, label: '' as any, type: { _class: core.class.TypeString } },
     _id as Ref<Doc>
   )
 }
@@ -58,12 +58,12 @@ function shared (): { h: Hierarchy, db: ModelDb } {
     ctx,
     [
       classTx(core.class.Obj, undefined),
-      classTx(core.class.Doc as Ref<Class<Obj>>, core.class.Obj),
-      classTx(core.class.Class as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
-      classTx(core.class.Attribute as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
-      classTx(core.class.Mixin as Ref<Class<Obj>>, core.class.Class as Ref<Class<Obj>>),
-      classTx(core.class.Interface as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
-      classTx(SYS as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
+      classTx(core.class.Doc, core.class.Obj),
+      classTx(core.class.Class, core.class.Doc),
+      classTx(core.class.Attribute, core.class.Doc),
+      classTx(core.class.Mixin, core.class.Class),
+      classTx(core.class.Interface, core.class.Doc),
+      classTx(SYS, core.class.Doc),
       docTx(SYS, 'sys-1', 'system one'),
       docTx(SYS, 'sys-2', 'system two')
     ],
@@ -93,7 +93,7 @@ describe('workspace model over a shared system model', () => {
     const base = shared()
     const ws = overlay(base)
 
-    ws.db.addTxes(ctx, [classTx(WS as Ref<Class<Obj>>, SYS as Ref<Class<Obj>>), docTx(WS, 'ws-1', 'own')], true)
+    ws.db.addTxes(ctx, [classTx(WS, SYS), docTx(WS, 'ws-1', 'own')], true)
 
     expect(ws.h.isDerived(WS, core.class.Doc)).toBe(true)
     expect(ws.h.getDescendants(SYS)).toContain(WS)
@@ -152,7 +152,7 @@ describe('workspace model over a shared system model', () => {
     const ws = overlay(base)
 
     ws.db.addTxes(ctx, [factory.createTxRemoveDoc(core.class.Class, core.space.Model, SYS)], true)
-    ws.db.addTxes(ctx, [classTx(SYS as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>)], true)
+    ws.db.addTxes(ctx, [classTx(SYS, core.class.Doc)], true)
 
     expect(ws.h.getClass(SYS)._id).toBe(SYS)
     expect(ws.h.isDerived(SYS, core.class.Doc)).toBe(true)
@@ -180,7 +180,7 @@ describe('workspace model over a shared system model', () => {
         factory.createTxCreateDoc(
           core.class.Attribute,
           core.space.Model,
-          { attributeOf: SYS, name: 'shared', label: '' as any, type: { _class: core.class.TypeString } } as any,
+          { attributeOf: SYS, name: 'shared', label: '' as any, type: { _class: core.class.TypeString } },
           'attr-shared' as Ref<Doc>
         )
       ],
@@ -193,7 +193,7 @@ describe('workspace model over a shared system model', () => {
         factory.createTxCreateDoc(
           core.class.Attribute,
           core.space.Model,
-          { attributeOf: SYS, name: 'own', label: '' as any, type: { _class: core.class.TypeString } } as any,
+          { attributeOf: SYS, name: 'own', label: '' as any, type: { _class: core.class.TypeString } },
           'attr-own' as Ref<Doc>
         )
       ],
@@ -226,12 +226,12 @@ function scenarioBase (): { h: Hierarchy, db: ModelDb } {
     [
       attrTx('attr-sys', 'sysAttr'),
       attrTx('attr-sys2', 'sysAttr2'),
-      classTx(MIXIN as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
+      classTx(MIXIN, core.class.Doc),
       factory.createTxCreateDoc(
         core.class.Interface,
         core.space.Model,
-        { kind: ClassifierKind.INTERFACE, label: '' as any } as any,
-        IFACE as any
+        { kind: ClassifierKind.INTERFACE, label: '' as any },
+        IFACE
       ),
       factory.createTxUpdateDoc(
         SYS,
@@ -243,7 +243,7 @@ function scenarioBase (): { h: Hierarchy, db: ModelDb } {
           nested: { key: 'v' }
         } as any
       ),
-      factory.createTxMixin(SYS, core.class.Class, core.space.Model, MIXIN as any, { rank: 1 } as any)
+      factory.createTxMixin(SYS, core.class.Class, core.space.Model, MIXIN, { rank: 1 } as any)
     ],
     true
   )
@@ -292,7 +292,7 @@ function allFrozen (db: ModelDb): boolean {
 }
 
 const scenarios: Array<
-[string, (ws: { h: Hierarchy, db: ModelDb }) => void, (ws: { h: Hierarchy, db: ModelDb }) => void]
+  [string, (ws: { h: Hierarchy, db: ModelDb }) => void, (ws: { h: Hierarchy, db: ModelDb }) => void]
 > = [
   [
     'hides a system attribute',
@@ -454,11 +454,7 @@ const scenarios: Array<
   [
     'adds an attribute to its own class',
     (ws) => {
-      ws.db.addTxes(
-        ctx,
-        [classTx(WS as Ref<Class<Obj>>, SYS as Ref<Class<Obj>>), attrTx('attr-on-ws', 'ownClassAttr', WS)],
-        true
-      )
+      ws.db.addTxes(ctx, [classTx(WS, SYS), attrTx('attr-on-ws', 'ownClassAttr', WS)], true)
     },
     (ws) => {
       expect(ws.h.getOwnAttributes(WS).get('ownClassAttr')?._id).toBe('attr-on-ws')
@@ -521,10 +517,10 @@ const scenarios: Array<
           factory.createTxCreateDoc(
             core.class.Mixin,
             core.space.Model,
-            { kind: ClassifierKind.MIXIN, extends: SYS, label: '' as any } as any,
+            { kind: ClassifierKind.MIXIN, extends: SYS, label: '' as any },
             id
           ),
-          factory.createTxMixin(id, core.class.Mixin, core.space.Model, MIXIN as any, { value: true } as any)
+          factory.createTxMixin(id, core.class.Mixin, core.space.Model, MIXIN, { value: true } as any)
         ],
         true
       )
@@ -541,7 +537,7 @@ const scenarios: Array<
     (ws) => {
       ws.db.addTxes(
         ctx,
-        [factory.createTxMixin(SYS, core.class.Class, core.space.Model, MIXIN as any, { rank: 2 } as any)],
+        [factory.createTxMixin(SYS, core.class.Class, core.space.Model, MIXIN, { rank: 2 } as any)],
         true
       )
     },
@@ -558,7 +554,7 @@ const scenarios: Array<
           factory.createTxCreateDoc(
             core.class.Mixin,
             core.space.Model,
-            { kind: ClassifierKind.MIXIN, extends: core.class.Class, label: '' as any } as any,
+            { kind: ClassifierKind.MIXIN, extends: core.class.Class, label: '' as any },
             'test:mixin:Fresh' as Ref<Class<Obj>>
           ),
           factory.createTxMixin(
@@ -584,7 +580,7 @@ const scenarios: Array<
     (ws) => {
       ws.db.addTxes(
         ctx,
-        [factory.createTxUpdateDoc(SYS, core.space.Model, 'sys-1' as Ref<Doc>, { $push: { tags: 'b' } } as any)],
+        [factory.createTxUpdateDoc(SYS, core.space.Model, 'sys-1' as Ref<Doc>, { $push: { tags: 'b' } })],
         true
       )
     },
@@ -597,7 +593,7 @@ const scenarios: Array<
     (ws) => {
       ws.db.addTxes(
         ctx,
-        [factory.createTxUpdateDoc(SYS, core.space.Model, 'sys-1' as Ref<Doc>, { $pull: { tags: 'a' } } as any)],
+        [factory.createTxUpdateDoc(SYS, core.space.Model, 'sys-1' as Ref<Doc>, { $pull: { tags: 'a' } })],
         true
       )
     },
@@ -709,7 +705,7 @@ const scenarios: Array<
   [
     'adds and removes its own class',
     (ws) => {
-      ws.db.addTxes(ctx, [classTx(WS as Ref<Class<Obj>>, SYS as Ref<Class<Obj>>), docTx(WS, 'ws-1', 'own')], true)
+      ws.db.addTxes(ctx, [classTx(WS, SYS), docTx(WS, 'ws-1', 'own')], true)
       expect(ws.h.getDescendants(SYS)).toContain(WS)
       ws.db.addTxes(
         ctx,
@@ -741,7 +737,7 @@ const scenarios: Array<
     'removes and re-creates a system class',
     (ws) => {
       ws.db.addTxes(ctx, [factory.createTxRemoveDoc(core.class.Class, core.space.Model, SYS)], true)
-      ws.db.addTxes(ctx, [classTx(SYS as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>)], true)
+      ws.db.addTxes(ctx, [classTx(SYS, core.class.Doc)], true)
     },
     (ws) => {
       expect(ws.h.isDerived(SYS, core.class.Doc)).toBe(true)
@@ -751,12 +747,8 @@ const scenarios: Array<
   [
     're-points a system class under its own class',
     (ws) => {
-      ws.db.addTxes(ctx, [classTx(WS as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>)], true)
-      ws.db.addTxes(
-        ctx,
-        [factory.createTxUpdateDoc(core.class.Class, core.space.Model, SYS, { extends: WS } as any)],
-        true
-      )
+      ws.db.addTxes(ctx, [classTx(WS, core.class.Doc)], true)
+      ws.db.addTxes(ctx, [factory.createTxUpdateDoc(core.class.Class, core.space.Model, SYS, { extends: WS })], true)
     },
     (ws) => {
       expect(ws.h.isDerived(SYS, WS)).toBe(true)
@@ -769,7 +761,7 @@ const scenarios: Array<
     (ws) => {
       ws.db.addTxes(
         ctx,
-        [factory.createTxUpdateDoc(core.class.Class, core.space.Model, SYS, { implements: [IFACE] } as any)],
+        [factory.createTxUpdateDoc(core.class.Class, core.space.Model, SYS, { implements: [IFACE] })],
         true
       )
     },
@@ -794,7 +786,7 @@ const scenarios: Array<
   [
     'removes a system interface',
     (ws) => {
-      ws.db.addTxes(ctx, [factory.createTxRemoveDoc(core.class.Interface, core.space.Model, IFACE as any)], true)
+      ws.db.addTxes(ctx, [factory.createTxRemoveDoc(core.class.Interface, core.space.Model, IFACE)], true)
     },
     (ws) => {
       expect(() => ws.h.getInterface(IFACE as any)).toThrow()
@@ -933,7 +925,7 @@ describe('shared model internals', () => {
         factory.createTxCreateDoc(
           core.class.Class,
           core.space.Model,
-          { kind: ClassifierKind.CLASS, extends: SYS, label: '' as any } as any,
+          { kind: ClassifierKind.CLASS, extends: SYS, label: '' as any },
           'test:class:NoDomain' as Ref<Class<Obj>>
         )
       ],
@@ -1016,13 +1008,7 @@ describe('transactions that reference nothing', () => {
     )
     h.tx(factory.createTxRemoveDoc(core.class.Attribute, core.space.Model, missing))
     h.tx(
-      factory.createTxMixin(
-        missing as Ref<Class<Doc>>,
-        core.class.Class,
-        core.space.Model,
-        'test:mixin:M' as any,
-        {} as any
-      )
+      factory.createTxMixin(missing as Ref<Class<Doc>>, core.class.Class, core.space.Model, 'test:mixin:M' as any, {})
     )
 
     expect(h.findClass(missing as Ref<Class<Doc>>)).toBeUndefined()
@@ -1052,7 +1038,7 @@ describe('transactions that reference nothing', () => {
         factory.createTxCreateDoc(
           core.class.Class,
           core.space.Model,
-          { kind: ClassifierKind.CLASS, extends: 'test:class:Gone' as Ref<Class<Obj>>, label: '' as any } as any,
+          { kind: ClassifierKind.CLASS, extends: 'test:class:Gone' as Ref<Class<Obj>>, label: '' as any },
           'test:class:Orphan' as Ref<Class<Obj>>
         )
       ],
@@ -1071,13 +1057,13 @@ describe('transactions that reference nothing', () => {
         factory.createTxCreateDoc(
           core.class.Interface,
           core.space.Model,
-          { kind: ClassifierKind.INTERFACE, label: '' as any } as any,
+          { kind: ClassifierKind.INTERFACE, label: '' as any },
           'test:interface:Base' as any
         ),
         factory.createTxCreateDoc(
           core.class.Interface,
           core.space.Model,
-          { kind: ClassifierKind.INTERFACE, extends: ['test:interface:Base' as any], label: '' as any } as any,
+          { kind: ClassifierKind.INTERFACE, extends: ['test:interface:Base' as any], label: '' as any },
           'test:interface:Derived' as any
         )
       ],

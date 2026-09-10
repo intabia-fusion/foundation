@@ -619,7 +619,7 @@ export async function migrateSettings (client: MigrationClient): Promise<void> {
     DOMAIN_PREFERENCE,
     {
       _class: 'notification:class:NotificationSetting' as Ref<Class<Doc>>,
-      attachedTo: 'notification:providers:BrowserNotification' as Ref<Doc>
+      attachedTo: 'notification:providers:BrowserNotification'
     },
     {
       _class: notification.class.NotificationTypeSetting,
@@ -631,7 +631,7 @@ export async function migrateSettings (client: MigrationClient): Promise<void> {
     DOMAIN_PREFERENCE,
     {
       _class: 'notification:class:NotificationSetting' as Ref<Class<Doc>>,
-      attachedTo: 'notification:providers:PlatformNotification' as Ref<Doc>
+      attachedTo: 'notification:providers:PlatformNotification'
     },
     {
       _class: notification.class.NotificationTypeSetting,
@@ -1041,7 +1041,7 @@ export const notificationOperation: MigrateOperation = {
         state: 'delete-invalid-notifications',
         mode: 'upgrade',
         func: async (client) => {
-          await removeNotifications(client, { attachedToClass: 'chunter:class:Comment' as Ref<Class<Doc>> })
+          await removeNotifications(client, { attachedToClass: 'chunter:class:Comment' })
         }
       },
       {
@@ -1049,7 +1049,7 @@ export const notificationOperation: MigrateOperation = {
         mode: 'upgrade',
         func: async (client) => {
           await client.deleteMany(DOMAIN_NOTIFICATION, { _class: 'notification:class:DocUpdates' as Ref<Class<Doc>> })
-          await client.deleteMany(DOMAIN_TX, { objectClass: 'notification:class:DocUpdates' as Ref<Class<Doc>> })
+          await client.deleteMany(DOMAIN_TX, { objectClass: 'notification:class:DocUpdates' })
         }
       },
       {

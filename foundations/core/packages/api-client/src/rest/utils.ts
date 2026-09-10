@@ -14,10 +14,10 @@ export async function withRetry<T> (
     } catch (err: any) {
       // Deterministic rejections (e.g. plan/seat limit) must not be retried — retrying spams
       // the server and never succeeds.
-      if (shouldAbort !== undefined && shouldAbort(err)) {
+      if (shouldAbort?.(err) === true) {
         throw err
       }
-      if (ignoreAttemptCheck !== undefined && ignoreAttemptCheck(err)) {
+      if (ignoreAttemptCheck?.(err) === true) {
         // Do not decrement attempt
         attempt--
       } else {

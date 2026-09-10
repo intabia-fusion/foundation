@@ -45,12 +45,12 @@ export async function loadUnicodeEmojis (lang: string): Promise<EmojiWithGroup[]
   const emojis =
     languageEmojis !== null
       ? languageEmojis.map((langEmoji, index) => {
-        return {
-          ...langEmoji,
-          tags: [...(englishEmojis[index]?.tags ?? []), ...(langEmoji?.tags ?? [])],
-          shortcodes: [...(englishEmojis[index]?.shortcodes ?? []), ...(langEmoji?.shortcodes ?? [])]
-        }
-      })
+          return {
+            ...langEmoji,
+            tags: [...(englishEmojis[index]?.tags ?? []), ...(langEmoji?.tags ?? [])],
+            shortcodes: [...(englishEmojis[index]?.shortcodes ?? []), ...(langEmoji?.shortcodes ?? [])]
+          }
+        })
       : (englishEmojis as Emoji.Emoji[])
 
   return emojis
@@ -112,10 +112,10 @@ function findEmoji (
   skinTone?: number
 ): ExtendedEmoji | undefined {
   const emojis = get(unicodeEmojiStore).concat(get(customEmojiStore))
-  const matchEmoji = emojis.find(predicate)
+  const matchEmoji = emojis.find((e) => predicate(e) ?? false)
   if (matchEmoji === undefined) return undefined
   if (isCustomEmoji(matchEmoji)) return matchEmoji
-  if (skinTone === undefined) skinTone = getSkinTone()
+  skinTone ??= getSkinTone()
   if (skinTone === 0 || matchEmoji.skins === undefined) return matchEmoji
   return matchEmoji.skins[skinTone - 1]
 }

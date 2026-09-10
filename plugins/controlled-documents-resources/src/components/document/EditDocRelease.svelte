@@ -322,7 +322,7 @@
         />
       </header>
 
-      {#if $documentTraining !== null && $documentTraining.enabled}
+      {#if $documentTraining?.enabled}
         {@const trainingAttribute = hierarchy.getAttribute(documentTrainingClass._id, 'training')}
         <span class="fs-title text-normal">
           <Label label={trainingAttribute.label} />

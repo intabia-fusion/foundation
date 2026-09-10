@@ -123,7 +123,7 @@ class MemStorage implements BackupStorage {
     const chunks: Buffer[] = []
     const w = new PassThrough()
     w.on('data', (c: Buffer) => chunks.push(c))
-    w.on('end', () => this.files.set(name, Buffer.concat(chunks as any)))
+    w.on('end', () => this.files.set(name, Buffer.concat(chunks)))
     return w
   }
 
@@ -188,7 +188,7 @@ describe('backup stream error handling', () => {
     await writeChanges(storage, 'snapshot.gz', bigSnapshot(200))
 
     expect(storage.stream.writableFinished).toBe(true)
-    const text = gunzipSync(Buffer.concat(storage.chunks as any)).toString()
+    const text = gunzipSync(Buffer.concat(storage.chunks)).toString()
     expect(text.startsWith('200\n')).toBe(true)
     expect(text).toContain('doc199;hash199\n')
   }, 10000)

@@ -230,7 +230,7 @@ export async function createTranscriptionsSupport (
       const client = wsClient.systemAccessClient()
       const asBot = wsClient.primarySocialId._id
       const doc = await client.findOne(aiBot.class.AudioTranscribe, { _id: task.transcribeId as Ref<AudioTranscribe> })
-      if (doc === undefined || doc.state !== 'pending') return
+      if (doc?.state !== 'pending') return
 
       try {
         const audio = await aiControl.storageAdapter.read(pctx, wsClient.wsIds, task.blobId)

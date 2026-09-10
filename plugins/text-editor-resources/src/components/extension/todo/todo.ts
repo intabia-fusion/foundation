@@ -242,7 +242,7 @@ export function TodoItemPastePlugin (editor: Editor): Plugin<NamedToDosInEditor>
     }
     // Strange conversion to be ok for both typescript and eslint
     // Is ok because rule with 'tag' property is already TagParseRule
-    const tagRule: TagParseRule = rule as any
+    const tagRule: TagParseRule = rule
     if (tagRule.node !== 'todoItem') {
       return rule
     }
@@ -261,9 +261,7 @@ export function TodoItemPastePlugin (editor: Editor): Plugin<NamedToDosInEditor>
           return oldAttributes
         }
         let state = namedTodosPluginKey.getState(editor.state)
-        if (state === undefined) {
-          state = { todoIds: new Set() }
-        }
+        state ??= { todoIds: new Set() }
         const context = editorContextPluginKey.getState(editor.state) ?? {}
         const parentId = node.getAttribute('data-parentid')
         const parentClass = node.getAttribute('data-parentclass')
@@ -670,7 +668,7 @@ function isTodoableClass (objectClass: Ref<Class<Doc>>): boolean {
 
   try {
     const todosCollection = hierarchy.getAttribute(objectClass, 'todos')
-    return todosCollection !== undefined && todosCollection.type._class === core.class.Collection
+    return todosCollection?.type._class === core.class.Collection
   } catch (e) {
     return false
   }

@@ -137,7 +137,7 @@ export async function createProjectTypeWith (
       ofAttribute: tracker.attribute.IssueStatus,
       category: task.statusCategory.Active
     }))
-  })) as unknown as TaskTypeWithFactory[]
+  }))
 
   const projectTypeId = await createProjectType(
     client,

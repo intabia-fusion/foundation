@@ -91,10 +91,10 @@ export class AggregationMiddleware extends BasePresentationMiddleware implements
     options: FindOptions<T> | undefined,
     refresh: () => void
   ): Promise<{
-      unsubscribe: () => void
-      query?: DocumentQuery<T>
-      options?: FindOptions<T>
-    }> {
+    unsubscribe: () => void
+    query?: DocumentQuery<T>
+    options?: FindOptions<T>
+  }> {
     const ret = await this.provideSubscribe(_class, query, options, refresh)
     const h = this.client.getHierarchy()
 

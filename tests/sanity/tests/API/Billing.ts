@@ -84,15 +84,15 @@ export async function waitForTier (workspaceUuid: WorkspaceUuid, timeoutMs = 150
 
 /** Read the current tier subscription (active or trialing) for assertions. */
 export async function getTierSubscription (workspaceUuid: WorkspaceUuid): Promise<
-| {
-  plan: string
-  status: string
-  usersLimit: number | undefined
-  trialEnd: number | undefined
-  // Provider payload — carries the recurring-charge consent and the saved-card token.
-  providerData: { recurrent?: boolean, rebillId?: string, period?: string } | undefined
-}
-| undefined
+  | {
+    plan: string
+    status: string
+    usersLimit: number | undefined
+    trialEnd: number | undefined
+    // Provider payload — carries the recurring-charge consent and the saved-card token.
+    providerData: { recurrent?: boolean, rebillId?: string, period?: string } | undefined
+  }
+  | undefined
 > {
   const client = await getAdmin()
   const subs = await client.getSubscriptions(workspaceUuid, false)

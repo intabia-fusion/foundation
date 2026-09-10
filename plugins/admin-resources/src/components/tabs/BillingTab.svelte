@@ -21,9 +21,9 @@
   let selected = 0
 
   const tabModel: TabModel = [
-    { label: billingPlugin.string.TabModels, component: ModelsTab as AnySvelteComponent, props: {} },
-    { label: billingPlugin.string.TabUsage, component: ClientsTab as AnySvelteComponent, props: {} },
-    { label: billingPlugin.string.TabCalculator, component: CalculatorTab as AnySvelteComponent, props: {} }
+    { label: billingPlugin.string.TabModels, component: ModelsTab, props: {} },
+    { label: billingPlugin.string.TabUsage, component: ClientsTab, props: {} },
+    { label: billingPlugin.string.TabCalculator, component: CalculatorTab, props: {} }
   ]
 </script>
 

@@ -1116,10 +1116,10 @@ export function buildToolProgram (prepareTools: PrepareTools, extendProgram?: (p
             toolCtx.info('backup: pipeline ready')
             const include = cmd.include === '*' ? undefined : new Set(cmd.include.split(';').map((it) => it.trim()))
 
-            if (include != null && include.has('account.socialId')) {
+            if (include?.has('account.socialId') === true) {
               include.add('channel')
             }
-            if (include != null && include.has('account.person')) {
+            if (include?.has('account.person') === true) {
               include.add('contact')
             }
             toolCtx.info('OPT', { include: include != null ? Array.from(include) : '', skip: cmd.skip })

@@ -62,9 +62,9 @@
   $: typeCreator =
     descriptor !== undefined
       ? hierarchy.classHierarchyMixin<Class<SpaceTypeDescriptor>, SpaceTypeCreator>(
-        descriptor._class,
-        setting.mixin.SpaceTypeCreator
-      )
+          descriptor._class,
+          setting.mixin.SpaceTypeCreator
+        )
       : undefined
 
   let extraComponent: AnySvelteComponent | undefined

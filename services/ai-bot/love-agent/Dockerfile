@@ -3,9 +3,10 @@ WORKDIR /usr/src/app
 
 COPY package.json package.json
 COPY pnpm-lock.yaml pnpm-lock.yaml
+COPY docker-pnpm-workspace.yaml pnpm-workspace.yaml
 
-# No-op when the lock matches the base image; pulls only the delta when it drifted.
-RUN pnpm install --ignore-scripts=false
+# Frozen: a lock that drifted from package.json must fail here, not silently re-resolve online.
+RUN pnpm install --frozen-lockfile
 
 # @livekit/local-inference (pulled in by @livekit/agents >= 1.6.4 for local audio EOT) is built
 # with AVX2 and dies with SIGILL on older CPUs, taking the whole worker down at startup. The agent

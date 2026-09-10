@@ -62,8 +62,8 @@ export interface ActivityMessage extends AttachedDoc {
 }
 
 export type ActivityMessageLite<T extends ActivityMessage = ActivityMessage> = Omit<
-T,
-'isPinned' | 'repliedPersons' | 'lastReply' | 'reactions' | 'editedOn'
+  T,
+  'isPinned' | 'repliedPersons' | 'lastReply' | 'reactions' | 'editedOn'
 >
 
 export interface ForwardedAttachment extends BlobType {
@@ -177,12 +177,12 @@ export interface DocAttributeUpdates {
 export type DocUpdateAction = 'create' | 'update' | 'remove'
 
 export type DocUpdateMessageViewletAttributesConfig = Record<
-string,
-{
-  presenter?: AnyComponent
-  icon?: Asset
-  iconPresenter?: AnyComponent
-}
+  string,
+  {
+    presenter?: AnyComponent
+    icon?: Asset
+    iconPresenter?: AnyComponent
+  }
 >
 
 /**
@@ -288,7 +288,7 @@ export type WithReferences<T extends Doc> = T & {
 /**
  * @public
  */
-export interface IgnoreActivity extends Class<Doc> {}
+export type IgnoreActivity = Class<Doc>
 
 export type ActivityMessagePreviewType = 'full' | 'content-only'
 export type ActivityMessageViewType = 'default' | 'short'
@@ -401,7 +401,7 @@ export default plugin(activityId, {
   function: {
     ShouldScrollToActivity: '' as Resource<() => boolean>,
     ActivityMessageTooltipProvider: '' as Resource<
-    (client: Client, doc?: Doc | null) => Promise<LabelAndProps | undefined>
+      (client: Client, doc?: Doc | null) => Promise<LabelAndProps | undefined>
     >
   },
   backreference: {

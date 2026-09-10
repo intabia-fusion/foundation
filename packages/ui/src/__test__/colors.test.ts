@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 
+import { describe, it, expect } from 'vitest'
 import { getPlatformColorByName, getPlatformAvatarColorByName, avatarWhiteColors, avatarDarkColors } from '../colors'
 
 describe('colors module tests', () => {

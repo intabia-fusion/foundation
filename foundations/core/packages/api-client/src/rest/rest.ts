@@ -126,14 +126,12 @@ export class RestClientImpl implements RestClient {
     if (this.collaboratorEndpoint === undefined || this.collaboratorEndpoint === '') {
       throw new PlatformError(unknownError(new Error('Collaborator endpoint is not configured for this RestClient')))
     }
-    if (this.markupOps === undefined) {
-      this.markupOps = createMarkupOperations(
-        this.endpoint,
-        this.workspace as WorkspaceUuid,
-        this.token,
-        this.collaboratorEndpoint
-      )
-    }
+    this.markupOps ??= createMarkupOperations(
+      this.endpoint,
+      this.workspace as WorkspaceUuid,
+      this.token,
+      this.collaboratorEndpoint
+    )
     return this.markupOps
   }
 
@@ -202,9 +200,7 @@ export class RestClientImpl implements RestClient {
     // We need to revert deleted query simple values.
     // We need to get rid of simple query parameters matched in documents
     for (const doc of result) {
-      if (doc._class == null) {
-        doc._class = _class
-      }
+      doc._class ??= _class
       for (const [k, v] of Object.entries(query)) {
         if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
           if ((doc as any)[k] == null) {

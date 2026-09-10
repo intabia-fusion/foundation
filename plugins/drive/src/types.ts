@@ -23,7 +23,7 @@ export function TypeFileVersion (): Type<number> {
 }
 
 /** @public */
-export interface Drive extends TypedSpace {}
+export type Drive = TypedSpace
 
 /** @public */
 export interface Resource extends Doc<Drive> {

@@ -45,8 +45,13 @@ pnpm docker                       # Compile + bundle + docker build (local stand
 pnpm docker:build                 # Same, every package with a docker phase
 pnpm svelte-check                 # Compile + svelte-check
 pnpm build:watch                  # Watch + rebuild
-pnpm --filter PKG add DEP         # Add dependency to a package
+pnpm --filter PKG add DEP         # Add dependency to a package (from anywhere)
+pnpm -w run SCRIPT                # Run a root script from any directory in the tree
 ```
+
+`pnpm run` only sees the nearest `package.json`, so from inside a package use `pnpm -w run` to
+reach the root scripts (`pnpm -w run docker:up`). After adding a dependency by hand, run
+`pnpm check-versions` — nothing enforces a single version across packages on its own.
 
 The workspace is plain pnpm: projects are listed in `pnpm-workspace.yaml`, the lockfile is
 `pnpm-lock.yaml` at the root. Rush is gone; `rush`/`rushx` no longer exist.
@@ -74,6 +79,12 @@ pnpm run build
 ```
 
 Not every package defines `lint`. On "command not defined", use `pnpm run build` or `pnpm build:lint --to <pkg>`.
+
+Two TypeScript versions are in play: packages depend on 6.0.3, which eslint, ts-jest and a package's
+own `node_modules/.bin/tsc` use, while the build compiles with the `typescript7` alias
+(`npm:typescript@7.0.2`) through `compile`. The two are companion releases of the same checker (7 is
+the Go port), so `./node_modules/.bin/tsc --noEmit -p tsconfig.json` inside a package is a valid
+quick typecheck — `pnpm run build` remains the authoritative one.
 
 Do NOT:
 - Run `pnpm build` without `--to` for error checking (hits unrelated broken packages).

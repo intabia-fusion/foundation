@@ -121,9 +121,9 @@
   function getSort (sortKey: string | string[]) {
     return Array.isArray(sortKey)
       ? sortKey.reduce((acc: Record<string, SortingOrder>, val) => {
-        acc[val] = sortOrder
-        return acc
-      }, {})
+          acc[val] = sortOrder
+          return acc
+        }, {})
       : { ...(options?.sort ?? {}), [sortKey]: sortOrder }
   }
 

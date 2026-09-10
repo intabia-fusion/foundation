@@ -165,7 +165,7 @@ export class AggregationManager<T extends Doc> implements IAggregationManager<T>
         (res) => {
           const first = this.docs === undefined
           this.docs = res
-          this.mgr = new DocManager<T>(res as T[])
+          this.mgr = new DocManager<T>(res)
           this.setStore(this.mgr)
           if (!first) {
             this.lqCallback()
@@ -358,9 +358,7 @@ export function findAttributePresenter (
     attribute: attribute._id,
     category
   })[0]
-  if (overridedPresenter === undefined) {
-    overridedPresenter = model.findAllSync(view.class.AttrPresenter, { attribute: attribute._id, category })[0]
-  }
+  overridedPresenter ??= model.findAllSync(view.class.AttrPresenter, { attribute: attribute._id, category })[0]
   if (overridedPresenter !== undefined) {
     return overridedPresenter.component
   }
@@ -830,7 +828,7 @@ export async function canDeleteAsCreator (client: TxOperations, object: Doc): Pr
 }
 
 export function getMixinStyle (id: Ref<Class<Doc>>, selected: boolean, black: boolean): string {
-  const color = getPlatformColorForText(id as string, black)
+  const color = getPlatformColorForText(id, black)
   return `
     color: ${selected ? '#fff' : 'var(--caption-color)'};
     background: ${color + (selected ? 'ff' : '33')};
@@ -1254,9 +1252,9 @@ export function getCategorySpaces (categories: CategoryType[]): Array<Ref<Space>
     categories
       .filter((it) => typeof it === 'object')
       .reduce<Set<Ref<Space>>>((arr, val) => {
-      val.values.forEach((it) => arr.add(it.space))
-      return arr
-    }, new Set())
+        val.values.forEach((it) => arr.add(it.space))
+        return arr
+      }, new Set())
   )
 }
 
@@ -1531,7 +1529,7 @@ export function getAdditionalHeader (client: TxOperations, _class: Ref<Class<Doc
   try {
     const hierarchy = client.getHierarchy()
     const presenterMixin = hierarchy.classHierarchyMixin(_class, view.mixin.ListHeaderExtra)
-    return presenterMixin?.presenters?.filter((it) => hasResource(it))
+    return presenterMixin?.presenters?.filter((it) => hasResource(it) === true)
   } catch (e: any) {
     if (((e?.message as string) ?? '').includes('class not found')) {
       return undefined
@@ -1899,10 +1897,10 @@ export async function getDocAttrsInfo (
   allowedCollections: string[] = [],
   collectionArrays: string[] = []
 ): Promise<{
-    keys: KeyedAttribute[]
-    inplaceAttributes: string[]
-    editors: Array<{ key: KeyedAttribute, editor: AnyComponent, category: AttributeCategory }>
-  }> {
+  keys: KeyedAttribute[]
+  inplaceAttributes: string[]
+  editors: Array<{ key: KeyedAttribute, editor: AnyComponent, category: AttributeCategory }>
+}> {
   const client = getClient()
   const hierarchy = client.getHierarchy()
 

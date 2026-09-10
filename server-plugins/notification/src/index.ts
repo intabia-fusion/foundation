@@ -42,8 +42,8 @@ export interface Sender {
 }
 
 export type TypeMatchClient = Pick<
-TriggerControl,
-'hierarchy' | 'modelDb' | 'findAll' | 'txFactory' | 'ctx' | 'branding'
+  TriggerControl,
+  'hierarchy' | 'modelDb' | 'findAll' | 'txFactory' | 'ctx' | 'branding'
 >
 export type TypeMatchFunc = (
   client: TypeMatchClient,
@@ -114,6 +114,7 @@ export default plugin(serverNotificationId, {
     OnDocUpdate: '' as Resource<TriggerFunc>,
     OnDocCreated: '' as Resource<TriggerFunc>,
     OnDocSpaceChanged: '' as Resource<TriggerFunc>,
+    OnDocClassChanged: '' as Resource<TriggerFunc>,
     OnEmployeeDeactivate: '' as Resource<TriggerFunc>
   },
   function: {

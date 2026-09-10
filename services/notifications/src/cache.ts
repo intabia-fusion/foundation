@@ -174,8 +174,8 @@ class WorkspaceCache {
 
   private isSettingsLoaded = false
   private readonly notificationProviderSettingsMap = new Map<
-  Ref<NotificationProviderSetting>,
-  NotificationProviderSetting
+    Ref<NotificationProviderSetting>,
+    NotificationProviderSetting
   >()
 
   private readonly notificationTypeSettingsMap = new Map<Ref<NotificationTypeSetting>, NotificationTypeSetting>()
@@ -226,7 +226,7 @@ class WorkspaceCache {
     }
 
     if (tx._class === core.class.TxRemoveDoc) {
-      this.txRemoveDoc(tx as TxRemoveDoc<Doc>)
+      this.txRemoveDoc(tx)
     }
 
     if (service) {
@@ -307,7 +307,7 @@ class WorkspaceCache {
     } else {
       this.documentsCache.delete(_id)
     }
-    return doc as T | undefined
+    return doc
   }
 
   /**

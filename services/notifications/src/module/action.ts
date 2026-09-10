@@ -128,7 +128,7 @@ export async function handleReadNotificationAction (
       ...ops.$pull,
       unreadMessages: { id: { $in: unreadMessagesToRead.map((it) => it.id) } }
     }
-    decrease += unreadMessagesToRead.filter((it) => it.notified).length
+    decrease += unreadMessagesToRead.filter((it) => it.notified === true).length
   }
 
   if (decrease > 0) {

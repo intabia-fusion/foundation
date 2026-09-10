@@ -43,7 +43,7 @@ describe('handleStripeWebhook', () => {
     }
 
     res = {
-      status: statusMock as unknown as any
+      status: statusMock
     }
 
     publish = jest.fn().mockResolvedValue(undefined)

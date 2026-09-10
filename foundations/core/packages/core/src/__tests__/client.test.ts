@@ -133,8 +133,8 @@ describe('client', () => {
         }
 
         get onConnect ():
-        | ((event: ClientConnectEvent, lastTx: string | undefined, data: any) => Promise<void>)
-        | undefined {
+          | ((event: ClientConnectEvent, lastTx: string | undefined, data: any) => Promise<void>)
+          | undefined {
           return this.handler
         }
 
@@ -274,7 +274,7 @@ describe('client model transactions', () => {
         core.class.Class,
         core.space.Model,
         { kind: ClassifierKind.CLASS, extends: core.class.Doc, label: 'Attribute' as IntlString, domain: DOMAIN_MODEL },
-        core.class.Attribute as Ref<Class<Obj>>
+        core.class.Attribute
       ),
       factory.createTxCreateDoc(
         core.class.Attribute,
@@ -284,7 +284,7 @@ describe('client model transactions', () => {
           name: 'a',
           type: { _class: core.class.TypeString },
           label: 'l' as IntlString
-        } as unknown as Data<AnyAttribute>,
+        },
         attrId
       )
     ]
@@ -319,7 +319,7 @@ describe('client model transactions', () => {
           attributeOf: core.class.Space,
           name: 'r',
           type: { _class: core.class.TypeString }
-        } as unknown as Data<AnyAttribute>,
+        },
         runtimeId
       )
     )

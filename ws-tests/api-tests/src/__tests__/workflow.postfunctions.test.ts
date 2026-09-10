@@ -328,9 +328,7 @@ describe('workflow post-functions', () => {
           name: 'Start',
           from: ['Backlog'],
           to: 'Todo',
-          postFunctions: [
-            updateField('estimation', thisField('estimation', [{ func: func as any, props: { value: operand } }]))
-          ]
+          postFunctions: [updateField('estimation', thisField('estimation', [{ func, props: { value: operand } }]))]
         }
       ])
       const issue = await createIssue(ctx, { status: 'Backlog', estimation: start })
@@ -350,7 +348,7 @@ describe('workflow post-functions', () => {
           name: 'Start',
           from: ['Backlog'],
           to: 'Todo',
-          postFunctions: [updateField('estimation', constant(start, [{ func: func as any }]))]
+          postFunctions: [updateField('estimation', constant(start, [{ func }]))]
         }
       ])
       const issue = await createIssue(ctx, { status: 'Backlog' })
@@ -373,7 +371,7 @@ describe('workflow post-functions', () => {
           name: 'Start',
           from: ['Backlog'],
           to: 'Todo',
-          postFunctions: [updateField('title', constant(start, [{ func: func as any, props: props as any }]))]
+          postFunctions: [updateField('title', constant(start, [{ func, props: props as any }]))]
         }
       ])
       const issue = await createIssue(ctx, { status: 'Backlog' })
@@ -391,8 +389,8 @@ describe('workflow post-functions', () => {
             updateField(
               'estimation',
               thisField('estimation', [
-                { func: workflow.function.Add as any, props: { value: 10 } },
-                { func: workflow.function.Multiply as any, props: { value: 2 } }
+                { func: workflow.function.Add, props: { value: 10 } },
+                { func: workflow.function.Multiply, props: { value: 2 } }
               ])
             )
           ]
@@ -410,10 +408,7 @@ describe('workflow post-functions', () => {
           from: ['Backlog'],
           to: 'Todo',
           postFunctions: [
-            updateField(
-              'title',
-              thisField('title', [{ func: workflow.function.Append as any, props: { value: ' [done]' } }])
-            )
+            updateField('title', thisField('title', [{ func: workflow.function.Append, props: { value: ' [done]' } }]))
           ]
         }
       ])
@@ -429,10 +424,7 @@ describe('workflow post-functions', () => {
           from: ['Backlog'],
           to: 'Todo',
           postFunctions: [
-            updateField(
-              'estimation',
-              thisField('estimation', [{ func: workflow.function.Add as any, props: { value: 1 } }])
-            )
+            updateField('estimation', thisField('estimation', [{ func: workflow.function.Add, props: { value: 1 } }]))
           ]
         },
         {
@@ -440,10 +432,7 @@ describe('workflow post-functions', () => {
           from: ['Todo'],
           to: 'Backlog',
           postFunctions: [
-            updateField(
-              'estimation',
-              thisField('estimation', [{ func: workflow.function.Add as any, props: { value: 1 } }])
-            )
+            updateField('estimation', thisField('estimation', [{ func: workflow.function.Add, props: { value: 1 } }]))
           ]
         }
       ])

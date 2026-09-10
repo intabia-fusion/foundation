@@ -200,7 +200,7 @@ export class TDocNotificationSetting extends TPreference implements DocNotificat
   attachedToClass!: Ref<Class<Doc>>
   account!: AccountUuid
   @Prop(TypeString(), getEmbeddedLabel('mode'))
-    mode?: DocNotificationMode
+  mode?: DocNotificationMode
 }
 
 @Mixin(notification.mixin.NotificationObjectPresenter, core.class.Class)
@@ -224,72 +224,72 @@ export class TDocNotifyContext extends TDoc implements DocNotifyContext {
 
   @Prop(TypeAccountUuid(), core.string.Account)
   @Index(IndexKind.Indexed)
-    user!: AccountUuid
+  user!: AccountUuid
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
   @Index(IndexKind.Indexed)
-    objectId!: Ref<Doc>
+  objectId!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    objectClass!: Ref<Class<Doc>>
+  objectClass!: Ref<Class<Doc>>
 
   @Prop(TypeRef(core.class.Space), core.string.Space)
-    objectSpace!: Ref<Space>
+  objectSpace!: Ref<Space>
 
   @Prop(TypeString(), core.string.String)
-    objectIdentifier?: string
+  objectIdentifier?: string
 
   @Prop(TypeString(), core.string.String)
-    objectTitle!: string
+  objectTitle!: string
 
   @Prop(TypeIntlString(), core.string.String)
-    objectLabel?: IntlString
+  objectLabel?: IntlString
 
   @Prop(TypeRecord(), getEmbeddedLabel('icon'))
-    objectIcon?: Record<string, any>
+  objectIcon?: Record<string, any>
 
   @Prop(TypeRecord(), core.string.Object)
-    object?: Partial<Doc>
+  object?: Partial<Doc>
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
   @Index(IndexKind.Indexed)
-    parentObjectId?: Ref<Doc>
+  parentObjectId?: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    parentObjectClass?: Ref<Class<Doc>>
+  parentObjectClass?: Ref<Class<Doc>>
 
   @Prop(TypeString(), core.string.String)
-    parentObjectTitle?: string
+  parentObjectTitle?: string
 
   @Prop(TypeString(), core.string.String)
-    parentObjectIdentifier?: string
+  parentObjectIdentifier?: string
 
   @Prop(TypeIntlString(), core.string.String)
-    parentObjectLabel?: IntlString
+  parentObjectLabel?: IntlString
 
   @Prop(TypeRecord(), getEmbeddedLabel('icon'))
-    parentObjectIcon?: Record<string, any>
+  parentObjectIcon?: Record<string, any>
 
   @Prop(TypeDate(), core.string.Date)
-    lastNotify!: Timestamp
+  lastNotify!: Timestamp
 
   @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('latestNotifications'))
-    latestNotifications!: ContextNotification[]
+  latestNotifications!: ContextNotification[]
 
   @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('unreadReactions'))
-    unreadReactions!: UnreadReaction[] // store unread reaction notifications
+  unreadReactions!: UnreadReaction[] // store unread reaction notifications
 
   @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('unreadMentions'))
-    unreadMentions!: UnreadMention[] // store unread mention notifications
+  unreadMentions!: UnreadMention[] // store unread mention notifications
 
   @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('unreadCommons'))
-    unreadCommons!: CommonNotification[] // store unread common notifications
+  unreadCommons!: CommonNotification[] // store unread common notifications
 
   @Prop(TypeNumber(), core.string.Number)
-    unreadCount!: number
+  unreadCount!: number
 
   @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('unreadMessages'))
-    unreadMessages!: UnreadMessage[]
+  unreadMessages!: UnreadMessage[]
 }
 
 @Model(notification.class.ReadState, core.class.Doc, DOMAIN_READ_STATE)
@@ -304,25 +304,25 @@ export class TReadNotificationAction extends TDoc implements ReadNotificationAct
   declare space: Ref<PersonSpace>
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    attachedTo!: Ref<Doc>
+  attachedTo!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    attachedToClass!: Ref<Class<Doc>>
+  attachedToClass!: Ref<Class<Doc>>
 
   @Prop(TypeAccountUuid(), core.string.Account)
-    account!: AccountUuid
+  account!: AccountUuid
 
   @Prop(ArrOf(TypeRef(activity.class.Reaction)), getEmbeddedLabel('reactionIds'))
-    reactionIds?: Ref<Reaction>[]
+  reactionIds?: Ref<Reaction>[]
 
   @Prop(ArrOf(TypeRef(activity.class.ActivityMessage)), getEmbeddedLabel('messageIds'))
-    messageIds?: Ref<ActivityMessage>[]
+  messageIds?: Ref<ActivityMessage>[]
 
   @Prop(ArrOf(TypeString()), getEmbeddedLabel('commonIds'))
-    commonIds?: string[]
+  commonIds?: string[]
 
   @Prop(ArrOf(TypeString()), getEmbeddedLabel('mentionIds'))
-    mentionIds?: string[]
+  mentionIds?: string[]
 }
 
 @Model(notification.class.CreateNotificationAction, core.class.Doc, DOMAIN_TRANSIENT)
@@ -330,19 +330,19 @@ export class TCreateNotificationAction extends TDoc implements CreateNotificatio
   declare space: Ref<PersonSpace>
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-    attachedTo!: Ref<Doc>
+  attachedTo!: Ref<Doc>
 
   @Prop(TypeRef(core.class.Class), core.string.Class)
-    attachedToClass!: Ref<Class<Doc>>
+  attachedToClass!: Ref<Class<Doc>>
 
   @Prop(TypeAccountUuid(), core.string.Account)
-    account!: AccountUuid
+  account!: AccountUuid
 
   @Prop(TypeRef(notification.class.NotificationType), notification.string.Notification)
-    type?: Ref<NotificationType>
+  type?: Ref<NotificationType>
 
   @Prop(TypeRecord(), notification.string.Notification)
-    notification!: CommonNotificationLite
+  notification!: CommonNotificationLite
 
   intl?: Partial<NotificationIntl>
 }

@@ -69,9 +69,9 @@ export async function createServer (
   ctx: MeasureContext,
   config: Config
 ): Promise<{
-    app: Express
-    close: () => void
-  }> {
+  app: Express
+  close: () => void
+}> {
   const app = express()
   app.set('trust proxy', true)
   app.use(cors())

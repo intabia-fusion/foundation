@@ -67,9 +67,7 @@ export class NotificationClientImpl implements NotificationClient {
   }
 
   static getClient (): NotificationClientImpl {
-    if (NotificationClientImpl._instance === undefined) {
-      NotificationClientImpl._instance = new NotificationClientImpl()
-    }
+    NotificationClientImpl._instance ??= new NotificationClientImpl()
     return NotificationClientImpl._instance
   }
 

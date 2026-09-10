@@ -52,9 +52,9 @@
   }[] =
     editorDescriptor !== undefined
       ? editorDescriptor.sections.map(({ id, label }) => ({
-        id,
-        label
-      }))
+          id,
+          label
+        }))
       : []
 
   const sectionRefs: Record<string, HTMLElement | undefined> = {}

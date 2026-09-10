@@ -134,8 +134,7 @@
   }
   function pasteAction (evt: ClipboardEvent): void {
     const items = evt.clipboardData?.items ?? []
-    for (const index in items) {
-      const item = items[index]
+    for (const item of items) {
       if (item.kind === 'file') {
         const blob = item.getAsFile()
         if (blob !== null) {

@@ -2,7 +2,7 @@
 // Validate electron-builder update manifests after `rushx dist`.
 // Usage: node scripts/verify-manifests.js [deployDir] [channel] [--suffixes=-mac,-linux]
 const path = require('path')
-require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'commonjs' } })
+require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'commonjs', moduleResolution: 'node' } })
 const { verifyManifests } = require(path.join(__dirname, '..', 'src', 'verifyManifests.ts'))
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'))

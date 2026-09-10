@@ -87,7 +87,7 @@
   }
 
   async function assignTodo (user: Ref<Employee>): Promise<void> {
-    if (todo !== undefined && todo.user === user) return
+    if (todo?.user === user) return
     if (objectId === undefined || objectClass === undefined || objectSpace === undefined) return
 
     const title = node.textBetween(0, node.content.size, undefined, ' ')

@@ -14,7 +14,7 @@
 //
 
 import ErrorComponent from './ErrorComponent.svelte'
-export default class errorBoundary extends ErrorComponent {
+class ErrorBoundary extends ErrorComponent {
   constructor (config: any) {
     let error: any = null
     config.props.$$slots.default = config.props.$$slots.default.map((x: any) => (...args: any[]) => {
@@ -31,3 +31,7 @@ export default class errorBoundary extends ErrorComponent {
     }
   }
 }
+
+// TS 6 no longer keeps the svelte component shape across the subclass, so hand the base
+// component's constructor type back to callers.
+export default ErrorBoundary as unknown as typeof ErrorComponent

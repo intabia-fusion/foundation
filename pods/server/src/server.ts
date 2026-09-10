@@ -112,8 +112,8 @@ export function start (
   const limitsConsumer =
     opt.queue != null
       ? opt.queue.createBatchConsumer<QueueWorkspaceLimitsMessage>(
-        metrics.newChild('payment-limits-consumer', {}, { span: false }),
-        QueueTopic.Workspace,
+          metrics.newChild('payment-limits-consumer', {}, { span: false }),
+          QueueTopic.Workspace,
           `transactor-limits-${generateId()}`, // unique per-process group: every replica keeps its own map, must get all events
           async (ctx, msgs) => {
             for (const m of msgs) {
@@ -134,7 +134,7 @@ export function start (
             }
           },
           { batchSize: 100, batchTimeout: 500 }
-      )
+        )
       : undefined
 
   // Seed each workspace's context.lastTx on cold build so a restart with no data change

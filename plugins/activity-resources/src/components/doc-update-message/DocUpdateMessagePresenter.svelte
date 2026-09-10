@@ -98,7 +98,7 @@
   }
 
   $: void getParentMessage(value.attachedToClass, value.attachedTo, value.space).then((res) => {
-    parentMessage = res as ActivityMessage
+    parentMessage = res
   })
 
   let person: Person | undefined
@@ -114,13 +114,13 @@
   $: void loadParentObject(value, parentMessage, doc)
 
   async function loadObject (_id: Ref<Doc>, _class: Ref<Class<Doc>>, doc?: Doc): Promise<void> {
-    if (doc !== undefined && doc._id === _id) {
+    if (doc?._id === _id) {
       object = doc
       isObjectRemoved = false
       return
     }
 
-    isObjectRemoved = await checkIsObjectRemoved(client, _id, _class)
+    isObjectRemoved = await checkIsObjectRemoved(client, _id, client.getHierarchy().getParentClass(_class))
 
     if (isObjectRemoved) {
       object = await buildRemovedDoc(client, _id, _class)
@@ -144,12 +144,12 @@
     const _class = parentMessage !== undefined ? parentMessage.attachedToClass : message.attachedToClass
     const space = parentMessage !== undefined ? parentMessage.space : message.space
 
-    if (doc !== undefined && doc._id === _id) {
+    if (doc?._id === _id) {
       parentObject = doc
       return
     }
 
-    const isRemoved = await checkIsObjectRemoved(client, _id, _class)
+    const isRemoved = await checkIsObjectRemoved(client, _id, client.getHierarchy().getParentClass(_class))
 
     if (isRemoved) {
       parentObject = await buildRemovedDoc(client, _id, _class)

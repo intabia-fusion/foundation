@@ -119,9 +119,7 @@ export class Transformer {
           const key = this.getNestedValue(item, keyField)
           if (key === undefined) continue
 
-          if (result[key] === undefined) {
-            result[key] = []
-          }
+          result[key] ??= []
 
           if (valueField !== undefined) {
             const itemValue = this.getNestedValue(item, valueField)

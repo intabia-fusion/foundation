@@ -78,8 +78,8 @@
     const saved = localStorage.getItem(localStorageKey)
     const parsed = Number(saved)
 
-    if (Object.values(SearchType).includes(parsed as SearchType)) {
-      return parsed as SearchType
+    if (Object.values(SearchType).includes(parsed)) {
+      return parsed
     }
 
     return SearchType.Messages
@@ -104,7 +104,7 @@
       selected={searchType}
       items={tabs}
       on:select={(result) => {
-        if (result !== undefined && result.detail.id !== undefined) searchType = result.detail.id
+        if (result?.detail.id !== undefined) searchType = result.detail.id
       }}
     />
   </svelte:fragment>

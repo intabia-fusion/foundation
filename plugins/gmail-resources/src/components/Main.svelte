@@ -64,7 +64,7 @@
 
   $: if (message === undefined && messageId !== undefined) {
     messageQuery.query(gmail.class.Message, { _id: messageId }, (result) => {
-      gmailMessage = result[0] as Message
+      gmailMessage = result[0]
     })
   } else {
     gmailMessage = message

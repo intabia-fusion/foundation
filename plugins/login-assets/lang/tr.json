@@ -113,6 +113,9 @@
     "RegistrationCompleteHint": "Kendi çalışma alanınızı oluşturun veya mevcut bir alanın sahibinden erişim bağlantısı isteyin.",
     "CheckingLink": "Bağlantı kontrol ediliyor...",
     "InvalidLink": "Bu bağlantı artık geçerli değil",
-    "ConfirmationFailed": "Kayıt tamamlanamadı"
+    "ConfirmationFailed": "Kayıt tamamlanamadı",
+    "NoFreeSeats": "Boş koltuk yok",
+    "NoFreeSeatsDescription": "Bu çalışma alanı plan koltuk limitine ulaştı. Lütfen çalışma alanı yöneticisine başvurun.",
+    "NoFreeSeatsForInvite": "Planda boş koltuk kalmadı, yeni bir davet bağlantısı oluşturulamıyor."
   }
 }

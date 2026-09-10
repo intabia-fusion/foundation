@@ -61,6 +61,7 @@ jest.mock('../liveKitClient', () => {
 jest.mock('../stores', () => {
   const { writable } = require('svelte/store')
   return {
+    aiBotPerson: writable(undefined),
     infos: writable([]),
     rooms: writable([]),
     myConnectingSessionId: writable(null),
@@ -118,5 +119,20 @@ describe('createMeeting silent no-op (defect B)', () => {
     // Connect on an occupied room must surface an actionable outcome, not a silent no-op
     // the caller cannot tell apart from "already connected".
     expect(result).not.toBeUndefined()
+  })
+  // An agent (bot, egress recorder) left over from a finished meeting used to read as an occupant:
+  // Connect refused and knocked instead of starting a new meeting.
+  it('does not treat a leftover agent as an occupant', async () => {
+    const { createMeeting } = require('../meetings')
+    const { infos } = require('../stores')
+
+    const room = makeRoom()
+    infos.set([{ ...makeOccupyingParticipant(room._id), _id: 'pi-agent', kind: 'agent' }])
+
+    // Getting as far as the document creation (which this suite does not stub) is the proof that
+    // the occupancy check let us through.
+    const result = await createMeeting(room).catch(() => 'reached document creation')
+
+    expect(result).not.toEqual({ refused: 'room-occupied' })
   })
 })

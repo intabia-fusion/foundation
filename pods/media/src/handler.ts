@@ -97,7 +97,7 @@ export async function handleTranscodeResult (
 
   const client = await WorkspaceClient.create(workspaceUuid)
 
-  if (msg.source !== undefined && msg.source.source === BlobSourceType.Doc) {
+  if (msg.source?.source === BlobSourceType.Doc) {
     await client.updateBlobMetadata(ctx, msg, metadata)
   }
 }

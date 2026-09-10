@@ -166,9 +166,7 @@ export class IncomingSyncManager {
 
   // Resolves the owner's PersonSpace once per sync session and caches it.
   private async getPersonSpace (): Promise<Ref<PersonSpace> | undefined> {
-    if (this.personSpacePromise === undefined) {
-      this.personSpacePromise = this.resolvePersonSpace()
-    }
+    this.personSpacePromise ??= this.resolvePersonSpace()
     return await this.personSpacePromise
   }
 
@@ -326,10 +324,10 @@ export class IncomingSyncManager {
     if (event.id != null) {
       const _calendar = this.getEventCalendar(calendarId, event)
       if (_calendar !== undefined) {
-        const exists = (await this.client.findOne(calendar.class.Event, {
+        const exists = await this.client.findOne(calendar.class.Event, {
           eventId: event.id,
           calendar: _calendar._id
-        })) as Event | undefined
+        })
         if (exists === undefined) {
           await this.saveExtEvent(event, accessRole, _calendar)
         } else {
@@ -349,7 +347,7 @@ export class IncomingSyncManager {
       const diff = this.getDiff<ReccuringInstance>(
         {
           ...data,
-          recurringEventId: event.recurringEventId as Ref<ReccuringEvent>,
+          recurringEventId: event.recurringEventId,
           originalStartTime: parseEventDate(event.originalStartTime),
           isCancelled: event.status === 'cancelled'
         },

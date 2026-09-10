@@ -33,15 +33,15 @@ export interface PostFunctionError {
 
 export type PostFunctionResult = PostFunctionSuccess | PostFunctionError
 
-export interface WorkflowPostFunction extends WorkflowRule {}
+export type WorkflowPostFunction = WorkflowRule
 export type WorkflowPostFunctionConfig<TProps extends Record<string, any> = Record<string, any>> = WorkflowRuleConfig<
-WorkflowPostFunction,
-TProps
+  WorkflowPostFunction,
+  TProps
 >
 
-export interface UpdateFieldValueProps extends FieldListProps<UpdateFieldValueConfig> {}
+export type UpdateFieldValueProps = FieldListProps<UpdateFieldValueConfig>
 
-export interface ClearFieldValueProps extends FieldListProps {}
+export type ClearFieldValueProps = FieldListProps
 
 export type UpdateFieldValuePostFnConfig = WorkflowPostFunctionConfig<UpdateFieldValueProps>
 export type ClearFieldValuePostFnConfig = WorkflowPostFunctionConfig<ClearFieldValueProps>

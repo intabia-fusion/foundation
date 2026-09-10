@@ -43,7 +43,7 @@ import {
   workspaceEvents,
   type QueueWorkspaceLimitsMessage
 } from '@hcengineering/server-core'
-import { getDBClient, setDBExtraOptions } from '@hcengineering/postgres'
+import { getDBClient, getDBFlavor, setDBExtraOptions } from '@hcengineering/postgres'
 import { pbkdf2Sync, randomBytes } from 'crypto'
 import otpGenerator from 'otp-generator'
 
@@ -85,27 +85,9 @@ import {
   type WorkspaceStatus
 } from './types'
 import { isAdminEmail, isBillingAdminEmail } from './admin'
-import { type Sql } from 'postgres'
 
 export const GUEST_ACCOUNT = 'b6996120-416f-49cd-841e-e4a5d2e49c9b' as PersonUuid
 
-export async function getDbFlavor (pgClient: Sql<any>): Promise<DBFlavor> {
-  // Run the version query
-  const [{ version }] = await pgClient`SELECT version()`
-
-  // CockroachDB’s string contains “Cockroach” (case‑insensitive)
-  if (/cockroach/i.test(version)) {
-    return 'cockroach'
-  }
-
-  // Anything else that looks like a PostgreSQL version string
-  if (/postgresql/i.test(version)) {
-    return 'postgres'
-  }
-
-  // Fallback – could be a custom build or something unexpected
-  return 'unknown'
-}
 export async function getAccountDB (
   uri: string,
   dbNs?: string,
@@ -130,7 +112,7 @@ export async function getAccountDB (
 
     do {
       try {
-        flavor = await getDbFlavor(pgClient)
+        flavor = await getDBFlavor(pgClient, uri)
         error = false
       } catch (err: any) {
         error = true
@@ -257,9 +239,7 @@ export function resetRegionConfig (): void {
 }
 
 export function getRegionConfig (): RegionConfig {
-  if (_regionConfig === undefined) {
-    _regionConfig = loadRegionConfig()
-  }
+  _regionConfig ??= loadRegionConfig()
   return _regionConfig
 }
 
@@ -374,7 +354,7 @@ export function getAllTransactors (kind: EndpointKind): string[] {
 
 export function hashWithSalt (password: string, salt: Buffer): Buffer {
   // remove "as any" when types in node will be fixed
-  return pbkdf2Sync(password, salt as any, 1000, 32, 'sha256')
+  return pbkdf2Sync(password, salt, 1000, 32, 'sha256')
 }
 
 export function verifyPassword (password: string, hash?: Buffer | null, salt?: Buffer | null): boolean {
@@ -383,7 +363,7 @@ export function verifyPassword (password: string, hash?: Buffer | null, salt?: B
   }
 
   // remove "as any" when types in node will be fixed
-  return Buffer.compare(hash as any, hashWithSalt(password, salt) as any) === 0
+  return Buffer.compare(hash, hashWithSalt(password, salt)) === 0
 }
 
 // 0 or negative value means no limit
@@ -896,9 +876,7 @@ export async function selectWorkspace (
   try {
     const decodedToken = decodeTokenVerbose(ctx, token ?? '')
     accountUuid = decodedToken.account
-    if (workspace == null) {
-      workspace = await getWorkspaceById(db, decodedToken.workspace)
-    }
+    workspace ??= await getWorkspaceById(db, decodedToken.workspace)
     extra = decodedToken.extra
     grant = decodedToken.grant
     sub = decodedToken.sub
@@ -994,9 +972,7 @@ export async function selectWorkspace (
   }
 
   if (role === AccountRole.ReadOnlyGuest) {
-    if (extra == null) {
-      extra = {}
-    }
+    extra ??= {}
     extra.readonly = 'true'
   }
 
@@ -1073,15 +1049,15 @@ export async function updateAllowReadOnlyGuests (
     return undefined
   }
 
-  let guestPerson = await db.person.findOne({ uuid: readOnlyGuestAccountUuid as PersonUuid })
+  let guestPerson = await db.person.findOne({ uuid: readOnlyGuestAccountUuid })
   if (guestPerson == null) {
     await db.person.insertOne({
-      uuid: readOnlyGuestAccountUuid as PersonUuid,
+      uuid: readOnlyGuestAccountUuid,
       firstName: 'Anonymous',
       lastName: 'Guest'
     })
-    await createAccount(db, readOnlyGuestAccountUuid as PersonUuid, true)
-    guestPerson = await db.person.findOne({ uuid: readOnlyGuestAccountUuid as PersonUuid })
+    await createAccount(db, readOnlyGuestAccountUuid, true)
+    guestPerson = await db.person.findOne({ uuid: readOnlyGuestAccountUuid })
   }
   const roleInWorkspace = await db.getWorkspaceRole(readOnlyGuestAccountUuid, workspace)
   if (roleInWorkspace == null) {
@@ -1093,7 +1069,7 @@ export async function updateAllowReadOnlyGuests (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.InternalServerError, {}))
   }
   const guestSocialIds = await db.socialId.find({
-    personUuid: readOnlyGuestAccountUuid as PersonUuid,
+    personUuid: readOnlyGuestAccountUuid,
     verifiedOn: { $gt: 0 }
   })
 
@@ -1226,7 +1202,14 @@ export async function updateWorkspaceRole (
     }
   }
 
+  // Promoting a seatless member (e.g. Guest -> User) takes a seat, so it must respect the plan cap.
+  if (SEATLESS_ROLES.includes(currentRole)) {
+    await assertSeatAvailable(ctx, db, workspace, targetRole)
+  }
+
   await db.updateWorkspaceRole(targetAccount, workspace, targetRole)
+  // Guests are seatless, so a role change shifts the seat count - refresh the usage snapshot now.
+  await publishMembersChanged(ctx, workspace)
 }
 
 /**
@@ -1682,28 +1665,36 @@ function grantsPlan (sub: Pick<Subscription, 'status' | 'trialEnd'>): boolean {
 }
 
 /**
- * Best-effort join-time seat cap: reject a new member when the paid plan's usersLimit is already
- * filled. ponytail: best-effort — concurrent accepts can overshoot by 1-2 (no atomic count); the
- * transactor SeatLimitsMiddleware read-only enforcement is the real backstop for over-limit members.
+ * Free seats left on the paid plan, or `undefined` when the plan is unlimited / free-fallback
+ * (no cap at all). Counts ws_members only - pending invites are deliberately not reserved.
  */
-export async function assertSeatAvailableOnJoin (
-  ctx: MeasureContext,
-  db: AccountDB,
-  workspace: WorkspaceUuid,
-  joiningRole: AccountRole
-): Promise<void> {
-  if (SEATLESS_ROLES.includes(joiningRole)) return
+export async function getSeatsAvailable (db: AccountDB, workspace: WorkspaceUuid): Promise<number | undefined> {
   const tier = (await db.subscription.find({ workspaceUuid: workspace })).find(
     (s) => s.type === SubscriptionType.Tier && grantsPlan(s)
   )
   const usersLimit = tier?.limits?.usersLimit ?? 0
-  if (usersLimit === 0) return // unlimited or free-fallback: no join-time cap
+  if (usersLimit === 0) return undefined
   const members = await getSeatMembers(db, workspace)
   const seatsUsed = members.filter((m) => !SEATLESS_ROLES.includes(m.role)).length
-  if (seatsUsed >= usersLimit) {
-    ctx.info('join rejected: seat limit reached', { workspace, usersLimit, seatsUsed })
-    throw new PlatformError(new Status(Severity.ERROR, platform.status.PlanLimitExceeded, {}))
-  }
+  return Math.max(0, usersLimit - seatsUsed)
+}
+
+/**
+ * Seat cap for a role about to occupy a seat.
+ * The transactor SeatLimitsMiddleware read-only enforcement is the real backstop for over-limit members.
+ */
+export async function assertSeatAvailable (
+  ctx: MeasureContext,
+  db: AccountDB,
+  workspace: WorkspaceUuid,
+  role: AccountRole
+): Promise<void> {
+  if (SEATLESS_ROLES.includes(role)) return
+  const seatsLeft = await getSeatsAvailable(db, workspace)
+  if (seatsLeft === undefined || seatsLeft > 0) return
+
+  ctx.info('seat limit reached', { workspace, role })
+  throw new PlatformError(new Status(Severity.ERROR, platform.status.PlanLimitExceeded, {}))
 }
 
 /** Signal that workspace membership changed so seat-count consumers (transactor/billing) refresh now. */
@@ -1736,7 +1727,7 @@ export async function doJoinByInvite (
     // TODO: should we re-join kicked users? How are they marked as inactive?
     if (role == null) {
       // Join-time seat cap: reject before assign so an over-limit member never enters ws_members.
-      await assertSeatAvailableOnJoin(ctx, db, workspace.uuid, invite.role)
+      await assertSeatAvailable(ctx, db, workspace.uuid, invite.role)
       await db.assignWorkspace(account, workspace.uuid, invite.role)
       await publishMembersChanged(ctx, workspace.uuid)
     } else if (getRolePower(role) < getRolePower(invite.role)) {

@@ -159,7 +159,7 @@ export class WorkspaceManager {
 
         // If in ignore domains, skip
         const d = domain != null ? this.ignoreDomains.get(domain) : undefined
-        if (d != null && d.has(cud.objectClass)) {
+        if (d?.has(cud.objectClass) === true) {
           return
         }
 

@@ -59,18 +59,18 @@ describe('Triggers', () => {
       ctx,
       [
         classTx(core.class.Obj, undefined),
-        classTx(core.class.Doc as Ref<Class<Obj>>, core.class.Obj),
-        classTx(core.class.Class as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
-        classTx(core.class.Tx as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
-        classTx(core.class.TxCUD as Ref<Class<Obj>>, core.class.Tx as Ref<Class<Obj>>),
-        classTx(core.class.TxCreateDoc as Ref<Class<Obj>>, core.class.TxCUD as Ref<Class<Obj>>),
-        classTx(serverCore.class.Trigger as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
-        classTx(BASE as Ref<Class<Obj>>, core.class.Doc as Ref<Class<Obj>>),
-        classTx(DERIVED as Ref<Class<Obj>>, BASE as Ref<Class<Obj>>),
+        classTx(core.class.Doc, core.class.Obj),
+        classTx(core.class.Class, core.class.Doc),
+        classTx(core.class.Tx, core.class.Doc),
+        classTx(core.class.TxCUD, core.class.Tx),
+        classTx(core.class.TxCreateDoc, core.class.TxCUD),
+        classTx(serverCore.class.Trigger, core.class.Doc),
+        classTx(BASE, core.class.Doc),
+        classTx(DERIVED, BASE),
         factory.createTxCreateDoc(serverCore.class.Trigger, core.space.Model, {
           trigger: `${serverCoreId}:trigger:OnTrigger` as any,
           txMatch
-        } as any)
+        })
       ],
       true
     )
@@ -86,7 +86,7 @@ describe('Triggers', () => {
       workspace: { uuid: 'ws' },
       apply: async () => ({})
     } as unknown as Omit<TriggerControl, 'txFactory'>
-    const tx = factory.createTxCreateDoc(DERIVED, core.space.Model, {} as any)
+    const tx = factory.createTxCreateDoc(DERIVED, core.space.Model, {})
 
     // Expanding the query used to write $in back into the frozen trigger document.
     await triggers.apply(ctx, [tx], control, 'sync')

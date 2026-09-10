@@ -331,8 +331,8 @@ export interface NotificationIntl {
   titleIntl: IntlString
   bodyIntl: IntlString
   intlParams: { senderName?: string, title?: string, identifier?: string, url?: string } & Record<
-  string,
-  string | number
+    string,
+    string | number
   >
   intlParamsNotLocalized?: Record<string, IntlString>
 }
@@ -410,8 +410,8 @@ export interface NotificationClient {
 }
 
 export type CommonNotificationLite = Omit<
-CommonNotification,
-'id' | 'type' | 'createdOn' | 'createdBy' | 'intlParamsNotLocalized' | 'intlParams'
+  CommonNotification,
+  'id' | 'type' | 'createdOn' | 'createdBy' | 'intlParamsNotLocalized' | 'intlParams'
 >
 
 export interface ReadNotificationAction extends Doc<PersonSpace> {

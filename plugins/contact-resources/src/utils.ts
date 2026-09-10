@@ -741,7 +741,7 @@ export const permissionsStore = derived(
 
       const asMixin = hierarchy.as(s, mixin)
       const roles = client.getModel().findAllSync(core.class.Role, { attachedTo: type._id })
-      const myRoles = roles.filter((r) => ((asMixin as any)[r._id] ?? []).includes(getCurrentAccount().uuid))
+      const myRoles = roles.filter((r) => ((asMixin as any)[r._id] ?? []).includes(getCurrentAccount().uuid) === true)
       permissionsBySpace[s._id] = new Set(myRoles.flatMap((r) => r.permissions))
 
       employeesByPermission[s._id] = {}
@@ -754,9 +754,7 @@ export const permissionsStore = derived(
         }
 
         for (const permissionId of role.permissions) {
-          if (employeesByPermission[s._id][permissionId] === undefined) {
-            employeesByPermission[s._id][permissionId] = new Set()
-          }
+          employeesByPermission[s._id][permissionId] ??= new Set()
 
           assignment.forEach((acc) => {
             const personRef = personRefByAccount.get(acc)

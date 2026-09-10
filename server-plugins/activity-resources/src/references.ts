@@ -83,7 +83,7 @@ async function getCreateReferencesTxes (
       if (blobId != null && blobId !== '') {
         try {
           const buffer = await storage.read(ctx, control.workspace, blobId)
-          const markup = Buffer.concat(buffer as any).toString()
+          const markup = Buffer.concat(buffer).toString()
           const attrReferences = getReferencesData(srcDocId, srcDocClass, attachedDocId, attachedDocClass, markup)
           refs.push(...attrReferences)
         } catch {
@@ -129,7 +129,7 @@ async function getUpdateReferencesTxes (
         const blobId = (updatedDoc as any)[attr.name] as Ref<Blob>
         if (blobId != null) {
           const buffer = await storage.read(ctx, control.workspace, blobId)
-          const markup = Buffer.concat(buffer as any).toString()
+          const markup = Buffer.concat(buffer).toString()
           const attrReferences = getReferencesData(srcDocId, srcDocClass, attachedDocId, attachedDocClass, markup)
           references.push(...attrReferences)
         }

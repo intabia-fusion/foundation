@@ -42,7 +42,7 @@
       _value = r
     })
   } else {
-    _value = label as string | undefined
+    _value = label
   }
 </script>
 

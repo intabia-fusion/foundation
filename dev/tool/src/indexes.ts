@@ -59,7 +59,7 @@ async function filterPhysicalTables (client: postgres.Sql, domains: string[]): P
   const rows = await client<Array<{ name: string }>>`
     SELECT table_name::text AS name
     FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = ANY(${domains as unknown as string[]})
+    WHERE table_schema = 'public' AND table_name = ANY(${domains})
   `
   const existing = new Set<string>(rows.map((r) => r.name))
   return domains.filter((d) => existing.has(d))
@@ -119,7 +119,7 @@ export async function dumpIndexes (ctx: MeasureContext, dbUrl: string, txes: Tx[
     const rows = await client<Array<{ table: string, name: string, definition: string }>>`
       SELECT tablename::text AS table, indexname::text AS name, indexdef::text AS definition
       FROM pg_indexes
-      WHERE schemaname = 'public' AND tablename = ANY(${tables as unknown as string[]})
+      WHERE schemaname = 'public' AND tablename = ANY(${tables})
       ORDER BY tablename, indexname
     `
     const domains: Record<string, IndexRecord[]> = {}
@@ -184,7 +184,7 @@ export async function syncIndexes (
     const rows = await client<Array<{ name: string }>>`
       SELECT indexname::text AS name
       FROM pg_indexes
-      WHERE schemaname = 'public' AND tablename = ANY(${tables as unknown as string[]})
+      WHERE schemaname = 'public' AND tablename = ANY(${tables})
     `
     const norm = (s: string): string => s.toLowerCase().slice(0, 63)
     const existing = new Set<string>(rows.map((r) => norm(r.name)))

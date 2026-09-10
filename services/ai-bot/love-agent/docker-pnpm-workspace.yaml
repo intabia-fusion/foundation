@@ -1,0 +1,68 @@
+# Settings for the standalone install inside the docker image, where this package is its own root.
+# Copied in as pnpm-workspace.yaml by the Dockerfile — it must NOT sit here under that name, or pnpm
+# would treat love-agent as a separate workspace root and drop it from the repo's workspace.
+packages: []
+
+# Mirrors the repo root catalog for the deps this package pins as "catalog:" — the image
+# resolves on its own and cannot see the root workspace.
+catalog:
+  '@stylistic/eslint-plugin': ^3.1.0
+  '@types/jest': ^29.5.5
+  '@types/node': ^24.13.3
+  '@types/uuid': ^11.0.0
+  '@types/ws': ^8.5.12
+  '@typescript-eslint/eslint-plugin': ^8.70.0
+  '@typescript-eslint/parser': ^8.70.0
+  dotenv: ^16.6.1
+  esbuild: ^0.25.10
+  eslint: ^8.54.0
+  eslint-config-standard: ^17.1.0
+  eslint-plugin-import: ^2.26.0
+  eslint-plugin-n: ^15.4.0
+  eslint-plugin-promise: ^6.1.1
+  eslint-plugin-svelte: ^2.46.1
+  jest: ^29.7.0
+  jwt-simple: ^0.5.6
+  prettier: ^3.6.2
+  ts-jest: ^29.4.12
+  ts-node: ^10.9.2
+  typescript: ^6.0.3
+  uuid: ^11.1.1
+  ws: ^8.21.3
+
+allowBuilds:
+  '@ffmpeg-installer/darwin-arm64': true
+  '@ffmpeg-installer/darwin-x64': true
+  '@ffmpeg-installer/linux-arm': true
+  '@ffmpeg-installer/linux-arm64': true
+  '@ffmpeg-installer/linux-ia32': true
+  '@ffmpeg-installer/linux-x64': true
+  '@ffmpeg-installer/win32-ia32': true
+  '@ffmpeg-installer/win32-x64': true
+  '@livekit/local-inference': true
+  '@parcel/watcher': true
+  bufferutil: true
+  core-js: true
+  electron: true
+  es5-ext: true
+  esbuild: true
+  msgpackr-extract: true
+  pnpm: true
+  protobufjs: true
+  puppeteer: true
+  sharp: true
+  svelte-preprocess: true
+  utf-8-validate: true
+
+# Mirrors the repo root: the image resolves this lockfile on its own and cannot see the root's list.
+minimumReleaseAgeExclude:
+  - '@typescript-eslint/eslint-plugin@8.70.0'
+  - '@typescript-eslint/parser@8.70.0'
+  - '@typescript-eslint/project-service@8.70.0'
+  - '@typescript-eslint/scope-manager@8.70.0'
+  - '@typescript-eslint/tsconfig-utils@8.70.0'
+  - '@typescript-eslint/type-utils@8.70.0'
+  - '@typescript-eslint/types@8.70.0'
+  - '@typescript-eslint/typescript-estree@8.70.0'
+  - '@typescript-eslint/utils@8.70.0'
+  - '@typescript-eslint/visitor-keys@8.70.0'

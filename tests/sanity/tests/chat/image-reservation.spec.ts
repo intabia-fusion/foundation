@@ -17,7 +17,7 @@ import { expect, test } from '../fixtures'
 import path from 'path'
 
 import { ChunterPage } from '../model/chunter-page'
-import { createAccountAndWorkspace, generateTestData } from '../utils'
+import { generateTestData, loginByToken } from '../utils'
 
 test.describe('Chat image container space reservation tests', () => {
   // Ensure deterministic DPR = 1
@@ -25,13 +25,16 @@ test.describe('Chat image container space reservation tests', () => {
   let chunterPage: ChunterPage
   let data: { workspaceName: string, userName: string, firstName: string, lastName: string, channelName: string }
 
-  test.beforeEach(async ({ page, request }) => {
-    data = generateTestData()
+  test.beforeEach(async ({ page, sharedWorkspace }, testInfo) => {
+    const shared = await sharedWorkspace()
+    // The workspace is shared with the other tests of this worker, and faker's word list is short
+    // enough to repeat a channel name inside it.
+    data = { ...shared.data, channelName: `${generateTestData().channelName}${testInfo.testId}${testInfo.retry}` }
 
     chunterPage = new ChunterPage(page)
     // Straight into the workspace from the account token: the login form plus the workspace
     // picker are three page loads and cost about a second per test.
-    await createAccountAndWorkspace(page, request, data, 'chunter')
+    await loginByToken(page, shared.token, shared.ws, 'chunter')
   })
 
   const testImages = [

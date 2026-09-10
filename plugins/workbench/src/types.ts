@@ -57,7 +57,7 @@ export interface Application extends Doc {
   accessLevel?: AccountRole
   navFooterComponent?: AnyComponent
   showNotifyMarkerFn?: Resource<
-  (unreadCount: number, preference?: NotificationAppearancePreference) => Promise<boolean>
+    (unreadCount: number, preference?: NotificationAppearancePreference) => Promise<boolean>
   >
 }
 

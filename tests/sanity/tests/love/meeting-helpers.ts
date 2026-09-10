@@ -117,9 +117,9 @@ let cachedRoomClient: RoomServiceClient | undefined
  */
 export async function closeLiveKitRooms (): Promise<boolean> {
   try {
-    cachedRoomClient ??= new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
-    const rooms = await cachedRoomClient.listRooms()
-    await Promise.all(rooms.map((r) => cachedRoomClient?.deleteRoom(r.name).catch(() => undefined)))
+    const client = (cachedRoomClient ??= new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET))
+    const rooms = await client.listRooms()
+    await Promise.all(rooms.map(async (r) => await client.deleteRoom(r.name).catch(() => undefined)))
     return rooms.length > 0
   } catch {
     // Best-effort: LiveKit unreachable only means the poller closes them on its own schedule.
@@ -464,7 +464,14 @@ export async function joinRoom (page: Page, name: string, timeout = 45000): Prom
     if ((await page.locator('[data-id="meeting-knock"], [data-id="meeting-knock-pending"]').count()) > 0) {
       throw new Error(`room "${name}" is locked by someone else's meeting - Knock is shown, not Connect`)
     }
-    await expect(connect).toBeVisible({ timeout: 10000 })
+    // Neither Connect nor Knock: a stale occupant locks the room and there is nobody to knock at.
+    const appeared = await connect
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .then(() => true)
+      .catch(() => false)
+    if (!appeared) {
+      throw new Error(`room "${name}" panel shows neither Connect nor Knock - a stale occupant holds it`)
+    }
     await connect.click({ timeout: 10000 })
     await expect.poll(async () => await connectedMarker(page).count(), { timeout: 10000 }).toBeGreaterThan(0)
   }, timeout)

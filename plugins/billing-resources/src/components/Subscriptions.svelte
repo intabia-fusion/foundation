@@ -300,7 +300,7 @@
     const cancelSub = currentSubForCategory(category)
 
     // Disconnecting the currently connected package of this category.
-    if (cancelSub !== undefined && pkgKey === cancelSub.plan) {
+    if (pkgKey === cancelSub?.plan) {
       void handlePackageCancel(cancelSub, category)
       return
     }
@@ -880,16 +880,11 @@
     // renewal. While one exists the previous active subscription is still in effect and should
     // win; the "payment processing" UI is driven separately via checkForCheckoutParam().
     const candidates = subscriptions.filter(
-      (s) =>
-        s.type === type &&
-        DISPLAY_STATUS_PRIORITY.includes(s.status as SubscriptionStatus) &&
-        s.providerData?.pending !== true
+      (s) => s.type === type && DISPLAY_STATUS_PRIORITY.includes(s.status) && s.providerData?.pending !== true
     )
     if (candidates.length === 0) return undefined
     return candidates.reduce((best, s) => {
-      const byStatus =
-        DISPLAY_STATUS_PRIORITY.indexOf(s.status as SubscriptionStatus) -
-        DISPLAY_STATUS_PRIORITY.indexOf(best.status as SubscriptionStatus)
+      const byStatus = DISPLAY_STATUS_PRIORITY.indexOf(s.status) - DISPLAY_STATUS_PRIORITY.indexOf(best.status)
       if (byStatus !== 0) return byStatus < 0 ? s : best
       // Same status priority (e.g. several stale past_due records) -> prefer the most recently
       // modified one, which is the user's current subscription. Every tbank write path sets
@@ -925,7 +920,7 @@
       const allPackageSubs = subscriptions.filter(
         (s) =>
           s.type === SubscriptionType.Package &&
-          DISPLAY_STATUS_PRIORITY.includes(s.status as SubscriptionStatus) &&
+          DISPLAY_STATUS_PRIORITY.includes(s.status) &&
           s.providerData?.pending !== true
       )
       currentStoragePackageSub = allPackageSubs.find((s) => (packages[s.plan]?.category ?? 'storage') === 'storage')
@@ -1385,7 +1380,7 @@
               selected={paymentPeriod}
               kind={'subtle'}
               on:select={(e) => {
-                if (e !== undefined && e.detail.id !== undefined) paymentPeriod = e.detail.id
+                if (e?.detail.id !== undefined) paymentPeriod = e.detail.id
               }}
             />
           </div>

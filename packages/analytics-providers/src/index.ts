@@ -16,6 +16,6 @@
 
 export * from './analyticsCollector'
 export * from './utils'
-export * from './types'
+export type * from './types'
 export * from './configure'
 export * from './yandexMetrika'

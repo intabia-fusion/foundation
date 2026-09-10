@@ -894,7 +894,7 @@ async function preloadRefValues (
   const refLookups: Array<{ classRef: Ref<any>, ids: Set<Ref<any>> }> = []
 
   for (const { key, attr } of headers) {
-    if (attr?.type == null || attr.type._class !== core.class.RefTo) continue
+    if (attr?.type?._class !== core.class.RefTo) continue
 
     const toClass = (attr.type as RefTo<Doc>).to
     if (toClass == null) continue

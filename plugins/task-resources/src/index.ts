@@ -63,6 +63,7 @@ import StateRefPresenter from './components/state/StateRefPresenter.svelte'
 import TypeStatesPopup from './components/state/TypeStatesPopup.svelte'
 import ProjectTypeClassPresenter from './components/taskTypes/ProjectTypeClassPresenter.svelte'
 import TaskKindSelector from './components/taskTypes/TaskKindSelector.svelte'
+import TaskTypeIcon from './components/taskTypes/TaskTypeIcon.svelte'
 import TaskTypeClassPresenter from './components/taskTypes/TaskTypeClassPresenter.svelte'
 import TaskTypePresenter from './components/taskTypes/TaskTypePresenter.svelte'
 import TaskTypeListPresenter from './components/taskTypes/TaskTypeListPresenter.svelte'
@@ -78,7 +79,7 @@ import TaskTypeDiagramPopup from './components/taskTypes/TaskTypeDiagramPopup.sv
 export { default as AssigneePresenter } from './components/AssigneePresenter.svelte'
 export { default as TypeSelector } from './components/TypeSelector.svelte'
 export * from './utils'
-export { StatePresenter, StateRefPresenter, TaskKindSelector, TypeStatesPopup, TaskTypeDiagramPopup }
+export { StatePresenter, StateRefPresenter, TaskKindSelector, TaskTypeIcon, TypeStatesPopup, TaskTypeDiagramPopup }
 
 async function editStatuses (object: Project, ev: Event): Promise<void> {
   const loc = getCurrentLocation()
@@ -220,7 +221,7 @@ export async function getAllStates (
   const includedStatuses = new Set(joinedTaskTypes.flatMap((taskType) => taskType.statuses))
   const $statusStore = get(statusStore)
   const allStates = [...includedStatuses].map((p) => $statusStore.byId.get(p))
-  const states = allStates.filter((p) => p !== undefined && p.ofAttribute === attr._id)
+  const states = allStates.filter((p) => p?.ofAttribute === attr._id)
   if (filterDone) {
     return states
       .filter((p) => p?.category !== task.statusCategory.Lost && p?.category !== task.statusCategory.Won)
@@ -261,11 +262,11 @@ async function statusSort (
     const types = await client.findAll(task.class.ProjectType, {})
     for (const state of value) {
       if (res.has(state)) continue
-      const index = types.findIndex((p) => p.tasks.some((q) => taskTypes.get(q)?.statuses.includes(state)))
+      const index = types.findIndex((p) => p.tasks.some((q) => taskTypes.get(q)?.statuses.includes(state) ?? false))
       if (index === -1) continue
       const type = types.splice(index, 1)[0]
       const statuses =
-        type.tasks.map((it) => taskTypes.get(it)).find((it) => it?.statuses.includes(state))?.statuses ?? []
+        type.tasks.map((it) => taskTypes.get(it)).find((it) => it?.statuses.includes(state) ?? false)?.statuses ?? []
 
       // TODO: Check correctness
       for (let index = 0; index < statuses.length; index++) {

@@ -133,7 +133,7 @@ importers:
         specifier: 'catalog:'
         version: 8.70.0(eslint@8.57.1(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
       assemblyscript:
-        specifier: ^0.28.14
+        specifier: 0.28.20
         version: 0.28.20
       esbuild:
         specifier: 'catalog:'

@@ -40,7 +40,7 @@
     "@types/ws": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
-    "assemblyscript": "^0.28.14",
+    "assemblyscript": "0.28.20",
     "esbuild": "catalog:",
     "eslint": "catalog:",
     "eslint-config-standard": "catalog:",

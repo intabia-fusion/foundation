@@ -14,7 +14,7 @@
     "build:watch": "tsc",
     "_phase:package": "pnpm run package",
     "_phase:test": "jest --passWithNoTests --silent --forceExit --detectOpenHandles",
-    "package": "pnpm run bump && cross-env NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4094' node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details && echo 'done' ",
+    "package": "cross-env NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4094' node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details && echo 'done' ",
     "webpack": "cross-env NODE_ENV=development node ../common/scripts/set_model_and_version_env.js webpack --stats-error-details --progress -w",
     "devp": "cross-env NODE_ENV=production CLIENT_TYPE=dev node ../common/scripts/set_model_and_version_env.js webpack --progress -w",
     "dev": "cross-env NODE_ENV=development node ../common/scripts/set_model_and_version_env.js webpack --progress -w",
@@ -24,8 +24,7 @@
     "test": "jest --passWithNoTests --silent --forceExit --verbose --detectOpenHandles",
     "test:debug": "node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand --no-cache",
     "format": "format src",
-    "_phase:format": "format src",
-    "bump": "bump-package-version"
+    "_phase:format": "format src"
   },
   "devDependencies": {
     "@hcengineering/platform-rig": "workspace:^0.7.19",

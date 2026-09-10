@@ -1,5 +1,6 @@
 <!--
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,13 +15,14 @@
 -->
 <script lang="ts">
   import { ButtonBaseSize, IconSize, ModernButton, showPopup } from '@hcengineering/ui'
-  import { Employee } from '@hcengineering/contact'
+  import contact, { Employee, getCurrentEmployee } from '@hcengineering/contact'
   import love from '../../../plugin'
   import { SelectUsersPopup } from '@hcengineering/contact-resources'
+  import { getClient } from '@hcengineering/presentation'
   import { Ref } from '@hcengineering/core'
   import { createEventDispatcher } from 'svelte'
   import { sendInvites } from '../../../invites'
-  import { currentMeetingMinutes, infos } from '../../../stores'
+  import { aiBotPerson, currentMeetingMinutes, infos, workspaceMemberAccounts } from '../../../stores'
 
   export let employee: Employee | undefined = undefined
   export let kind: 'primary' | 'secondary' | 'tertiary' | 'negative' = 'secondary'
@@ -30,6 +32,17 @@
   export let withBackground: boolean = true
 
   const dispatch = createEventDispatcher()
+  const hierarchy = getClient().getHierarchy()
+
+  // Yourself, the AI assistant, deactivated employees and pending invites cannot be called.
+  $: mixin = employee !== undefined ? hierarchy.as(employee, contact.mixin.Employee) : undefined
+  $: hidden =
+    employee !== undefined &&
+    (employee._id === getCurrentEmployee() ||
+      employee._id === $aiBotPerson ||
+      mixin?.active !== true ||
+      mixin.personUuid == null ||
+      $workspaceMemberAccounts?.has(mixin.personUuid) === false)
 
   async function invite (): Promise<void> {
     if (employee !== undefined) {
@@ -61,17 +74,19 @@
   }
 </script>
 
-<div class:button-container={withBackground} data-id="invite-button">
-  <ModernButton
-    label={type === 'type-button-icon' ? undefined : love.string.Invite}
-    icon={love.icon.Invite}
-    {size}
-    {iconSize}
-    {type}
-    {kind}
-    on:click={invite}
-  />
-</div>
+{#if !hidden}
+  <div class:button-container={withBackground} data-id="invite-button">
+    <ModernButton
+      label={type === 'type-button-icon' ? undefined : love.string.Invite}
+      icon={love.icon.Invite}
+      {size}
+      {iconSize}
+      {type}
+      {kind}
+      on:click={invite}
+    />
+  </div>
+{/if}
 
 <style lang="scss">
   .button-container {

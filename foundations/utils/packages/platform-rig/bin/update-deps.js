@@ -14,7 +14,7 @@ const SCOPE = '@hcengineering/'
 /**
  * Workspace projects from pnpm-workspace.yaml.
  */
-function getRushProjects() {
+function listProjects() {
   return require('./libs/workspace').listWorkspaceProjects()
 }
 
@@ -236,9 +236,9 @@ After updating:
 
   const dryRun = args.includes('--dry-run') || args.includes('-n')
 
-  console.log('🚀 Rush @hcengineering Dependencies Updater\n')
+  console.log('🚀 @hcengineering Dependencies Updater\n')
 
-  const projects = getRushProjects()
+  const projects = listProjects()
   const workspaceRoot = getWorkspaceRoot(projects)
 
   console.log(`Workspace: ${workspaceRoot}`)

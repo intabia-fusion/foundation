@@ -1,5 +1,5 @@
-import { AccountUuid, Data, Ref, Timestamp, generateId } from '@hcengineering/core'
-import { Contact, Person } from '@hcengineering/contact'
+import { AccountUuid, Data, type PersonId, Ref, Timestamp, generateId } from '@hcengineering/core'
+import { Person } from '@hcengineering/contact'
 import calendar, {
   AccessLevel,
   BusySlot,
@@ -560,12 +560,14 @@ function mergeIntervals (
  * Tallies answers from every copy of an event. Only the server sees them all: a copy lives in its
  * owner's space, so one answer per participant is what the master gets told about.
  */
-export function collectRsvp (copies: Array<Pick<Event, 'access' | 'rsvp' | 'participants'>>): RsvpSummary {
-  const answers = new Map<Ref<Contact>, RsvpStatus>()
+export function collectRsvp (copies: Array<Pick<Event, 'access' | 'rsvp' | 'user'>>): RsvpSummary {
+  // Keyed by `user`, the one field a copy owns - `participants` is the master's list, the same
+  // in every copy, so keying on it collapsed all the answers into one.
+  const answers = new Map<PersonId, RsvpStatus>()
   for (const copy of copies) {
     // The master carries no answer of its own; counting it would invent one.
     if (copy.access === AccessLevel.Owner) continue
-    const who = copy.participants?.[0]
+    const who = copy.user
     if (who === undefined || copy.rsvp === undefined) continue
     answers.set(who, copy.rsvp)
   }

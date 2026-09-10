@@ -140,7 +140,8 @@ describe('meetingSettingsToMixin', () => {
   })
 
   it('pins a live session to its series instead of deleting it', async () => {
-    const data = scheduledSetup({ status: MeetingStatus.Active, meetingScheduledDate: 555 })
+    // `occurrence` is what the earlier meeting-minutes-to-space-v2 leaves behind.
+    const data = scheduledSetup({ status: MeetingStatus.Active, occurrence: 555 })
     await meetingSettingsToMixin(fakeClient(data))
 
     expect(data[DOMAIN_SPACE]).toHaveLength(1)
@@ -160,6 +161,24 @@ describe('meetingSettingsToMixin', () => {
     await meetingSettingsToMixin(fakeClient(data))
     expect(data[DOMAIN_SPACE]).toHaveLength(1)
     expect(data[DOMAIN_SPACE][0].eventId).toBeUndefined()
+  })
+
+  it('ignores a materialized occurrence - it is not the master', async () => {
+    // An override answers the master query too, and the next state strips its mixin.
+    const data = scheduledSetup()
+    // Appended: the map keeps the last row it sees for a meetingId.
+    data[DOMAIN_EVENT].push(
+      event('inst1', 'E1', {
+        _class: 'calendar:class:ReccuringInstance',
+        [MIXIN]: { room: 'room1', meetingId: 'm1' }
+      })
+    )
+    await meetingSettingsToMixin(fakeClient(data))
+
+    const instance = data[DOMAIN_EVENT].find((it) => it._id === 'inst1')
+    const master = data[DOMAIN_EVENT].find((it) => it._id === 'ev1')
+    expect((instance as any)[MIXIN].linkVersion).toBeUndefined()
+    expect((master as any)[MIXIN].linkVersion).toEqual(1)
   })
 
   it('ignores a copy carrying the mixin - only the master is written', async () => {

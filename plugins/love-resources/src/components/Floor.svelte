@@ -39,7 +39,8 @@
   const me = getCurrentAccount()
 
   let editable: boolean = false
-  $: editable = hasAccountRole(me, AccountRole.Maintainer)
+  // The service floor has no grid to configure - FloorPreview holds the same invariant.
+  $: editable = hasAccountRole(me, AccountRole.Maintainer) && !isServiceFloor(floor)
 
   let items = $floors.map((p) => {
     return { id: p._id, label: p.name }

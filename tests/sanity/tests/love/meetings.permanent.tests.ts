@@ -22,6 +22,7 @@ import love, {
 import { expect, test } from '@playwright/test'
 import { PlatformSetting } from '../utils'
 import {
+  dropStaleMeetings,
   getMeetingsUser,
   getMeetingsWorkspace,
   getPlatformToken,
@@ -29,6 +30,8 @@ import {
   getSystemToken,
   loveEndpoint
 } from './meeting-helpers'
+
+const PERMANENT_NAMES = ['Design corner', 'Secret corner', 'Open corner']
 
 async function createPermanentMeeting (name = 'Design corner'): Promise<{ _id: Ref<PermanentMeeting> }> {
   const { client, account } = await getMeetingsUser()
@@ -93,6 +96,11 @@ async function pointerFor (id: Ref<PermanentMeeting>): Promise<string> {
 export function registerPermanentMeetingTests (): void {
   test.describe('meeting minutes - permanent meetings', () => {
     test.use({ storageState: PlatformSetting })
+
+    // Nothing in meetings-ws is cleaned up between runs; only this spec's own names are dropped.
+    test.beforeAll(async () => {
+      await dropStaleMeetings({ permanentMeetingNames: PERMANENT_NAMES })
+    })
 
     test('a fresh permanent meeting has no session', async () => {
       const { _id } = await createPermanentMeeting()

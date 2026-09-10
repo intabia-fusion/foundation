@@ -499,15 +499,28 @@ export const main = async (): Promise<void> => {
       return
     }
     const kind = req.body.kind === 'meeting' ? 'meeting' : 'event'
+    const token = extractToken(req.headers)
     const workspaceId = getWorkspaceId(req)
-    if (workspaceId === undefined) {
+    if (token === undefined || workspaceId === undefined) {
       res.status(401).send()
       return
     }
 
     let resolved: ResolveSessionResult
     try {
+      const account = decodeToken(token).account
       const wsClient = await WorkspaceClient.create(workspaceId, ctx)
+      // Same gate as /meetingLink: opening a session materializes a MeetingMinutes, so without
+      // it any member could create one for an event they were never invited to.
+      const target = await wsClient.findMeetingTarget(eventId, kind)
+      if (target === undefined) {
+        res.status(404).send({ error: 'Meeting not found' })
+        return
+      }
+      if (account !== systemAccountUuid && !(await wsClient.isMeetingParticipant(target, account))) {
+        res.status(403).send({ error: 'Not a participant of this meeting' })
+        return
+      }
       resolved = await wsClient.resolveSession(eventId, Date.now(), true, kind)
     } catch (err: any) {
       // Without this the caller waits for a response that never comes.

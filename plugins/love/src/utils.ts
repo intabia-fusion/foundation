@@ -351,6 +351,31 @@ export function meetingOccurrences (master: Event, from: Timestamp, to: Timestam
   return Array.from(values).sort((a, b) => a - b)
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+const FREQ_MS: Record<string, number> = {
+  SECONDLY: 1000,
+  MINUTELY: 60 * 1000,
+  HOURLY: 60 * 60 * 1000,
+  DAILY: DAY_MS,
+  WEEKLY: 7 * DAY_MS,
+  MONTHLY: 31 * DAY_MS,
+  YEARLY: 366 * DAY_MS
+}
+
+/**
+ * How far ahead the next occurrence can be. A flat window would report a yearly series as over for
+ * most of the year, and `checkMeetingLink` would then start expiring a link that is still live -
+ * so the window follows the rule's own period, with room for a skipped occurrence.
+ */
+function lookaheadFor (master: Event): number {
+  let horizon = 90 * DAY_MS
+  for (const rule of (master as ReccuringEvent).rules ?? []) {
+    const period = (FREQ_MS[rule.freq] ?? DAY_MS) * (rule.interval ?? 1)
+    if (period * 2 > horizon) horizon = period * 2
+  }
+  return horizon
+}
+
 /**
  * Which occurrence a session may be opened for right now: `current` is the one whose join window
  * is open, `next` is what a caller outside the window is told to wait for.
@@ -358,7 +383,7 @@ export function meetingOccurrences (master: Event, from: Timestamp, to: Timestam
 export function resolveOccurrence (
   master: Event,
   now: number = Date.now(),
-  lookahead: number = 90 * 24 * 60 * 60 * 1000
+  lookahead: number = lookaheadFor(master)
 ): { current?: Timestamp, next?: Timestamp } {
   const starts = meetingOccurrences(master, now - SCHEDULED_MEETING_WINDOW_MS, now + lookahead)
   const current = starts.find((it) => now >= it - SCHEDULED_JOIN_LEAD_MS && now < it + SCHEDULED_MEETING_WINDOW_MS)

@@ -15,7 +15,9 @@
 import { expect, test, type Page } from '../fixtures'
 import { generateId, getSecondPage, PlatformSetting, PlatformURI } from '../utils'
 import { CalendarPage } from '../model/calendar-page'
+import { retry } from '../retry'
 import { SidebarPage } from '../model/sidebar-page'
+import { dropStaleCalendarEvents } from '../API/CalendarApi'
 
 test.use({
   storageState: PlatformSetting
@@ -32,6 +34,12 @@ async function openCalendarWidget (page: Page): Promise<CalendarPage> {
 }
 
 test.describe('Calendar RSVP', () => {
+  // The widget shows a single day and nothing cleans it up, so a few runs' worth of events
+  // fill every hour and there is no free cell left to click.
+  test.beforeAll(async () => {
+    await dropStaleCalendarEvents(['RSVP '])
+  })
+
   test('A participant answers in their own copy and the organiser sees the tally', async ({ page, browser }) => {
     const title = `RSVP ${generateId()}`
 
@@ -49,8 +57,11 @@ test.describe('Calendar RSVP', () => {
 
     await test.step('The organiser is not asked to answer their own invitation', async () => {
       await calendarPage.eventInCalendarWidget(title).first().click()
+      // `toHaveCount(0)` returns on the first zero it samples, so without waiting for the popup
+      // it passes because nothing rendered yet, not because the button is absent.
+      await expect(calendarPage.cardCloseButton()).toBeVisible({ timeout: 15000 })
       await expect(page.getByRole('button', { name: 'Going', exact: true })).toHaveCount(0)
-      await page.keyboard.press('Escape')
+      await calendarPage.closeEventPopup()
     })
 
     await test.step('The participant answers in their copy', async () => {
@@ -61,13 +72,24 @@ test.describe('Calendar RSVP', () => {
       const going = page2.getByRole('button', { name: 'Going', exact: true })
       await expect(going).toBeVisible({ timeout: 10000 })
       await going.click()
-      await page2.keyboard.press('Escape')
+      await calendarPage2.closeEventPopup()
     })
 
     await test.step('The organiser sees the answer, gathered by the server', async () => {
-      // Copies live in their owners' spaces, so this count can only come from the master's summary.
-      await calendarPage.eventInCalendarWidget(title).first().click()
-      await expect(page.getByText('1 going')).toBeVisible({ timeout: 15000 })
+      // The popup reads the master's summary when it opens and never refreshes - reopen it
+      // until the tally is there.
+      await retry(async () => {
+        await calendarPage.eventInCalendarWidget(title).first().click({ timeout: 5000 })
+        const landed = await page
+          .getByText('1 going')
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .then(() => true)
+          .catch(() => false)
+        if (!landed) {
+          await calendarPage.closeEventPopup()
+          throw new Error('organiser popup shows no "1 going" tally yet')
+        }
+      }, 60000)
     })
   })
 })

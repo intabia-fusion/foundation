@@ -41,7 +41,9 @@ function makeClient (opts: FakeOpts): { wc: WorkspaceClient, created: any[], app
     rows.filter((row) =>
       Object.entries(query).every(([key, cond]: [string, any]) => {
         const value = row[key]
-        if (cond !== null && typeof cond === 'object' && cond.$in !== undefined) return cond.$in.includes(value)
+        if (cond !== null && typeof cond === 'object' && cond.$in !== undefined) {
+          return (cond.$in as any[]).includes(value)
+        }
         return value === cond
       })
     )

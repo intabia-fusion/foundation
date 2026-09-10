@@ -75,7 +75,9 @@
       label={love.string.JoinMeeting}
       kind={'primary'}
       size={'small'}
-      on:click={() => joinPermanentMeeting(value._id)}
+      on:click={() => {
+        void joinPermanentMeeting(value._id)
+      }}
     />
   </div>
   {#if sessions.length > 0}

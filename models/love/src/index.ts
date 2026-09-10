@@ -225,7 +225,7 @@ export class TMeeting extends TEvent implements MeetingEventLink {
 
   // Looked up by the link resolver on every guest join.
   @Index(IndexKind.Indexed)
-    linkId?: string
+  linkId?: string
 
   linkVersion?: number
   meetingAccess?: MeetingAccess
@@ -322,13 +322,13 @@ export class TMeetingMinutes extends TSpace implements MeetingMinutes, Todoable 
 
   // The whole history of one series is fetched by eventId.
   @Index(IndexKind.Indexed)
-    eventId?: string
+  eventId?: string
 
   occurrence?: Timestamp
 
   // The whole history of one permanent meeting is fetched by this ref.
   @Index(IndexKind.Indexed)
-    meeting?: Ref<PermanentMeeting>
+  meeting?: Ref<PermanentMeeting>
 
   @Prop(ArrOf(TypeAccountUuid()), love.string.Organizators)
   declare owners: AccountUuid[]
@@ -353,7 +353,7 @@ export class TPermanentMeeting extends TSpace implements PermanentMeeting {
 
   @Prop(TypeCollaborativeDoc(), core.string.Description)
   @Index(IndexKind.FullText)
-    descriptionRef!: MarkupBlobRef | null
+  descriptionRef!: MarkupBlobRef | null
 
   // Numeric enum, like Room.type: no @Prop, nothing in the UI enumerates it.
   type!: RoomType.Video | RoomType.Audio
@@ -361,25 +361,25 @@ export class TPermanentMeeting extends TSpace implements PermanentMeeting {
   language!: RoomLanguage
 
   @Prop(TypeBoolean(), love.string.StartWithRecording)
-    startWithRecording?: boolean
+  startWithRecording?: boolean
 
   @Prop(TypeBoolean(), love.string.StartWithTranscription)
-    startWithTranscription?: boolean
+  startWithTranscription?: boolean
 
   @Hidden()
-    linkId?: string
+  linkId?: string
 
   @Hidden()
-    linkVersion?: number
+  linkVersion?: number
 
   @Hidden()
-    meetingAccess?: MeetingAccess
+  meetingAccess?: MeetingAccess
 
   @Prop(PropCollection(chunter.class.ChatMessage), activity.string.Messages)
-    messages?: number
+  messages?: number
 
   @Prop(Collection(attachment.class.Attachment), attachment.string.Attachments, { shortLabel: attachment.string.Files })
-    attachments?: number
+  attachments?: number
 }
 
 @Mixin(love.mixin.MeetingSchedule, calendar.class.Schedule)

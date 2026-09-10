@@ -19,6 +19,21 @@ function series (extra: Record<string, unknown> = {}): ReccuringEvent {
   return res as unknown as ReccuringEvent
 }
 
+describe('resolveOccurrence lookahead', () => {
+  it('still finds the next occurrence of a yearly series', () => {
+    // A flat 90-day window reported no `next`, and checkMeetingLink then expired a live link.
+    const yearly = series({ rules: [{ freq: 'YEARLY', interval: 1 }] })
+    const { current, next } = resolveOccurrence(yearly, start + 2 * day)
+    expect(current).toBeUndefined()
+    expect(next).toBeGreaterThan(start + 300 * day)
+  })
+
+  it('still finds the next occurrence of a half-yearly series', () => {
+    const halfYearly = series({ rules: [{ freq: 'MONTHLY', interval: 6 }] })
+    expect(resolveOccurrence(halfYearly, start + 2 * day).next).toBeGreaterThan(start + 100 * day)
+  })
+})
+
 describe('meetingOccurrences', () => {
   it('returns the single start of a plain event inside the window', () => {
     expect(meetingOccurrences(plain(), start - day, start + day)).toEqual([start])

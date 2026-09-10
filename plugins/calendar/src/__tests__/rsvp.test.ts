@@ -1,14 +1,18 @@
-import { type Ref } from '@hcengineering/core'
+import { type PersonId, type Ref } from '@hcengineering/core'
 import { type Contact } from '@hcengineering/contact'
 import { AccessLevel } from '..'
 import { collectRsvp, rsvpPending } from '../utils'
 
-const alice = 'alice' as Ref<Contact>
-const bob = 'bob' as Ref<Contact>
-const carol = 'carol' as Ref<Contact>
+const alice = 'alice' as PersonId
+const bob = 'bob' as PersonId
+const carol = 'carol' as PersonId
 
-function copy (who: Ref<Contact>, rsvp?: string): any {
-  return { access: AccessLevel.Reader, participants: [who], rsvp }
+// Shaped like a real copy (`{ ...master, calendar, access, user }`): `participants` is the
+// master's list, identical everywhere, and only `user` tells two copies apart.
+const participants = ['alice-person', 'bob-person', 'carol-person'] as Array<Ref<Contact>>
+
+function copy (who: PersonId, rsvp?: string): any {
+  return { access: AccessLevel.Reader, participants, user: who, rsvp }
 }
 
 describe('collectRsvp', () => {
@@ -27,7 +31,7 @@ describe('collectRsvp', () => {
 
   it('ignores the master row', () => {
     // The organiser's own document is not an answer, and counting it would invent one.
-    const master = { access: AccessLevel.Owner, participants: [alice], rsvp: 'accepted' } as any
+    const master = { access: AccessLevel.Owner, participants, user: alice, rsvp: 'accepted' } as any
     expect(collectRsvp([master])).toEqual({ accepted: 0, declined: 0, tentative: 0 })
   })
 

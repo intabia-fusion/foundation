@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-import calendar, { AccessLevel, Event } from '@hcengineering/calendar'
+import calendar, { AccessLevel, Event, type ReccuringInstance } from '@hcengineering/calendar'
 import contact, { Employee, formatName, Person, PersonSpace } from '@hcengineering/contact'
 import core, {
   AccountUuid,
@@ -22,6 +22,7 @@ import core, {
   concatLink,
   Data,
   Doc,
+  DocumentQuery,
   DocumentUpdate,
   generateId,
   readOnlyGuestAccountUuid,
@@ -761,42 +762,38 @@ export async function OnEventUpdate (txes: Tx[], control: TriggerControl): Promi
     if (!hasMeetingMixin) continue
 
     // The session is found by the series, not by a reference on the event: the mixin no longer
-    // holds one, and a series has a different session per occurrence.
-    const meeting = await control.findAll(
-      control.ctx,
-      love.class.MeetingMinutes,
-      { eventId: event.eventId, status: { $in: LIVE_MEETING_STATUSES } },
-      { limit: 1 }
-    )
-    if (meeting.length === 0) continue
-    const meetingDoc = meeting[0]
+    // holds one, and a series has a different session per occurrence. An override edits its own
+    // (pinned by `originalStartTime`); a master edits every live session, and two can overlap.
+    const query: DocumentQuery<MeetingMinutes> = {
+      eventId: event.eventId,
+      status: { $in: LIVE_MEETING_STATUSES }
+    }
+    if (control.hierarchy.isDerived(event._class, calendar.class.ReccuringInstance)) {
+      query.occurrence = (event as ReccuringInstance).originalStartTime
+    }
+    const meetings = await control.findAll(control.ctx, love.class.MeetingMinutes, query)
+    if (meetings.length === 0) continue
 
     const updateTx = tx as TxUpdateDoc<Event>
     const ops = updateTx.operations
-    const meetingUpdate: DocumentUpdate<MeetingMinutes> = {}
+    if (ops.participants === undefined) continue
 
-    // Update members if Event participants changed
-    if (ops.participants !== undefined) {
-      const newMembers: AccountUuid[] = []
-
-      for (const participantRef of ops.participants) {
-        const person = (
-          await control.findAll(control.ctx, contact.class.Person, { _id: participantRef }, { limit: 1 })
-        )[0]
-        if (person?.personUuid !== undefined && !meetingDoc.members.includes(person.personUuid as AccountUuid)) {
-          newMembers.push(person.personUuid as AccountUuid)
-        }
-      }
-
-      if (newMembers.length > 0) {
-        meetingUpdate.$push = { members: { $each: newMembers, $position: 0 } }
-      }
+    // Resolved once, not per session: the participants of the event are the same for all of them.
+    const added: AccountUuid[] = []
+    for (const participantRef of ops.participants) {
+      const person = (
+        await control.findAll(control.ctx, contact.class.Person, { _id: participantRef }, { limit: 1 })
+      )[0]
+      if (person?.personUuid !== undefined) added.push(person.personUuid as AccountUuid)
     }
 
-    // Apply update if there are changes
-    if (Object.keys(meetingUpdate).length > 0) {
+    for (const meetingDoc of meetings) {
+      const newMembers = added.filter((it) => !meetingDoc.members.includes(it))
+      if (newMembers.length === 0) continue
       result.push(
-        control.txFactory.createTxUpdateDoc(love.class.MeetingMinutes, meetingDoc.space, meetingDoc._id, meetingUpdate)
+        control.txFactory.createTxUpdateDoc(love.class.MeetingMinutes, meetingDoc.space, meetingDoc._id, {
+          $push: { members: { $each: newMembers, $position: 0 } }
+        })
       )
     }
   }

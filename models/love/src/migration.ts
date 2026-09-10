@@ -203,7 +203,10 @@ async function masterEventsByMeeting (client: MigrationClient): Promise<Map<Ref<
   const res = new Map<Ref<MeetingMinutes>, Event>()
   const iterator = await client.traverse<Event>(DOMAIN_EVENT, {
     [MEETING_MIXIN]: { $exists: true },
-    access: AccessLevel.Owner
+    access: AccessLevel.Owner,
+    // A materialized override carries `access: Owner` and the series' `eventId`, so it answers
+    // this query too - and `stripMixinFromNonMasters` then wipes what was written to it.
+    _class: { $ne: calendar.class.ReccuringInstance }
   })
   try {
     while (true) {
@@ -264,7 +267,8 @@ export async function meetingSettingsToMixin (client: MigrationClient): Promise<
       await client.update(
         DOMAIN_SPACE,
         { _id: session._id },
-        { eventId: event.eventId, occurrence: (session as any).meetingScheduledDate ?? event.date }
+        // Set by meeting-minutes-to-space-v2; a session without one belongs to the series start.
+        { eventId: event.eventId, occurrence: session.occurrence ?? event.date }
       )
     }
   }
@@ -514,6 +518,8 @@ export const loveOperation: MigrateOperation = {
                   transcriptionState: m.transcriptionState,
                   recordingState: m.recordingState,
                   meetingEnd: m.meetingEnd,
+                  // Old meetingScheduledDate; meeting-settings-to-mixin reads it after this state.
+                  occurrence: m.meetingScheduledDate,
                   transcription: m.transcription,
                   messages: m.messages,
                   attachments: m.attachments,

@@ -18,8 +18,16 @@ import { generateId, type Ref, type Space } from '@hcengineering/core'
 import love, { defaultMeetingAccess, type MeetingMinutes, RoomType } from '@hcengineering/love'
 import { expect, test } from '@playwright/test'
 import { PlatformSetting } from '../utils'
-import { getMeetingsUser, getPlatformToken, getSystemRestClient, getSystemToken, loveEndpoint } from './meeting-helpers'
+import {
+  dropStaleMeetings,
+  getMeetingsUser,
+  getPlatformToken,
+  getSystemRestClient,
+  getSystemToken,
+  loveEndpoint
+} from './meeting-helpers'
 
+const SERIES_TITLE = 'Recurring sanity '
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
 
@@ -33,12 +41,15 @@ async function createSeries (opts: { startsIn: number, weekly: boolean }): Promi
   const date = Date.now() + opts.startsIn
   const _id = generateId<Event>()
 
-  // After F0 an event lives in its owner's PersonSpace; workspaces restored from older backups
-  // still keep calendars in the system space, so follow the calendar rather than assume.
-  const cal = await client.findOne(calendar.class.Calendar, {})
   // A link is only issued to a participant, so the author has to be one.
   const me = await client.findOne(contact.class.Person, { personUuid: account as any })
-  const personSpace = await client.findOne(contact.class.PersonSpace, {})
+  // Filtered: meetings-ws holds three accounts, and an unfiltered findOne picks any of them.
+  const personSpace = await client.findOne(contact.class.PersonSpace, { account })
+  // Older backups keep calendars in the system space, so prefer this account's own and fall back.
+  const cal =
+    (personSpace !== undefined
+      ? await client.findOne(calendar.class.Calendar, { space: personSpace._id })
+      : undefined) ?? (await client.findOne(calendar.class.Calendar, {}))
   const space = (personSpace?._id ?? cal?.space) as unknown as Ref<Space>
 
   // Event is an AttachedDoc - createDoc is refused for those.
@@ -53,7 +64,7 @@ async function createSeries (opts: { startsIn: number, weekly: boolean }): Promi
       date,
       dueDate: date + HOUR,
       allDay: false,
-      title: `Recurring sanity ${eventId.slice(0, 6)}`,
+      title: `${SERIES_TITLE}${eventId.slice(0, 6)}`,
       description: '',
       participants: me !== undefined ? [me._id] : [],
       reminders: [],
@@ -94,6 +105,11 @@ async function resolveSession (eventId: string): Promise<{ status: number, body:
 export function registerRecurringTests (): void {
   test.describe('meeting minutes - recurring meetings', () => {
     test.use({ storageState: PlatformSetting })
+
+    // Nothing in meetings-ws is cleaned up between runs; only this spec's own titles are dropped.
+    test.beforeAll(async () => {
+      await dropStaleMeetings({ eventTitlePrefixes: [SERIES_TITLE] })
+    })
 
     test('scheduling a series creates no session until an occurrence comes', async () => {
       const { eventId } = await createSeries({ startsIn: 3 * DAY, weekly: true })

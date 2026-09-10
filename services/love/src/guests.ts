@@ -1,4 +1,5 @@
 import {
+  type AccountUuid,
   MeasureContext,
   readOnlyGuestAccountUuid,
   Ref,
@@ -109,6 +110,13 @@ export class GuestManager {
         res.status(401).send()
         return
       }
+      // Handing out a link is an invitation, as in /meetingLink: without this any member could
+      // mint a guest link to a meeting they were never part of.
+      const account = decodeToken(token as string).account
+      if (account !== systemAccountUuid && !(await this.mayInviteTo(workspaceId, meetingId, account))) {
+        res.status(403).send({ error: 'Not a participant of this meeting' })
+        return
+      }
       res.status(200).send({
         token: await this.createGuestToken(meetingId, wsLoginInfo)
       })
@@ -116,6 +124,22 @@ export class GuestManager {
       console.error(e)
       res.status(500).send()
     }
+  }
+
+  /** Whether `account` is on the meeting itself, or on the series the meeting belongs to. */
+  private async mayInviteTo (
+    workspace: WorkspaceUuid,
+    meetingId: Ref<MeetingMinutes>,
+    account: AccountUuid
+  ): Promise<boolean> {
+    const wsClient = await WorkspaceClient.create(workspace, this.ctx)
+    const meeting = await wsClient.findMeetingById(meetingId)
+    if (meeting === undefined) return false
+    if (meeting.members.includes(account)) return true
+    if (meeting.eventId === undefined) return false
+    const target = await wsClient.findMeetingTarget(meeting.eventId)
+    if (target === undefined) return false
+    return await wsClient.isMeetingParticipant(target, account)
   }
 
   async createGuestToken (meetingId: Ref<MeetingMinutes>, wsLoginInfo: WorkspaceLoginInfo): Promise<string> {
@@ -163,7 +187,7 @@ export class GuestManager {
     // which must never resolve the session (or anything else) before the password is checked.
     | { workspace: WorkspaceUuid, workspaceUrl: string | null, guestPasswordRequired: true }
     | { status: number, error: string }
-    > {
+  > {
     const pointer = parseMeetingLinkPayload(raw)
     if (pointer !== undefined) {
       const workspace = pointer.workspace as WorkspaceUuid
@@ -218,12 +242,48 @@ export class GuestManager {
     if (typeof workspace !== 'string') return { status: 400, error: 'Invalid token payload' }
 
     const wsClient = await WorkspaceClient.create(workspace, this.ctx)
+    const workspaceUrl = decoded.extra?.workspaceUrl ?? null
+
+    // A legacy token resolves onto the whole series, so the series' policy has to hold here too.
+    // It carries no linkVersion, so a revoke (which bumps it) rejects it as stale.
+    const legacyEventId = await this.legacyEventId(wsClient, decoded)
+    if (legacyEventId !== undefined) {
+      const target = await wsClient.findMeetingTarget(legacyEventId)
+      if (target === undefined) return { status: 404, error: 'Meeting not found' }
+
+      const rejection = checkMeetingLink(target.link ?? {}, {}, { ...target, permanent: target.kind === 'meeting' })
+      if (rejection !== undefined) {
+        return {
+          status: 403,
+          error: rejection === 'revoked' ? 'Link has been revoked.' : 'Link has expired.'
+        }
+      }
+
+      const guestPassword = target.link?.meetingAccess?.guestPassword
+      if (guestPassword !== undefined) {
+        if (!create) return { workspace, workspaceUrl, guestPasswordRequired: true }
+        if (password === undefined || !verifyGuestPassword(password, guestPassword)) {
+          return { status: 401, error: 'Wrong password' }
+        }
+      }
+    }
+
     return {
       workspace,
-      workspaceUrl: decoded.extra?.workspaceUrl ?? null,
+      workspaceUrl,
       wsClient,
-      session: await this.resolveGuestSession(wsClient, decoded, create)
+      session: await this.resolveGuestSession(wsClient, decoded, create),
+      eventId: legacyEventId
     }
+  }
+
+  /** The series a legacy token ends up on - what its policy has to be read from. */
+  private async legacyEventId (wsClient: WorkspaceClient, decoded: Token): Promise<string | undefined> {
+    const eventId = decoded.extra?.eventId
+    if (typeof eventId === 'string' && eventId !== '') return eventId
+    const meetingId: Ref<MeetingMinutes> = decoded.extra?.meetingId
+    if (typeof meetingId !== 'string') return undefined
+    return (await wsClient.findMeetingById(meetingId))?.eventId
   }
 
   /**
@@ -370,10 +430,12 @@ export class GuestManager {
     // Rate-limit key is the link itself (not the raw token, which carries a linkVersion that
     // changes on revoke) + the caller's IP. Behind a proxy every guest shares one socket address,
     // so the counter is effectively per link - stricter, and not spoofable the way X-Forwarded-For
-    // would be. A legacy JWT link never carries a password to guess.
+    // would be. A legacy token has no pointer to key on and is keyed by itself - it carries no
+    // version, so it is stable.
     const pointer = parseMeetingLinkPayload(guestToken)
-    const attemptsKey = pointer !== undefined ? `${pointer.workspace}:${pointer.eventId}:${req.ip}` : undefined
-    if (attemptsKey !== undefined && this.isRateLimited(attemptsKey)) {
+    const attemptsKey =
+      pointer !== undefined ? `${pointer.workspace}:${pointer.eventId}:${req.ip}` : `legacy:${guestToken}:${req.ip}`
+    if (this.isRateLimited(attemptsKey)) {
       res.status(429).send({ error: 'Too many attempts' })
       return
     }
@@ -383,7 +445,7 @@ export class GuestManager {
       // permanent room, `members` keeps the guest waiting for a participant to start it.
       const link = await this.resolveGuestLink(guestToken, true, password)
       if ('status' in link) {
-        if (link.status === 401 && attemptsKey !== undefined) {
+        if (link.status === 401) {
           this.recordFailedAttempt(attemptsKey)
         }
         res.status(link.status).send({ error: link.error })
@@ -394,7 +456,7 @@ export class GuestManager {
         res.status(401).send({ error: 'Wrong password' })
         return
       }
-      if (attemptsKey !== undefined) this.resetAttempts(attemptsKey)
+      this.resetAttempts(attemptsKey)
       const { workspace, wsClient } = link
       const resolved = link.session
       if (!('meeting' in resolved)) {

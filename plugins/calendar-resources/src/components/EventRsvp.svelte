@@ -13,27 +13,44 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { AccessLevel, type Event, type RsvpStatus, rsvpPending } from '@hcengineering/calendar'
+  import {
+    AccessLevel,
+    type Event,
+    type ReccuringInstance,
+    type RsvpStatus,
+    rsvpPending
+  } from '@hcengineering/calendar'
+  import { getCurrentEmployee } from '@hcengineering/contact'
+  import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
   import { Button, Label } from '@hcengineering/ui'
   import calendar from '../plugin'
+  import { updateReccuringInstance } from '../utils'
 
   export let object: Event
 
   const client = getClient()
+  const me = getCurrentEmployee()
 
   // The organiser holds the master; everyone else holds their own copy and answers in it.
   $: isOrganiser = object.access === AccessLevel.Owner
   $: summary = object.rsvpSummary
-  $: pending = rsvpPending(object.participants.length, summary)
+  // The organiser is a participant but never answers - counting them leaves one pending forever.
+  $: invited = object.participants.filter((it) => it !== me).length
+  $: pending = rsvpPending(invited, summary)
 
   async function answer (rsvp: RsvpStatus): Promise<void> {
-    await client.update(object, { rsvp })
+    // A virtual occurrence has a generated `_id` - a plain update would go nowhere.
+    if (object._class === calendar.class.ReccuringInstance) {
+      await updateReccuringInstance({ rsvp }, object as ReccuringInstance)
+    } else {
+      await client.update(object, { rsvp })
+    }
   }
 </script>
 
 {#if isOrganiser}
-  {#if object.participants.length > 0}
+  {#if invited > 0}
     <div class="flex-row-center flex-gap-2 rsvp-summary">
       {#if (summary?.accepted ?? 0) > 0}
         <span>{summary?.accepted} <Label label={calendar.string.RsvpAccepted} /></span>
@@ -56,19 +73,25 @@
       label={calendar.string.Going}
       kind={object.rsvp === 'accepted' ? 'primary' : 'regular'}
       size={'small'}
-      on:click={() => answer('accepted')}
+      on:click={() => {
+        void answer('accepted').catch((err) => setPlatformStatus(unknownError(err)))
+      }}
     />
     <Button
       label={calendar.string.Maybe}
       kind={object.rsvp === 'tentative' ? 'primary' : 'regular'}
       size={'small'}
-      on:click={() => answer('tentative')}
+      on:click={() => {
+        void answer('tentative').catch((err) => setPlatformStatus(unknownError(err)))
+      }}
     />
     <Button
       label={calendar.string.NotGoing}
       kind={object.rsvp === 'declined' ? 'dangerous' : 'regular'}
       size={'small'}
-      on:click={() => answer('declined')}
+      on:click={() => {
+        void answer('declined').catch((err) => setPlatformStatus(unknownError(err)))
+      }}
     />
   </div>
 {/if}

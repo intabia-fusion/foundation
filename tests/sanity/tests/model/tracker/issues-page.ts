@@ -609,6 +609,10 @@ export class IssuesPage extends CommonTrackerPage {
     return id?.trim() ?? ''
   }
 
+  async getIssueIds (issueLabel: string): Promise<string[]> {
+    return (await this.issueIdLocator(issueLabel).allTextContents()).map((id) => id.trim())
+  }
+
   async openIssueById (issueId: string): Promise<void> {
     await this.issueAnchorById(issueId).click()
   }

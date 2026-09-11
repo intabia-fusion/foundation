@@ -27,6 +27,6 @@ test.describe('duplicate-org-test', () => {
     await leadsPage.clickPersonButton()
     await leadsPage.clickCompanyButton()
     await leadsPage.inputCompanyName(genId)
-    await leadsPage.checkContactExistsMessage()
+    await leadsPage.checkContactExistsMessage(genId)
   })
 })

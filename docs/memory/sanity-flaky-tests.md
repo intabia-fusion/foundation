@@ -304,3 +304,72 @@ an HTML body. nginx logged no 5xx on `/_account` that second, so what served the
 `<method> answered <status> with <first 120 chars>`. `selectWorkspace` and the `getWorkspaceInfo`
 poll are retried (both are reads, 15s / 60s bounded), so one bad answer costs a poll instead of the
 test; the poll also has a deadline now instead of `while (true)`.
+
+## workspace-settings.spec "User is able to create Enum" (2026-09-10)
+
+Report showed `strict mode violation: getByRole('button', { name: 'Save' }) resolved to 2 elements`,
+the extra one being an enum option row `getByRole('button', { name: 'instinct autosave' })`. Not a
+load race: `enumName` comes from `faker.word.words(2)`, and any generated word containing the
+substring `save` (autosave, saved) collides with the non-exact accessible-name match. The option rows
+are rendered as `<button class="hulyTableAttr-content__row">` by
+`plugins/setting-resources/src/components/EnumValuesList.svelte`, inside the same dialog as the Save
+button, so the collision is unavoidable while the match is a substring one.
+
+Fix: `saveButton()` in `tests/model/workspace/owner-pages.ts` now uses `{ name: 'Save', exact: true }`.
+Verified by forcing `enumName` to start with `autosave`: fails deterministically without `exact`,
+passes 5/5 with it. Whole spec file still green (4 passed, 3 skipped, 10.5s), and
+`saveUploadedLogo()`'s `nth(0)`/`nth(1)` pair still resolves - the workspace picture test passes.
+
+General rule: `getByRole('button', { name })` matches by substring, so any locator whose name is a
+short English word is one faker word away from a strict-mode violation. Prefer `exact: true` for
+fixed UI labels.
+
+## Round of 2026-09-10/11
+
+Six flakes came out of a 10-run series, then one out of the next five. What the artefacts showed
+and what changed:
+
+- **`integrations.spec` `IntegrationAlreadyExists`.** Social ids were built from
+  `faker.word.words(1)`; faker's word list is finite, so a repeat is a matter of time and the
+  integration for that social id then already exists. Now `generateId()`. Same shape as the `Save`
+  collision above - a faker word is not an identifier.
+- **`issues-duplicate` `Expected: not "TSK-27"`.** The test read `getIssueId(title, 0)` twice for
+  two issues sharing a title and assumed the newer one sorts first. When it does not, both reads
+  return the same id. Now it takes the id that differs from the first one (`getIssueIds`).
+- **`ai-bot-scenarios` `btnAiLevel-low` not found.** `getAILevels()`
+  (`plugins/ai-bot-resources/src/requests.ts:122`) runs once in `onMount` and turns any failed
+  request into an empty list, so the cards never appear however long the wait - waiting 30s was
+  pointless. Now 10s, then a reload and 20s.
+- **`contact.duplicate` "Contact already exists...".** `CreateCustomer.svelte:164` looks duplicates
+  up in a reactive block that never cancels the previous request, so the empty-name answer can
+  overtake the typed-name one and leave `matches` empty for good. Nothing re-runs it, so the test
+  retypes the name inside `toPass`. The product race is untouched - that is a front rebuild.
+- **`kanban` "drop was not delivered ... landed on null"** while the last dragover was on the
+  wanted cell: `__dropSeen` was read immediately after `mouse.up()` and beat the event. Now polled
+  up to 3s.
+- **`kanban` "legacy drop on self"** lost its dragstart (`toHaveClass(/dragged/)` timed out).
+  Svelte re-renders the card when another spec writes to the same project, and `move()` then bails
+  out on an unset `dragCard`. `grabCard()` retries the grab three times, releasing and pressing
+  Escape between attempts.
+- **`issues.spec` "Add comment by popup"** lost its popup mid-upload - it is anchored to the issue
+  row and any live update to the list takes it away, leaving a 45s wait staring at nothing. The
+  whole open/fill/attach cycle now sits in `toPass`. **The first version of this fix caused a new
+  flake**: a reopened popup restores its draft including the attachment, so re-attaching posted
+  `cat2.jpeg` twice. Attach only when no attachment is shown.
+- **`documents-content` "Checking styles in a Document"**: the second page had the document title
+  but not yet its body - the collaborator replays 21 lines of edits after the document opens, and
+  a missing `<a>` read as a missing link. Waits for the image (the last edit made) first.
+
+Not fixed: **`kanban` "drop into same cell does not update document"** - `after.modifiedOn` came
+back 109ms *lower* than `before.modifiedOn`, which an update after `before` cannot produce. One
+transactor on the stand, host/container clock skew measured at 0-15ms, so neither explains it. And
+**"drag child between parent lanes"** failed twice in a row with `attachedTo` unchanged after 30s
+of drop retries - the drag mechanics worked, the app did not apply the move.
+
+Also seen, not a flake: `Move to project` spent 27s inside one `Click ... span.toggle-switch`
+waiting for actionability in 2 runs of 5 - something covered the toggle right after the project
+popup closed.
+
+**Wall time drifts up across a series** (346 -> 402s over 10 runs, 341 -> 366s over 5). The growth
+is spread across every file rather than sitting in one test, which is accumulated workspace data,
+not a regression from any fix. `dotest.sh` still runs no `restore-pg.sh`.

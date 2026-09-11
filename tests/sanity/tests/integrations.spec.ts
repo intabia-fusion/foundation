@@ -1,9 +1,8 @@
 import { expect, test } from './fixtures'
-import { faker } from '@faker-js/faker'
 import { Integration, IntegrationSecret } from '@hcengineering/account'
 import { buildSocialIdString, IntegrationKind, SocialIdType } from '@hcengineering/core'
 
-import { PlatformUser } from './utils'
+import { generateId, PlatformUser } from './utils'
 import { getServiceAccountClient } from './API/AccountClient'
 
 test.describe('integrations in accounts tests', () => {
@@ -17,19 +16,9 @@ test.describe('integrations in accounts tests', () => {
       throw new Error('Failed to find person for PlatformUser: ' + PlatformUser)
     }
 
-    const personId1 = await accountClient.addSocialIdToPerson(personUuid, SocialIdType.EMAIL, faker.word.words(1), true)
-    const personId2 = await accountClient.addSocialIdToPerson(
-      personUuid,
-      SocialIdType.GITHUB,
-      faker.word.words(1),
-      true
-    )
-    const personId3 = await accountClient.addSocialIdToPerson(
-      personUuid,
-      SocialIdType.GOOGLE,
-      faker.word.words(1),
-      true
-    )
+    const personId1 = await accountClient.addSocialIdToPerson(personUuid, SocialIdType.EMAIL, generateId(), true)
+    const personId2 = await accountClient.addSocialIdToPerson(personUuid, SocialIdType.GITHUB, generateId(), true)
+    const personId3 = await accountClient.addSocialIdToPerson(personUuid, SocialIdType.GOOGLE, generateId(), true)
     const workspaces = await accountClient.listWorkspaces()
     if (workspaces.length === 0) {
       throw new Error('No workspaces found')

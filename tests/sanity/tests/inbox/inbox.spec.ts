@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker'
-import { test } from '../fixtures'
+import { expect, test } from '../fixtures'
 import { ApiEndpoint } from '../API/Api'
 import { ChannelPage } from '../model/channel-page'
 import { SignUpData } from '../model/common-types'
@@ -231,12 +231,15 @@ test.describe('Inbox tests', () => {
       await userProfilePageSecond.clickOnNotificationsButton()
       await notificationPageSecond.clickMenuItem(MenuItems.CHAT)
       await notificationPageSecond.toggleChatMessage()
-      // Joining the workspace adds the user to `general` and `random`, and those notifications land
-      // after the clearAll above. Clear again here so only the message below can fill the inbox.
-      await leftSideMenuPageSecond.clickNotification()
-      await inboxPageSecond.clearAll()
       await leftSideMenuPage.clickChunter()
       await channelPage.clickChannel('general')
+      // Joining the workspace adds the user to `general` and `random`, but the server does it long
+      // after the join itself, and the notifications it generates then land after the clear below
+      // and look exactly like one the message would cause. The system message announcing the new
+      // member is the point where they exist, so clear only once it is on screen.
+      await expect(channelPage.textMessage(`${newUser2.lastName} ${newUser2.firstName}`)).toBeVisible()
+      await leftSideMenuPageSecond.clickNotification()
+      await inboxPageSecond.clearAll()
       await channelPage.sendMessage('Test message')
       await channelPage.checkMessageExist('Test message', true, 'Test message')
       await leftSideMenuPageSecond.clickNotification()

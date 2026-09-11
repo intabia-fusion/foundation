@@ -290,12 +290,20 @@ test.describe('ai-bot scenarios', () => {
   })
 
   test('AI level cards switch the workspace level', async ({ page }) => {
-    await (await page.goto(`${PlatformURI}/workbench/${data.workspaceName}/setting/ai-settings/basic`))?.finished()
+    const settingsUrl = `${PlatformURI}/workbench/${data.workspaceName}/setting/ai-settings/basic`
+    await (await page.goto(settingsUrl))?.finished()
 
     // Levels come from the router (GET /levels), so the cards appear only once it has answered.
     const low = page.locator('[data-id="btnAiLevel-low"]')
     const middle = page.locator('[data-id="btnAiLevel-middle"]')
-    await expect(low).toBeVisible({ timeout: 30000 })
+    try {
+      await expect(low).toBeVisible({ timeout: 10000 })
+    } catch {
+      // `getAILevels()` runs once in onMount and turns a failed request into an empty list, so the
+      // cards never arrive on their own however long the wait is - ask again.
+      await (await page.goto(settingsUrl))?.finished()
+      await expect(low).toBeVisible({ timeout: 20000 })
+    }
     await expect(low).toHaveClass(/pressed/, { timeout: 15000 })
 
     await middle.click()

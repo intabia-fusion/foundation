@@ -140,6 +140,31 @@ export class KanbanBoardPage extends CommonTrackerPage {
   }
 
   /**
+   * Grabs the card and leaves the button held down. Chromium raises dragstart on the first move
+   * after mouse.down(), and Svelte re-renders the card whenever another spec writes to the same
+   * project - the grab is then silently lost and `move()` bails out on an unset `dragCard`, which
+   * turns the whole drop into a no-op. Release and grab again instead; Escape closes the issue
+   * panel that the release opens as a click.
+   */
+  private async grabCard (source: Locator): Promise<void> {
+    for (let attempt = 0; ; attempt++) {
+      await source.hover()
+      const box = await source.boundingBox()
+      await this.page.mouse.down()
+      if (box === null) return
+      await this.page.mouse.move(box.x + box.width / 2 + 8, box.y + box.height / 2 + 8)
+      try {
+        await expect(source).toHaveClass(/dragged/, { timeout: 2000 })
+        return
+      } catch (err) {
+        await this.page.mouse.up()
+        await this.page.keyboard.press('Escape')
+        if (attempt === 2) throw err
+      }
+    }
+  }
+
+  /**
    * dragTo() moves to the target in one hop, and a single dragover is often not enough for the
    * board to register the drop target - the drag then ends with no status change and no error.
    * Walk the pointer across in steps and jiggle on the target so dragover fires repeatedly.
@@ -149,17 +174,9 @@ export class KanbanBoardPage extends CommonTrackerPage {
     // modifying issues, and then evaluate/boundingBox below block until the whole test times out,
     // leaving the caller's retry loop no turn at all.
     await target.waitFor({ state: 'attached', timeout: 5000 })
-    await source.hover()
-    const sourceBox = await source.boundingBox()
     let released = false
-    await this.page.mouse.down()
+    await this.grabCard(source)
     try {
-      // Start the drag before anything else moves: `move()` bails out when `dragCard` is unset, so
-      // a lost dragstart makes the drop a silent no-op.
-      if (sourceBox !== null) {
-        await this.page.mouse.move(sourceBox.x + sourceBox.width / 2 + 8, sourceBox.y + sourceBox.height / 2 + 8)
-        await expect(source).toHaveClass(/dragged/, { timeout: 3000 })
-      }
       // The board scrolls horizontally and does not fit five columns, so bring the target into view
       // only after the card is grabbed: hovering the source scrolls it back and a box measured
       // before that points outside the viewport. Scroll through the DOM - scrollIntoViewIfNeeded
@@ -261,6 +278,12 @@ export class KanbanBoardPage extends CommonTrackerPage {
       }
       await this.page.mouse.up()
       released = true
+      // The browser delivers the drop a tick after the release, so reading straight away reports
+      // "landed on null" for a drop that did arrive.
+      await expect
+        .poll(async () => await this.page.evaluate(() => (window as any).__dropSeen), { timeout: 3000 })
+        .toBe(wanted)
+        .catch(() => {})
       const after = await this.page.evaluate(() => {
         const w = window as any
         document.removeEventListener('dragover', w.__dragOverHandler, true)

@@ -21,7 +21,7 @@ export class OwnersPage {
   addEnum = (): Locator => this.page.locator('.buttons-group > button:nth-child(2)')
   enterEnumTitle = (): Locator => this.page.getByPlaceholder('Enum title')
   enterEnumName = (): Locator => this.page.getByPlaceholder('Enter option title')
-  saveButton = (): Locator => this.page.getByRole('button', { name: 'Save' })
+  saveButton = (): Locator => this.page.getByRole('button', { name: 'Save', exact: true })
   createdEnum = (name: string): Locator => this.page.getByRole('button', { name: `${name} 1 option` })
   enum = (name: string): Locator => this.page.getByRole('button', { name })
   linkValidFor = (): Locator => this.page.getByRole('spinbutton')

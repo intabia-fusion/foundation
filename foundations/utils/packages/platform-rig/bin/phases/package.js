@@ -5,6 +5,7 @@ const { spawn } = require('child_process')
 const { performance } = require('perf_hooks')
 const { join } = require('path')
 const fs = require('fs')
+const PNPM_CMD = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
 const {
   isPhaseCached,
@@ -43,9 +44,10 @@ async function runPackagePhase(graph, packageNames, concurrency, options = {}) {
 
     return new Promise((resolve) => {
       const startTime = performance.now()
-      const child = spawn('pnpm', ['run', 'package'], {
+      const child = spawn(PNPM_CMD, ['run', 'package'], {
         cwd,
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: true
       })
 
       let stdout = ''

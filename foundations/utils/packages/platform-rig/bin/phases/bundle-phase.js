@@ -9,6 +9,7 @@ const { spawn } = require('child_process')
 const { performance } = require('perf_hooks')
 const { join, resolve } = require('path')
 const fs = require('fs')
+const PNPM_CMD = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
 const {
   isPhaseCached,
@@ -384,9 +385,10 @@ async function runBundleScript(cwd, bundleScript) {
     }
 
     const startTime = performance.now()
-    const child = spawn('pnpm', args, {
+    const child = spawn(PNPM_CMD, args, {
       cwd,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true
     })
 
     let stdout = ''

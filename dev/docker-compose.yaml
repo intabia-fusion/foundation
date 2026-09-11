@@ -481,6 +481,8 @@ services:
     image: "intabiafusion/love:${DOCKER_TAG:-latest}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports:
+      - "8096:8096"
     environment:
       - PORT=8096
       - SECRET=secret

@@ -32,6 +32,7 @@ import {
 import { type Person } from '@hcengineering/contact'
 import {
   loveId,
+  MeetingMinutes,
   MeetingStatus,
   parseRoomName,
   ParticipantMetadata,
@@ -627,6 +628,50 @@ export const main = async (): Promise<void> => {
     egressClient
   )
   pollingService.start()
+
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  app.post('/finishMeeting', async (req, res) => {
+    const workspace = getWorkspaceId(req)
+    if (workspace === undefined) {
+      res.status(401).send()
+      return
+    }
+
+    const meetingId = req.body?.meetingId
+    if (typeof meetingId !== 'string' || meetingId === '') {
+      res.status(400).send()
+      return
+    }
+
+    try {
+      const wsClient = await WorkspaceClient.create(workspace, ctx)
+      const meeting = await wsClient.findMeetingById(meetingId as Ref<MeetingMinutes>)
+
+      if (meeting === undefined || meeting.meetingEnd != null) {
+        res.status(200).send()
+        return
+      }
+
+      const roomName = getRoomName(workspace, meetingId as Ref<MeetingMinutes>)
+      const participants = await roomClient.listParticipants(roomName)
+      const humans = participants.filter((p) => p.permission?.agent !== true && p.kind !== 4)
+      if (humans.length > 0) {
+        res.status(200).send()
+        return
+      }
+
+      await wsClient.finishMeeting(meetingId as Ref<MeetingMinutes>, Date.now())
+      pollingService.wakeUp()
+      res.status(200).send()
+    } catch (err: any) {
+      ctx.error('[finishMeeting] failed', {
+        workspace,
+        meetingId,
+        error: err?.message ?? String(err)
+      })
+      res.status(500).send()
+    }
+  })
 
   const workspaceConsumer = queue.createConsumer<QueueWorkspaceMessage>(
     ctx,

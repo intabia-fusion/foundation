@@ -5,6 +5,7 @@ const { spawn } = require('child_process')
 const { performance } = require('perf_hooks')
 const { join } = require('path')
 const fs = require('fs')
+const PNPM_CMD = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
 const {
   isPhaseCached,
@@ -169,9 +170,10 @@ async function runDockerBuildPhase(graph, packageNames, concurrency, options = {
       console.log(`    [docker-build] Starting ${packageName}...`)
 
       // Pass packageHash to docker build for labeling
-      const child = spawn('pnpm', ['run', 'docker:build'], {
+      const child = spawn(PNPM_CMD, ['run', 'docker:build'], {
         cwd,
         stdio: ['pipe', 'pipe', 'pipe'],
+        shell: true,
         env: { ...process.env, PACKAGE_HASH: packageHash || '' }
       })
 

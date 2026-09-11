@@ -18,7 +18,7 @@
     "build:check": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --lint --svelte-check",
     "build:watch": "node ./foundations/utils/packages/platform-rig/bin/watch_all.js . --parallel",
     "build:watch:lint": "node ./foundations/utils/packages/platform-rig/bin/watch_all.js . --parallel --lint",
-    "docker": "./common/scripts/docker-fast.sh",
+    "docker": "node ./common/scripts/run_in_bash.js ./common/scripts/docker-fast.sh",
     "format": "node ./foundations/utils/packages/platform-rig/bin/compile_all.js . --parallel --format",
     "format:branch": "./common/scripts/fast-format.sh",
     "profile-test": "node ./common/scripts/profile-tests.js",

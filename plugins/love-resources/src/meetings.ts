@@ -120,12 +120,19 @@ export async function leaveMeeting (): Promise<void> {
   // re-enter `connectToMeeting` on the still-live ParticipantInfo.
   leavingMeeting = true
   forgetActiveMeeting()
+
+  const meetingId = currentMeeting
+
   try {
     // The `participant_left` webhook removes our ParticipantInfo server-side;
     // clients must NOT delete those documents directly.
     await liveKitClient.disconnect()
     currentMeeting = undefined
     currentMeetingRoom = undefined
+
+    if (meetingId !== undefined) {
+      void loveClient.requestFinishMeeting(meetingId)
+    }
   } finally {
     leavingMeeting = false
   }
@@ -163,7 +170,12 @@ export async function joinMeeting (meeting: MeetingMinutes): Promise<void> {
       return
     }
 
-    await connectToMeeting(meeting)
+    if (meeting.roomId !== undefined) {
+      const room = await getClient().findOne<Room>(love.class.Room, { _id: meeting.roomId })
+      await connectToMeeting(meeting, room)
+    } else {
+      await connectToMeeting(meeting)
+    }
   })
 }
 
@@ -495,11 +507,12 @@ onClient(() => {
     void reconnectToCurrentMeeting()
     // Either store may populate after `officeLoaded` resolves; the loop is guarded
     // by `reconnecting`/`currentMeeting`.
-    currentMeetingMinutes.subscribe(() => {
+    currentMeetingMinutes.subscribe((mm) => {
       void reconnectToCurrentMeeting()
     })
-    meetings.subscribe(() => {
-      if (recallActiveMeeting() !== undefined) {
+    meetings.subscribe((all) => {
+      const rem = recallActiveMeeting()
+      if (rem !== undefined) {
         void reconnectToCurrentMeeting()
       }
     })

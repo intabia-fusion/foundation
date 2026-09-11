@@ -1,70 +1,49 @@
 <script lang="ts">
   import { SelectPopup } from '@hcengineering/ui'
-  import notification, { DocNotificationMode, DocNotifyContext } from '@hcengineering/notification'
-
-  import Mention from './icons/Mention.svelte'
-  import { Doc, getCurrentAccount, Ref } from '@hcengineering/core'
-  import { InboxNotificationsClientImpl } from '../inboxNotificationsClient'
-  import { createQuery, getClient } from '@hcengineering/presentation'
+  import notification, { DocNotificationMode, DocNotificationSetting } from '@hcengineering/notification'
+  import { Doc, getCurrentAccount } from '@hcengineering/core'
+  import { getClient } from '@hcengineering/presentation'
   import { createEventDispatcher } from 'svelte'
   import { getCurrentEmployeeSpace } from '@hcengineering/contact'
+
+  import Mention from './icons/Mention.svelte'
+  import { NotificationClientImpl } from '../client'
 
   export let value: Doc | Doc[]
 
   const client = getClient()
   const dispatch = createEventDispatcher()
   const mySpace = getCurrentEmployeeSpace()
-  const notificationsClient = InboxNotificationsClientImpl.getClient()
-  const contextByDocStore = notificationsClient.contextByDoc
+  const inboxClient = NotificationClientImpl.getClient()
+  const settingByDocStore = inboxClient.docSettingByDoc
 
-  const query = createQuery()
-  let context: DocNotifyContext | undefined = undefined
+  let setting: DocNotificationSetting | undefined = undefined
+  let progress = false
 
   $: object = Array.isArray(value) ? value[0] : value
-  $: void updateContext(object._id, $contextByDocStore)
+  $: void inboxClient.loadDocSetting(object._id)
+  $: setting = $settingByDocStore.get(object._id) ?? undefined
+  $: mode = setting?.mode ?? 'all'
 
-  $: mode = context?.settings?.mode ?? 'all'
-  async function updateContext (objectId: Ref<Doc>, contextByDoc: Map<Ref<Doc>, DocNotifyContext>): Promise<void> {
-    context = contextByDoc.get(objectId)
-
-    if (context == null) {
-      query.query(
-        notification.class.DocNotifyContext,
-        {
-          objectId,
-          user: getCurrentAccount().uuid
-        },
-        (res) => {
-          context = res[0]
-        },
-        { limit: 1 }
-      )
-    } else {
-      query.unsubscribe()
-    }
-  }
-
-  let progress = false
-  async function select (id: DocNotificationMode): Promise<void> {
+  async function select (mode: DocNotificationMode): Promise<void> {
     try {
       progress = true
-      const current = context?.settings?.mode ?? 'all'
+      const current = setting?.mode ?? 'all'
 
-      if (id === current) {
+      if (mode === current) {
         dispatch('close')
         return
       }
 
-      if (context == null) {
-        await client.createDoc(notification.class.DocNotifyContext, mySpace, {
-          objectId: object._id,
-          objectClass: object._class,
-          objectSpace: object.space,
-          user: getCurrentAccount().uuid,
-          settings: { mode: id }
+      if (setting == null) {
+        await client.createDoc(notification.class.DocNotificationSetting, mySpace, {
+          attachedTo: object._id,
+          attachedToClass: object._class,
+          account: getCurrentAccount().uuid,
+          mode
         })
       } else {
-        await client.update(context, { settings: { mode: id } })
+        await client.update(setting, { mode })
       }
       dispatch('close')
     } finally {

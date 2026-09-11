@@ -17,17 +17,11 @@
   export let kind: 'primary' | 'simple' = 'primary'
   export let color: 'red' | 'gray' = 'red'
   export let size: 'xx-small' | 'x-small' | 'small' | 'medium' = 'small'
-
-  const maxNumber = 9
 </script>
 
 {#if kind === 'primary' && count > 0}
   <div class="notifyMarker {size} {kind} {color}">
-    {#if count > maxNumber}
-      {maxNumber}+
-    {:else}
-      {count}
-    {/if}
+    {count}
   </div>
 {/if}
 
@@ -41,8 +35,9 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    border-radius: 50%;
-    font-weight: 700;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    padding: 0 0.25rem;
     color: var(--global-on-accent-TextColor);
 
     &.red {
@@ -50,27 +45,27 @@
     }
 
     &.gray {
-      background-color: var(--global-disabled-TextColor);
+      background-color: var(--input-focus-PlaceholderColor);
     }
 
     &.xx-small {
-      width: 0.5rem;
+      min-width: 0.5rem;
       height: 0.5rem;
     }
 
     &.x-small {
-      width: 0.75rem;
+      min-width: 0.75rem;
       height: 0.75rem;
     }
 
     &.small {
-      width: 1rem;
+      min-width: 1rem;
       height: 1rem;
       font-size: 0.5rem;
     }
 
     &.medium {
-      width: 1.25rem;
+      min-width: 1.25rem;
       height: 1.25rem;
       font-size: 0.625rem;
     }

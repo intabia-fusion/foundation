@@ -31,8 +31,31 @@ export function createModel (builder: Builder): void {
     presenter: serverChunter.function.ChannelUrlPresenter
   })
 
-  builder.mixin(chunter.class.ChunterSpace, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverChunter.function.ChannelTitlePresenter
+  builder.mixin(chunter.class.Channel, core.class.Class, serverActivity.mixin.TitlePresenter, {
+    presenter: serverChunter.function.ChannelTitlePresenter,
+    triggerFields: ['name']
+  })
+
+  builder.mixin(chunter.class.DirectMessage, core.class.Class, serverActivity.mixin.TitlePresenter, {
+    presenter: serverChunter.function.DirectTitlePresenter,
+    triggerFields: ['name', 'members'],
+    personalized: true
+  })
+
+  builder.mixin(chunter.class.DirectMessage, core.class.Class, serverActivity.mixin.LabelPresenter, {
+    presenter: serverChunter.function.DirectLabelPresenter,
+    triggerFields: ['type']
+  })
+
+  builder.mixin(chunter.class.Channel, core.class.Class, serverActivity.mixin.IconPresenter, {
+    presenter: serverChunter.function.ChannelIconPresenter,
+    triggerFields: ['private', 'emoji', 'icon']
+  })
+
+  builder.mixin(chunter.class.DirectMessage, core.class.Class, serverActivity.mixin.IconPresenter, {
+    presenter: serverChunter.function.DirectIconPresenter,
+    triggerFields: ['members'],
+    personalized: true
   })
 
   builder.mixin<Class<Doc>, ObjectDDParticipant>(

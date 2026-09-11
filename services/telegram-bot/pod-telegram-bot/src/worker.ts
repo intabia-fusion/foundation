@@ -19,6 +19,9 @@ import chunter, { ChunterSpace } from '@hcengineering/chunter'
 import { formatName } from '@hcengineering/contact'
 import { getAccountClient } from '@hcengineering/server-client'
 import { ActivityMessage } from '@hcengineering/activity'
+import { generateToken } from '@hcengineering/server-token'
+import { Telegraf } from 'telegraf'
+import { buildStorageFromConfig, storageConfigFromEnv } from '@hcengineering/server-storage'
 
 import {
   ChannelId,
@@ -31,28 +34,12 @@ import {
   WorkspaceInfo
 } from './types'
 import { WorkspaceClient } from './workspace'
-import { getNewOtp, serviceToken, toMediaGroups, toTelegramHtml } from './utils'
+import { getNewOtp, serviceToken } from './utils'
 import config from './config'
-import {
-  TelegramNotificationQueueMessage,
-  TelegramWorkspaceSubscriptionQueueMessage
-} from '@hcengineering/server-telegram'
-import { generateToken } from '@hcengineering/server-token'
-import { Telegraf } from 'telegraf'
-import { buildStorageFromConfig, storageConfigFromEnv } from '@hcengineering/server-storage'
-
 import { Limiter } from './limiter'
 import { TgContext } from './telegraf/types'
 import { getDb, PostgresDB } from './db'
-import {
-  addWorkspace,
-  createIntegration,
-  listIntegrationsByAccount,
-  addSocialIdToPerson,
-  disableIntegration,
-  getAnyIntegrationByTelegramId,
-  enableIntegration
-} from './account'
+import { createIntegration, addSocialIdToPerson, getAnyIntegrationByTelegramId } from './account'
 
 export class PlatformWorker {
   private readonly otpIntervalId: NodeJS.Timeout | undefined
@@ -351,80 +338,73 @@ export class PlatformWorker {
     return newCode
   }
 
-  async processNotification (
-    workspace: WorkspaceUuid,
-    record: TelegramNotificationQueueMessage,
-    bot: Telegraf<TgContext>
-  ): Promise<void> {
-    const integrations = await listIntegrationsByAccount(record.account)
-
-    if (integrations.length === 0) {
-      this.ctx.error('Integrations not found', { account: record.account })
-      return
-    }
-
-    const workspaceIntegration = integrations.find((it) => it.workspaceUuid === workspace)
-    if (workspaceIntegration === undefined) {
-      await addWorkspace(integrations[0], workspace)
-    } else if (workspaceIntegration.data?.disabled === true) {
-      await enableIntegration(workspaceIntegration)
-    }
-
-    const integration = integrations[0]
-
-    void this.limiter.add(integration.telegramId, async () => {
-      const { full: fullMessage, short: shortMessage } = toTelegramHtml(record)
-      const files =
-        record.attachments && record.messageId != null
-          ? await this.getFiles(workspace, record.messageId, record.account)
-          : []
-      const tgMessageIds: number[] = []
-
-      if (files.length === 0) {
-        const message = await bot.telegram.sendMessage(integration.telegramId, fullMessage, {
-          parse_mode: 'HTML'
-        })
-
-        tgMessageIds.push(message.message_id)
-      } else {
-        const groups = toMediaGroups(files, fullMessage, shortMessage)
-        for (const group of groups) {
-          const mediaGroup = await bot.telegram.sendMediaGroup(integration.telegramId, group)
-          tgMessageIds.push(...mediaGroup.map((it) => it.message_id))
-        }
-      }
-
-      for (const messageId of tgMessageIds) {
-        if (record.messageId === undefined) continue
-        await this.db.insertMessage({
-          messageId: record.messageId,
-          account: integration.account,
-          workspace,
-          telegramMessageId: messageId
-        })
-      }
-    })
+  async processNotification (workspace: WorkspaceUuid, record: any, bot: Telegraf<TgContext>): Promise<void> {
+    // const integrations = await listIntegrationsByAccount(record.account)
+    //
+    // if (integrations.length === 0) {
+    //   this.ctx.error('Integrations not found', { account: record.account })
+    //   return
+    // }
+    //
+    // const workspaceIntegration = integrations.find((it) => it.workspaceUuid === workspace)
+    // if (workspaceIntegration === undefined) {
+    //   await addWorkspace(integrations[0], workspace)
+    // } else if (workspaceIntegration.data?.disabled === true) {
+    //   await enableIntegration(workspaceIntegration)
+    // }
+    //
+    // const integration = integrations[0]
+    //
+    // void this.limiter.add(integration.telegramId, async () => {
+    //   const { full: fullMessage, short: shortMessage } = toTelegramHtml(record)
+    //   const files =
+    //     record.attachments && record.messageId != null
+    //       ? await this.getFiles(workspace, record.messageId, record.account)
+    //       : []
+    //   const tgMessageIds: number[] = []
+    //
+    //   if (files.length === 0) {
+    //     const message = await bot.telegram.sendMessage(integration.telegramId, fullMessage, {
+    //       parse_mode: 'HTML'
+    //     })
+    //
+    //     tgMessageIds.push(message.message_id)
+    //   } else {
+    //     const groups = toMediaGroups(files, fullMessage, shortMessage)
+    //     for (const group of groups) {
+    //       const mediaGroup = await bot.telegram.sendMediaGroup(integration.telegramId, group)
+    //       tgMessageIds.push(...mediaGroup.map((it) => it.message_id))
+    //     }
+    //   }
+    //
+    //   for (const messageId of tgMessageIds) {
+    //     if (record.messageId === undefined) continue
+    //     await this.db.insertMessage({
+    //       messageId: record.messageId,
+    //       account: integration.account,
+    //       workspace,
+    //       telegramMessageId: messageId
+    //     })
+    //   }
+    // })
   }
 
-  async processWorkspaceSubscription (
-    workspace: WorkspaceUuid,
-    record: TelegramWorkspaceSubscriptionQueueMessage
-  ): Promise<void> {
-    const integrations = await listIntegrationsByAccount(record.account)
-
-    if (integrations.length === 0) {
-      this.ctx.error('Integrations not found', { account: record.account })
-      return
-    }
-
-    const workspaceIntegration = integrations.find((it) => it.workspaceUuid === workspace)
-
-    if (record.subscribe && workspaceIntegration === undefined) {
-      await addWorkspace(integrations[0], workspace)
-    } else if (record.subscribe && workspaceIntegration?.data?.disabled === true) {
-      await enableIntegration(workspaceIntegration)
-    } else if (!record.subscribe && workspaceIntegration !== undefined) {
-      await disableIntegration(workspaceIntegration)
-    }
+  async processWorkspaceSubscription (workspace: WorkspaceUuid, record: any): Promise<void> {
+    // const integrations = await listIntegrationsByAccount(record.account)
+    //
+    // if (integrations.length === 0) {
+    //   this.ctx.error('Integrations not found', { account: record.account })
+    //   return
+    // }
+    //
+    // const workspaceIntegration = integrations.find((it) => it.workspaceUuid === workspace)
+    //
+    // if (record.subscribe && workspaceIntegration === undefined) {
+    //   await addWorkspace(integrations[0], workspace)
+    // } else if (record.subscribe && workspaceIntegration?.data?.disabled === true) {
+    //   await enableIntegration(workspaceIntegration)
+    // } else if (!record.subscribe && workspaceIntegration !== undefined) {
+    //   await disableIntegration(workspaceIntegration)
+    // }
   }
 }

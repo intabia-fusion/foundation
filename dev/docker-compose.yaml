@@ -971,6 +971,9 @@ services:
       - SMTP_PORT=1025
       - SMTP_TLS_MODE=ignore
       - SMTP_ALLOW_SELF_SIGNED=true
+      - ACCOUNTS_URL=http://account:3000
+      - SECRET=secret
+      - APP_NAME=Platform
   mail_client:
     image: "intabiafusion/mail:${DOCKER_TAG:-latest}"
     depends_on:
@@ -1128,13 +1131,21 @@ services:
       - BRANDING_PATH=/var/cfg/branding.json
   notification:
     image: "intabiafusion/notification:${DOCKER_TAG:-latest}"
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
     environment:
-      - PORT=3335
       - SOURCE=mail@example.com
       - ACCESS_KEY=none
       - SECRET_KEY=none
       - PUSH_PUBLIC_KEY=${PUSH_PUBLIC_KEY}
       - PUSH_PRIVATE_KEY=${PUSH_PRIVATE_KEY}
+      - SECRET=secret
+      - ACCOUNTS_URL=http://account:3000
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
     restart: unless-stopped
   # landing:
   #   image: intabiafusion/platform-landing:0.7

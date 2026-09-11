@@ -34,7 +34,8 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(request.class.Request, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverRequest.function.RequestTitlePresenter
+    presenter: serverRequest.function.RequestTitlePresenter,
+    triggerFields: ['title', 'name']
   })
 
   builder.mixin(

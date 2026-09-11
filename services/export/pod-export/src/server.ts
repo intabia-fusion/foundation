@@ -38,7 +38,7 @@ import core, {
   type WorkspaceUuid
 } from '@hcengineering/core'
 import drive, { createFile, Drive } from '@hcengineering/drive'
-import exportPlugin, { type TransformConfig, type RelationDefinition } from '@hcengineering/export'
+import exportPlugin, { type RelationDefinition, type TransformConfig } from '@hcengineering/export'
 import {
   ContextNameMiddleware,
   DBAdapterInitMiddleware,
@@ -582,9 +582,8 @@ async function createPlatformClient (token: string): Promise<Client> {
   })
 
   const endpoint = await getTransactorEndpoint(token)
-  const connection = await createClient(endpoint, token)
 
-  return connection
+  return await createClient(endpoint, token)
 }
 
 export function listen (e: Express, port: number, measureCtx: MeasureContext, host?: string): Server {
@@ -677,29 +676,17 @@ async function sendSuccessNotification (
   const personSpace = await client.findOne(contact.class.PersonSpace, { account })
   if (personSpace == null) return
 
-  const context = await client.findOne(notification.class.DocNotifyContext, { objectId: exportDrive, user: account })
-  const docNotifyContextId =
-    context?._id ??
-    (await client.createDoc(notification.class.DocNotifyContext, personSpace._id, {
-      objectId: exportDrive,
-      objectClass: drive.class.Drive,
-      objectSpace: core.space.Space,
-      user: account
-    }))
-
-  await client.createDoc(notification.class.CommonInboxNotification, personSpace._id, {
-    user: account,
-    objectId: exportDrive,
-    objectClass: drive.class.Drive,
-    icon: exportPlugin.icon.Export,
-    message: exportPlugin.string.ExportCompleted,
-    intlParams: {
-      fileName: archiveName
+  await client.createDoc(notification.class.CreateNotificationAction, personSpace._id, {
+    attachedTo: exportDrive,
+    attachedToClass: drive.class.Drive,
+    account,
+    notification: {
+      icon: exportPlugin.icon.Export,
+      messageIntl: exportPlugin.string.ExportCompleted
     },
-    isViewed: false,
-    archived: false,
-    docNotifyContext: docNotifyContextId,
-    allowedProviders: {}
+    intl: {
+      intlParams: { fileName: archiveName }
+    }
   })
 }
 
@@ -708,40 +695,23 @@ async function sendFailureNotification (
   account: AccountUuid,
   error: string,
   objectClass?: Ref<Class<Doc>>,
-  objectId?: Ref<Doc>,
-  objectSpace?: Ref<Space>
+  objectId?: Ref<Doc>
 ): Promise<void> {
-  const _objectSpace = objectSpace ?? core.space.Space
-
-  if (objectId === undefined || objectClass === undefined) {
-    return
-  }
+  if (objectId === undefined || objectClass === undefined) return
 
   const personSpace = await client.findOne(contact.class.PersonSpace, { account })
   if (personSpace == null) return
 
-  const context = await client.findOne(notification.class.DocNotifyContext, { objectId, user: account })
-  const docNotifyContextId =
-    context?._id ??
-    (await client.createDoc(notification.class.DocNotifyContext, personSpace._id, {
-      objectId,
-      objectClass,
-      objectSpace: _objectSpace,
-      user: account
-    }))
-
-  await client.createDoc(notification.class.CommonInboxNotification, personSpace._id, {
-    user: account,
-    objectId,
-    objectClass,
-    icon: exportPlugin.icon.Export,
-    message: exportPlugin.string.ExportFailed,
-    intlParams: {
-      error
+  await client.createDoc(notification.class.CreateNotificationAction, personSpace._id, {
+    attachedTo: objectId,
+    attachedToClass: objectClass,
+    account,
+    notification: {
+      icon: exportPlugin.icon.Export,
+      messageIntl: exportPlugin.string.ExportFailed
     },
-    isViewed: false,
-    archived: false,
-    docNotifyContext: docNotifyContextId,
-    allowedProviders: {}
+    intl: {
+      intlParams: { error }
+    }
   })
 }

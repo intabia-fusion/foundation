@@ -19,7 +19,7 @@ import { plugin } from '@hcengineering/platform'
 import type { TriggerControl, TriggerFunc } from '@hcengineering/server-core'
 import { Task } from '@hcengineering/task'
 import { ToDo, WorkSlot } from '@hcengineering/time'
-import { CreateNotificationResource } from '@hcengineering/server-notification'
+import { CreateTxNotificationResource } from '@hcengineering/server-notification'
 
 /**
  * @public
@@ -53,7 +53,7 @@ export default plugin(serverTimeId, {
     IssueToDoDone: '' as Resource<
       (control: TriggerControl, workslots: WorkSlot[], todo: ToDo, isDerived: boolean) => Promise<Tx[]>
     >,
-    TodoCreateNotification: '' as CreateNotificationResource
+    TodoCreateNotification: '' as CreateTxNotificationResource
   },
   trigger: {
     OnTask: '' as Resource<TriggerFunc>,

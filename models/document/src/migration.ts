@@ -22,7 +22,8 @@ import {
   type Class,
   type CollaborativeDoc,
   type Doc,
-  type AccountUuid
+  type AccountUuid,
+  type Domain
 } from '@hcengineering/core'
 import { type Document, type DocumentSnapshot, type Teamspace } from '@hcengineering/document'
 import {
@@ -36,13 +37,14 @@ import {
 } from '@hcengineering/model'
 import { DOMAIN_ACTIVITY } from '@hcengineering/model-activity'
 import core, { DOMAIN_SPACE, getAccountUuidBySocialKey, getSocialKeyByOldAccount } from '@hcengineering/model-core'
-import { DOMAIN_NOTIFICATION } from '@hcengineering/notification'
 import { type Asset } from '@hcengineering/platform'
 import { makeRank } from '@hcengineering/rank'
 
 import { loadCollabYdoc, saveCollabYdoc, yDocCopyXmlField } from '@hcengineering/collaboration'
 import attachment, { DOMAIN_ATTACHMENT } from '@hcengineering/model-attachment'
 import document, { documentId, DOMAIN_DOCUMENT } from './index'
+
+const DOMAIN_NOTIFICATION = 'notification' as Domain
 
 async function migrateDocumentIcons (client: MigrationClient): Promise<void> {
   await client.update<Teamspace>(

@@ -13,19 +13,17 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import notification, { DocNotifyContext } from '@hcengineering/notification'
-  import { Component, Icon, IconSize } from '@hcengineering/ui'
-  import { getClient } from '@hcengineering/presentation'
+  import { DocNotifyContext } from '@hcengineering/notification'
+  import { Icon, Component, IconSize } from '@hcengineering/ui'
+  import { getClient, IconWithEmoji } from '@hcengineering/presentation'
   import { classIcon } from '@hcengineering/view-resources'
   import view from '@hcengineering/view'
-  import { Doc } from '@hcengineering/core'
+  import chunter from '@hcengineering/chunter'
 
   import NotifyMarker from './NotifyMarker.svelte'
 
   export let value: DocNotifyContext
   export let size: IconSize = 'medium'
-  export let notifyCount: number = 0
-  export let object: Doc | undefined
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
@@ -34,14 +32,20 @@
 </script>
 
 <div class="container">
-  {#if iconMixin && object}
-    <Component is={iconMixin.component} props={{ value: object, size }} />
+  {#if iconMixin}
+    <Component
+      is={iconMixin.component}
+      props={{ ...value.objectIcon?.props, asset: value.objectIcon?.asset, emoji: value.objectIcon?.emoji, size }}
+      showLoading={false}
+    />
+  {:else if value.objectIcon?.emoji}
+    <IconWithEmoji icon={value.objectIcon.emoji} {size} />
   {:else}
-    <Icon icon={classIcon(client, value.objectClass) ?? notification.icon.Notifications} {size} />
+    <Icon icon={value.objectIcon?.asset ?? classIcon(client, value.objectClass) ?? chunter.icon.Thread} {size} />
   {/if}
 
   <div class="notifyMarker">
-    <NotifyMarker count={notifyCount} size="medium" />
+    <NotifyMarker count={value.unreadCount} size="medium" />
   </div>
 </div>
 

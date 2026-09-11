@@ -14,34 +14,10 @@
 // limitations under the License.
 //
 
-import { Plugin, Resource, plugin } from '@hcengineering/platform'
-import type { TriggerFunc } from '@hcengineering/server-core'
-import { Class, Mixin, Ref } from '@hcengineering/core'
-
-import { IdentifierPresenter, TitlePresenter, UrlPresenter, AttributePresenter } from './types'
+import { serverActivityId, serverActivityPlugin } from './plugin'
 
 export type * from './types'
+export * from './utils'
 
-/**
- * @public
- */
-export const serverActivityId = 'server-activity' as Plugin
-
-/**
- * @public
- */
-export default plugin(serverActivityId, {
-  trigger: {
-    OnDocRemoved: '' as Resource<TriggerFunc>,
-    OnDocClassChanged: '' as Resource<TriggerFunc>,
-    ReferenceTrigger: '' as Resource<TriggerFunc>
-  },
-  class: {
-    AttributePresenter: '' as Ref<Class<AttributePresenter>>
-  },
-  mixin: {
-    TitlePresenter: '' as Ref<Mixin<TitlePresenter>>,
-    UrlPresenter: '' as Ref<Mixin<UrlPresenter>>,
-    IdentifierPresenter: '' as Ref<Mixin<IdentifierPresenter>>
-  }
-})
+export { serverActivityId }
+export default serverActivityPlugin

@@ -8,7 +8,6 @@
     "PlatformNotification": "platformda",
     "Track": "Takip et",
     "DontTrack": "Takip etme",
-    "BrowserNotification": "tarayıcıda",
     "Remove": "Bildirimi sil",
     "RemoveAll": "Tüm bildirimleri sil",
     "MarkAllAsRead": "Tümünü okundu olarak işaretle",
@@ -86,7 +85,10 @@
     "Appearance": "Görünüm",
     "ShowChatBadge": "Uygulama chat bildirimlerindeki göstergeyi göster",
     "HasNewNotifications": "You have new notifications",
-    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}"
+    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}",
+    "ReactedToYourMessage": "mesajınıza tepki verdi",
+    "Clearing": "Temizleniyor...",
+    "Reading": "Okunuyor..."
   },
   "emailTemplate": {
     "MeAddedInCollaboratorsNotificationText": "{sender} added you as a collaborator to {doc}.",

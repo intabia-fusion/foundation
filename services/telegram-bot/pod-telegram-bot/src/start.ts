@@ -19,8 +19,7 @@ import { newMetrics } from '@hcengineering/core'
 import { getPlatformQueue } from '@hcengineering/kafka'
 import { setMetadata } from '@hcengineering/platform'
 import serverClient from '@hcengineering/server-client'
-import { initStatisticsContext, QueueTopic } from '@hcengineering/server-core'
-import { TelegramQueueMessage, TelegramQueueMessageType } from '@hcengineering/server-telegram'
+import { initStatisticsContext } from '@hcengineering/server-core'
 import serverToken from '@hcengineering/server-token'
 import { join } from 'path'
 
@@ -87,27 +86,31 @@ export const start = async (): Promise<void> => {
   ctx.info('Starting server...')
   const server = listen(app, ctx, config.Port)
 
-  const consumer = queue.createConsumer<TelegramQueueMessage>(
-    ctx,
-    QueueTopic.TelegramBot,
-    queue.getClientId(),
-    async (ctx, message) => {
-      const workspace = message.workspace
-      const record = message.value
-      switch (record.type) {
-        case TelegramQueueMessageType.Notification:
-          await worker.processNotification(workspace, record, bot)
-          break
-        case TelegramQueueMessageType.WorkspaceSubscription:
-          await worker.processWorkspaceSubscription(workspace, record)
-          break
-      }
-    }
-  )
+  // Telegram delivery is temporarily disabled until needed.
+  // const consumer = queue.createConsumer<TelegramQueueMessage>(
+  //   ctx,
+  //   QueueTopic.TelegramBot,
+  //   queue.getClientId(),
+  //   async (ctx, message) => {
+  //     const workspace = message.workspace
+  //     const record = message.value
+  //     switch (record.type) {
+  //       case TelegramQueueMessageType.Notification:
+  //         await worker.processNotification(workspace, record, bot)
+  //         break
+  //       case TelegramQueueMessageType.WorkspaceSubscription:
+  //         await worker.processWorkspaceSubscription(workspace, record)
+  //         break
+  //     }
+  //   }
+  // )
 
   const onClose = (): void => {
     server.close()
-    void Promise.all([consumer.close(), worker.close()]).then(() => {
+    void Promise.all([
+      // consumer.close(),
+      worker.close()
+    ]).then(() => {
       process.exit()
     })
   }

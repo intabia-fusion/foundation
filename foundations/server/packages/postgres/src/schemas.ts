@@ -1,6 +1,6 @@
 import { DOMAIN_COLLABORATOR, DOMAIN_MODEL_TX, DOMAIN_RELATION, DOMAIN_SPACE, DOMAIN_TX } from '@hcengineering/core'
 
-export type DataType = 'bigint' | 'bool' | 'text' | 'text[]'
+export type DataType = 'bigint' | 'bool' | 'text' | 'text[]' | 'integer'
 
 export function getIndex (field: FieldSchema): string {
   if (field.indexType === undefined || field.indexType === 'btree') {
@@ -14,6 +14,7 @@ export interface FieldSchema {
   notNull: boolean
   index: boolean
   indexType?: 'btree' | 'gin' | 'gist' | 'brin' | 'hash'
+  check?: string
 }
 
 export type Schema = Record<string, FieldSchema>
@@ -256,6 +257,32 @@ const dncSchema: Schema = {
     notNull: true,
     index: false
   },
+  objectSpace: {
+    type: 'text',
+    notNull: true,
+    index: false
+  },
+  parentObjectId: {
+    type: 'text',
+    notNull: false,
+    index: true
+  },
+  parentObjectClass: {
+    type: 'text',
+    notNull: false,
+    index: false
+  },
+  lastNotify: {
+    type: 'bigint',
+    notNull: true,
+    index: true
+  },
+  unreadCount: {
+    type: 'integer',
+    notNull: true,
+    index: true,
+    check: '"unreadCount" >= 0'
+  },
   user: {
     type: 'text',
     notNull: true,
@@ -383,6 +410,16 @@ const docReadStateSchema: Schema = {
     type: 'text',
     notNull: true,
     index: true
+  },
+  latestMessageId: {
+    type: 'text',
+    notNull: false,
+    index: true
+  },
+  latestMessageTimestamp: {
+    type: 'bigint',
+    notNull: false,
+    index: true
   }
 }
 
@@ -420,11 +457,25 @@ export const customIndexes: Record<string, Record<CustomIndexType, string[]>[]> 
       custom: []
     }
   ],
+  [translateDomain('notification-dnc')]: [
+    {
+      unique: ['user', 'objectId', 'objectClass'],
+      custom: []
+    }
+  ],
   [DOMAIN_SPACE]: [
     {
       unique: [],
       custom: [
         'CREATE UNIQUE INDEX IF NOT EXISTS space_unique_workspaceId_referenceId__index ON space ("workspaceId", "referenceId") WHERE "referenceId" IS NOT NULL;'
+      ]
+    }
+  ],
+  [translateDomain('activity')]: [
+    {
+      unique: [],
+      custom: [
+        'CREATE INDEX IF NOT EXISTS activity_attachedTo_createdOn__index ON activity ("workspaceId", "attachedTo", "createdOn" DESC);'
       ]
     }
   ]

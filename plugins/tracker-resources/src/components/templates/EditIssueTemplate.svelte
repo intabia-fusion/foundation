@@ -47,7 +47,7 @@
 
   let descriptionBox: AttachmentStyleBoxEditor
 
-  const inboxClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const inboxClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   $: read(_id)
   function read (_id: Ref<Doc>): void {

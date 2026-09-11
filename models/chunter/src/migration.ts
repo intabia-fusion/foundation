@@ -39,7 +39,7 @@ import {
 } from '@hcengineering/model'
 import activity, { migrateMessagesSpace, DOMAIN_ACTIVITY, DOMAIN_REACTION } from '@hcengineering/model-activity'
 import { getAllAccounts } from '@hcengineering/contact'
-import { DOMAIN_DOC_NOTIFY, DOMAIN_NOTIFICATION } from '@hcengineering/model-notification'
+import { DOMAIN_DOC_NOTIFY } from '@hcengineering/model-notification'
 import { type ActivityMessage, type DocUpdateMessage, type Reaction } from '@hcengineering/activity'
 
 import { DOMAIN_CHUNTER, DOMAIN_CHUNTER_DOC } from './index'
@@ -47,9 +47,10 @@ import chunter from './plugin'
 import { createHash } from 'crypto'
 import { type Attachment } from '@hcengineering/attachment'
 import { DOMAIN_ATTACHMENT } from '@hcengineering/model-attachment'
-import { type DocNotifyContext, type InboxNotification } from '@hcengineering/notification'
+import { type DocNotifyContext } from '@hcengineering/notification'
 
 export const DOMAIN_COMMENT = 'comment' as Domain
+export const DOMAIN_NOTIFICATION = 'notification' as Domain
 
 export async function createGeneral (client: MigrationUpgradeClient, tx: TxOperations): Promise<void> {
   const current = await tx.findOne(chunter.class.Channel, { _id: chunter.space.General })
@@ -133,6 +134,7 @@ export async function createRandom (client: MigrationUpgradeClient, tx: TxOperat
 }
 
 async function convertCommentsToChatMessages (client: MigrationClient): Promise<void> {
+  if (!client.hierarchy.domains().includes(DOMAIN_COMMENT)) return
   await client.update(
     DOMAIN_COMMENT,
     { _class: 'chunter:class:Comment' as Ref<Class<Doc>> },
@@ -142,7 +144,9 @@ async function convertCommentsToChatMessages (client: MigrationClient): Promise<
 }
 
 async function removeBacklinks (client: MigrationClient): Promise<void> {
-  await client.deleteMany(DOMAIN_COMMENT, { _class: 'chunter:class:Backlink' as Ref<Class<Doc>> })
+  if (client.hierarchy.domains().includes(DOMAIN_COMMENT)) {
+    await client.deleteMany(DOMAIN_COMMENT, { _class: 'chunter:class:Backlink' as Ref<Class<Doc>> })
+  }
   await client.deleteMany(DOMAIN_ACTIVITY, {
     _class: activity.class.DocUpdateMessage,
     objectClass: 'chunter:class:Backlink'
@@ -286,7 +290,7 @@ async function migrateDuplicatedDirects (client: MigrationClient): Promise<void>
 
     const toContexts = await client.find<DocNotifyContext>(DOMAIN_DOC_NOTIFY, { objectId: to })
     for (const context of toContexts) {
-      await client.update<InboxNotification>(
+      await client.update(
         DOMAIN_NOTIFICATION,
         { objectId: from, user: context.user },
         { objectId: to, docNotifyContext: context._id }

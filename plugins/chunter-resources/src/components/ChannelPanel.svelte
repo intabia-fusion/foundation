@@ -16,7 +16,6 @@
   import { Class, Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import { ChunterSpace } from '@hcengineering/chunter'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
 
   import ChannelView from './ChannelView.svelte'
 
@@ -25,12 +24,8 @@
   export let autofocus = true
 
   const objectQuery = createQuery()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
-  const contextByDocStore = inboxClient.contextByDoc
 
   let object: ChunterSpace | undefined = undefined
-
-  $: context = $contextByDocStore.get(_id)
 
   $: objectQuery.query(_class, { _id }, (res) => {
     object = res[0]
@@ -38,5 +33,5 @@
 </script>
 
 {#if object}
-  <ChannelView {object} {context} {autofocus} on:close />
+  <ChannelView {object} {autofocus} on:close />
 {/if}

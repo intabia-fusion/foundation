@@ -28,12 +28,12 @@
     Space
   } from '@hcengineering/core'
   import login, { loginId } from '@hcengineering/login'
-  import notification, { DocNotifyContext, InboxNotification, notificationId } from '@hcengineering/notification'
-  import { BrowserNotificatator, InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import notification, { notificationId } from '@hcengineering/notification'
+  import { AppNotificator, NotificationClientImpl } from '@hcengineering/notification-resources'
   import { broadcastEvent, getMetadata, getResource, IntlString, translate } from '@hcengineering/platform'
   import { ActionContext, ComponentExtensions, createQuery, getClient, reduceCalls } from '@hcengineering/presentation'
   import setting from '@hcengineering/setting'
-  import support, { SupportStatus } from '@hcengineering/support'
+  import support from '@hcengineering/support'
   import {
     AnyComponent,
     areLocationsEqual,
@@ -93,6 +93,8 @@
     WorkbenchTab
   } from '@hcengineering/workbench'
   import { getContext, onDestroy, onMount, tick } from 'svelte'
+  import { get } from 'svelte/store'
+
   import { subscribeMobile } from '../mobile'
   import workbench from '../plugin'
   import { buildNavModel, isAllowedToRole, logOut, workspacesStore } from '../utils'
@@ -118,7 +120,6 @@
     tabIdStore,
     tabsStore
   } from '../workbench'
-  import { get } from 'svelte/store'
   import HelpAndSupport from './HelpAndSupport.svelte'
 
   const HIDE_NAVIGATOR = 720
@@ -174,7 +175,7 @@
       localStorage.setItem('hiddenNavigator', `${hiddenNavigator}`)
     }
     closeTooltip()
-    if (currentApplication && navigatorModel) {
+    if (currentApplication != null && navigatorModel != null) {
       await tick()
       panelInstance.fitPopupInstance()
       popupInstance.fitPopupInstance()
@@ -208,8 +209,8 @@
   async function initCurrentTab (tabs: WorkbenchTab[]): Promise<void> {
     const tab = tabs.find((t) => t._id === $tabIdStore)
     const loc = getCurrentLocation()
-    const tabLoc = tab ? getTabLocation(tab) : undefined
-    const isLocEqual = tabLoc ? areLocationsEqual(loc, tabLoc) : false
+    const tabLoc = tab != null ? getTabLocation(tab) : undefined
+    const isLocEqual = tabLoc != null ? areLocationsEqual(loc, tabLoc) : false
     if (!isLocEqual) {
       const url = locationToUrl(loc)
       const data = await getTabDataByLocation(loc)
@@ -262,20 +263,10 @@
 
   const workspaceId = $location.path[1]
 
-  const inboxClient = InboxNotificationsClientImpl.createClient()
-  const inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
+  const inboxClient = NotificationClientImpl.createClient()
+  const totalUnreadCountStore = inboxClient.totalUnreadCount
 
-  let hasNotificationsFn: ((data: Map<Ref<DocNotifyContext>, InboxNotification[]>) => Promise<boolean>) | undefined =
-    undefined
-  let hasInboxNotifications = false
-
-  void getResource(notification.function.HasInboxNotifications).then((f) => {
-    hasNotificationsFn = f
-  })
-
-  $: void hasNotificationsFn?.($inboxNotificationsByContextStore).then((res) => {
-    hasInboxNotifications = res
-  })
+  $: hasInboxNotifications = $totalUnreadCountStore > 0
 
   const doSyncLoc = reduceCalls(async (loc: Location): Promise<void> => {
     if (workspaceId !== $location.path[1]) {
@@ -337,11 +328,11 @@
     let locationResolver = currentApplication?.locationResolver
     if (loc.path[2] != null && loc.path[2].trim().length > 0) {
       const app = apps.find((p) => p.alias === loc.path[2])
-      if (app?.locationResolver) {
+      if (app?.locationResolver != null) {
         locationResolver = app?.locationResolver
       }
     }
-    if (locationResolver) {
+    if (locationResolver != null) {
       const resolver = await getResource(locationResolver)
       return await resolver(loc)
     }
@@ -368,9 +359,9 @@
         loc.path[3] = currentSpace ?? currentSpecial ?? resolved.defaultLocation.path[3]
         if (loc.path[3] !== undefined && isSameApp) {
           // setting space special/aside only if it belongs to the same app
-          if (currentSpace) {
+          if (currentSpace != null) {
             loc.path[4] = currentSpecial ?? resolved.defaultLocation.path[4]
-          } else if (currentSpecial) {
+          } else if (currentSpecial != null) {
             loc.path[4] = resolved.defaultLocation.path[4]
           }
         } else {
@@ -384,11 +375,11 @@
         loc.path[4] = currentSpecial ?? resolved.defaultLocation.path[4]
       } else {
         loc.path[3] = resolvedSpace
-        if (resolvedSpecial) {
+        if (resolvedSpecial != null) {
           loc.path[4] = resolvedSpecial
-        } else if (currentSpace) {
+        } else if (currentSpace != null) {
           loc.path[4] = currentSpecial ?? resolved.defaultLocation.path[4]
-        } else if (currentSpecial) {
+        } else if (currentSpecial != null) {
           loc.path[4] = resolved.defaultLocation.path[4]
         } else {
           loc.path.length = 4
@@ -414,7 +405,7 @@
     accessDeniedStore.set(false)
     const originalLoc = JSON.stringify(loc)
     if ($tabIdStore !== $prevTabIdStore) {
-      if ($prevTabIdStore) {
+      if ($prevTabIdStore != null) {
         const prevTab = tabs.find((t) => t._id === $prevTabIdStore)
         const prevTabLoc = prevTab ? getTabLocation(prevTab) : undefined
         if (prevTabLoc?.path[2] !== loc.path[2]) {
@@ -652,7 +643,6 @@
     }
   }
 
-  let cover: HTMLElement
   let workbenchWidth: number = $deviceInfo.docWidth
 
   $deviceInfo.navigator.float = workbenchWidth <= HIDE_NAVIGATOR
@@ -728,61 +718,29 @@
     subscribeMobile(setTheme)
   })
 
-  function checkInbox (popups: CompAndProps[]) {
+  function checkInboxPopup (popups: CompAndProps[]): void {
     if (inboxPopup !== undefined) {
-      const exists = popups.find((p) => p.id === inboxPopup?.id)
+      const exists = popups.some((p) => p.id === inboxPopup?.id)
       if (!exists) {
         inboxPopup = undefined
       }
     }
   }
 
-  let supportStatus: SupportStatus | undefined = undefined
-  function handleSupportStatusChanged (status: SupportStatus) {
-    supportStatus = status
-  }
-
-  const supportClient = getResource(support.function.GetSupport).then(
-    async (res) =>
-      await res((status) => {
-        handleSupportStatusChanged(status)
-      })
-  )
-  onDestroy(async () => {
-    await supportClient?.then((support) => {
-      support?.destroy()
-    })
-  })
-
-  let supportWidgetLoading = false
-  async function handleToggleSupportWidget (): Promise<void> {
-    const timer = setTimeout(() => {
-      supportWidgetLoading = true
-    }, 100)
-
-    const support = await supportClient
-    await support.toggleWidget()
-
-    clearTimeout(timer)
-    supportWidgetLoading = false
-  }
-
-  $: checkInbox($popupstore)
+  $: checkInboxPopup($popupstore)
 
   let inboxPopup: PopupResult | undefined = undefined
   let lastLoc: Location | undefined = undefined
 
-  $: activeInboxId = notificationId
-
   $: inboxProps = {
-    selected: currentAppAlias === activeInboxId || inboxPopup !== undefined,
-    navigator: (currentAppAlias === activeInboxId || inboxPopup !== undefined) && $deviceInfo.navigator.visible,
+    selected: currentAppAlias === notificationId || inboxPopup !== undefined,
+    navigator: (currentAppAlias === notificationId || inboxPopup !== undefined) && $deviceInfo.navigator.visible,
     notify: hasInboxNotifications,
     onClick: (e: MouseEvent) => {
       if (e.metaKey || e.ctrlKey) return
-      if (!$deviceInfo.navigator.visible && $deviceInfo.navigator.float && currentAppAlias === activeInboxId) {
-        toggleNav()
-      } else if (currentAppAlias === activeInboxId && lastLoc !== undefined) {
+      if (!$deviceInfo.navigator.visible && $deviceInfo.navigator.float && currentAppAlias === notificationId) {
+        void toggleNav()
+      } else if (currentAppAlias === notificationId && lastLoc !== undefined) {
         e.preventDefault()
         e.stopPropagation()
         navigate(lastLoc)
@@ -798,11 +756,11 @@
   defineSeparators('workbench', workbenchSeparators)
   defineSeparators('main', mainSeparators)
 
-  $: mainNavigator = currentApplication && navigatorModel && $deviceInfo.navigator.visible
+  $: mainNavigator = currentApplication != null && navigatorModel != null && $deviceInfo.navigator.visible
   $: elementPanel = $deviceInfo.replacedPanel ?? contentPanel
 
   $: deactivated =
-    $myEmployeeStore && client.getHierarchy().hasMixin($myEmployeeStore, contact.mixin.Employee)
+    $myEmployeeStore != null && client.getHierarchy().hasMixin($myEmployeeStore, contact.mixin.Employee)
       ? !client.getHierarchy().as($myEmployeeStore, contact.mixin.Employee).active
       : false
 
@@ -821,7 +779,7 @@
   }
 </script>
 
-{#if $myEmployeeStore && deactivated}
+{#if $myEmployeeStore != null && deactivated}
   <div class="flex-col-center justify-center h-full flex-grow">
     <h1><Label label={workbench.string.AccountDisabled} /></h1>
     <Label label={workbench.string.AccountDisabledDescr} />
@@ -836,7 +794,7 @@
       }}
     />
   </div>
-{:else if $myEmployeeStore || account.role === AccountRole.Owner}
+{:else if $myEmployeeStore != null || account.role === AccountRole.Owner}
   <ActionHandler {currentSpace} />
   <svg class="svg-mask">
     <clipPath id="notify-normal">
@@ -878,7 +836,7 @@
             on:click={toggleNav}
           />
         </div>
-        {#if !isExcludedApp(activeInboxId)}
+        {#if !isExcludedApp(notificationId)}
           <NavLink
             app={notificationId}
             shrink={0}
@@ -1068,7 +1026,7 @@
                 queryBuilder: specialComponent?.queryBuilder
               }}
               on:action={(e) => {
-                if (e?.detail) {
+                if (e?.detail != null) {
                   const loc = getCurrentLocation()
                   loc.query = { ...loc.query, ...e.detail }
                   navigate(loc)
@@ -1098,7 +1056,7 @@
     </div>
   </div>
   <Dock />
-  <div bind:this={cover} class="cover" />
+  <div class="cover" />
   <TooltipInstance />
   <PanelInstance bind:this={panelInstance} contentPanel={elementPanel}>
     <svelte:fragment slot="panel-header">
@@ -1113,7 +1071,7 @@
   <div class="hidden max-w-0 max-h-0">
     <ComponentExtensions extension={workbench.extensions.WorkbenchExtensions} />
   </div>
-  <BrowserNotificatator />
+  <AppNotificator />
 {/if}
 
 <style lang="scss">

@@ -17,7 +17,7 @@
   import { ButtonMenu, IconMoreV } from '@hcengineering/ui'
 
   import notification from '../../plugin'
-  import { clearAll, readAll } from '../../utils'
+  import { clearAll, readAll } from '../../actions'
 
   async function onSelect (id?: 'clear' | 'read'): Promise<void> {
     if (id == null) return

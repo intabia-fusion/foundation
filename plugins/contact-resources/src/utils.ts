@@ -79,8 +79,7 @@ import core, {
   type TxCUD
 } from '@hcengineering/core'
 import login from '@hcengineering/login'
-import notification, { type DocNotifyContext, type InboxNotification } from '@hcengineering/notification'
-import { getMetadata, getResource, type IntlString, translate } from '@hcengineering/platform'
+import { getMetadata, type IntlString, translate } from '@hcengineering/platform'
 import presentation, { addTxListener, createQuery, getClient, isDisabled, onClient } from '@hcengineering/presentation'
 import { type TemplateDataProvider } from '@hcengineering/templates'
 import {
@@ -145,14 +144,7 @@ export async function filterChannelHasNewMessagesResult (
   filter: Filter,
   onUpdate: () => void
 ): Promise<ObjQueryType<any>> {
-  const inboxClient = (await getResource(notification.function.GetInboxNotificationsClient))()
-  const result = await getRefs(
-    filter,
-    onUpdate,
-    undefined,
-    get(inboxClient.contextByDoc),
-    get(inboxClient.inboxNotificationsByContext)
-  )
+  const result = await getRefs(filter, onUpdate, undefined)
   return { $in: result }
 }
 
@@ -166,13 +158,7 @@ export async function filterChannelNinResult (filter: Filter, onUpdate: () => vo
   return { $nin: result }
 }
 
-export async function getRefs (
-  filter: Filter,
-  onUpdate: () => void,
-  hasMessages?: boolean,
-  docUpdates?: Map<Ref<Doc>, DocNotifyContext>,
-  inboxNotificationsByContext?: Map<Ref<DocNotifyContext>, InboxNotification[]>
-): Promise<Array<Ref<Doc>>> {
+export async function getRefs (filter: Filter, onUpdate: () => void, hasMessages?: boolean): Promise<Array<Ref<Doc>>> {
   const lq = FilterQuery.getLiveQuery(filter.index)
   const client = getClient()
   const mode = await client.findOne(view.class.FilterMode, { _id: filter.mode })
@@ -186,16 +172,7 @@ export async function getRefs (
         ...hasMessagesQuery
       },
       (refs) => {
-        const filteredRefs =
-          docUpdates !== undefined && inboxNotificationsByContext !== undefined
-            ? refs.filter((channel) => {
-                const docUpdate = docUpdates.get(channel._id)
-                return docUpdate != null
-                  ? (inboxNotificationsByContext.get(docUpdate._id)?.some(({ isViewed }) => !isViewed) ?? false)
-                  : (channel.items ?? 0) > 0
-              })
-            : refs
-        const result = Array.from(new Set(filteredRefs.map((p) => p.attachedTo)))
+        const result = Array.from(new Set(refs.map((p) => p.attachedTo)))
         FilterQuery.results.set(filter.index, result)
         resolve(result)
         onUpdate()

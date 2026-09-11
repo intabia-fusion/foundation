@@ -30,7 +30,7 @@ import core, {
 import { type TriggerControl } from '@hcengineering/server-core'
 import { getAddCollaboratorsTxes } from '@hcengineering/server-contact'
 import contact, { formatName } from '@hcengineering/contact'
-import { type Presenter, type PresenterControl } from '@hcengineering/server-activity'
+import { type PresenterControl, StringPresenterFn } from '@hcengineering/server-activity'
 
 import {
   getCollaboratorsCached,
@@ -240,7 +240,7 @@ export async function ManageCollaboratorsTrigger (txes: TxCUD<Doc>[], control: T
   return res
 }
 
-export const CollaboratorTitlePresenter: Presenter<Collaborator> = async (
+export const CollaboratorTitlePresenter: StringPresenterFn<Collaborator> = async (
   doc: Collaborator,
   control: PresenterControl
 ): Promise<string> => {

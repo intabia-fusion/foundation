@@ -33,7 +33,7 @@ import {
 import { handleDownloadItem } from '@hcengineering/desktop-downloads'
 import notification, { notificationId } from '@hcengineering/notification'
 import workbench, { workbenchId, logOut } from '@hcengineering/workbench'
-import view, { Action, encodeObjectURI } from '@hcengineering/view'
+import view, { Action } from '@hcengineering/view'
 import { resolveLocation } from '@hcengineering/notification-resources'
 import { themeStore, ThemeVariant } from '@hcengineering/theme'
 import type { Application } from '@hcengineering/workbench'
@@ -212,38 +212,28 @@ window.addEventListener('DOMContentLoaded', () => {
     return `${workbenchId}/${worksapce}/${app}`
   }
 
-  ipcMain.handleNotificationNavigation((notificationParams: NotificationParams) => {
+  ipcMain.handleNotificationNavigation((params: NotificationParams) => {
     const currentLocation = getCurrentResolvedLocation()
     const workspace = currentLocation.path[1]
-    const app = notificationParams.application
+    const app = params.application
 
-    // Support for old inbox with objectId + objectClass (legacy)
-    if (notificationParams.objectId != null && notificationParams.objectClass != null) {
-      const encodedObjectURI = encodeObjectURI(notificationParams.objectId, notificationParams.objectClass)
-      const notificationLocation = {
-        path:
-          notificationParams.threadId != null
-            ? [workbenchId, workspace, app, encodedObjectURI, notificationParams.threadId]
-            : [workbenchId, workspace, app, encodedObjectURI],
-        fragment: undefined,
-        query: notificationParams.messageId != null ? { message: notificationParams.messageId } : undefined
-      }
-
-      void resolveLocation(notificationLocation)
-        .then((resolvedLocation) => {
-          if (resolvedLocation?.loc != null) {
-            navigate(resolvedLocation.loc)
-          } else {
-            navigateToUrl(`${workbenchId}/${workspace}/${app}/${encodedObjectURI}`)
-          }
-        })
-        .catch(() => {
-          navigateToUrl(getBasicNotificationPath(workspace, app))
-        })
-    } else {
-      // Fallback to basic notification navigation
-      navigateToUrl(getBasicNotificationPath(workspace, app))
+    const loc = {
+      path: params.onClickLocation.path,
+      fragment: params.onClickLocation.fragment,
+      query: params.onClickLocation.query
     }
+
+    void resolveLocation(loc)
+      .then((resolvedLocation) => {
+        if (resolvedLocation?.loc != null) {
+          navigate(resolvedLocation.loc)
+        } else {
+          navigateToUrl(getBasicNotificationPath(workspace, app))
+        }
+      })
+      .catch(() => {
+        navigateToUrl(getBasicNotificationPath(workspace, app))
+      })
   })
 
   ipcMain.handleUpdateDownloadProgress((progress) => {

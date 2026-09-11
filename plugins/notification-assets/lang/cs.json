@@ -8,7 +8,6 @@
     "PlatformNotification": "na platformě",
     "Track": "Sledovat",
     "DontTrack": "Nesledovat",
-    "BrowserNotification": "v prohlížeči",
     "Remove": "Smazat oznámení",
     "RemoveAll": "Smazat všechna oznámení",
     "MarkAllAsRead": "Označit všechna oznámení jako přečtená",
@@ -86,7 +85,10 @@
     "Appearance": "Vzhled",
     "ShowChatBadge": "Zobrazovat značku chatu",
     "HasNewNotifications": "You have new notifications",
-    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}"
+    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}",
+    "ReactedToYourMessage": "reagoval na vaši zprávu",
+    "Clearing": "Vymazávam...",
+    "Reading": "Čítam..."
   },
   "emailTemplate": {
     "MeAddedInCollaboratorsNotificationText": "{sender} added you as a collaborator to {doc}.",

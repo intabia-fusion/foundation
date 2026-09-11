@@ -1,4 +1,5 @@
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -251,7 +252,8 @@ async function getNewCollaborators (
         if (typeof value !== 'string') {
           value = value.$each
         }
-        const newCollabs = await getKeyCollaborators(ctx, control, docClass, value, key)
+        const arrayValue = Array.isArray(value) ? value : [value]
+        const newCollabs = await getKeyCollaborators(ctx, control, docClass, arrayValue, key)
         if (newCollabs !== undefined) {
           for (const newCollab of newCollabs) {
             newCollaborators.add(newCollab)

@@ -1420,9 +1420,10 @@ export async function sendEmailConfirmation (
 
   const name = branding?.title ?? getMetadata(accountPlugin.metadata.ProductName)
   const lang = branding?.defaultLanguage
-  const text = await translate(accountPlugin.string.ConfirmationText, { name, link }, lang)
-  const html = await translate(accountPlugin.string.ConfirmationHTML, { name, link }, lang)
-  const subject = await translate(accountPlugin.string.ConfirmationSubject, { name }, lang)
+  const app = name
+  const text = await translate(accountPlugin.string.ConfirmationText, { name, app, link }, lang)
+  const html = await translate(accountPlugin.string.ConfirmationHTML, { name, app, link }, lang)
+  const subject = await translate(accountPlugin.string.ConfirmationSubject, { name, app }, lang)
 
   await mailQueue?.send(
     ctx,
@@ -2065,21 +2066,22 @@ export async function getInviteEmail (
 ): Promise<EmailInfo> {
   const ws = sanitizeEmail(workspace.name !== '' ? workspace.name : workspace.url)
   const lang = branding?.defaultLanguage
+  const app = branding?.title ?? getMetadata(accountPlugin.metadata.ProductName)
 
   return {
     text: await translate(
       resend ? accountPlugin.string.ResendInviteText : accountPlugin.string.InviteText,
-      { link, ws, expHours },
+      { link, ws, expHours, app },
       lang
     ),
     html: await translate(
       resend ? accountPlugin.string.ResendInviteHTML : accountPlugin.string.InviteHTML,
-      { link, ws, expHours },
+      { link, ws, expHours, app },
       lang
     ),
     subject: await translate(
       resend ? accountPlugin.string.ResendInviteSubject : accountPlugin.string.InviteSubject,
-      { ws },
+      { ws, app },
       lang
     ),
     to: email
@@ -2263,6 +2265,7 @@ export const integrationServices = [
   'gmail',
   'google-calendar',
   'huly-mail',
+  'mail-service',
   'ai-assistant',
   'tool'
 ]

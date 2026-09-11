@@ -39,7 +39,7 @@ import task, { makeRank } from '@hcengineering/task'
 import time, { ProjectToDo, ToDo, ToDoPriority, TodoAutomationHelper, WorkSlot } from '@hcengineering/time'
 import tracker, { Issue, IssueStatus, Project, TimeSpendReport } from '@hcengineering/tracker'
 import {
-  CreateNotificationFunc,
+  CreateTxNotificationFunc,
   CreateNotificationResult,
   Receiver,
   TypeMatchClient
@@ -680,10 +680,10 @@ async function updateIssueHandler (tx: TxUpdateDoc<Issue>, control: TriggerContr
   return res
 }
 
-const TodoCreateNotification: CreateNotificationFunc = async (
+const TodoCreateNotification: CreateTxNotificationFunc = async (
   _client: TypeMatchClient,
   _tx: TxCUD<Doc>,
-  attachedToDoc: Doc | undefined,
+  _attachedToDoc: Doc | undefined,
   object: Doc,
   receiver: Receiver
 ): Promise<CreateNotificationResult | undefined> => {
@@ -692,11 +692,15 @@ const TodoCreateNotification: CreateNotificationFunc = async (
   if (todo.user !== receiver.employeeRef) return undefined
 
   return {
-    header: time.string.ToDo,
-    headerIcon: time.icon.Planned,
-    headerObjectId: todo._id,
-    headerObjectClass: todo._class,
-    markup: jsonToMarkup(nodeDoc(nodeParagraph(nodeText(todo.title))))
+    notification: {
+      header: {
+        titleIntl: time.string.ToDo,
+        icon: time.icon.Planned,
+        objectId: todo._id,
+        objectClass: todo._class
+      },
+      markup: jsonToMarkup(nodeDoc(nodeParagraph(nodeText(todo.title))))
+    }
   }
 }
 

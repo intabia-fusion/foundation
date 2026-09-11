@@ -30,11 +30,13 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(calendar.class.Event, core.class.Class, serverActivity.mixin.IdentifierPresenter, {
-    presenter: serverCalendar.function.ReminderIdentifierPresenter
+    presenter: serverCalendar.function.ReminderIdentifierPresenter,
+    triggerFields: ['attachedTo']
   })
 
   builder.mixin(calendar.class.Event, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverCalendar.function.ReminderTitlePresenter
+    presenter: serverCalendar.function.ReminderTitlePresenter,
+    triggerFields: ['attachedTo']
   })
 
   builder.mixin(calendar.class.Event, core.class.Class, serverCore.mixin.SearchPresenter, {

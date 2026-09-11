@@ -36,47 +36,187 @@ import core, {
   UserStatus
 } from '@hcengineering/core'
 import notification, {
+  DocNotificationSetting,
   DocNotifyContext,
   type NotificationProviderSetting,
   type NotificationTypeSetting,
-  ReadState
+  ReadState,
+  PushSubscription,
+  PushSubscriptionSetting
 } from '@hcengineering/notification'
-import contact, { Employee, Person, PersonSpace, SocialIdentityRef } from '@hcengineering/contact'
+import contact, { Employee, Person, PersonSpace, SocialIdentity, SocialIdentityRef } from '@hcengineering/contact'
 import { Receiver, Sender } from '@hcengineering/server-notification'
+import { LRUCache } from 'lru-cache'
 
 import { Client, EmployeeInfo, NotificationSettings, SocialIdentityInfo } from './types'
 
-class WsCache {
-  private readonly collaborators = new Map<Ref<Doc>, Collaborator[]>()
+/**
+ * WorkspaceCache manages caching and transaction-driven updates of
+ * notification-related workspace documents, collaborator access lists, and user statuses.
+ */
+class WorkspaceCache {
+  // ==========================================
+  // Primary LRU Caches (Bounded at 1000 items)
+  // ==========================================
 
-  private readonly contexts = new Map<Ref<Doc>, DocNotifyContext[]>()
-  private readonly docs = new Map<Ref<Doc>, Doc>()
+  /** Caches collaborators lists for a given document. */
+  private readonly collaboratorsByDocCache = new LRUCache<Ref<Doc>, Collaborator[]>({
+    max: 1000,
+    dispose: (collabs, _key, reason) => {
+      if (reason === 'evict') {
+        for (const collab of collabs) {
+          this.collaboratorToDocMap.delete(collab._id)
+        }
+      }
+    }
+  })
 
-  private readonly readStateByDoc = new Map<Ref<Doc>, ReadState>()
+  /** Caches active notification contexts of a document. */
+  private readonly contextsByDocCache = new LRUCache<Ref<Doc>, DocNotifyContext[]>({
+    max: 1000,
+    dispose: (contexts, _key, reason) => {
+      if (reason === 'evict') {
+        for (const context of contexts) {
+          this.contextToDocMap.delete(context._id)
+        }
+      }
+    }
+  })
+
+  /** Caches specific notification settings attached to a document. */
+  private readonly notificationSettingsByDocCache = new LRUCache<Ref<Doc>, DocNotificationSetting[]>({
+    max: 1000,
+    dispose: (settings, _key, reason) => {
+      if (reason === 'evict') {
+        for (const setting of settings) {
+          this.settingToDocMap.delete(setting._id)
+        }
+      }
+    }
+  })
+
+  /** General document cache. */
+  private readonly documentsCache = new LRUCache<Ref<Doc>, Doc>({
+    max: 1000
+  })
+
+  /** Caches read state settings for documents. */
+  private readonly readStatesByDocCache = new LRUCache<Ref<Doc>, ReadState>({
+    max: 1000,
+    dispose: (state, _key, reason) => {
+      if (reason === 'evict') {
+        this.readStateToDocMap.delete(state._id)
+      }
+    }
+  })
+
+  /** Caches loaded Person records indexed by their Social identity ID. */
+  private readonly personsBySocialIdCache = new LRUCache<PersonId, Person>({
+    max: 1000,
+    dispose: (person, socialId, reason) => {
+      if (reason === 'evict') {
+        const set = this.personToSocialIdsMap.get(person._id)
+        if (set !== undefined) {
+          set.delete(socialId)
+          if (set.size === 0) {
+            this.personToSocialIdsMap.delete(person._id)
+          }
+        }
+      }
+    }
+  })
+
+  /** Caches workspace settings spaces assigned to a user account. */
+  private readonly personSpacesByAccountCache = new LRUCache<AccountUuid, PersonSpace>({
+    max: 1000,
+    dispose: (space, _account, reason) => {
+      if (reason === 'evict') {
+        this.personSpaceToAccountMap.delete(space._id)
+      }
+    }
+  })
+
+  /** Caches employee information records. */
+  private readonly employeesByAccountCache = new LRUCache<AccountUuid, EmployeeInfo>({
+    max: 1000,
+    dispose: (employee, _account, reason) => {
+      if (reason === 'evict') {
+        this.employeeToAccountMap.delete(employee._id)
+      }
+    }
+  })
+
+  /** Caches social identities lists mapped to an employee profile. */
+  private readonly socialIdentitiesByEmployeeCache = new LRUCache<Ref<Employee>, SocialIdentityInfo[]>({
+    max: 1000,
+    dispose: (socialIds, _employeeRef, reason) => {
+      if (reason === 'evict') {
+        for (const socialId of socialIds) {
+          this.socialIdToEmployeeMap.delete(socialId._id)
+        }
+      }
+    }
+  })
+
+  /** Caches active push notifications subscription tokens. */
+  private readonly pushSubscriptionsByAccountCache = new LRUCache<AccountUuid, PushSubscription[]>({
+    max: 1000
+  })
+
+  /** Caches social identity to account mappings. */
+  private readonly accountsBySocialIdCache = new LRUCache<PersonId, AccountUuid>({
+    max: 1000
+  })
+
+  // ==========================================
+  // Static Configuration & Global State Maps
+  // ==========================================
 
   private isSettingsLoaded = false
-  private readonly notificationProviderSettings = new Map<
+  private readonly notificationProviderSettingsMap = new Map<
     Ref<NotificationProviderSetting>,
     NotificationProviderSetting
   >()
 
-  private readonly notificationTypeSettings = new Map<Ref<NotificationTypeSetting>, NotificationTypeSetting>()
+  private readonly notificationTypeSettingsMap = new Map<Ref<NotificationTypeSetting>, NotificationTypeSetting>()
+  private readonly userStatusesMap = new Map<Ref<UserStatus>, UserStatus>()
 
-  private readonly persons = new Map<PersonId, Person>()
-  private readonly personSpaces = new Map<AccountUuid, PersonSpace>()
-  private readonly userStatuses = new Map<Ref<UserStatus>, UserStatus>()
+  // ==========================================
+  // Secondary Indexes for O(1) Transaction Updates
+  // ==========================================
 
-  private readonly accountBySocialId = new Map<PersonId, AccountUuid>()
-  private readonly employees = new Map<AccountUuid, EmployeeInfo>()
-  private readonly socialIds = new Map<Ref<Employee>, SocialIdentityInfo[]>()
+  private readonly collaboratorToDocMap = new Map<Ref<Collaborator>, Ref<Doc>>()
+  private readonly readStateToDocMap = new Map<Ref<ReadState>, Ref<Doc>>()
+  private readonly contextToDocMap = new Map<Ref<DocNotifyContext>, Ref<Doc>>()
+  private readonly settingToDocMap = new Map<Ref<DocNotificationSetting>, Ref<Doc>>()
+  private readonly personSpaceToAccountMap = new Map<Ref<PersonSpace>, AccountUuid>()
+  private readonly personToSocialIdsMap = new Map<Ref<Person>, Set<PersonId>>()
+  private readonly socialIdToEmployeeMap = new Map<Ref<SocialIdentity>, Ref<Employee>>()
+  private readonly employeeToAccountMap = new Map<Ref<Employee>, AccountUuid>()
+
+  private readonly serviceTxes = new LRUCache<Ref<TxCUD<Doc>>, boolean>({ max: 10000 })
 
   constructor (
     private readonly ctx: MeasureContext,
     private readonly client: Client
   ) {}
 
-  public tx (tx: TxCUD<Doc>): void {
-    this.clearLargeCaches()
+  // ==========================================
+  // Public API
+  // ==========================================
+
+  /**
+   * Processes a transaction CUD event and updates the cache indexes in real time.
+   */
+  public tx (tx: TxCUD<Doc>, service: boolean = false): void {
+    if (this.serviceTxes.has(tx._id)) {
+      this.serviceTxes.delete(tx._id)
+      return
+    }
+
+    if (this.isPushSubscriptionTx(tx)) {
+      this.pushSubscriptionsByAccountCache.clear()
+    }
     if (tx._class === core.class.TxCreateDoc) {
       this.txCreateDoc(tx as TxCreateDoc<Doc>)
     }
@@ -88,274 +228,33 @@ class WsCache {
     if (tx._class === core.class.TxRemoveDoc) {
       this.txRemoveDoc(tx)
     }
-  }
 
-  private txCreateDoc (tx: TxCreateDoc<Doc>): void {
-    const doc = TxProcessor.createDoc2Doc(tx)
-    const { hierarchy } = this.client
-
-    if (hierarchy.isDerived(doc._class, core.class.Collaborator)) {
-      const collab = doc as Collaborator
-
-      if (!this.collaborators.has(collab.attachedTo)) return
-
-      const current = this.collaborators.get(collab.attachedTo) ?? []
-      if (!current.some((it) => it._id === collab._id)) {
-        this.collaborators.set(collab.attachedTo, [...current, collab])
-      }
-    }
-
-    if (hierarchy.isDerived(doc._class, notification.class.ReadState)) {
-      const state = doc as ReadState
-      if (this.readStateByDoc.has(state.attachedTo)) return
-      this.readStateByDoc.set(state.attachedTo, state)
-    }
-
-    if (hierarchy.isDerived(doc._class, notification.class.DocNotifyContext)) {
-      const context = doc as DocNotifyContext
-      if (!this.contexts.has(context.objectId)) return
-      const current = this.contexts.get(context.objectId) ?? []
-      if (!current.some((it) => it._id === context._id)) {
-        this.contexts.set(context.objectId, [...current, context])
-      }
-    }
-
-    if (this.isSettingsLoaded && hierarchy.isDerived(doc._class, notification.class.NotificationProviderSetting)) {
-      const setting = doc as NotificationProviderSetting
-      this.notificationProviderSettings.set(setting._id, setting)
-    }
-
-    if (this.isSettingsLoaded && hierarchy.isDerived(doc._class, notification.class.NotificationTypeSetting)) {
-      const setting = doc as NotificationTypeSetting
-      this.notificationTypeSettings.set(setting._id, setting)
-    }
-
-    if (hierarchy.isDerived(doc._class, contact.class.PersonSpace)) {
-      const space = doc as PersonSpace
-      this.personSpaces.set(space.account, space)
-    }
-
-    if (hierarchy.isDerived(doc._class, core.class.UserStatus)) {
-      const status = doc as UserStatus
-      this.userStatuses.set(status._id, status)
+    if (service) {
+      this.serviceTxes.set(tx._id, true)
     }
   }
 
-  private txUpdateDoc (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
-    const doc = this.docs.get(tx.objectId)
-    const { hierarchy } = this.client
-
-    if (doc != null) {
-      const updated = this.updateOrMixin(tx, doc)
-      this.docs.set(updated._id, updated)
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, core.class.Collaborator)) {
-      const collabs = Array.from(this.collaborators.values()).flat()
-      const collab = collabs.find((collab) => collab._id === tx.objectId)
-      if (collab === undefined) return
-      const updated = this.updateOrMixin(tx, collab)
-      const current = this.collaborators.get(updated.attachedTo) ?? []
-      this.collaborators.set(
-        updated.attachedTo,
-        current.map((it) => (it._id === updated._id ? updated : it))
-      )
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, notification.class.ReadState)) {
-      const state = Array.from(this.readStateByDoc.values()).find((it) => it._id === tx.objectId)
-      if (state == null) return
-      const updated = this.updateOrMixin(tx, state)
-
-      this.readStateByDoc.set(updated.attachedTo, updated)
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, notification.class.DocNotifyContext)) {
-      const contexts = Array.from(this.contexts.values()).flat()
-      const context = contexts.find((context) => context._id === tx.objectId)
-      if (context === undefined) return
-      const updated = this.updateOrMixin(tx, context)
-      const current = this.contexts.get(updated.objectId) ?? []
-      this.contexts.set(
-        updated.objectId,
-        current.map((it) => (it._id === updated._id ? updated : it))
-      )
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, notification.class.NotificationProviderSetting)) {
-      const setting = this.notificationProviderSettings.get(tx.objectId as Ref<NotificationProviderSetting>)
-      if (setting === undefined) return
-      const updated = this.updateOrMixin(tx, setting)
-      this.notificationProviderSettings.set(updated._id, updated)
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, notification.class.NotificationTypeSetting)) {
-      const setting = this.notificationTypeSettings.get(tx.objectId as Ref<NotificationTypeSetting>)
-      if (setting === undefined) return
-      const updated = this.updateOrMixin(tx, setting)
-      this.notificationTypeSettings.set(updated._id, updated)
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, contact.class.PersonSpace)) {
-      const spaces = Array.from(this.personSpaces.values())
-      const space = spaces.find((space) => space._id === tx.objectId)
-      if (space === undefined) return
-      const updated = this.updateOrMixin(tx, space)
-      this.personSpaces.set(updated.account, updated)
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, core.class.UserStatus)) {
-      const status = this.userStatuses.get(tx.objectId as Ref<UserStatus>)
-      if (status === undefined) return
-      const updated = this.updateOrMixin(tx, status)
-      this.userStatuses.set(updated._id, updated)
-    }
-
-    if (
-      hierarchy.isDerived(tx.objectClass, contact.mixin.Employee) ||
-      hierarchy.isDerived(tx.objectClass, contact.class.Person)
-    ) {
-      const employees = Array.from(this.employees.values())
-      const employee = employees.find((emp) => emp._id === tx.objectId)
-      if (employee != null) {
-        const updated = this.updateOrMixin(tx, employee as Employee) as EmployeeInfo
-        if (updated.personUuid != null) {
-          this.employees.set(updated.personUuid, updated)
-        }
-      }
-
-      const persons: Array<[PersonId, Person]> = Array.from(this.persons.entries())
-      const matched = persons.filter(([_, person]) => person._id === tx.objectId)
-      if (matched.length > 0) {
-        const updated = matched.map(([personId, person]): [PersonId, Person] => [
-          personId,
-          this.updateOrMixin(tx, person)
-        ])
-        for (const [personId, person] of updated) {
-          this.persons.set(personId, person)
-        }
-      }
-    }
-  }
-
-  private txRemoveDoc (tx: TxRemoveDoc<Doc>): void {
-    this.docs.delete(tx.objectId)
-    const { hierarchy } = this.client
-
-    if (hierarchy.isDerived(tx.objectClass, core.class.Collaborator)) {
-      const collabs = Array.from(this.collaborators.values()).flat()
-      const collab = collabs.find((collab) => collab._id === tx.objectId)
-      if (collab === undefined) return
-      const current = this.collaborators.get(collab.attachedTo) ?? []
-      this.collaborators.set(
-        collab.attachedTo,
-        current.filter((it) => it._id !== collab._id)
-      )
-      return
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, notification.class.ReadState)) {
-      const state = Array.from(this.readStateByDoc.values()).find((it) => it._id === tx.objectId)
-      if (state == null) return
-      this.readStateByDoc.delete(state.attachedTo)
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, notification.class.DocNotifyContext)) {
-      this.contexts.delete(tx.objectId)
-      const contexts = Array.from(this.contexts.values()).flat()
-      const context = contexts.find((context) => context._id === tx.objectId)
-      if (context === undefined) return
-      const current = this.contexts.get(context.objectId) ?? []
-      this.contexts.set(
-        context.objectId,
-        current.filter((it) => it._id !== context._id)
-      )
-      return
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, notification.class.NotificationProviderSetting)) {
-      this.notificationProviderSettings.delete(tx.objectId as Ref<NotificationProviderSetting>)
-      return
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, notification.class.NotificationTypeSetting)) {
-      this.notificationTypeSettings.delete(tx.objectId as Ref<NotificationTypeSetting>)
-      return
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, contact.class.PersonSpace)) {
-      const spaces = Array.from(this.personSpaces.values())
-      const space = spaces.find((space) => space._id === tx.objectId)
-      if (space === undefined) return
-      this.personSpaces.delete(space.account)
-      return
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, core.class.UserStatus)) {
-      this.userStatuses.delete(tx.objectId as Ref<UserStatus>)
-      return
-    }
-
-    if (
-      hierarchy.isDerived(tx.objectClass, contact.mixin.Employee) ||
-      hierarchy.isDerived(tx.objectClass, contact.class.Person)
-    ) {
-      const employees = Array.from(this.employees.values())
-      const employee = employees.find((employee) => employee._id === tx.objectId)
-      if (employee?.personUuid != null) {
-        this.employees.delete(employee.personUuid)
-      }
-
-      const persons: Array<[PersonId, Person]> = Array.from(this.persons.entries())
-      for (const [personId, person] of persons) {
-        if (person._id === tx.objectId) {
-          this.persons.delete(personId)
-        }
-      }
-
-      return
-    }
-
-    if (hierarchy.isDerived(tx.objectClass, contact.class.SocialIdentity)) {
-      this.persons.delete(tx.objectId as any as PersonId)
-      const socialIds = Array.from(this.socialIds.values()).flat()
-      const socialId = socialIds.find((socialId) => socialId._id === tx.objectId)
-      if (socialId === undefined) return
-      const ref = socialId.attachedTo as Ref<Employee>
-      const ids = this.socialIds.get(ref) ?? []
-      this.socialIds.set(
-        ref,
-        ids.filter((it) => it._id !== socialId._id)
-      )
-    }
-  }
-
-  private updateOrMixin<T extends Doc>(tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>, doc: T): T {
-    if (tx._class === core.class.TxUpdateDoc) {
-      return TxProcessor.updateDoc2Doc(doc, tx as TxUpdateDoc<Doc>) as T
-    }
-
-    return TxProcessor.updateMixin4Doc(doc, tx as TxMixin<Doc, Doc>) as T
-  }
-
+  /**
+   * Resolves notification providers and types configurations.
+   */
   public async getSettings (): Promise<NotificationSettings> {
     const providersSettings: NotificationProviderSetting[] = this.isSettingsLoaded
-      ? Array.from(this.notificationProviderSettings.values())
+      ? Array.from(this.notificationProviderSettingsMap.values())
       : await this.client.findAll<NotificationProviderSetting>(notification.class.NotificationProviderSetting, {})
 
     if (!this.isSettingsLoaded) {
       for (const setting of providersSettings) {
-        this.notificationProviderSettings.set(setting._id, setting)
+        this.notificationProviderSettingsMap.set(setting._id, setting)
       }
     }
 
     const typesSettings: NotificationTypeSetting[] = this.isSettingsLoaded
-      ? Array.from(this.notificationTypeSettings.values())
+      ? Array.from(this.notificationTypeSettingsMap.values())
       : await this.client.findAll(notification.class.NotificationTypeSetting, {})
 
     if (!this.isSettingsLoaded) {
       for (const setting of typesSettings) {
-        this.notificationTypeSettings.set(setting._id, setting)
+        this.notificationTypeSettingsMap.set(setting._id, setting)
       }
     }
 
@@ -369,9 +268,12 @@ class WsCache {
     }
   }
 
+  /**
+   * Returns list of collaborators for a specific document.
+   */
   public async getCollaborators (_id: Ref<Doc>, _class: Ref<Class<Doc>>): Promise<Collaborator[]> {
-    if (this.collaborators.has(_id)) {
-      return this.collaborators.get(_id) ?? []
+    if (this.collaboratorsByDocCache.has(_id)) {
+      return this.collaboratorsByDocCache.get(_id) ?? []
     }
 
     const mixin = getClassCollaborators(this.client.model, this.client.hierarchy, _class)
@@ -381,112 +283,155 @@ class WsCache {
 
     const collaborators = await this.client.findAll(core.class.Collaborator, { attachedTo: _id })
 
-    this.collaborators.set(_id, collaborators)
+    this.collaboratorsByDocCache.set(_id, collaborators)
+    for (const collab of collaborators) {
+      this.collaboratorToDocMap.set(collab._id, _id)
+    }
 
     return collaborators
   }
 
+  /**
+   * Returns a cached document or fetches it from database.
+   */
   public async getDoc<T extends Doc = Doc>(_id: Ref<T>, _class: Ref<Class<T>>): Promise<T | undefined> {
-    if (this.docs.has(_id)) return this.docs.get(_id) as T
+    if (this.documentsCache.has(_id)) return this.documentsCache.get(_id) as T
     // A tx can name a task type's target mixin that the workspace model no longer has; findOne then
     // throws "domain not found" and the tx consumer retries that one message forever.
     if (!this.client.hierarchy.hasClass(_class)) return undefined
-    const query = { _id } as unknown as DocumentQuery<T>
 
+    const query = { _id } as unknown as DocumentQuery<T>
     const doc = await this.client.findOne(_class, query)
     if (doc !== undefined) {
-      this.docs.set(_id, doc)
+      this.documentsCache.set(_id, doc)
     } else {
-      this.docs.delete(_id)
+      this.documentsCache.delete(_id)
     }
     return doc
   }
 
+  /**
+   * Returns document notification contexts.
+   */
   public async getContexts (_id: Ref<Doc>): Promise<DocNotifyContext[]> {
-    if (this.contexts.has(_id)) return this.contexts.get(_id) ?? []
+    if (this.contextsByDocCache.has(_id)) return this.contextsByDocCache.get(_id) ?? []
 
     const contexts = await this.client.findAll(notification.class.DocNotifyContext, { objectId: _id })
-    this.contexts.set(_id, contexts)
+    this.contextsByDocCache.set(_id, contexts)
+    for (const context of contexts) {
+      this.contextToDocMap.set(context._id, _id)
+    }
 
     return contexts
   }
 
-  public storeContext (context: DocNotifyContext): void {
-    const current = this.contexts.get(context.objectId) ?? []
-    this.contexts.set(context.objectId, [...current, context])
+  public async getContext (_id: Ref<Doc>, account: AccountUuid): Promise<DocNotifyContext | undefined> {
+    const loaded = (this.contextsByDocCache.get(_id) ?? []).find((it) => it.user === account)
+    if (loaded != null) return loaded
+
+    return await this.client.findOne(notification.class.DocNotifyContext, { objectId: _id, user: account })
   }
 
+  /**
+   * Returns document settings.
+   */
+  public async getDocSettings (_id: Ref<Doc>): Promise<DocNotificationSetting[]> {
+    if (this.notificationSettingsByDocCache.has(_id)) return this.notificationSettingsByDocCache.get(_id) ?? []
+
+    const settings = await this.client.findAll(notification.class.DocNotificationSetting, { attachedTo: _id })
+    this.notificationSettingsByDocCache.set(_id, settings)
+    for (const setting of settings) {
+      this.settingToDocMap.set(setting._id, _id)
+    }
+
+    return settings
+  }
+
+  /**
+   * Manually adds a document context to the cache.
+   */
+  public storeContext (context: DocNotifyContext): void {
+    const current = this.contextsByDocCache.get(context.objectId) ?? []
+    this.contextsByDocCache.set(context.objectId, [...current, context])
+    this.contextToDocMap.set(context._id, context.objectId)
+  }
+
+  /**
+   * Resolves the Space document assigned to a given doc.
+   */
   public async getDocSpace (doc: Doc): Promise<Space | undefined> {
     if (this.client.hierarchy.isDerived(doc._class, core.class.Space)) return doc as Space
-    const curent = this.docs.get(doc.space)
+    const curent = this.documentsCache.get(doc.space)
     if (curent !== undefined) return curent as Space
 
     const space = await this.client.findOne<Space>(core.class.Space, { _id: doc.space }, { limit: 1 })
 
     if (space !== undefined) {
-      this.docs.set(doc.space, space)
+      this.documentsCache.set(doc.space, space)
     }
 
     return space
   }
 
+  /**
+   * Fetches read state document attached to a given doc.
+   */
   public async getDocReadState (attachedTo: Ref<Doc>): Promise<ReadState | undefined> {
-    const current = this.readStateByDoc.get(attachedTo)
+    const current = this.readStatesByDocCache.get(attachedTo)
     if (current !== undefined) return current
     const readState = await this.client.findOne<ReadState>(notification.class.ReadState, { attachedTo })
     if (readState !== undefined) {
-      this.readStateByDoc.set(attachedTo, readState)
+      this.readStatesByDocCache.set(attachedTo, readState)
+      this.readStateToDocMap.set(readState._id, attachedTo)
     }
     return readState
   }
 
-  private async getEmployeesInfo (collaborators: AccountUuid[]): Promise<EmployeeInfo[]> {
-    const existing = collaborators.map((it) => this.employees.get(it)).filter(notEmpty)
-    const toLoad = collaborators.filter((it) => !this.employees.has(it))
-    if (toLoad.length === 0) {
-      return existing.filter((it) => it.active)
+  /**
+   * Fetches read state document by its own ID.
+   */
+  public async getReadState (readStateId: Ref<ReadState>): Promise<ReadState | undefined> {
+    const attachedTo = this.readStateToDocMap.get(readStateId)
+    if (attachedTo !== undefined) {
+      const cached = this.readStatesByDocCache.get(attachedTo)
+      if (cached !== undefined) return cached
     }
 
-    const loaded = await this.client.findAll(
-      contact.mixin.Employee,
-      { personUuid: { $in: toLoad }, active: true },
-      { projection: { _id: 1, personUuid: 1, role: 1, active: 1 } }
-    )
-
-    const employees: EmployeeInfo[] = loaded.map((doc) => {
-      const emp = this.client.hierarchy.as(doc, contact.mixin.Employee)
-      return {
-        _id: emp._id,
-        personUuid: emp.personUuid,
-        role: emp.role,
-        active: emp.active ?? true
-      }
-    })
-
-    for (const employee of employees) {
-      if (employee.personUuid == null) continue
-      this.employees.set(employee.personUuid, employee)
+    const readState = await this.client.findOne<ReadState>(notification.class.ReadState, { _id: readStateId })
+    if (readState !== undefined) {
+      this.readStatesByDocCache.set(readState.attachedTo, readState)
+      this.readStateToDocMap.set(readState._id, readState.attachedTo)
     }
-
-    return existing.concat(employees).filter((it) => it.active)
+    return readState
   }
 
+  /**
+   * Searches for a PersonSpace document by its reference ID.
+   */
   public async findPersonSpace (_id: Ref<PersonSpace>): Promise<PersonSpace | undefined> {
-    const spaces = Array.from(this.personSpaces.values())
-    const cached = spaces.find((it) => it._id === _id)
-    if (cached != null) return cached
+    const account = this.personSpaceToAccountMap.get(_id)
+    if (account !== undefined) {
+      const cached = this.personSpacesByAccountCache.get(account)
+      if (cached !== undefined) return cached
+    }
 
     const space = await this.client.findOne(contact.class.PersonSpace, { _id })
-    if (space != null) this.personSpaces.set(space.account, space)
+    if (space != null) {
+      this.personSpacesByAccountCache.set(space.account, space)
+      this.personSpaceToAccountMap.set(space._id, space.account)
+    }
     return space
   }
 
+  /**
+   * Resolves PersonSpaces documents associated with user accounts.
+   */
   public async getPersonSpaces (accounts: AccountUuid[]): Promise<PersonSpace[]> {
     const result: PersonSpace[] = []
     const toLoad: AccountUuid[] = []
 
     for (const account of accounts) {
-      const space = this.personSpaces.get(account)
+      const space = this.personSpacesByAccountCache.get(account)
       if (space !== undefined) {
         result.push(space)
       } else {
@@ -500,7 +445,8 @@ class WsCache {
     })
 
     for (const space of loaded) {
-      this.personSpaces.set(space.account, space)
+      this.personSpacesByAccountCache.set(space.account, space)
+      this.personSpaceToAccountMap.set(space._id, space.account)
       if (toLoad.includes(space.account)) {
         result.push(space)
       }
@@ -509,39 +455,35 @@ class WsCache {
     return result
   }
 
-  private async getSocialIds (persons: Ref<Employee>[]): Promise<SocialIdentityInfo[]> {
-    const result: SocialIdentityInfo[] = []
+  /**
+   * Fetches active push notifications subscriptions for a user.
+   */
+  public async getPushSubscriptions (user: AccountUuid): Promise<PushSubscription[]> {
+    const cached = this.pushSubscriptionsByAccountCache.get(user)
+    if (cached !== undefined) return cached
 
-    const toLoad: Ref<Employee>[] = []
-
-    for (const person of persons) {
-      const ids = this.socialIds.get(person)
-      if (ids !== undefined) {
-        result.push(...ids)
-      } else {
-        toLoad.push(person)
-      }
-    }
-    if (toLoad.length === 0) return result
-
-    const loaded: SocialIdentityInfo[] = await this.client.findAll(
-      contact.class.SocialIdentity,
-      { attachedTo: { $in: toLoad } },
-      { projection: { _id: 1, attachedTo: 1 } }
-    )
-
-    for (const id of loaded) {
-      const ref = id.attachedTo as Ref<Employee>
-      const ids = this.socialIds.get(ref) ?? []
-      this.socialIds.set(ref, [...ids, id])
-      if (toLoad.includes(ref)) {
-        result.push(id)
-      }
+    const subscriptions = await this.client.findAll<PushSubscription>(notification.class.PushSubscription, { user })
+    if (subscriptions.length === 0) {
+      this.pushSubscriptionsByAccountCache.set(user, [])
+      return []
     }
 
-    return result
+    const settings = await this.client.findAll<PushSubscriptionSetting>(notification.class.PushSubscriptionSetting, {
+      attachedTo: { $in: subscriptions.map((it) => it._id) }
+    })
+
+    const filtered = subscriptions.filter((sub) => {
+      const setting = settings.find((s) => s.attachedTo === sub._id)
+      return setting?.enabled !== false
+    })
+
+    this.pushSubscriptionsByAccountCache.set(user, filtered)
+    return filtered
   }
 
+  /**
+   * Assembles the receiver definitions list for active document collaborators.
+   */
   public async getReceivers (collaborators: AccountUuid[]): Promise<Receiver[]> {
     if (collaborators.length === 0) return []
 
@@ -571,13 +513,17 @@ class WsCache {
           space: space._id,
           account: it,
           socialIds: socialIdsByEmployee.get(employee._id)?.map((it) => it._id) ?? [],
-          online: statuses.find((s) => s.user === it)?.online ?? false
+          online: statuses.find((s) => s.user === it)?.online ?? false,
+          language: this.client.branding?.defaultLanguage ?? 'en'
         }
         return info
       })
       .filter(notEmpty)
   }
 
+  /**
+   * Resolves details of the message sender by their Social ID reference.
+   */
   public async getSender (socialId: PersonId): Promise<Sender> {
     if (socialId === core.account.System) {
       return {
@@ -586,7 +532,7 @@ class WsCache {
       }
     }
 
-    const person = this.persons.get(socialId)
+    const person = this.personsBySocialIdCache.get(socialId)
     if (person != null) {
       return { socialId, person, account: person.personUuid as AccountUuid }
     }
@@ -597,7 +543,10 @@ class WsCache {
       const pp = await this.client.findOne(contact.class.Person, { personUuid: account })
 
       if (pp != null) {
-        this.persons.set(socialId, pp)
+        this.personsBySocialIdCache.set(socialId, pp)
+        const set = this.personToSocialIdsMap.get(pp._id) ?? new Set()
+        set.add(socialId)
+        this.personToSocialIdsMap.set(pp._id, set)
         return { socialId, person: pp, account }
       }
 
@@ -616,14 +565,20 @@ class WsCache {
     const pp = await this.client.findOne(contact.class.Person, { _id: socialIdentity.attachedTo })
 
     if (pp != null) {
-      this.persons.set(socialId, pp)
+      this.personsBySocialIdCache.set(socialId, pp)
+      const set = this.personToSocialIdsMap.get(pp._id) ?? new Set()
+      set.add(socialId)
+      this.personToSocialIdsMap.set(pp._id, set)
     }
 
     return { socialId, person: pp, account }
   }
 
+  /**
+   * Maps a SocialIdentity ID back to the corresponding User Account UUID.
+   */
   public async getAccountBySocialId (socialId: PersonId): Promise<AccountUuid | null> {
-    const account = this.accountBySocialId.get(socialId)
+    const account = this.accountsBySocialIdCache.get(socialId)
 
     if (account != null) return account
 
@@ -640,50 +595,475 @@ class WsCache {
     const acc = employee?.personUuid ?? null
 
     if (acc != null) {
-      this.accountBySocialId.set(socialId, acc)
+      this.accountsBySocialIdCache.set(socialId, acc)
     }
 
     return acc
   }
 
+  /**
+   * Returns list of user status records.
+   */
   public async getUserStatuses (): Promise<UserStatus[]> {
-    if (this.userStatuses.size > 0) {
-      return Array.from(this.userStatuses.values())
+    if (this.userStatusesMap.size > 0) {
+      return Array.from(this.userStatusesMap.values())
     }
 
     const statuses = await this.client.findAll(core.class.UserStatus, {})
 
     for (const status of statuses) {
-      this.userStatuses.set(status._id, status)
+      this.userStatusesMap.set(status._id, status)
     }
 
     return statuses
   }
 
-  private clearLargeCaches (): void {
-    const maxSize = 1000
-    if (this.collaborators.size > maxSize) {
-      this.collaborators.clear()
+  // ==========================================
+  // Private Dispatchers
+  // ==========================================
+
+  private txCreateDoc (tx: TxCreateDoc<Doc>): void {
+    const doc = TxProcessor.createDoc2Doc(tx)
+    const { hierarchy } = this.client
+
+    if (hierarchy.isDerived(doc._class, core.class.Collaborator)) {
+      this.createCollaborator(doc as Collaborator)
     }
-    if (this.docs.size > maxSize) {
-      this.docs.clear()
+    if (hierarchy.isDerived(doc._class, notification.class.ReadState)) {
+      this.createReadState(doc as ReadState)
     }
-    if (this.contexts.size > maxSize) {
-      this.contexts.clear()
+    if (hierarchy.isDerived(doc._class, notification.class.DocNotifyContext)) {
+      this.createNotifyContext(doc as DocNotifyContext)
     }
-    if (this.readStateByDoc.size > maxSize) {
-      this.readStateByDoc.clear()
+    if (hierarchy.isDerived(doc._class, notification.class.DocNotificationSetting)) {
+      this.createNotificationSetting(doc as DocNotificationSetting)
     }
-    if (this.persons.size > maxSize) {
-      this.persons.clear()
+    if (this.isSettingsLoaded && hierarchy.isDerived(doc._class, notification.class.NotificationProviderSetting)) {
+      const setting = doc as NotificationProviderSetting
+      this.notificationProviderSettingsMap.set(setting._id, setting)
     }
-    if (this.employees.size > maxSize) {
-      this.employees.clear()
+    if (this.isSettingsLoaded && hierarchy.isDerived(doc._class, notification.class.NotificationTypeSetting)) {
+      const setting = doc as NotificationTypeSetting
+      this.notificationTypeSettingsMap.set(setting._id, setting)
     }
-    if (this.socialIds.size > maxSize) {
-      this.socialIds.clear()
+    if (hierarchy.isDerived(doc._class, contact.class.PersonSpace)) {
+      this.createPersonSpace(doc as PersonSpace)
     }
+    if (hierarchy.isDerived(doc._class, core.class.UserStatus)) {
+      const status = doc as UserStatus
+      this.userStatusesMap.set(status._id, status)
+    }
+  }
+
+  private txUpdateDoc (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
+    const doc = this.documentsCache.get(tx.objectId)
+    const { hierarchy } = this.client
+
+    if (doc != null) {
+      const updated = this.updateOrMixin(tx, doc)
+      this.documentsCache.set(updated._id, updated)
+    }
+
+    if (hierarchy.isDerived(tx.objectClass, core.class.Collaborator)) {
+      this.updateCollaborator(tx)
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.ReadState)) {
+      this.updateReadState(tx)
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.DocNotifyContext)) {
+      this.updateNotifyContext(tx)
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.DocNotificationSetting)) {
+      this.updateNotificationSetting(tx)
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.NotificationProviderSetting)) {
+      const setting = this.notificationProviderSettingsMap.get(tx.objectId as Ref<NotificationProviderSetting>)
+      if (setting !== undefined) {
+        this.notificationProviderSettingsMap.set(setting._id, this.updateOrMixin(tx, setting))
+      }
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.NotificationTypeSetting)) {
+      const setting = this.notificationTypeSettingsMap.get(tx.objectId as Ref<NotificationTypeSetting>)
+      if (setting !== undefined) {
+        this.notificationTypeSettingsMap.set(setting._id, this.updateOrMixin(tx, setting))
+      }
+    }
+    if (hierarchy.isDerived(tx.objectClass, contact.class.PersonSpace)) {
+      this.updatePersonSpace(tx)
+    }
+    if (hierarchy.isDerived(tx.objectClass, core.class.UserStatus)) {
+      const status = this.userStatusesMap.get(tx.objectId as Ref<UserStatus>)
+      if (status !== undefined) {
+        this.userStatusesMap.set(status._id, this.updateOrMixin(tx, status))
+      }
+    }
+    if (hierarchy.isDerived(tx.objectClass, contact.class.Person)) {
+      this.updatePerson(tx)
+    }
+  }
+
+  private txRemoveDoc (tx: TxRemoveDoc<Doc>): void {
+    this.documentsCache.delete(tx.objectId)
+    const { hierarchy } = this.client
+
+    if (hierarchy.isDerived(tx.objectClass, core.class.Collaborator)) {
+      this.removeCollaborator(tx)
+      return
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.ReadState)) {
+      this.removeReadState(tx)
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.DocNotifyContext)) {
+      this.removeNotifyContext(tx)
+      return
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.DocNotificationSetting)) {
+      this.removeNotificationSetting(tx)
+      return
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.NotificationProviderSetting)) {
+      this.notificationProviderSettingsMap.delete(tx.objectId as Ref<NotificationProviderSetting>)
+      return
+    }
+    if (hierarchy.isDerived(tx.objectClass, notification.class.NotificationTypeSetting)) {
+      this.notificationTypeSettingsMap.delete(tx.objectId as Ref<NotificationTypeSetting>)
+      return
+    }
+    if (hierarchy.isDerived(tx.objectClass, contact.class.PersonSpace)) {
+      this.removePersonSpace(tx)
+      return
+    }
+    if (hierarchy.isDerived(tx.objectClass, core.class.UserStatus)) {
+      this.userStatusesMap.delete(tx.objectId as Ref<UserStatus>)
+      return
+    }
+    if (hierarchy.isDerived(tx.objectClass, contact.class.Person)) {
+      this.removePerson(tx)
+      return
+    }
+    if (hierarchy.isDerived(tx.objectClass, contact.class.SocialIdentity)) {
+      this.removeSocialIdentity(tx)
+    }
+  }
+
+  // ==========================================
+  // Private Action Handlers
+  // ==========================================
+
+  private createCollaborator (collab: Collaborator): void {
+    if (!this.collaboratorsByDocCache.has(collab.attachedTo)) return
+
+    const current = this.collaboratorsByDocCache.get(collab.attachedTo) ?? []
+    if (!current.some((it) => it._id === collab._id)) {
+      this.collaboratorsByDocCache.set(collab.attachedTo, [...current, collab])
+      this.collaboratorToDocMap.set(collab._id, collab.attachedTo)
+    }
+  }
+
+  private createReadState (state: ReadState): void {
+    if (this.readStatesByDocCache.has(state.attachedTo)) return
+    this.readStatesByDocCache.set(state.attachedTo, state)
+    this.readStateToDocMap.set(state._id, state.attachedTo)
+  }
+
+  private createNotifyContext (context: DocNotifyContext): void {
+    if (!this.contextsByDocCache.has(context.objectId)) return
+    const current = this.contextsByDocCache.get(context.objectId) ?? []
+    if (!current.some((it) => it._id === context._id)) {
+      this.contextsByDocCache.set(context.objectId, [...current, context])
+      this.contextToDocMap.set(context._id, context.objectId)
+    }
+  }
+
+  private createNotificationSetting (setting: DocNotificationSetting): void {
+    if (!this.notificationSettingsByDocCache.has(setting.attachedTo)) return
+    const current = this.notificationSettingsByDocCache.get(setting.attachedTo) ?? []
+    if (!current.some((it) => it._id === setting._id)) {
+      this.notificationSettingsByDocCache.set(setting.attachedTo, [...current, setting])
+      this.settingToDocMap.set(setting._id, setting.attachedTo)
+    }
+  }
+
+  private createPersonSpace (space: PersonSpace): void {
+    this.personSpacesByAccountCache.set(space.account, space)
+    this.personSpaceToAccountMap.set(space._id, space.account)
+  }
+
+  private updateCollaborator (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
+    const docId = this.collaboratorToDocMap.get(tx.objectId as Ref<Collaborator>)
+    if (docId !== undefined) {
+      const current = this.collaboratorsByDocCache.get(docId) ?? []
+      const updated = current.map((it) => (it._id === tx.objectId ? this.updateOrMixin(tx, it) : it))
+      this.collaboratorsByDocCache.set(docId, updated)
+    }
+  }
+
+  private updateReadState (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
+    const docId = this.readStateToDocMap.get(tx.objectId as Ref<ReadState>)
+    if (docId !== undefined) {
+      const state = this.readStatesByDocCache.get(docId)
+      if (state != null) {
+        if (tx.modifiedOn < state.modifiedOn) {
+          this.readStatesByDocCache.delete(docId)
+          return
+        }
+        this.readStatesByDocCache.set(docId, this.updateOrMixin(tx, state))
+      }
+    }
+  }
+
+  private updateNotifyContext (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
+    const docId = this.contextToDocMap.get(tx.objectId as Ref<DocNotifyContext>)
+    if (docId !== undefined) {
+      const current = this.contextsByDocCache.get(docId) ?? []
+      const context = current.find((it) => it._id === tx.objectId)
+      if (context !== undefined && tx.modifiedOn < context.modifiedOn) {
+        this.invalidateContexts(docId)
+        return
+      }
+      const updated = current.map((it) => (it._id === tx.objectId ? this.updateOrMixin(tx, it) : it))
+      this.contextsByDocCache.set(docId, updated)
+    }
+  }
+
+  private updateNotificationSetting (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
+    const docId = this.settingToDocMap.get(tx.objectId as Ref<DocNotificationSetting>)
+    if (docId !== undefined) {
+      const current = this.notificationSettingsByDocCache.get(docId) ?? []
+      const setting = current.find((it) => it._id === tx.objectId)
+      if (setting !== undefined && tx.modifiedOn < setting.modifiedOn) {
+        this.notificationSettingsByDocCache.delete(docId)
+        return
+      }
+      const updated = current.map((it) => (it._id === tx.objectId ? this.updateOrMixin(tx, it) : it))
+      this.notificationSettingsByDocCache.set(docId, updated)
+    }
+  }
+
+  private updatePersonSpace (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
+    const account = this.personSpaceToAccountMap.get(tx.objectId as Ref<PersonSpace>)
+    if (account !== undefined) {
+      const space = this.personSpacesByAccountCache.get(account)
+      if (space !== undefined) {
+        this.personSpacesByAccountCache.set(account, this.updateOrMixin(tx, space))
+      }
+    }
+  }
+
+  private updatePerson (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>): void {
+    const accountUuid = this.employeeToAccountMap.get(tx.objectId as Ref<Employee>)
+    if (accountUuid !== undefined) {
+      const employee = this.employeesByAccountCache.get(accountUuid)
+      if (employee !== undefined) {
+        const updated = this.updateEmployeeInfo(tx, employee)
+        if (updated.personUuid != null) {
+          this.employeesByAccountCache.set(updated.personUuid, updated)
+          this.employeeToAccountMap.set(updated._id, updated.personUuid)
+        }
+      }
+    }
+
+    const socialIds = this.personToSocialIdsMap.get(tx.objectId as Ref<Person>)
+    if (socialIds !== undefined) {
+      for (const socialId of socialIds) {
+        const person = this.personsBySocialIdCache.get(socialId)
+        if (person != null) {
+          this.personsBySocialIdCache.set(socialId, this.updateOrMixin(tx, person))
+        }
+      }
+    }
+  }
+
+  private removeCollaborator (tx: TxRemoveDoc<Doc>): void {
+    const docId = this.collaboratorToDocMap.get(tx.objectId as Ref<Collaborator>)
+    if (docId !== undefined) {
+      const current = this.collaboratorsByDocCache.get(docId) ?? []
+      const removedCollab = current.find((it) => it._id === tx.objectId)
+      this.collaboratorsByDocCache.set(
+        docId,
+        current.filter((it) => it._id !== tx.objectId)
+      )
+      this.collaboratorToDocMap.delete(tx.objectId as Ref<Collaborator>)
+      if (removedCollab != null) {
+        this.invalidateContexts(docId)
+      }
+    }
+  }
+
+  private removeReadState (tx: TxRemoveDoc<Doc>): void {
+    const docId = this.readStateToDocMap.get(tx.objectId as Ref<ReadState>)
+    if (docId !== undefined) {
+      this.readStatesByDocCache.delete(docId)
+      this.readStateToDocMap.delete(tx.objectId as Ref<ReadState>)
+    }
+  }
+
+  private removeNotifyContext (tx: TxRemoveDoc<Doc>): void {
+    const docId = this.contextToDocMap.get(tx.objectId as Ref<DocNotifyContext>)
+    if (docId !== undefined) {
+      const current = this.contextsByDocCache.get(docId) ?? []
+      this.contextsByDocCache.set(
+        docId,
+        current.filter((it) => it._id !== tx.objectId)
+      )
+      this.contextToDocMap.delete(tx.objectId as Ref<DocNotifyContext>)
+    }
+  }
+
+  private removeNotificationSetting (tx: TxRemoveDoc<Doc>): void {
+    const docId = this.settingToDocMap.get(tx.objectId as Ref<DocNotificationSetting>)
+    if (docId !== undefined) {
+      const current = this.notificationSettingsByDocCache.get(docId) ?? []
+      this.notificationSettingsByDocCache.set(
+        docId,
+        current.filter((it) => it._id !== tx.objectId)
+      )
+      this.settingToDocMap.delete(tx.objectId as Ref<DocNotificationSetting>)
+    }
+  }
+
+  private removePersonSpace (tx: TxRemoveDoc<Doc>): void {
+    const account = this.personSpaceToAccountMap.get(tx.objectId as Ref<PersonSpace>)
+    if (account !== undefined) {
+      this.personSpacesByAccountCache.delete(account)
+      this.personSpaceToAccountMap.delete(tx.objectId as Ref<PersonSpace>)
+    }
+  }
+
+  private removePerson (tx: TxRemoveDoc<Doc>): void {
+    const accountUuid = this.employeeToAccountMap.get(tx.objectId as Ref<Employee>)
+    if (accountUuid !== undefined) {
+      this.employeesByAccountCache.delete(accountUuid)
+      this.employeeToAccountMap.delete(tx.objectId as Ref<Employee>)
+    }
+
+    const socialIds = this.personToSocialIdsMap.get(tx.objectId as Ref<Person>)
+    if (socialIds !== undefined) {
+      for (const socialId of socialIds) {
+        this.personsBySocialIdCache.delete(socialId)
+        this.accountsBySocialIdCache.delete(socialId)
+      }
+      this.personToSocialIdsMap.delete(tx.objectId as Ref<Person>)
+    }
+  }
+
+  private removeSocialIdentity (tx: TxRemoveDoc<Doc>): void {
+    this.personsBySocialIdCache.delete(tx.objectId as any as PersonId)
+    this.accountsBySocialIdCache.delete(tx.objectId as any as PersonId)
+
+    const employeeRef = this.socialIdToEmployeeMap.get(tx.objectId as Ref<SocialIdentity>)
+    if (employeeRef !== undefined) {
+      const current = this.socialIdentitiesByEmployeeCache.get(employeeRef) ?? []
+      this.socialIdentitiesByEmployeeCache.set(
+        employeeRef,
+        current.filter((it) => it._id !== tx.objectId)
+      )
+      this.socialIdToEmployeeMap.delete(tx.objectId as Ref<SocialIdentity>)
+    }
+  }
+
+  // ==========================================
+  // General Private Helpers
+  // ==========================================
+
+  private invalidateContexts (docId: Ref<Doc>): void {
+    const contexts = this.contextsByDocCache.get(docId)
+    if (contexts !== undefined) {
+      for (const context of contexts) {
+        this.contextToDocMap.delete(context._id)
+      }
+      this.contextsByDocCache.delete(docId)
+    }
+  }
+
+  private updateOrMixin<T extends Doc>(tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>, doc: T): T {
+    if (tx._class === core.class.TxUpdateDoc) {
+      return TxProcessor.updateDoc2Doc(doc, tx as TxUpdateDoc<Doc>) as T
+    }
+
+    return TxProcessor.updateMixin4Doc(doc, tx as TxMixin<Doc, Doc>) as T
+  }
+
+  /**
+   * Applies a tx to a cached {@link EmployeeInfo}.
+   *
+   * Employee is a mixin over Person, and cached records are stored flattened —
+   * the way `hierarchy.as` returns them at load time. `updateMixin4Doc` instead
+   * writes into a nested `doc[tx.mixin]` object, so a TxMixin toggling `active`
+   * would otherwise leave the flattened value stale.
+   */
+  private updateEmployeeInfo (tx: TxUpdateDoc<Doc> | TxMixin<Doc, Doc>, employee: EmployeeInfo): EmployeeInfo {
+    const updated = this.updateOrMixin(tx, employee as Employee) as EmployeeInfo & Record<string, any>
+    if (tx._class === core.class.TxMixin) {
+      const mixin = updated[(tx as TxMixin<Doc, Doc>).mixin]
+      if (mixin != null && typeof mixin === 'object') {
+        return { ...updated, ...(mixin as Partial<EmployeeInfo>) }
+      }
+    }
+
+    return updated
+  }
+
+  private async getEmployeesInfo (collaborators: AccountUuid[]): Promise<EmployeeInfo[]> {
+    const existing = collaborators.map((it) => this.employeesByAccountCache.get(it)).filter(notEmpty)
+
+    const toLoad = collaborators.filter((it) => !this.employeesByAccountCache.has(it))
+    if (toLoad.length === 0) return existing.filter((it) => it.active)
+
+    const employees: Pick<Employee, '_id' | 'personUuid' | 'role' | 'active'>[] = await this.client.findAll(
+      contact.mixin.Employee,
+      { personUuid: { $in: toLoad }, active: true },
+      { projection: { _id: 1, personUuid: 1, role: 1, active: 1 } }
+    )
+
+    for (const employee of employees) {
+      if (employee.personUuid == null) continue
+      this.employeesByAccountCache.set(employee.personUuid, employee)
+      this.employeeToAccountMap.set(employee._id, employee.personUuid)
+    }
+
+    return existing.concat(employees).filter((it) => it.active)
+  }
+
+  private async getSocialIds (persons: Ref<Employee>[]): Promise<SocialIdentityInfo[]> {
+    const result: SocialIdentityInfo[] = []
+    const toLoad: Ref<Employee>[] = []
+
+    for (const person of persons) {
+      const ids = this.socialIdentitiesByEmployeeCache.get(person)
+      if (ids !== undefined) {
+        result.push(...ids)
+      } else {
+        toLoad.push(person)
+      }
+    }
+    if (toLoad.length === 0) return result
+
+    const loaded: SocialIdentityInfo[] = await this.client.findAll(
+      contact.class.SocialIdentity,
+      { attachedTo: { $in: toLoad } },
+      { projection: { _id: 1, attachedTo: 1 } }
+    )
+
+    for (const id of loaded) {
+      const ref = id.attachedTo as Ref<Employee>
+      const ids = this.socialIdentitiesByEmployeeCache.get(ref) ?? []
+      this.socialIdentitiesByEmployeeCache.set(ref, [...ids, id])
+      this.socialIdToEmployeeMap.set(id._id, ref)
+      if (toLoad.includes(ref)) {
+        result.push(id)
+      }
+    }
+
+    return result
+  }
+
+  private isPushSubscriptionTx (tx: TxCUD<Doc>): boolean {
+    return (
+      this.client.hierarchy.isDerived(tx.objectClass, notification.class.PushSubscription) ||
+      this.client.hierarchy.isDerived(tx.objectClass, notification.class.PushSubscriptionSetting)
+    )
   }
 }
 
-export default WsCache
+export default WorkspaceCache

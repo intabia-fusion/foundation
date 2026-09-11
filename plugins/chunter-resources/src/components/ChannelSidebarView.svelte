@@ -15,8 +15,6 @@
 <script lang="ts">
   import { createQuery } from '@hcengineering/presentation'
   import { Class, Doc, Ref } from '@hcengineering/core'
-  import { DocNotifyContext } from '@hcengineering/notification'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
   import { Widget } from '@hcengineering/workbench'
   import { ActivityMessage } from '@hcengineering/activity'
   import { ChatWidgetTab } from '@hcengineering/chunter'
@@ -33,15 +31,11 @@
   export let height: string
   export let width: string
 
-  const notificationsClient = InboxNotificationsClientImpl.getClient()
-  const contextByDocStore = notificationsClient.contextByDoc
   const objectQuery = createQuery()
 
   let object: Doc | undefined = undefined
-  let context: DocNotifyContext | undefined = undefined
   let selectedMessageId: Ref<ActivityMessage> | undefined = tab.data.selectedMessageId
 
-  $: context = object ? $contextByDocStore.get(object._id) : undefined
   $: void loadObject(tab.data._id, tab.data._class)
 
   $: threadId = tab.data.thread
@@ -76,7 +70,7 @@
   $: visible = height !== '0px' && width !== '0px'
 </script>
 
-{#if object && renderChannel && visible}
+{#if object != null && renderChannel && visible}
   <Presence {object} />
   <div class="channel" class:invisible={threadId !== undefined} style:height style:width>
     <ChannelHeader
@@ -92,11 +86,11 @@
       on:close
     />
     {#key object._id}
-      <Channel {object} {context} syncLocation={false} freeze={threadId !== undefined} {selectedMessageId} />
+      <Channel {object} syncLocation={false} freeze={threadId !== undefined} {selectedMessageId} />
     {/key}
   </div>
 {/if}
-{#if threadId && visible}
+{#if threadId != null && visible}
   <div class="thread" style:height style:width>
     <ThreadView
       {...tab.data.props}

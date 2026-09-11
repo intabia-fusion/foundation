@@ -1,6 +1,7 @@
 //
 // Copyright © 2020, 2021 Anticrm Platform Contributors.
 // Copyright © 2021, 2022 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -14,7 +15,7 @@
 // limitations under the License.
 //
 
-import activity, { type ActivityMessage, type Reaction } from '@hcengineering/activity'
+import activity, { type ActivityMessage, type ActivityMessageLite, type Reaction } from '@hcengineering/activity'
 import { type PersonSpace } from '@hcengineering/contact'
 import {
   AccountRole,
@@ -25,15 +26,14 @@ import {
   type Class,
   type Doc,
   type DocumentQuery,
+  type Domain,
   type IndexingConfiguration,
-  type Markup,
   type PersonId,
   type Ref,
   type Space,
   type Timestamp,
-  type TxCUD,
-  type AnyAttribute,
-  type Tx
+  type Tx,
+  type AnyAttribute
 } from '@hcengineering/core'
 import {
   Index,
@@ -41,12 +41,14 @@ import {
   Model,
   Prop,
   TypeAccountUuid,
-  TypeBoolean,
   TypeDate,
-  TypeIntlString,
-  TypeMarkup,
   TypeRef,
-  type Builder
+  TypeString,
+  type Builder,
+  TypeNumber,
+  ArrOf,
+  TypeRecord,
+  TypeIntlString
 } from '@hcengineering/model'
 import core, { TAttachedDoc, TClass, TDoc } from '@hcengineering/model-core'
 import preference, { TPreference } from '@hcengineering/model-preference'
@@ -54,39 +56,44 @@ import view from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
 import {
   DOMAIN_DOC_NOTIFY,
-  DOMAIN_NOTIFICATION,
   DOMAIN_USER_NOTIFY,
   notificationId,
-  type ActivityInboxNotification,
-  type ActivityNotificationViewlet,
-  type BrowserNotification,
-  type CommonInboxNotification,
-  type DocNotifyContext,
-  type InboxNotification,
-  type MentionInboxNotification,
-  type NotificationContextPresenter,
-  type NotificationGroup,
-  type NotificationObjectPresenter,
-  type NotificationPreferencesGroup,
-  type NotificationPreview,
-  type NotificationProvider,
-  type NotificationProviderDefaults,
-  type NotificationProviderSetting,
-  type NotificationTemplate,
-  type NotificationType,
-  type NotificationTypeSetting,
-  type PushSubscription,
-  type PushSubscriptionKeys,
   type PushSubscriptionSetting,
-  type ReactionInboxNotification,
   type MessageNotificationType,
   type TxNotificationType,
   DOMAIN_READ_STATE,
   type ReadState,
-  type ReadPosition,
-  type NotificationAppearancePreference
+  ReadPosition,
+  type ContextNotification,
+  type NotificationAppearancePreference,
+  type DocNotifyContext,
+  type AppPushNotification,
+  type PushSubscription,
+  type PushSubscriptionKeys,
+  type NotificationType,
+  type NotificationGroup,
+  type NotificationPreferencesGroup,
+  type NotificationTemplate,
+  type NotificationProvider,
+  type NotificationProviderSetting,
+  type NotificationTypeSetting,
+  type NotificationObjectPresenter,
+  type NotificationPreview,
+  type NotificationContextPresenter,
+  type ActivityNotificationViewlet,
+  type NotificationProviderDefaults,
+  type DocNotificationSetting,
+  type DocNotificationMode,
+  type UnreadMessage,
+  type UnreadReaction,
+  type CommonNotification,
+  type UnreadMention,
+  type ReadNotificationAction,
+  type CreateNotificationAction,
+  type CommonNotificationLite,
+  type NotificationIntl
 } from '@hcengineering/notification'
-import { type Asset, type IntlString, type Resource } from '@hcengineering/platform'
+import { type Asset, getEmbeddedLabel, type IntlString, type Resource } from '@hcengineering/platform'
 import setting from '@hcengineering/setting'
 import { type AnyComponent, type Location } from '@hcengineering/ui/src/types'
 
@@ -94,29 +101,22 @@ import notification from './plugin'
 import { defineNotifications } from './notifications'
 import { defineActions } from './actions'
 
-export {
-  DOMAIN_DOC_NOTIFY,
-  DOMAIN_NOTIFICATION,
-  DOMAIN_USER_NOTIFY,
-  DOMAIN_READ_STATE,
-  notificationId
-} from '@hcengineering/notification'
+export { DOMAIN_DOC_NOTIFY, DOMAIN_USER_NOTIFY, DOMAIN_READ_STATE, notificationId } from '@hcengineering/notification'
 export { notificationOperation } from './migration'
 export { notification as default }
 export { generateClassNotificationTypes } from './notifications'
 
-@Model(notification.class.BrowserNotification, core.class.Doc, DOMAIN_TRANSIENT)
-export class TBrowserNotification extends TDoc implements BrowserNotification {
-  tag!: Ref<Doc<Space>>
-  title!: IntlString
-  body!: IntlString
-  intlParams!: Record<string, any>
+@Model(notification.class.AppPushNotification, core.class.Doc, DOMAIN_TRANSIENT)
+export class TAppPushNotification extends TDoc implements AppPushNotification {
+  tag!: string
+  titleIntl!: IntlString
+  bodyIntl!: IntlString
+  intlParams!: { senderName: string, title?: string } & Record<string, string>
   intlParamsNotLocalized?: Record<string, IntlString>
   sender!: PersonId
-  onClickLocation?: Location | undefined
-  user!: AccountUuid
+  onClickLocation!: Location
+  account!: AccountUuid
   messageId?: Ref<ActivityMessage>
-  messageClass?: Ref<Class<ActivityMessage>>
   objectId!: Ref<Doc>
   objectClass!: Ref<Class<Doc>>
   soundAlert!: boolean
@@ -145,7 +145,6 @@ export class TNotificationType extends TDoc implements NotificationType {
   hidden!: boolean
   templates?: NotificationTemplate
   objectClass!: Ref<Class<Doc>>
-  onlyOwn?: boolean
 }
 
 @Model(notification.class.MessageNotificationType, notification.class.NotificationType)
@@ -195,6 +194,15 @@ export class TNotificationProviderSetting extends TPreference implements Notific
   enabled!: boolean
 }
 
+@Model(notification.class.DocNotificationSetting, preference.class.Preference)
+export class TDocNotificationSetting extends TPreference implements DocNotificationSetting {
+  declare attachedTo: Ref<Doc>
+  attachedToClass!: Ref<Class<Doc>>
+  account!: AccountUuid
+  @Prop(TypeString(), getEmbeddedLabel('mode'))
+  mode?: DocNotificationMode
+}
+
 @Mixin(notification.mixin.NotificationObjectPresenter, core.class.Class)
 export class TNotificationObjectPresenter extends TClass implements NotificationObjectPresenter {
   presenter!: AnyComponent
@@ -212,6 +220,8 @@ export class TNotificationContextPresenter extends TClass implements Notificatio
 
 @Model(notification.class.DocNotifyContext, core.class.Doc, DOMAIN_DOC_NOTIFY)
 export class TDocNotifyContext extends TDoc implements DocNotifyContext {
+  declare space: Ref<PersonSpace>
+
   @Prop(TypeAccountUuid(), core.string.Account)
   @Index(IndexKind.Indexed)
   user!: AccountUuid
@@ -226,114 +236,120 @@ export class TDocNotifyContext extends TDoc implements DocNotifyContext {
   @Prop(TypeRef(core.class.Space), core.string.Space)
   objectSpace!: Ref<Space>
 
-  declare space: Ref<PersonSpace>
+  @Prop(TypeString(), core.string.String)
+  objectIdentifier?: string
+
+  @Prop(TypeString(), core.string.String)
+  objectTitle!: string
+
+  @Prop(TypeIntlString(), core.string.String)
+  objectLabel?: IntlString
+
+  @Prop(TypeRecord(), getEmbeddedLabel('icon'))
+  objectIcon?: Record<string, any>
+
+  @Prop(TypeRecord(), core.string.Object)
+  object?: Partial<Doc>
+
+  @Prop(TypeRef(core.class.Doc), core.string.Object)
+  @Index(IndexKind.Indexed)
+  parentObjectId?: Ref<Doc>
+
+  @Prop(TypeRef(core.class.Class), core.string.Class)
+  parentObjectClass?: Ref<Class<Doc>>
+
+  @Prop(TypeString(), core.string.String)
+  parentObjectTitle?: string
+
+  @Prop(TypeString(), core.string.String)
+  parentObjectIdentifier?: string
+
+  @Prop(TypeIntlString(), core.string.String)
+  parentObjectLabel?: IntlString
+
+  @Prop(TypeRecord(), getEmbeddedLabel('icon'))
+  parentObjectIcon?: Record<string, any>
 
   @Prop(TypeDate(), core.string.Date)
-  lastView?: Timestamp
+  lastNotify!: Timestamp
 
-  @Prop(TypeDate(), core.string.Date)
-  lastUpdate?: Timestamp
+  @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('latestNotifications'))
+  latestNotifications!: ContextNotification[]
 
-  @Prop(TypeDate(), core.string.Date)
-  lastNotify?: Timestamp
+  @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('unreadReactions'))
+  unreadReactions!: UnreadReaction[] // store unread reaction notifications
 
-  @Prop(TypeDate(), core.string.Date)
-  lastNotifiedMessage?: Timestamp
+  @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('unreadMentions'))
+  unreadMentions!: UnreadMention[] // store unread mention notifications
 
-  tx?: Ref<TxCUD<Doc>>
+  @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('unreadCommons'))
+  unreadCommons!: CommonNotification[] // store unread common notifications
+
+  @Prop(TypeNumber(), core.string.Number)
+  unreadCount!: number
+
+  @Prop(ArrOf(TypeRecord()), getEmbeddedLabel('unreadMessages'))
+  unreadMessages!: UnreadMessage[]
 }
 
 @Model(notification.class.ReadState, core.class.Doc, DOMAIN_READ_STATE)
 export class TReadState extends TAttachedDoc implements ReadState {
+  latestMessageId?: Ref<ActivityMessage>
+  latestMessageTimestamp?: Timestamp;
   [key: AccountUuid]: ReadPosition
 }
 
-@Model(notification.class.InboxNotification, core.class.Doc, DOMAIN_NOTIFICATION)
-export class TInboxNotification extends TDoc implements InboxNotification {
-  @Prop(TypeRef(notification.class.DocNotifyContext), core.string.AttachedTo)
-  @Index(IndexKind.Indexed)
-  docNotifyContext!: Ref<DocNotifyContext>
-
-  @Prop(TypeAccountUuid(), core.string.Account)
-  @Index(IndexKind.Indexed)
-  user!: AccountUuid
-
-  @Prop(TypeBoolean(), core.string.Boolean)
-  // @Index(IndexKind.Indexed)
-  isViewed!: boolean
-
-  @Prop(TypeBoolean(), core.string.Boolean)
-  archived!: boolean
-
-  objectId!: Ref<Doc>
-  objectClass!: Ref<Class<Doc>>
-
+@Model(notification.class.ReadNotificationAction, core.class.Doc, DOMAIN_TRANSIENT)
+export class TReadNotificationAction extends TDoc implements ReadNotificationAction {
   declare space: Ref<PersonSpace>
 
-  allowedProviders!: Record<Ref<NotificationProvider>, Ref<NotificationType>[]>
+  @Prop(TypeRef(core.class.Doc), core.string.Object)
+  attachedTo!: Ref<Doc>
 
-  title?: IntlString
-  body?: IntlString
-  intlParams?: Record<string, string | number>
-  intlParamsNotLocalized?: Record<string, IntlString>
+  @Prop(TypeRef(core.class.Class), core.string.Class)
+  attachedToClass!: Ref<Class<Doc>>
+
+  @Prop(TypeAccountUuid(), core.string.Account)
+  account!: AccountUuid
+
+  @Prop(ArrOf(TypeRef(activity.class.Reaction)), getEmbeddedLabel('reactionIds'))
+  reactionIds?: Ref<Reaction>[]
+
+  @Prop(ArrOf(TypeRef(activity.class.ActivityMessage)), getEmbeddedLabel('messageIds'))
+  messageIds?: Ref<ActivityMessage>[]
+
+  @Prop(ArrOf(TypeString()), getEmbeddedLabel('commonIds'))
+  commonIds?: string[]
+
+  @Prop(ArrOf(TypeString()), getEmbeddedLabel('mentionIds'))
+  mentionIds?: string[]
 }
 
-@Model(notification.class.ActivityInboxNotification, notification.class.InboxNotification)
-export class TActivityInboxNotification extends TInboxNotification implements ActivityInboxNotification {
-  @Prop(TypeRef(activity.class.ActivityMessage), core.string.AttachedTo)
-  attachedTo!: Ref<ActivityMessage>
-
-  @Prop(TypeRef(activity.class.ActivityMessage), core.string.AttachedToClass)
-  attachedToClass!: Ref<Class<ActivityMessage>>
-}
-
-@Model(notification.class.CommonInboxNotification, notification.class.InboxNotification)
-export class TCommonInboxNotification extends TInboxNotification implements CommonInboxNotification {
-  @Prop(TypeIntlString(), core.string.String)
-  header?: IntlString
+@Model(notification.class.CreateNotificationAction, core.class.Doc, DOMAIN_TRANSIENT)
+export class TCreateNotificationAction extends TDoc implements CreateNotificationAction {
+  declare space: Ref<PersonSpace>
 
   @Prop(TypeRef(core.class.Doc), core.string.Object)
-  headerObjectId?: Ref<Doc>
+  attachedTo!: Ref<Doc>
 
-  @Prop(TypeRef(core.class.Doc), core.string.Class)
-  headerObjectClass?: Ref<Class<Doc>>
+  @Prop(TypeRef(core.class.Class), core.string.Class)
+  attachedToClass!: Ref<Class<Doc>>
 
-  @Prop(TypeIntlString(), notification.string.Message)
-  message?: IntlString
+  @Prop(TypeAccountUuid(), core.string.Account)
+  account!: AccountUuid
 
-  headerIcon?: Asset
+  @Prop(TypeRef(notification.class.NotificationType), notification.string.Notification)
+  type?: Ref<NotificationType>
 
-  @Prop(TypeMarkup(), notification.string.Message)
-  markup?: Markup
+  @Prop(TypeRecord(), notification.string.Notification)
+  notification!: CommonNotificationLite
 
-  props?: Record<string, any>
-  icon?: Asset
-  iconProps?: Record<string, any>
-}
-
-@Model(notification.class.MentionInboxNotification, notification.class.CommonInboxNotification)
-export class TMentionInboxNotification extends TCommonInboxNotification implements MentionInboxNotification {
-  @Prop(TypeRef(core.class.Doc), core.string.Object)
-  mentionedIn!: Ref<Doc>
-
-  @Prop(TypeRef(core.class.Doc), core.string.Class)
-  mentionedInClass!: Ref<Class<Doc>>
-}
-
-@Model(notification.class.ReactionInboxNotification, notification.class.CommonInboxNotification)
-export class TReactionInboxNotification extends TCommonInboxNotification implements ReactionInboxNotification {
-  emoji!: string
-  ref!: Ref<Reaction>
-  @Prop(TypeRef(activity.class.ActivityMessage), core.string.AttachedTo)
-  attachedTo!: Ref<ActivityMessage>
-
-  @Prop(TypeRef(activity.class.ActivityMessage), core.string.AttachedToClass)
-  attachedToClass!: Ref<Class<ActivityMessage>>
+  intl?: Partial<NotificationIntl>
 }
 
 @Model(notification.class.ActivityNotificationViewlet, core.class.Doc, DOMAIN_MODEL)
 export class TActivityNotificationViewlet extends TDoc implements ActivityNotificationViewlet {
-  messageMatch!: DocumentQuery<Doc>
+  messageMatch!: DocumentQuery<ActivityMessageLite>
 
   presenter!: AnyComponent
 }
@@ -365,9 +381,31 @@ export class TNotificationAppearancePreference extends TPreference implements No
   showChatBadge!: boolean
 }
 
+const DOMAIN_NOTIFICATION = 'notification' as Domain
+
+@Model('notification:class:InboxNotification' as any, core.class.Doc, DOMAIN_NOTIFICATION)
+export class TInboxNotification extends TDoc {}
+
+@Model('notification:class:ActivityInboxNotification' as any, 'notification:class:InboxNotification' as any)
+export class TActivityInboxNotification extends TInboxNotification {}
+
+@Model('notification:class:ReactionInboxNotification' as any, 'notification:class:InboxNotification' as any)
+export class TReactionInboxNotification extends TInboxNotification {}
+
+@Model('notification:class:MentionInboxNotification' as any, 'notification:class:InboxNotification' as any)
+export class TMentionInboxNotification extends TInboxNotification {}
+
+@Model('notification:class:CommonInboxNotification' as any, 'notification:class:InboxNotification' as any)
+export class TCommonInboxNotification extends TInboxNotification {}
+
 export function createModel (builder: Builder): void {
   builder.createModel(
-    TBrowserNotification,
+    TInboxNotification,
+    TActivityInboxNotification,
+    TReactionInboxNotification,
+    TMentionInboxNotification,
+    TCommonInboxNotification,
+    TAppPushNotification,
     TNotificationType,
     TMessageNotificationType,
     TTxNotificationType,
@@ -376,25 +414,23 @@ export function createModel (builder: Builder): void {
     TNotificationObjectPresenter,
     TNotificationPreview,
     TDocNotifyContext,
-    TInboxNotification,
-    TActivityInboxNotification,
-    TCommonInboxNotification,
     TNotificationContextPresenter,
     TActivityNotificationViewlet,
     TNotificationType,
-    TMentionInboxNotification,
     TPushSubscription,
     TPushSubscriptionSetting,
     TNotificationProvider,
     TNotificationProviderSetting,
     TNotificationTypeSetting,
     TNotificationProviderDefaults,
-    TReactionInboxNotification,
     TReadState,
-    TNotificationAppearancePreference
+    TNotificationAppearancePreference,
+    TDocNotificationSetting,
+    TReadNotificationAction,
+    TCreateNotificationAction
   )
 
-  builder.mixin(notification.class.BrowserNotification, core.class.Class, core.mixin.TransientConfiguration, {
+  builder.mixin(notification.class.AppPushNotification, core.class.Class, core.mixin.TransientConfiguration, {
     broadcastOnly: true
   })
 
@@ -433,18 +469,7 @@ export function createModel (builder: Builder): void {
     presenter: notification.component.DocNotifyContextPresenter
   })
 
-  builder.mixin(notification.class.ActivityInboxNotification, core.class.Class, view.mixin.ObjectPresenter, {
-    presenter: notification.component.ActivityInboxNotificationPresenter
-  })
-
-  builder.mixin(notification.class.CommonInboxNotification, core.class.Class, view.mixin.ObjectPresenter, {
-    presenter: notification.component.CommonInboxNotificationPresenter
-  })
-  builder.mixin(notification.class.MentionInboxNotification, core.class.Class, view.mixin.ObjectPresenter, {
-    presenter: notification.component.MentionInboxNotificationPresenter
-  })
-
-  builder.mixin(notification.class.BrowserNotification, core.class.Class, core.mixin.TxAccessLevel, {
+  builder.mixin(notification.class.AppPushNotification, core.class.Class, core.mixin.TxAccessLevel, {
     removeAccessLevel: AccountRole.Guest
   })
 
@@ -466,10 +491,18 @@ export function createModel (builder: Builder): void {
     removeAccessLevel: AccountRole.Guest
   })
 
-  builder.createDoc(core.class.DomainIndexConfiguration, core.space.Model, {
-    domain: DOMAIN_NOTIFICATION,
-    indexes: [{ keys: { user: 1, archived: 1, space: 1 } }],
-    disabled: [{ modifiedOn: 1 }, { modifiedBy: 1 }, { createdBy: 1 }, { isViewed: 1 }, { hidden: 1 }]
+  builder.mixin(notification.class.ReadNotificationAction, core.class.Class, core.mixin.TransientConfiguration, {
+    broadcastOnly: true
+  })
+  builder.mixin(notification.class.CreateNotificationAction, core.class.Class, core.mixin.TransientConfiguration, {
+    broadcastOnly: true
+  })
+
+  builder.mixin(notification.class.ReadNotificationAction, core.class.Class, core.mixin.TxAccessLevel, {
+    createAccessLevel: AccountRole.Guest
+  })
+  builder.mixin(notification.class.CreateNotificationAction, core.class.Class, core.mixin.TxAccessLevel, {
+    createAccessLevel: AccountRole.Admin
   })
 
   builder.createDoc(core.class.DomainIndexConfiguration, core.space.Model, {
@@ -536,17 +569,8 @@ export function createModel (builder: Builder): void {
     }
   )
 
-  builder.mixin<Class<InboxNotification>, IndexingConfiguration<InboxNotification>>(
-    notification.class.InboxNotification,
-    core.class.Class,
-    core.mixin.IndexConfiguration,
-    {
-      searchDisabled: true,
-      indexes: []
-    }
-  )
-  builder.mixin<Class<BrowserNotification>, IndexingConfiguration<BrowserNotification>>(
-    notification.class.BrowserNotification,
+  builder.mixin<Class<AppPushNotification>, IndexingConfiguration<AppPushNotification>>(
+    notification.class.AppPushNotification,
     core.class.Class,
     core.mixin.IndexConfiguration,
     {
@@ -555,8 +579,8 @@ export function createModel (builder: Builder): void {
     }
   )
 
-  builder.mixin<Class<BrowserNotification>, IndexingConfiguration<BrowserNotification>>(
-    notification.class.BrowserNotification,
+  builder.mixin<Class<AppPushNotification>, IndexingConfiguration<AppPushNotification>>(
+    notification.class.AppPushNotification,
     core.class.Class,
     core.mixin.IndexConfiguration,
     {

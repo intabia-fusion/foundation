@@ -18,7 +18,7 @@
   import contact, { Channel, Contact, getName } from '@hcengineering/contact'
   import { Ref, SocialIdType, getCurrentAccount } from '@hcengineering/core'
   import { Message, SharedMessage } from '@hcengineering/gmail'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { getResource } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import setting, { Integration } from '@hcengineering/setting'
@@ -39,7 +39,7 @@
   export let messageId: Ref<Message> | undefined = undefined
 
   const client = getClient()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   const messageQuery = createQuery()
 

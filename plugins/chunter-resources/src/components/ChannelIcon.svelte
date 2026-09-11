@@ -26,10 +26,14 @@
   import { IconWithEmoji } from '@hcengineering/presentation'
   import view from '@hcengineering/view'
   import { IconPicker } from '@hcengineering/view-resources'
+  import { Asset } from '@hcengineering/platform'
 
   import { toggleChannelIcon } from '../utils'
 
   export let value: Channel | undefined
+  export let asset: Asset | undefined = undefined
+  export let emoji: number | number[] | undefined = undefined
+
   export let size: IconSize = 'small'
   export let buttonSize: ButtonSize = 'small'
   export let fill: string | undefined = 'currentColor'
@@ -48,23 +52,19 @@
     showPopup(IconPicker, { icon, color: emoji }, eventToHTMLElement(ev), update, update)
   }
 
-  function getIconInfo (doc: Channel | undefined): { icon: IconComponent, props: Record<string, any> } {
-    if (doc === undefined) return { icon: chunter.icon.Hashtag, props: {} }
-    if (doc.emoji != null) {
-      return { icon: IconWithEmoji, props: { icon: doc.emoji } }
-    }
+  function getIconInfo (
+    doc: Channel | undefined,
+    _asset?: Asset,
+    _emoji?: number | number[]
+  ): { icon: IconComponent, props: Record<string, any> } {
+    const fallback = doc?.private === true ? chunter.icon.Lock : chunter.icon.Hashtag
+    const emoji = doc?.emoji ?? _emoji
+    const asset = doc == null ? _asset : doc.icon
 
-    if (doc.icon !== undefined) {
-      return { icon: doc.icon, props: {} }
-    }
-
-    if (doc.private) {
-      return { icon: chunter.icon.Lock, props: {} }
-    }
-    return { icon: chunter.icon.Hashtag, props: {} }
+    return emoji != null ? { icon: IconWithEmoji, props: { icon: emoji } } : { icon: asset ?? fallback, props: {} }
   }
 
-  $: iconData = getIconInfo(value)
+  $: iconData = getIconInfo(value, asset, emoji)
 </script>
 
 {#if _editable}

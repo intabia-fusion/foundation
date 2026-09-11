@@ -15,7 +15,7 @@
 
 import type { Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
-import { Presenter } from '@hcengineering/server-activity'
+import { StringPresenterFn } from '@hcengineering/server-activity'
 
 /**
  * @public
@@ -27,7 +27,7 @@ export const serverLeadId = 'server-lead' as Plugin
  */
 export default plugin(serverLeadId, {
   function: {
-    LeadUrlPresenter: '' as Resource<Presenter>,
-    LeadIdentifierPresenter: '' as Resource<Presenter>
+    LeadUrlPresenter: '' as Resource<StringPresenterFn>,
+    LeadIdentifierPresenter: '' as Resource<StringPresenterFn>
   }
 })

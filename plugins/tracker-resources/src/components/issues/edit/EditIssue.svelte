@@ -49,7 +49,7 @@
     openDocInSidebar
   } from '@hcengineering/view-resources'
   import ProjectPresenter from '../../projects/ProjectPresenter.svelte'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { Analytics } from '@hcengineering/analytics'
 
   import { createEventDispatcher, onDestroy } from 'svelte'
@@ -84,7 +84,7 @@
   let showAllMixins: boolean = getShowAllMixins()
   $: saveShowAllMixins(showAllMixins)
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   let issueId: Ref<Issue> | undefined
 

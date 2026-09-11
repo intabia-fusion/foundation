@@ -27,21 +27,25 @@
 
   let application: AnyComponent | undefined
 
-  function updateAppFocused (isFocused: boolean): void {
+  let isWindowFocused = true
+
+  function updateAppFocused (): void {
     const isFocusedCurrent = $isAppFocusedStore
-    const isFocusedNew = isFocused && !document.hidden && document.hasFocus()
+    const isFocusedNew = isWindowFocused && !document.hidden
     if (isFocusedCurrent !== isFocusedNew) {
       isAppFocusedStore.set(isFocusedNew)
     }
   }
   function visibilityChangeHandler (): void {
-    updateAppFocused(!document.hidden)
+    updateAppFocused()
   }
   function handleWindowFocus (): void {
-    updateAppFocused(true)
+    isWindowFocused = true
+    updateAppFocused()
   }
   function handleWindowBlur (): void {
-    updateAppFocused(false)
+    isWindowFocused = false
+    updateAppFocused()
   }
   function handleWindowBeforeUnload (): void {
     // Many text inputs across the platform rely on the blur event to persist state,
@@ -55,6 +59,8 @@
   }
 
   onMount(() => {
+    isWindowFocused = document.hasFocus()
+    updateAppFocused()
     document.addEventListener('visibilitychange', visibilityChangeHandler)
     window.addEventListener('wheel', handleWindowFocus)
     window.addEventListener('focus', handleWindowFocus)

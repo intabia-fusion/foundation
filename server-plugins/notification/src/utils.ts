@@ -1,11 +1,11 @@
 import core from '@hcengineering/core'
 import { formatName } from '@hcengineering/contact'
 
-import { NOTIFICATION_BODY_SIZE, Sender } from './index'
+import { Sender } from './index'
 
-export function normalizeTextMessage (message: string): string {
+export function truncateMessage (message: string, maxLength = 300): string {
   const trimmed = message.trim()
-  if (trimmed.length > NOTIFICATION_BODY_SIZE) return trimmed.slice(0, NOTIFICATION_BODY_SIZE) + '...'
+  if (trimmed.length > maxLength) return trimmed.slice(0, maxLength) + '...'
   return trimmed
 }
 

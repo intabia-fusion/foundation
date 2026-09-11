@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { onDestroy } from 'svelte'
-  import { Ref } from '@hcengineering/core'
+  import { Ref, reduceCalls } from '@hcengineering/core'
   import type {
     NotificationType,
     NotificationGroup,
@@ -40,7 +40,7 @@
 
   import notification from '../../plugin'
   import NotificationGroupSetting from './NotificationGroupSetting.svelte'
-  import { providersSettings, typesSettings } from '../../utils'
+  import { providersSettings, typesSettings } from '../../stores'
 
   const client = getClient()
   const groups: NotificationGroup[] = client
@@ -84,11 +84,13 @@
     }
   }
 
+  const syncLocation = reduceCalls(async (loc: Location): Promise<void> => {
+    group = loc.path[4] as Ref<NotificationGroup>
+    currentPreferenceGroup = undefined
+  })
+
   const unsubscribeLocation = resolvedLocationStore.subscribe((loc) => {
-    void (async (loc: Location): Promise<void> => {
-      group = loc.path[4] as Ref<NotificationGroup>
-      currentPreferenceGroup = undefined
-    })(loc)
+    void syncLocation(loc)
   })
 
   onDestroy(() => {

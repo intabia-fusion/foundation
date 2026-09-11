@@ -31,11 +31,13 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(contact.class.Person, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverContact.function.PersonTitlePresenter
+    presenter: serverContact.function.PersonTitlePresenter,
+    triggerFields: ['name']
   })
 
   builder.mixin(core.class.Collaborator, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverContact.function.CollaboratorTitlePresenter
+    presenter: serverContact.function.CollaboratorTitlePresenter,
+    triggerFields: []
   })
 
   builder.mixin(contact.class.Organization, core.class.Class, serverActivity.mixin.UrlPresenter, {
@@ -45,6 +47,11 @@ export function createModel (builder: Builder): void {
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
     trigger: serverContact.trigger.ManageCollaboratorsTrigger,
     isAsync: false
+  })
+
+  builder.mixin(contact.class.Contact, core.class.Class, serverActivity.mixin.IconPresenter, {
+    presenter: serverContact.function.ContactIconPresenter,
+    triggerFields: []
   })
 
   builder.mixin(contact.class.Contact, core.class.Class, serverCore.mixin.SearchPresenter, {

@@ -1,5 +1,6 @@
 //
 // Copyright © 2021 Anticrm Platform Contributors.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -15,6 +16,7 @@
 
 import core, {
   createClient,
+  Class,
   Doc,
   generateId,
   MeasureMetricsContext,
@@ -1019,5 +1021,62 @@ describe('query', () => {
     }
     expect(data.length).toBe(counter)
     await pp
+  })
+
+  it('updates query when document starts to match due to $inc operator in transaction with other operators', async () => {
+    const { liveQuery, factory } = await getClient()
+
+    const space = await factory.createDoc<Channel>(core.class.Space, core.space.Model, {
+      archived: false,
+      description: '',
+      members: [],
+      private: false,
+      name: 'inc-test-space',
+      x: 0
+    })
+
+    const results: any[] = []
+    let onUpdate: (() => void) | undefined
+
+    const unsub = liveQuery.query<Space>(
+      core.class.Space,
+      {
+        name: 'inc-test-space',
+        x: { $gt: 0 }
+      },
+      (res) => {
+        results.push(res)
+        if (onUpdate !== undefined) {
+          onUpdate()
+        }
+      }
+    )
+
+    // Wait for initial results callback
+    await new Promise<void>((resolve) => {
+      onUpdate = resolve
+    })
+
+    expect(results[results.length - 1]).toHaveLength(0)
+
+    // Set up a promise for the update callback
+    const updatePromise = new Promise<void>((resolve) => {
+      onUpdate = resolve
+    })
+
+    // Apply transaction with both $push (unrelated) and $inc (updates x to 1)
+    await factory.updateDoc<Channel>(core.class.Space as Ref<Class<Channel>>, core.space.Model, space, {
+      $inc: { x: 1 },
+      $push: { members: 'some-member' as any }
+    })
+
+    // Wait for the query update callback to be called
+    await updatePromise
+
+    // Now it should have 1 item since x is 1
+    expect(results[results.length - 1]).toHaveLength(1)
+    expect(results[results.length - 1][0].x).toBe(1)
+
+    unsub()
   })
 })

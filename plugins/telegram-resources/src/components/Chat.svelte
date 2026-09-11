@@ -17,10 +17,10 @@
   /* eslint-disable @typescript-eslint/no-unused-vars */
   import attachment from '@hcengineering/attachment'
   import { AttachmentRefInput } from '@hcengineering/attachment-resources'
-  import contact, { Channel, Contact, Person, getName as getContactName } from '@hcengineering/contact'
+  import contact, { Channel, Contact, getName as getContactName } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
   import core, { Ref, SortingOrder, generateId, getCurrentAccount } from '@hcengineering/core'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { getEmbeddedLabel, getResource } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import setting, { Integration } from '@hcengineering/setting'
@@ -41,7 +41,6 @@
   import { createEventDispatcher, onDestroy } from 'svelte'
   import telegram from '../plugin'
   import Connect from './Connect.svelte'
-  import Messages from './Messages.svelte'
   import Reconnect from './Reconnect.svelte'
   import TelegramIcon from './icons/Telegram.svelte'
 
@@ -54,11 +53,11 @@
   const dispatch = createEventDispatcher()
 
   const client = getClient()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   let templateProvider: TemplateDataProvider | undefined
 
-  getResource(templates.function.GetTemplateDataProvider).then((p) => {
+  void getResource(templates.function.GetTemplateDataProvider).then((p) => {
     templateProvider = p()
   })
 

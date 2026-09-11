@@ -93,7 +93,7 @@
   },
   "emailTemplate": {
     "AssigneeNotificationText": "{sender} назначил(а) вам pull request {doc}",
-    "AssigneeNotificationHtml": "<p>{sender} назначил(а) вам pull request {doc}</p> <p>{link}</p>",
+    "AssigneeNotificationHtml": "<p><b>{sender}</b> назначил(а) вам pull request {doc}</p> <p>{link}</p>",
     "AssigneeNotificationSubject": "Вам назначен pull request {doc}"
   }
 }

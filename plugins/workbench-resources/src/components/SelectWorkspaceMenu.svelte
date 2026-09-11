@@ -13,15 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import {
-    getCurrentAccount,
-    isArchivingMode,
-    SortingOrder,
-    systemAccountUuid,
-    WorkspaceInfoWithStatus
-  } from '@hcengineering/core'
+  import { isArchivingMode, systemAccountUuid, WorkspaceInfoWithStatus } from '@hcengineering/core'
   import login from '@hcengineering/login'
-  import { getMetadata, getResource } from '@hcengineering/platform'
+  import { getResource } from '@hcengineering/platform'
   import presentation, {
     canLeaveWorkspace,
     createQuery,
@@ -48,7 +42,7 @@
   import ratingPlugin from '@hcengineering/rating'
 
   import { workspacesStore } from '../utils'
-  import { workspacesNotificationStore } from '../workbench'
+  import { crossWorkspaceNotificationStore } from '../workbench'
   // import Drag from './icons/Drag.svelte'
 
   onMount(() => {
@@ -132,7 +126,8 @@
 
   let search: string = ''
 
-  $: workspacesNotification = $workspacesNotificationStore
+  $: workspacesNotification = $crossWorkspaceNotificationStore
+
   $: sortedWorkspaces = $workspacesStore
     .filter((it) => search === '' || (it.name?.includes(search) ?? false) || it.url.includes(search))
     .sort((a, b) => {

@@ -317,14 +317,6 @@ async function getRemoveActivityReferenceTxes (
     attachedTo: removedDocId
   })
 
-  const notifications = await control.findAll(control.ctx, notification.class.MentionInboxNotification, {
-    mentionedIn: removedDocId
-  })
-
-  for (const notification of notifications) {
-    const removeTx = txFactory.createTxRemoveDoc(notification._class, notification.space, notification._id)
-    txes.push(removeTx)
-  }
   for (const ref of refs) {
     const removeTx = txFactory.createTxRemoveDoc(ref._class, ref.space, ref._id)
     txes.push(txFactory.createTxCollectionCUD(ref.attachedToClass, ref.attachedTo, ref.space, ref.collection, removeTx))
@@ -384,7 +376,7 @@ async function ActivityReferenceCreate (tx: TxCUD<Doc>, control: TriggerControl)
   const ctx = tx as TxCreateDoc<Doc>
 
   if (ctx._class !== core.class.TxCreateDoc) return []
-  if (control.hierarchy.isDerived(ctx.objectClass, notification.class.InboxNotification)) return []
+  if (control.hierarchy.isDerived(ctx.objectClass, notification.class.DocNotifyContext)) return []
   if (control.hierarchy.isDerived(ctx.objectClass, activity.class.ActivityReference)) return []
 
   const txFactory = new TxFactory(control.txFactory.account)
@@ -487,7 +479,8 @@ export async function ReferenceTrigger (txes: TxCUD<Doc>[], control: TriggerCont
 
   for (const tx of txes) {
     if (control.hierarchy.isDerived(tx.objectClass, activity.class.ActivityReference)) continue
-    if (control.hierarchy.isDerived(tx.objectClass, notification.class.InboxNotification)) continue
+    if (control.hierarchy.isDerived(tx.objectClass, notification.class.DocNotifyContext)) continue
+    if (control.hierarchy.isDerived(tx.objectClass, notification.class.AppPushNotification)) continue
     if (control.hierarchy.isDerived(tx.objectClass, activity.class.UserMentionInfo)) continue
 
     if (tx._class === core.class.TxCreateDoc) {

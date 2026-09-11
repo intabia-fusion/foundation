@@ -19,10 +19,6 @@ import { ObjectDDParticipantFunc, TriggerFunc } from '@hcengineering/server-core
 import { TypeMatchFuncResource } from '@hcengineering/server-notification'
 import { TemplateFieldServerFunc } from '@hcengineering/server-templates'
 
-export * from './types'
-/**
- * @public
- */
 export const serverTelegramId = 'server-telegram' as Plugin
 
 /**
@@ -30,9 +26,7 @@ export const serverTelegramId = 'server-telegram' as Plugin
  */
 export default plugin(serverTelegramId, {
   trigger: {
-    OnMessageCreate: '' as Resource<TriggerFunc>,
-    NotificationsHandler: '' as Resource<TriggerFunc>,
-    ProviderSettingsHandler: '' as Resource<TriggerFunc>
+    OnMessageCreate: '' as Resource<TriggerFunc>
   },
   function: {
     IsIncomingMessageTypeMatch: '' as TypeMatchFuncResource,

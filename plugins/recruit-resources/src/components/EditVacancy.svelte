@@ -43,7 +43,7 @@
   let showAllMixins = false
 
   const dispatch = createEventDispatcher()
-  const inboxClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const inboxClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   onDestroy(async () => {
     void inboxClient.then((client) => client.readDoc(_id))

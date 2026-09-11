@@ -21,38 +21,33 @@ import NotificationSettings from './components/settings/NotificationSettings.sve
 import NotificationPresenter from './components/NotificationPresenter.svelte'
 import DocNotifyContextPresenter from './components/DocNotifyContextPresenter.svelte'
 import CollaboratorsChanged from './components/activity/CollaboratorsChanged.svelte'
-import ActivityInboxNotificationPresenter from './components/inbox/ActivityInboxNotificationPresenter.svelte'
-import CommonInboxNotificationPresenter from './components/inbox/CommonInboxNotificationPresenter.svelte'
-import MentionInboxNotificationPresenter from './components/inbox/MentionInboxNotificationPresenter.svelte'
-import NotificationCollaboratorsChanged from './components/NotificationCollaboratorsChanged.svelte'
 import GeneralPreferencesGroup from './components/settings/GeneralPreferencesGroup.svelte'
 import WebpushesPreferencesPresenter from './components/settings/WebpushesPreferencesPresenter.svelte'
 import MutePopup from './components/MutePopup.svelte'
 import NotificationAppearancePreferencesPresenter from './components/settings/NotificationAppearancePreferencesPresenter.svelte'
 
-import {
-  unsubscribe,
-  resolveLocation,
-  canReadNotifyContext,
-  readNotifyContext,
-  hasInboxNotifications,
-  clearAll,
-  readAll,
-  checkPermission,
-  isNotificationAllowed,
-  locationDataResolver,
-  removeContextNotifications,
-  editDocNotificationsVisibilityTester,
-  editDocNotificationsAction
-} from './utils'
+import { resolveLocation, locationDataResolver } from './utils'
 
-import { InboxNotificationsClientImpl } from './inboxNotificationsClient'
+import { NotificationClientImpl } from './client'
+import {
+  canReadNotifyContext,
+  clearAll,
+  editDocNotificationsAction,
+  editDocNotificationsVisibilityTester,
+  readAll,
+  readNotifyContext,
+  removeDocNotifyContext,
+  unsubscribe
+} from './actions'
+import { checkPermission } from './webpush'
 
 export * from './utils'
-export * from './inboxNotificationsClient'
+export * from './client'
 export * from './stores'
+export * from './actions'
+export * from './appPush'
 
-export { default as BrowserNotificatator } from './components/BrowserNotificatator.svelte'
+export { default as AppNotificator } from './components/AppNotificator.svelte'
 export { default as NotifyMarker } from './components/NotifyMarker.svelte'
 export { default as MutePopup } from './components/MutePopup.svelte'
 
@@ -63,10 +58,6 @@ export default async (): Promise<Resources> => ({
     NotificationSettings,
     CollaboratorsChanged,
     DocNotifyContextPresenter,
-    ActivityInboxNotificationPresenter,
-    CommonInboxNotificationPresenter,
-    MentionInboxNotificationPresenter,
-    NotificationCollaboratorsChanged,
     GeneralPreferencesGroup,
     WebpushesPreferencesPresenter,
     MutePopup,
@@ -74,18 +65,16 @@ export default async (): Promise<Resources> => ({
   },
   function: {
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    GetInboxNotificationsClient: InboxNotificationsClientImpl.getClient,
+    GetNotificationsClient: NotificationClientImpl.getClient,
     CanReadNotifyContext: canReadNotifyContext,
-    HasInboxNotifications: hasInboxNotifications,
-    CheckPushPermission: checkPermission,
-    IsNotificationAllowed: isNotificationAllowed,
+    CheckWebPushPermission: checkPermission,
     LocationDataResolver: locationDataResolver,
     EditDocNotificationsVisibilityTester: editDocNotificationsVisibilityTester
   },
   actionImpl: {
     Unsubscribe: unsubscribe,
     ReadNotifyContext: readNotifyContext,
-    RemoveContextNotifications: removeContextNotifications,
+    RemoveDocNotifyContext: removeDocNotifyContext,
     ClearAll: clearAll,
     ReadAll: readAll,
     EditDocNotifications: editDocNotificationsAction

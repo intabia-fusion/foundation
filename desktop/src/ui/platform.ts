@@ -81,7 +81,6 @@ import recorder, { recorderId } from '@hcengineering/recorder'
 import { viewId } from '@hcengineering/view'
 import workbench, { workbenchId } from '@hcengineering/workbench'
 import { mailId } from '@hcengineering/mail'
-
 import { achievementId } from '@hcengineering/achievement'
 import { emojiId } from '@hcengineering/emoji'
 import { hulyMailId } from '@hcengineering/huly-mail'
@@ -137,7 +136,6 @@ import '@hcengineering/recorder-assets'
 import '@hcengineering/view-assets'
 import '@hcengineering/workbench-assets'
 import '@hcengineering/mail-assets'
-
 import '@hcengineering/achievement-assets'
 import '@hcengineering/emoji-assets'
 import '@hcengineering/media-assets'
@@ -288,7 +286,6 @@ function configureI18n (): void {
   addStringsLoader(surveyId, async (lang: string) => await import(`@hcengineering/survey-assets/lang/${lang}.json`))
   addStringsLoader(cardId, async (lang: string) => await import(`@hcengineering/card-assets/lang/${lang}.json`))
   addStringsLoader(mailId, async (lang: string) => await import(`@hcengineering/mail-assets/lang/${lang}.json`))
-
   addStringsLoader(processId, async (lang: string) => await import(`@hcengineering/process-assets/lang/${lang}.json`))
   addStringsLoader(
     achievementId,
@@ -518,9 +515,9 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   )
   addLocation(surveyId, () => import(/* webpackChunkName: "survey" */ '@hcengineering/survey-resources'))
   addLocation(cardId, () => import(/* webpackChunkName: "card" */ '@hcengineering/card-resources'))
-
   addLocation(processId, () => import(/* webpackChunkName: "process" */ '@hcengineering/process-resources'))
   addLocation(achievementId, () => import(/* webpackChunkName: "achievement" */ '@hcengineering/achievement-resources'))
+
   addLocation(emojiId, () => import(/* webpackChunkName: "achievement" */ '@hcengineering/emoji-resources'))
   if ((config.BILLING_URL ?? '') !== '') {
     addLocation(billingId, () => import(/* webpackChunkName: "billing" */ '@hcengineering/billing-resources'))

@@ -37,7 +37,7 @@ import { workbenchId } from '@hcengineering/workbench'
 import slugify from 'slugify'
 import { Receiver, TypeMatchClient, TypeMatchFunc } from '@hcengineering/server-notification'
 import { DocUpdateMessage } from '@hcengineering/activity'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl } from '@hcengineering/server-activity'
 
 async function getDocs (
   control: TriggerControl,
@@ -393,7 +393,7 @@ function getDocumentLinkId (doc: Document): string {
   return `${slug}---${doc._id}`
 }
 
-const ControlledDocumentUrlPresenter: Presenter = async (
+const ControlledDocumentUrlPresenter: StringPresenterFn<ControlledDocument> = async (
   doc: ControlledDocument,
   control: PresenterControl
 ): Promise<string | undefined> => {

@@ -44,7 +44,14 @@
       processing = true
       const client = getClient()
 
-      await client.remove(message)
+      await client.removeCollection(
+        message._class,
+        message.space,
+        message._id,
+        message.attachedTo,
+        message.attachedToClass,
+        message.collection
+      )
       dispatch('close', true)
     } finally {
       processing = false

@@ -179,18 +179,19 @@ export function hasAttributeModel (
   }
 }
 
-export function activityMessagesComparator (message1: ActivityMessage, message2: ActivityMessage): number {
+type ActivityMessageDate = Pick<ActivityMessage, 'createdOn' | 'modifiedOn'>
+export function activityMessagesComparator<T extends ActivityMessageDate> (message1: T, message2: T): number {
   const time1 = getMessageTime(message1)
   const time2 = getMessageTime(message2)
 
   return time1 - time2
 }
 
-function getMessageTime (message: ActivityMessage): number {
+function getMessageTime<T extends ActivityMessageDate> (message: T): number {
   return message.createdOn ?? message.modifiedOn
 }
 
-export function sortActivityMessages<T extends ActivityMessage> (
+export function sortActivityMessages<T extends ActivityMessageDate> (
   messages: T[],
   order: SortingOrder = SortingOrder.Ascending
 ): T[] {

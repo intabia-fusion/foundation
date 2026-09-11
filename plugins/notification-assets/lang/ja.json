@@ -8,7 +8,6 @@
     "PlatformNotification": "プラットフォーム内",
     "Track": "追跡",
     "DontTrack": "追跡しない",
-    "BrowserNotification": "ブラウザ内",
     "Remove": "通知を削除",
     "RemoveAll": "すべての通知を削除",
     "MarkAllAsRead": "すべての通知を既読にする",
@@ -86,7 +85,10 @@
     "Appearance": "外観",
     "ShowChatBadge": "チャットバッジを表示",
     "HasNewNotifications": "You have new notifications",
-    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}"
+    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}",
+    "ReactedToYourMessage": "あなたのメッセージに反応しました",
+    "Clearing": "クリア中...",
+    "Reading": "読み込み中..."
   },
   "emailTemplate": {
     "MeAddedInCollaboratorsNotificationText": "{sender} added you as a collaborator to {doc}.",

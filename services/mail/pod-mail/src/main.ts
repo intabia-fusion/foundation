@@ -1,5 +1,6 @@
 //
 // Copyright © 2025 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -29,14 +30,19 @@ import {
   PlatformQueueProducer,
   QueueTopic
 } from '@hcengineering/server-core'
-import { readToken } from '@hcengineering/server-client'
+import platformServerClient, { readToken } from '@hcengineering/server-client'
+import serverToken from '@hcengineering/server-token'
+import { setMetadata } from '@hcengineering/platform'
+import { QueueNotificationMessage } from '@hcengineering/notification'
+import { getPlatformQueue } from '@hcengineering/kafka'
+import { ClisrClient, ClisrServer, createCallbackClient } from '@intabiafusion/clisr'
 
 import config from './config'
 import { MailClient } from './mail'
 import { createServer } from './server'
 import { AccountNotification, EmailNotification, Endpoint } from './types'
-import { getPlatformQueue } from '@hcengineering/kafka'
-import { ClisrClient, ClisrServer, createCallbackClient } from '@intabiafusion/clisr'
+import { createEmailMessage, handleQueueMode, handleServerMode } from './utils'
+import { createUserNotificationsHandler } from './notification'
 
 /**
  * Main entry point for the mail service.
@@ -59,8 +65,13 @@ export const main = async (): Promise<void> => {
       )
   })
 
+  setMetadata(platformServerClient.metadata.Endpoint, config.accountsUrl)
+  setMetadata(serverToken.metadata.Secret, config.secret)
+  setMetadata(serverToken.metadata.Service, config.serviceId)
+
   // Initialize components based on mode
-  const { client, platformQueue, server, serverClient, notificationConsumer } = await initializeComponents(measureCtx)
+  const { client, platformQueue, server, serverClient, notificationConsumer, userNotificationsConsumer } =
+    await initializeComponents(measureCtx)
 
   measureCtx.info('Mail service has been started')
 
@@ -68,7 +79,15 @@ export const main = async (): Promise<void> => {
   await server?.start(measureCtx, config.port)
 
   // Setup graceful shutdown
-  setupShutdownHandlers(measureCtx, notificationConsumer, platformQueue, client, serverClient, server)
+  setupShutdownHandlers(
+    measureCtx,
+    notificationConsumer,
+    userNotificationsConsumer,
+    platformQueue,
+    client,
+    serverClient,
+    server
+  )
 }
 
 /**
@@ -80,6 +99,7 @@ async function initializeComponents (measureCtx: MeasureContext): Promise<{
   server: ClisrServer | undefined
   serverClient: ClisrClient | undefined
   notificationConsumer: ConsumerHandle | undefined
+  userNotificationsConsumer: ConsumerHandle | undefined
   notificationProducer: PlatformQueueProducer<AccountNotification> | undefined
 }> {
   // Initialize mail client if needed (not in server mode)
@@ -115,6 +135,13 @@ async function initializeComponents (measureCtx: MeasureContext): Promise<{
     createNotificationHandler(measureCtx, client, server)
   )
 
+  const userNotificationsConsumer = platformQueue?.createConsumer<QueueNotificationMessage>(
+    measureCtx,
+    QueueTopic.UserNotifications,
+    'mail-user-notifications',
+    createUserNotificationsHandler(measureCtx, client, server)
+  )
+
   // Initialize server client if in client mode
   const serverClient = config.mode === 'client' ? await initializeClientMode(measureCtx, client) : undefined
 
@@ -124,6 +151,7 @@ async function initializeComponents (measureCtx: MeasureContext): Promise<{
     server,
     serverClient,
     notificationConsumer,
+    userNotificationsConsumer,
     notificationProducer
   }
 }
@@ -152,50 +180,6 @@ function createNotificationHandler (
           ctx.warn(`Unexpected mode for notification handling: ${config.mode}`)
       }
     }
-  }
-}
-
-/**
- * Handles email sending in queue mode (direct SMTP sending).
- */
-async function handleQueueMode (
-  ctx: MeasureContext,
-  client: MailClient | undefined,
-  emailMessage: SendMailOptions
-): Promise<void> {
-  try {
-    ctx.info('Forwarding email to SMTP provider', { to: emailMessage.to })
-    await client?.sendMessage(emailMessage, ctx)
-    ctx.info('Email forwarded to SMTP provider', { to: emailMessage.to })
-  } catch (err: any) {
-    ctx.error('Failed to forward email to SMTP provider', { to: emailMessage.to, error: err.message })
-  }
-}
-
-/**
- * Handles email sending in server mode (forward to connected clients).
- */
-async function handleServerMode (
-  measureCtx: MeasureContext,
-  server: ClisrServer | undefined,
-  emailMessage: SendMailOptions,
-  control: any
-): Promise<void> {
-  if (server === undefined) {
-    measureCtx.error('Server is not initialized in server mode')
-    return
-  }
-
-  const heartbeatInterval = setInterval(() => {
-    void control.heartbeat()
-  }, 1000)
-
-  try {
-    measureCtx.info('Forwarding email to clisr mail client', { to: emailMessage.to })
-    await server.request(measureCtx, 'send', [emailMessage])
-    measureCtx.info('Email forwarded to clisr mail client', { to: emailMessage.to })
-  } finally {
-    clearInterval(heartbeatInterval)
   }
 }
 
@@ -238,14 +222,16 @@ async function initializeClientMode (
  */
 function setupShutdownHandlers (
   measureCtx: MeasureContext,
-  notificationConsumer: any,
-  platformQueue: any,
+  notificationConsumer: ConsumerHandle | undefined,
+  userNotificationsConsumer: ConsumerHandle | undefined,
+  platformQueue: PlatformQueue | undefined,
   client: MailClient | undefined,
   serverClient: ClisrClient | undefined,
   server: ClisrServer | undefined
 ): void {
   const shutdown = (): void => {
     void notificationConsumer?.close()
+    void userNotificationsConsumer?.close()
     void platformQueue?.shutdown()
     void client?.close()
     void serverClient?.close()
@@ -262,26 +248,6 @@ function setupShutdownHandlers (
   process.on('unhandledRejection', (e: any) => {
     measureCtx.error(e.message)
   })
-}
-
-/**
- * Creates an email message object from notification data.
- */
-function createEmailMessage (data: EmailNotification): SendMailOptions {
-  const emailMessage: SendMailOptions = {
-    ...(data as SendMailOptions)
-  }
-
-  // Set from address
-  const fromAddress = config.source
-  emailMessage.from = fromAddress
-
-  // Set reply-to if configured and from address matches source
-  if (config.replyTo !== undefined && fromAddress === config.source) {
-    emailMessage.replyTo = config.replyTo
-  }
-
-  return emailMessage
 }
 
 /**

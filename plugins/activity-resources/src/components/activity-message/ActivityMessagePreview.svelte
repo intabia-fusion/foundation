@@ -14,15 +14,16 @@
 -->
 
 <script lang="ts">
-  import { ActivityMessage, ActivityMessagePreviewType } from '@hcengineering/activity'
+  import { ActivityMessageLite, ActivityMessagePreviewType } from '@hcengineering/activity'
   import { getClient } from '@hcengineering/presentation'
   import { Action, Component } from '@hcengineering/ui'
-  import { Class, Doc, Ref, Space } from '@hcengineering/core'
+  import { BlobType, Class, Doc, Ref, Space } from '@hcengineering/core'
 
   import activity from '../../plugin'
 
-  export let doc: Doc | undefined
-  export let value: ActivityMessage
+  export let doc: Doc | undefined = undefined
+  export let value: ActivityMessageLite
+  export let attachments: BlobType[] = []
   export let readonly = false
   export let type: ActivityMessagePreviewType = 'full'
   export let actions: Action[] = []
@@ -44,7 +45,8 @@
       readonly,
       actions,
       space,
-      doc
+      doc,
+      attachments
     }}
     on:click
   />

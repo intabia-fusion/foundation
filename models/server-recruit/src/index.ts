@@ -34,7 +34,8 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(recruit.class.Applicant, core.class.Class, serverActivity.mixin.IdentifierPresenter, {
-    presenter: serverRecruit.function.ApplicationIdentifierPresenter
+    presenter: serverRecruit.function.ApplicationIdentifierPresenter,
+    triggerFields: ['number']
   })
 
   builder.mixin(recruit.class.Vacancy, core.class.Class, serverActivity.mixin.UrlPresenter, {
@@ -42,7 +43,8 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(recruit.class.Vacancy, core.class.Class, serverActivity.mixin.IdentifierPresenter, {
-    presenter: serverRecruit.function.VacancyIdentifierPresenter
+    presenter: serverRecruit.function.VacancyIdentifierPresenter,
+    triggerFields: ['number']
   })
 
   builder.mixin(recruit.class.Applicant, core.class.Class, serverView.mixin.ServerLinkIdProvider, {

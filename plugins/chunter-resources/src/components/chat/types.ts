@@ -28,7 +28,7 @@ import { type Chat } from '@hcengineering/chunter'
 export type ChatGroupID = 'activity' | 'direct' | 'channels' | 'starred'
 
 export interface SortFnOptions {
-  contextByDoc: Map<Ref<Doc>, DocNotifyContext>
+  contextByDoc: Map<Ref<Doc>, DocNotifyContext | null>
   userStatusByAccount: Map<AccountUuid, UserStatus>
 }
 

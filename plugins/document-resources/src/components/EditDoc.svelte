@@ -103,7 +103,7 @@
 
   let loadedDocumentContent = false
 
-  const notificationClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const notificationClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   $: read(_id)
   function read (_id: Ref<Doc>): void {

@@ -15,7 +15,7 @@
 //
 
 import type { AccountRole, AccountUuid, Class, Doc, DocumentQuery, Obj, Ref, Space } from '@hcengineering/core'
-import { type DocNotifyContext, InboxNotification, NotificationAppearancePreference } from '@hcengineering/notification'
+import { NotificationAppearancePreference } from '@hcengineering/notification'
 import type { Asset, IntlString, Resource } from '@hcengineering/platform'
 import type { Preference } from '@hcengineering/preference'
 import { AnyComponent, type AnySvelteComponent, Location, ResolvedLocation } from '@hcengineering/ui'
@@ -57,7 +57,7 @@ export interface Application extends Doc {
   accessLevel?: AccountRole
   navFooterComponent?: AnyComponent
   showNotifyMarkerFn?: Resource<
-    (contexts: DocNotifyContext[], preference?: NotificationAppearancePreference) => Promise<boolean>
+    (unreadCount: number, preference?: NotificationAppearancePreference) => Promise<boolean>
   >
 }
 
@@ -183,9 +183,7 @@ export interface SpecialNavModel {
   // If defined, will be used to find spaces for visibleIf
   spaceClass?: Ref<Class<Space>>
   checkIsDisabled?: Resource<() => Promise<boolean>>
-  notificationsCountProvider?: Resource<
-    (inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>) => number
-  >
+  notificationsCountProvider?: Resource<(totalCount: number) => Promise<number>>
   navigationModel?: ParentsNavigationModel
   queryBuilder?: Resource<() => Promise<DocumentQuery<Doc>>>
 }

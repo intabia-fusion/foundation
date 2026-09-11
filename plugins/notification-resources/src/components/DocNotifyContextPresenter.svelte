@@ -14,40 +14,15 @@
 -->
 <script lang="ts">
   import { DocNotifyContext } from '@hcengineering/notification'
-  import { Doc } from '@hcengineering/core'
-  import { getDocLinkTitle, getDocTitle } from '@hcengineering/view-resources'
-  import { createQuery, getClient } from '@hcengineering/presentation'
-  import chunter from '@hcengineering/chunter'
-  import { languageStore } from '@hcengineering/ui'
 
   import NotifyContextIcon from './NotifyContextIcon.svelte'
 
   export let value: DocNotifyContext
-
-  const client = getClient()
-  const objectQuery = createQuery()
-
-  let object: Doc | undefined
-
-  $: objectQuery.query(value.objectClass, { _id: value.objectId, space: value.objectSpace }, (res) => {
-    object = res[0]
-  })
-
-  async function getTitle (object: Doc, lang: string) {
-    if (object._class === chunter.class.DirectMessage) {
-      return await getDocTitle(client, object._id, object._class, object)
-    }
-    return await getDocLinkTitle(client, object._id, object._class, object, lang)
-  }
 </script>
 
-{#if object}
-  <div class="flex-presenter">
-    <NotifyContextIcon {value} {object} size="small" />
-    <div class="mr-4" />
+<div class="flex-presenter">
+  <NotifyContextIcon {value} size="small" />
+  <div class="mr-4" />
 
-    {#await getTitle(object, $languageStore) then title}
-      {title}
-    {/await}
-  </div>
-{/if}
+  {value.objectTitle}
+</div>

@@ -59,10 +59,12 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(hr.class.Request, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverHr.function.RequestTitlePresenter
+    presenter: serverHr.function.RequestTitlePresenter,
+    triggerFields: ['title', 'name']
   })
 
   builder.mixin(hr.class.PublicHoliday, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverHr.function.PublicHolidayTitlePresenter
+    presenter: serverHr.function.PublicHolidayTitlePresenter,
+    triggerFields: ['name']
   })
 }

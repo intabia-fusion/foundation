@@ -16,13 +16,11 @@
   import { createEventDispatcher } from 'svelte'
   import { SpecialNavModel } from '@hcengineering/workbench'
   import { getResource } from '@hcengineering/platform'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
-  import { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
-  import { Ref } from '@hcengineering/core'
   import { SavedAttachments } from '@hcengineering/attachment'
   import { SavedMessage } from '@hcengineering/activity'
   import { savedMessagesStore } from '@hcengineering/activity-resources'
   import { savedAttachmentsStore } from '@hcengineering/attachment-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
 
   import NavItem from './NavItem.svelte'
 
@@ -32,28 +30,23 @@
 
   const dispatch = createEventDispatcher()
 
-  const notificationsClient = InboxNotificationsClientImpl.getClient()
-  const notificationsByContextStore = notificationsClient.inboxNotificationsByContext
+  const notificationsClient = NotificationClientImpl.getClient()
+  const totalUnreadCountStore = notificationsClient.totalUnreadCount
 
-  let count: number | null = null
+  let count: number = 0
   let elementsCount = 0
 
-  $: void getNotificationsCount(special, $notificationsByContextStore).then((res) => {
-    count = res === 0 ? null : res
+  $: void getNotificationsCount(special, $totalUnreadCountStore).then((res) => {
+    count = res
   })
   $: elementsCount = getElementsCount(special, $savedMessagesStore, $savedAttachmentsStore)
 
-  async function getNotificationsCount (
-    special: SpecialNavModel,
-    notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): Promise<number> {
-    if (!special.notificationsCountProvider) {
-      return 0
-    }
+  async function getNotificationsCount (special: SpecialNavModel, totalUnreadCount: number): Promise<number> {
+    if (special.notificationsCountProvider == null) return 0
 
     const providerFn = await getResource(special.notificationsCountProvider)
 
-    return providerFn(notificationsByContext)
+    return await providerFn(totalUnreadCount)
   }
 
   function getElementsCount (

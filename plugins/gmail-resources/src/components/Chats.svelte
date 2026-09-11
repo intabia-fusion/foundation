@@ -18,7 +18,7 @@
   import { Channel, Contact } from '@hcengineering/contact'
   import { Ref, SortingOrder } from '@hcengineering/core'
   import { Message, SharedMessage } from '@hcengineering/gmail'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import plugin, { Button, Icon, IconShare, Label, Scroller } from '@hcengineering/ui'
 
@@ -42,7 +42,7 @@
   const messagesQuery = createQuery()
   const newMessageQuery = createQuery()
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   newMessageQuery.query(
     gmail.class.NewMessage,

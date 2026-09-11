@@ -42,7 +42,7 @@
   },
   "emailTemplate": {
     "AssigneeNotificationText": "{sender} назначил(а) вам {doc}",
-    "AssigneeNotificationHtml": "<p>{sender} назначил(а) вам {doc}</p> <p>{link}</p>",
+    "AssigneeNotificationHtml": "<p><b>{sender}</b> назначил(а) вам {doc}</p> <p>{link}</p>",
     "AssigneeNotificationSubject": "Вам назначен(а) {doc}"
   }
 }

@@ -50,9 +50,7 @@ describe('utils - inferType', () => {
   })
 
   it('should handle arrays with all null elements', () => {
-    // BUG: Arrays with only null elements return '::jsonb[]'
-    // Expected: Should probably return '' or handle as empty array
-    expect(inferType([null, null])).toBe('::jsonb[]')
+    expect(inferType([null, null])).toBe('::jsonb')
   })
 
   it('should infer Date type as text', () => {

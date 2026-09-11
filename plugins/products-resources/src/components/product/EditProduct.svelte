@@ -39,7 +39,7 @@
 
   const client = getClient()
   const dispatch = createEventDispatcher()
-  const notificationClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const notificationClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
 
   let object: Product | undefined
   let title = ''

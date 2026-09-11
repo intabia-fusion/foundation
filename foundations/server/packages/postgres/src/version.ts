@@ -16,7 +16,7 @@
 import type { MeasureContext } from '@hcengineering/core'
 import type { DBClient } from '@hcengineering/postgres-base'
 
-export const EXPECTED_SCHEMA_VERSION = 10
+export const EXPECTED_SCHEMA_VERSION = 11
 export const CHECK_VERSION_INTERVAL = 5000
 // Waiting on a migration another pod is applying is normal; waiting forever on a database that is
 // simply not there is not - it hangs the caller with no error to act on.

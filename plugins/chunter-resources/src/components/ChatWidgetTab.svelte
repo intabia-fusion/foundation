@@ -17,60 +17,31 @@
   import { Widget } from '@hcengineering/workbench'
   import { getResource } from '@hcengineering/platform'
   import { ChatWidgetTab } from '@hcengineering/chunter'
-  import { InboxNotification } from '@hcengineering/notification'
-  import {
-    getNotificationsCount,
-    InboxNotificationsClientImpl,
-    isActivityNotification,
-    isMentionNotification,
-    NotifyMarker
-  } from '@hcengineering/notification-resources'
-  import chunter from '../plugin'
-  import { onDestroy } from 'svelte'
-  import { getClient } from '@hcengineering/presentation'
+  import { NotificationClientImpl, NotifyMarker } from '@hcengineering/notification-resources'
+  import { getUnreadMessageCount } from '@hcengineering/notification'
 
   export let tab: ChatWidgetTab
   export let widget: Widget
   export let selected = false
   export let actions: Action[] = []
 
-  const client = getClient()
-  const hierarchy = client.getHierarchy()
-  const notificationClient = InboxNotificationsClientImpl.getClient()
+  const notificationClient = NotificationClientImpl.getClient()
   const contextByDocStore = notificationClient.contextByDoc
 
   $: icon = tab.icon ?? widget.icon
 
-  $: if (tab.iconComponent) {
+  $: if (tab.iconComponent != null) {
     void getResource(tab.iconComponent).then((res) => {
       icon = res
     })
   }
-  let notifications: InboxNotification[] = []
 
   let count: number = 0
 
   $: objectId = tab.data.thread ?? tab.data._id
-  $: context = objectId ? $contextByDocStore.get(objectId) : undefined
-
-  const unsubscribe = notificationClient.inboxNotificationsByContext.subscribe((res) => {
-    if (context === undefined) {
-      count = 0
-      return
-    }
-
-    notifications = (res.get(context._id) ?? []).filter((n) => {
-      if (isActivityNotification(n)) return true
-
-      return isMentionNotification(n) && hierarchy.isDerived(n.mentionedInClass, chunter.class.ChatMessage)
-    })
-  })
-
-  $: count = getNotificationsCount(context, notifications)
-
-  onDestroy(() => {
-    unsubscribe()
-  })
+  $: void notificationClient.loadContextByDoc(objectId)
+  $: context = objectId != null ? ($contextByDocStore.get(objectId) ?? undefined) : undefined
+  $: count = getUnreadMessageCount(context)
 
   function handleMenu (event: CustomEvent<MouseEvent>): void {
     if (actions.length === 0) {

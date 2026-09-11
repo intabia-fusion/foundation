@@ -13,56 +13,70 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Label, languageStore, tooltip } from '@hcengineering/ui'
-  import { DocNotifyContext } from '@hcengineering/notification'
-  import activity, { ActivityMessage } from '@hcengineering/activity'
-  import { getClient } from '@hcengineering/presentation'
-  import { Doc } from '@hcengineering/core'
-  import { getDocLinkTitle, getDocTitle, ObjectIcon } from '@hcengineering/view-resources'
+  import { Component, Icon, Label, tooltip } from '@hcengineering/ui'
+  import notification, { DocNotifyContext } from '@hcengineering/notification'
+  import activity, { ActivityMessage, ActivityMessageLite } from '@hcengineering/activity'
+  import { getClient, IconWithEmoji } from '@hcengineering/presentation'
+  import { classIcon } from '@hcengineering/view-resources'
   import { getEmbeddedLabel } from '@hcengineering/platform'
-  import contact from '@hcengineering/contact'
+  import view from '@hcengineering/view'
 
   import ActivityMessagePreview from './ActivityMessagePreview.svelte'
 
-  export let context: DocNotifyContext
-  export let object: ActivityMessage
+  export let context: DocNotifyContext<ActivityMessage>
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
+  let message: ActivityMessageLite | undefined = undefined
+  $: message = context.object as ActivityMessageLite
+
   let title: string | undefined = undefined
-  let doc: Doc | undefined = undefined
+  $: title = context.parentObjectIdentifier ?? context.parentObjectTitle
 
-  $: object &&
-    client.findOne(object.attachedToClass, { _id: object.attachedTo, space: object.space }).then((res) => {
-      doc = res
-    })
-
-  $: doc &&
-    getDocLinkTitle(client, doc._id, doc._class, doc, $languageStore).then((res) => {
-      title = res
-    })
+  $: iconMixin =
+    context.parentObjectClass != null
+      ? hierarchy.classHierarchyMixin(context.parentObjectClass, view.mixin.ObjectIcon)
+      : undefined
 </script>
 
 <span class="flex-presenter flex-gap-1 font-semi-bold">
-  <Label label={(object?.replies ?? 0) > 0 ? activity.string.Thread : activity.string.Message} />
+  <Label label={activity.string.Thread} />
   {#if title}
     <span class="lower">
       <Label label={activity.string.In} />
     </span>
-    {#if doc}
-      {#await getDocTitle(client, doc._id, doc._class, doc) then tooltipLabel}
-        <span
-          class="flex-presenter flex-gap-0-5"
-          use:tooltip={tooltipLabel ? { label: getEmbeddedLabel(tooltipLabel) } : undefined}
-        >
-          <ObjectIcon value={doc} size={hierarchy.isDerived(doc._class, contact.class.Person) ? 'tiny' : 'small'} />
-          {title}
-        </span>
-      {/await}
-    {/if}
+    <span
+      class="flex-presenter flex-gap-0-5"
+      use:tooltip={title != null ? { label: getEmbeddedLabel(title) } : undefined}
+    >
+      {#if iconMixin}
+        <Component
+          is={iconMixin.component}
+          props={{
+            ...context.parentObjectIcon?.props,
+            asset: context.parentObjectIcon?.asset,
+            emoji: context.parentObjectIcon?.emoji,
+            size: 'small'
+          }}
+          showLoading={false}
+        />
+      {:else if context.parentObjectIcon?.emoji}
+        <IconWithEmoji icon={context.parentObjectIcon.emoji} size="small" />
+      {:else}
+        <Icon
+          icon={context.parentObjectIcon?.asset ??
+            classIcon(client, context.parentObjectClass) ??
+            notification.icon.Notifications}
+          size="small"
+        />
+      {/if}
+      {title}
+    </span>
   {/if}
 </span>
-<span class="font-normal">
-  <ActivityMessagePreview value={object} {doc} readonly type="content-only" />
-</span>
+{#if message}
+  <span class="font-normal">
+    <ActivityMessagePreview value={message} readonly type="content-only" />
+  </span>
+{/if}

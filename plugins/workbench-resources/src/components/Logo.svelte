@@ -18,7 +18,7 @@
   import setting, { WorkspaceSetting } from '@hcengineering/setting'
 
   import { workspacesStore } from '../utils'
-  import { workspacesNotificationStore } from '../workbench'
+  import { crossWorkspaceNotificationStore } from '../workbench'
 
   export let mini: boolean = false
   export let workspace: string
@@ -34,7 +34,7 @@
   $: url = workspaceSetting?.icon != null ? getFileUrl(workspaceSetting.icon) : undefined
   $: srcset = workspaceSetting?.icon != null ? getFileSrcSet(workspaceSetting.icon, 128) : undefined
 
-  $: workspacesNotification = $workspacesNotificationStore
+  $: workspacesNotification = $crossWorkspaceNotificationStore
 
   $: notify = $workspacesStore.some(
     (it) => it.uuid !== currentWorkspaceUuid && workspacesNotification?.[it.uuid] === true

@@ -21,12 +21,8 @@
   import type { Application } from '@hcengineering/workbench'
   import workbench from '@hcengineering/workbench'
   import { getMetadata, getResource } from '@hcengineering/platform'
-  import { InboxNotificationsClientImpl, appearancePreferences } from '@hcengineering/notification-resources'
-  import notification, {
-    DocNotifyContext,
-    InboxNotification,
-    NotificationAppearancePreference
-  } from '@hcengineering/notification'
+  import { NotificationClientImpl, appearancePreferences } from '@hcengineering/notification-resources'
+  import { NotificationAppearancePreference } from '@hcengineering/notification'
 
   import { getDefaultHiddenApps } from '../utils'
   import AppItem from './AppItem.svelte'
@@ -38,7 +34,7 @@
 
   const dispatch = createEventDispatcher()
 
-  function getClickHandler (app: Application, customProps: any) {
+  function getClickHandler (app: Application, customProps: any): any {
     return (
       customProps.onClick ??
       (() => {
@@ -93,33 +89,32 @@
     (it) => it.position === 'bottom' && !hiddenAppsIds.includes(it._id) && !excludedApps.includes(it.alias)
   )
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
-  const inboxContextsStore = inboxClient.contexts
-  const inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
+  const inboxClient = NotificationClientImpl.getClient()
+  const totalUnreadCountStore = inboxClient.totalUnreadCount
 
-  let hasNotificationsFn: ((data: Map<Ref<DocNotifyContext>, InboxNotification[]>) => Promise<boolean>) | undefined =
-    undefined
-  let hasInboxNotifications = false
+  let notifyStates: Record<string, boolean> = {}
+  let updateSeq = 0
 
-  void getResource(notification.function.HasInboxNotifications).then((f) => {
-    hasNotificationsFn = f
-  })
+  $: void updateNotifyStatuses(apps, $totalUnreadCountStore, $appearancePreferences)
 
-  $: void hasNotificationsFn?.($inboxNotificationsByContextStore).then((res) => {
-    hasInboxNotifications = res
-  })
+  async function updateNotifyStatuses (
+    apps: Application[],
+    unreadCount: number,
+    preference?: NotificationAppearancePreference
+  ): Promise<void> {
+    const seq = ++updateSeq
+    for (const app of apps) {
+      let res = false
+      if (app.showNotifyMarkerFn != null) {
+        const fn = await getResource(app.showNotifyMarkerFn)
+        res = await fn(unreadCount, preference)
+      }
+      if (seq !== updateSeq) return
 
-  async function showNotify (
-    app: Application,
-    contexts: DocNotifyContext[],
-    hasOldNotifications: boolean,
-    preference: NotificationAppearancePreference | undefined
-  ): Promise<boolean> {
-    if (app.showNotifyMarkerFn != null) {
-      const fn = await getResource(app.showNotifyMarkerFn)
-      return await fn(contexts, preference)
+      if (notifyStates[app._id] !== res) {
+        notifyStates = { ...notifyStates, [app._id]: res }
+      }
     }
-    return false
   }
 </script>
 
@@ -136,19 +131,17 @@
     >
       {#each topApps as app}
         {@const customProps = customAppProps.get(app.alias) ?? {}}
-        {#await showNotify(app, $inboxContextsStore, hasInboxNotifications, $appearancePreferences) then notify}
-          <NavLink app={app.alias} shrink={0} disabled={app._id === active}>
-            <AppItem
-              selected={app._id === active}
-              icon={app.icon}
-              label={app.label}
-              navigator={app._id === active && $deviceInfo.navigator.visible}
-              {notify}
-              {...customProps}
-              on:click={getClickHandler(app, customProps)}
-            />
-          </NavLink>
-        {/await}
+        <NavLink app={app.alias} shrink={0} disabled={app._id === active}>
+          <AppItem
+            selected={app._id === active}
+            icon={app.icon}
+            label={app.label}
+            navigator={app._id === active && $deviceInfo.navigator.visible}
+            notify={notifyStates[app._id] ?? false}
+            {...customProps}
+            on:click={getClickHandler(app, customProps)}
+          />
+        </NavLink>
       {/each}
       {#if topApps.length > 0}
         <div class="divider" />
@@ -161,6 +154,7 @@
             icon={app.icon}
             label={app.label}
             navigator={app._id === active && $deviceInfo.navigator.visible}
+            notify={notifyStates[app._id] ?? false}
             {...customProps}
             on:click={getClickHandler(app, customProps)}
           />
@@ -176,7 +170,7 @@
               icon={app.icon}
               label={app.label}
               navigator={app._id === active && $deviceInfo.navigator.visible}
-              notify={false}
+              notify={notifyStates[app._id] ?? false}
               {...customProps}
               on:click={getClickHandler(app, customProps)}
             />

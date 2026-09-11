@@ -19,7 +19,7 @@
   import contact, { Channel, Contact, getName } from '@hcengineering/contact'
   import core, { Data, Markup, generateId } from '@hcengineering/core'
   import { NewMessage, SharedMessage, GmailEvents } from '@hcengineering/gmail'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Integration } from '@hcengineering/setting'
@@ -37,7 +37,7 @@
   export let selectedIntegration: Integration
 
   const client = getClient()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   let objectId = generateId()
 

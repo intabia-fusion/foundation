@@ -19,12 +19,12 @@ import { getMetadata } from '@hcengineering/platform'
 import serverCore from '@hcengineering/server-core'
 import view from '@hcengineering/view'
 import { workbenchId } from '@hcengineering/workbench'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl } from '@hcengineering/server-activity'
 
 /**
  * @public
  */
-const productUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const productUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const product = doc as Product
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${inventoryId}/Products/#${view.component.EditDoc}|${product._id}|${product._class}|content`

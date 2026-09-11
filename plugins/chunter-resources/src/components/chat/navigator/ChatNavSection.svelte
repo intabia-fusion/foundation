@@ -16,9 +16,9 @@
   import { deepEqual } from 'fast-equals'
   import contact from '@hcengineering/contact'
   import { statusByUserStore } from '@hcengineering/contact-resources'
-  import core, { Class, Doc, notEmpty, reduceCalls, Ref, WithLookup } from '@hcengineering/core'
+  import core, { Class, Doc, getCurrentAccount, notEmpty, reduceCalls, Ref, WithLookup } from '@hcengineering/core'
   import { getResource, IntlString, translate } from '@hcengineering/platform'
-  import { getClient, isSpace } from '@hcengineering/presentation'
+  import { createQuery, getClient, isSpace } from '@hcengineering/presentation'
   import ui, {
     Action,
     AnySvelteComponent,
@@ -34,15 +34,9 @@
   } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { getDocIdentifier } from '@hcengineering/view-resources'
-  import {
-    getNotificationsCount,
-    InboxNotificationsClientImpl,
-    isActivityNotification,
-    isMentionNotification,
-    NotifyMarker
-  } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl, NotifyMarker } from '@hcengineering/notification-resources'
   import { Chat } from '@hcengineering/chunter'
-  import { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
+  import notification, { getUnreadMessageCount } from '@hcengineering/notification'
 
   import { createEventDispatcher } from 'svelte'
   import chunter from '../../../plugin'
@@ -60,24 +54,44 @@
   export let actions: Action[] = []
   export let createAction: Action | undefined
   export let objectId: Ref<Doc> | undefined
-  export let pinned: Chat[] = []
   export let sortByScore: boolean = false
   export let sortFn: (items: ChatNavItemModel[], options: SortFnOptions) => ChatNavItemModel[]
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const dispatcher = createEventDispatcher()
+  const inboxClient = NotificationClientImpl.getClient()
+  const account = getCurrentAccount()
   const contextByDocStore = inboxClient.contextByDoc
-  const contextsStore = inboxClient.contexts
-  const notificationsByContextStore = inboxClient.inboxNotificationsByContext
+  const query = createQuery()
 
   let sortedItems: ChatNavItemModel[] = []
   let items: ChatNavItemModel[] = []
-
-  const dispatcher = createEventDispatcher()
-
   let canShowMore = false
+  let count: number = 0
+  let isOpen = true
 
+  $: if (_class !== core.class.Doc && !isOpen) {
+    query.query(
+      notification.class.DocNotifyContext,
+      {
+        user: account.uuid,
+        objectClass: _class,
+        unreadMessages: { $size: { $gt: 0 } }
+      },
+      (res) => {
+        count = getUnreadMessageCount(res)
+      },
+      { projection: { unreadMessages: 1, unreadCount: 1 } }
+    )
+  } else if (!isOpen) {
+    count = getUnreadMessageCount(objects.map(({ doc }) => $contextByDocStore.get(doc._id)).filter(notEmpty))
+  } else {
+    count = 0
+    query.unsubscribe()
+  }
+
+  $: void inboxClient.loadContextsByDoc(objects.map(({ doc }) => doc._id))
   $: void getChatNavItems(
     objects,
     (res) => {
@@ -136,7 +150,7 @@
 
         let icon: AnySvelteComponent | undefined = undefined
 
-        if (iconMixin?.component) {
+        if (iconMixin?.component != null) {
           icon = await getResource(iconMixin.component)
         }
 
@@ -176,37 +190,6 @@
       menuOpened = false
     })
   }
-
-  let count: number = 0
-  let contexts: DocNotifyContext[] = []
-
-  $: pinnedIds = pinned.map((it) => it.attachedTo)
-  $: contexts =
-    _class === core.class.Doc
-      ? sortedItems.map((it) => $contextByDocStore.get(it.object._id)).filter(notEmpty)
-      : $contextsStore.filter((it) => hierarchy.isDerived(it.objectClass, _class) && !pinnedIds.includes(it.objectId))
-
-  async function calculateNotifications (
-    contexts: DocNotifyContext[],
-    notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): Promise<void> {
-    const notifications = contexts
-      .flatMap((context) => notificationsByContext.get(context._id) ?? [])
-      .filter((n) => {
-        if (isActivityNotification(n)) return true
-
-        return isMentionNotification(n) && hierarchy.isDerived(n.mentionedInClass, chunter.class.ChatMessage)
-      })
-
-    count = getNotificationsCount(contexts, notifications)
-  }
-
-  $: void calculateNotifications(contexts, $notificationsByContextStore)
-
-  $: notify = sortedItems.some((it) => {
-    const c = $contextByDocStore.get(it.id)
-    return (c?.lastView ?? 0) < (c?.lastUpdate ?? 0) && (c?.lastNotifiedMessage ?? 0) < (c?.lastUpdate ?? 0)
-  })
 </script>
 
 {#if sortedItems.length > 0 || showEmpty}
@@ -225,9 +208,10 @@
     contextClickType="menu"
     showMenu={menuOpened}
     testid={`section-${id}`}
+    bind:isOpen
   >
     {#each sortedItems as item (getChatNavItemKey(item))}
-      {@const context = $contextByDocStore.get(item.id)}
+      {@const context = $contextByDocStore.get(item.id) ?? undefined}
       <ChatNavItem {context} isSelected={objectId === item.id} {item} type={'type-object'} on:select />
     {/each}
     {#if canShowMore}
@@ -237,9 +221,9 @@
     {:else}
       <span class="freeSpace" />
     {/if}
-    <svelte:fragment slot="visible" let:isOpen>
-      {#if visibleItem !== undefined && !isOpen}
-        {@const context = $contextByDocStore.get(visibleItem.id)}
+    <svelte:fragment slot="visible" let:isOpen={isOpenItem}>
+      {#if visibleItem !== undefined && !isOpenItem}
+        {@const context = $contextByDocStore.get(visibleItem.id) ?? undefined}
         <ChatNavItem {context} isSelected item={visibleItem} type={'type-object'} on:select />
       {/if}
     </svelte:fragment>
@@ -265,18 +249,12 @@
         </button>
       {/if}
     </svelte:fragment>
-    <svelte:fragment slot="after" let:isOpen>
-      {#if !isOpen}
+    <svelte:fragment slot="after" let:isOpen={isOpenItem}>
+      {#if !isOpenItem}
         {#if count > 0}
           <div class="antiHSpacer" />
           <div class="notify">
             <NotifyMarker {count} />
-          </div>
-          <div class="antiHSpacer" />
-        {:else if notify}
-          <div class="antiHSpacer" />
-          <div class="notify">
-            <NotifyMarker count={0} kind="simple" size="xx-small" color="gray" />
           </div>
           <div class="antiHSpacer" />
         {/if}

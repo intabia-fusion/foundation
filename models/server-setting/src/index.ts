@@ -27,7 +27,8 @@ export { serverSettingId } from '@hcengineering/server-setting'
 
 export function createModel (builder: Builder): void {
   builder.mixin(setting.class.Integration, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverSetting.function.IntegrationTitlePresenter
+    presenter: serverSetting.function.IntegrationTitlePresenter,
+    triggerFields: ['name']
   })
 
   builder.mixin(setting.templateField.Value, templates.class.TemplateField, serverTemplates.mixin.ServerTemplateField, {

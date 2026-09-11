@@ -53,7 +53,7 @@
 
   const pClient = getClient()
   const hierarchy = pClient.getHierarchy()
-  const inboxClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const inboxClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
   const linkProviders = pClient.getModel().findAllSync(view.mixin.LinkIdProvider, {})
 
   $: void parseLinkId(linkProviders, _id, _class).then((res) => {

@@ -19,7 +19,7 @@
   import { getResource } from '@hcengineering/platform'
   import { createEventDispatcher } from 'svelte'
 
-  import { providersSettings } from '../../utils'
+  import { providersSettings } from '../../stores'
 
   export let provider: NotificationProvider
 

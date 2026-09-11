@@ -14,40 +14,42 @@
 -->
 
 <script lang="ts">
-  import { ActivityMessagePreviewType } from '@hcengineering/activity'
+  import { ActivityMessagePreviewType, ActivityMessageLite } from '@hcengineering/activity'
   import { BaseMessagePreview } from '@hcengineering/activity-resources'
-  import attachment, { Attachment } from '@hcengineering/attachment'
+  import attachment from '@hcengineering/attachment'
   import { AttachmentsTooltip } from '@hcengineering/attachment-resources'
   import { ChatMessage } from '@hcengineering/chunter'
   import { createQuery } from '@hcengineering/presentation'
-  import { Action, Icon, Label, tooltip } from '@hcengineering/ui'
+  import { Icon, Label, tooltip } from '@hcengineering/ui'
   import { isEmptyMarkup } from '@hcengineering/text'
-  import { Markup } from '@hcengineering/core'
+  import { BlobType, Markup } from '@hcengineering/core'
 
-  export let value: ChatMessage
+  export let value: ActivityMessageLite<ChatMessage>
+  export let attachments: BlobType[] | undefined = undefined
   export let readonly = false
   export let type: ActivityMessagePreviewType = 'full'
-  export let actions: Action[] = []
 
   const attachmentsQuery = createQuery()
 
-  let attachments: Attachment[] = []
+  let _attachments: BlobType[] = []
 
-  $: if (value.attachments !== undefined && value.attachments > 0) {
+  $: if ((attachments?.length ?? 0) > 0) {
+    _attachments = attachments ?? []
+  } else if (value.attachments !== undefined && value.attachments > 0) {
     attachmentsQuery.query(
       attachment.class.Attachment,
       {
         attachedTo: value._id
       },
       (res) => {
-        attachments = res
+        _attachments = res
       }
     )
   } else {
     attachmentsQuery.unsubscribe()
   }
 
-  function getText (message: ChatMessage): Markup {
+  function getText (message: ActivityMessageLite<ChatMessage>): Markup {
     if (!isEmptyMarkup(message.message)) {
       return message.message
     }
@@ -60,16 +62,16 @@
   }
 </script>
 
-<BaseMessagePreview text={getText(value)} message={value} {type} {readonly} {actions} on:click>
+<BaseMessagePreview text={getText(value)} message={value} {type} {readonly} on:click>
   {#if value.attachments && !isEmptyMarkup(value.message)}
-    <div class="attachments" use:tooltip={{ component: AttachmentsTooltip, props: { attachments } }}>
+    <div class="attachments" use:tooltip={{ component: AttachmentsTooltip, props: { attachments: _attachments } }}>
       {value.attachments}
       <Icon icon={attachment.icon.Attachment} size="small" />
     </div>
-  {:else if attachments.length > 0 && isEmptyMarkup(value.message)}
+  {:else if _attachments.length > 0 && isEmptyMarkup(value.message)}
     <span class="font-normal secondaryColor">
       <Label label={attachment.string.Attachments} />:
-      {attachments.map(({ name }) => name).join(', ')}
+      {_attachments.map(({ name }) => name).join(', ')}
     </span>
   {:else if value.forwardContent?.attachments != null && value.forwardContent.attachments.length > 0 && isEmptyMarkup(value.forwardContent?.message ?? '')}
     <span class="font-normal secondaryColor">

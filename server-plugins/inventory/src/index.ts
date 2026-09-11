@@ -15,7 +15,7 @@
 
 import type { Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
-import { Presenter } from '@hcengineering/server-activity'
+import { StringPresenterFn } from '@hcengineering/server-activity'
 
 /**
  * @public
@@ -27,6 +27,6 @@ export const serverInventoryId = 'server-inventory' as Plugin
  */
 export default plugin(serverInventoryId, {
   function: {
-    ProductUrlPresenter: '' as Resource<Presenter>
+    ProductUrlPresenter: '' as Resource<StringPresenterFn>
   }
 })

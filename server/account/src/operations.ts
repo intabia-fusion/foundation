@@ -1,5 +1,6 @@
 //
 // Copyright © 2022-2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -1490,9 +1491,10 @@ export async function requestPasswordReset (
 
   const link = concatLink(front, `/login/recovery?id=${token}`)
   const lang = branding?.defaultLanguage
-  const text = await translate(accountPlugin.string.RecoveryText, { link }, lang)
-  const html = await translate(accountPlugin.string.RecoveryHTML, { link }, lang)
-  const subject = await translate(accountPlugin.string.RecoverySubject, {}, lang)
+  const app = branding?.title ?? getMetadata(accountPlugin.metadata.ProductName)
+  const text = await translate(accountPlugin.string.RecoveryText, { link, app }, lang)
+  const html = await translate(accountPlugin.string.RecoveryHTML, { link, app }, lang)
+  const subject = await translate(accountPlugin.string.RecoverySubject, { app }, lang)
 
   await mailQueue?.send(
     ctx,
@@ -2466,7 +2468,7 @@ async function getMailboxSecret (
   }
 ): Promise<MailboxSecret | null> {
   const { extra } = decodeTokenVerbose(ctx, token)
-  verifyAllowedServices(['huly-mail'], extra, false)
+  verifyAllowedServices(['huly-mail', 'mail-service'], extra, false)
   return await db.mailboxSecret.findOne({ mailbox: params.mailbox })
 }
 

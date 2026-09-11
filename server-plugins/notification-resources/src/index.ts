@@ -14,18 +14,15 @@
 // limitations under the License.
 //
 
-import activity, { ActivityMessage } from '@hcengineering/activity'
 import contact, { Employee, type Person } from '@hcengineering/contact'
 import core, {
   AccountUuid,
   AnyAttribute,
   type Class,
-  Collaborator,
   Doc,
-  getClassCollaborators,
   Ref,
-  SortingOrder,
   Space,
+  DocumentUpdate,
   Tx,
   TxCreateDoc,
   TxCUD,
@@ -36,9 +33,18 @@ import core, {
 } from '@hcengineering/core'
 import notification, { DocNotifyContext } from '@hcengineering/notification'
 import { type TriggerControl } from '@hcengineering/server-core'
-import { isActivityDoc } from '@hcengineering/server-activity-resources'
+import {
+  getTitlePresenter,
+  getIdentifierPresenter,
+  getIconPresenter,
+  getDocIcon,
+  isActivityDoc,
+  getDocIdentifier,
+  getDocTitle,
+  getLabelPresenter,
+  getDocLabel
+} from '@hcengineering/server-activity'
 
-import { PushNotificationsHandler } from './push'
 import {
   generateAttributeNotificationType,
   getClassNotificationGroup,
@@ -46,78 +52,6 @@ import {
   MeAddedInCollaboratorsNotificationTypeMatch,
   MeRemovedFromCollaboratorsNotificationTypeMatch
 } from './utils'
-
-async function removeContexts (
-  control: TriggerControl,
-  contexts: DocNotifyContext[],
-  unsubscribe: AccountUuid[]
-): Promise<Tx[]> {
-  if (contexts.length === 0) return []
-  if (unsubscribe.length === 0) return []
-
-  const res: Tx[] = []
-
-  for (const context of contexts) {
-    if (!unsubscribe.includes(context.user)) {
-      continue
-    }
-
-    const removeTx = control.txFactory.createTxRemoveDoc(context._class, context.space, context._id)
-
-    res.push(removeTx)
-  }
-
-  return res
-}
-
-async function removeContextNotifications (control: TriggerControl, contextId: Ref<DocNotifyContext>[]): Promise<Tx[]> {
-  const inboxNotifications = await control.findAll(
-    control.ctx,
-    notification.class.InboxNotification,
-    {
-      docNotifyContext: { $in: contextId }
-    },
-    {
-      projection: {
-        _id: 1,
-        _class: 1,
-        space: 1
-      }
-    }
-  )
-
-  return inboxNotifications.map((it) => control.txFactory.createTxRemoveDoc(it._class, it.space, it._id))
-}
-async function removeCollaboratorDoc (tx: TxRemoveDoc<Doc>, control: TriggerControl): Promise<Tx[]> {
-  const mixin = getClassCollaborators(control.modelDb, control.hierarchy, tx.objectClass)
-
-  if (mixin === undefined) return []
-
-  const res: Tx[] = []
-  const contexts = await control.findAll(
-    control.ctx,
-    notification.class.DocNotifyContext,
-    { objectId: tx.objectId },
-    {
-      projection: {
-        _id: 1,
-        _class: 1,
-        space: 1
-      }
-    }
-  )
-
-  if (contexts.length === 0) return []
-
-  const contextIds = contexts.map(({ _id }) => _id)
-  const txes = await removeContextNotifications(control, contextIds)
-
-  res.push(...txes)
-
-  contexts.forEach((it) => res.push(control.txFactory.createTxRemoveDoc(it._class, it.space, it._id)))
-
-  return res
-}
 
 async function OnAttributeCreate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   const result: Tx[] = []
@@ -154,77 +88,6 @@ async function OnAttributeUpdate (txes: Tx[], control: TriggerControl): Promise<
   return result
 }
 
-async function OnCollaboratorRemoved (txes: TxRemoveDoc<Collaborator>[], control: TriggerControl): Promise<Tx[]> {
-  const res: Tx[] = []
-
-  for (const tx of txes) {
-    const collaborator = control.removedMap.get(tx._id) as Collaborator | undefined
-    if (collaborator === undefined) continue
-
-    const { attachedTo, attachedToClass } = collaborator
-
-    const doc = (await control.findAll(control.ctx, attachedToClass, { _id: attachedTo }, { limit: 1 }))[0]
-    if (doc === undefined) continue
-
-    const contexts = await control.findAll(control.ctx, notification.class.DocNotifyContext, {
-      objectId: attachedTo,
-      user: collaborator.collaborator
-    })
-
-    res.push(...(await removeContexts(control, contexts, [collaborator.collaborator])))
-  }
-
-  return res
-}
-
-async function OnActivityMessageRemove (message: ActivityMessage, control: TriggerControl): Promise<Tx[]> {
-  if (control.removedMap.has(message.attachedTo)) {
-    return []
-  }
-
-  const res: Tx[] = []
-
-  const reactionNotifications = await control.findAll(control.ctx, notification.class.ReactionInboxNotification, {
-    attachedTo: message._id
-  })
-  const mentionNotifications = await control.findAll(control.ctx, notification.class.MentionInboxNotification, {
-    mentionedIn: message._id
-  })
-  const activityNotifications = await control.findAll(control.ctx, notification.class.ActivityInboxNotification, {
-    attachedTo: message._id
-  })
-
-  res.push(...activityNotifications.map((it) => control.txFactory.createTxRemoveDoc(it._class, it.space, it._id)))
-  res.push(...reactionNotifications.map((it) => control.txFactory.createTxRemoveDoc(it._class, it.space, it._id)))
-  res.push(...mentionNotifications.map((it) => control.txFactory.createTxRemoveDoc(it._class, it.space, it._id)))
-
-  const contexts = await control.findAll(control.ctx, notification.class.DocNotifyContext, {
-    objectId: message.attachedTo,
-    lastUpdate: message.createdOn
-  })
-  if (contexts.length === 0) return res
-
-  const lastMessage = (
-    await control.findAll(
-      control.ctx,
-      activity.class.ActivityMessage,
-      { attachedTo: message.attachedTo, space: message.space },
-      { sort: { createdOn: SortingOrder.Descending }, limit: 1 }
-    )
-  )[0]
-  if (lastMessage === undefined) return res
-
-  for (const context of contexts) {
-    res.push(
-      control.txFactory.createTxUpdateDoc(context._class, context.space, context._id, {
-        lastUpdate: lastMessage.createdOn ?? lastMessage.modifiedOn
-      })
-    )
-  }
-
-  return res
-}
-
 async function OnEmployeeDeactivate (txes: TxCUD<Doc>[], control: TriggerControl): Promise<Tx[]> {
   const result: Tx[] = []
   for (const tx of txes) {
@@ -249,29 +112,18 @@ async function OnEmployeeDeactivate (txes: TxCUD<Doc>[], control: TriggerControl
   return result
 }
 
-async function OnDocRemove (txes: TxCUD<Doc>[], control: TriggerControl): Promise<Tx[]> {
-  const ltxes = txes.filter((it) => it._class === core.class.TxRemoveDoc) as TxRemoveDoc<Doc>[]
+async function OnDocRemove (txes: TxRemoveDoc<Doc>[], control: TriggerControl): Promise<Tx[]> {
   const res: Tx[] = []
-  for (const tx of ltxes) {
-    if (control.hierarchy.isDerived(tx.objectClass, activity.class.ActivityMessage)) {
-      const message = control.removedMap.get(tx.objectId) as ActivityMessage | undefined
-
-      if (message !== undefined) {
-        const txes = await OnActivityMessageRemove(message, control)
-        res.push(...txes)
-      }
-    } else if (control.hierarchy.isDerived(tx.objectClass, notification.class.DocNotifyContext)) {
-      res.push(...(await removeContextNotifications(control, [tx.objectId as Ref<DocNotifyContext>])))
-    }
-
+  for (const tx of txes) {
+    const contexts = await control.findAll(control.ctx, notification.class.DocNotifyContext, { objectId: tx.objectId })
     const readState = await control.findAll(control.ctx, notification.class.ReadState, { attachedTo: tx.objectId })
+
     res.push(
       ...readState.map((readState) =>
         control.txFactory.createTxRemoveDoc(readState._class, readState.space, readState._id)
-      )
+      ),
+      ...contexts.map((context) => control.txFactory.createTxRemoveDoc(context._class, context.space, context._id))
     )
-
-    res.push(...(await removeCollaboratorDoc(tx, control)))
   }
   return res
 }
@@ -310,6 +162,89 @@ async function OnDocSpaceChanged (txes: TxUpdateDoc<Doc>[], control: TriggerCont
   return result
 }
 
+async function OnDocUpdate (txes: TxUpdateDoc<Doc>[], control: TriggerControl): Promise<Tx[]> {
+  const res: Tx[] = []
+
+  for (const tx of txes) {
+    const titleKey = control.hierarchy.findClass(tx.objectClass)?.titleKey
+    const titlePresenter = getTitlePresenter(tx.objectClass, control.hierarchy)
+    const labelPresenter = getLabelPresenter(tx.objectClass, control.hierarchy)
+    const iconPresenter = getIconPresenter(tx.objectClass, control.hierarchy)
+    const identifierPresenter = getIdentifierPresenter(tx.objectClass, control.hierarchy)
+
+    const keys = new Set<string>()
+    for (const [key, value] of Object.entries(tx.operations)) {
+      if (key.startsWith('$')) {
+        if (value != null && typeof value === 'object') {
+          Object.keys(value).forEach((field) => {
+            keys.add(field)
+            keys.add(field.split('.')[0])
+          })
+        }
+      } else {
+        keys.add(key)
+        keys.add(key.split('.')[0])
+      }
+    }
+
+    const updateTitle =
+      titlePresenter?.triggerFields.some((key) => keys.has(key)) ?? (titleKey != null && keys.has(titleKey))
+    const updateIdentifier = identifierPresenter?.triggerFields.some((key) => keys.has(key)) ?? false
+    const updateIcon = iconPresenter?.triggerFields.some((key) => keys.has(key)) ?? false
+    const updateLabel = labelPresenter?.triggerFields.some((key) => keys.has(key)) ?? false
+
+    if (!updateIcon && !updateIdentifier && !updateTitle && !updateLabel) continue
+
+    const doc = (await control.findAll(control.ctx, tx.objectClass, { _id: tx.objectId }))[0]
+    if (doc == null) continue
+
+    const contexts = await control.findAll(control.ctx, notification.class.DocNotifyContext, { objectId: tx.objectId })
+    const contextsByParent = await control.findAll(control.ctx, notification.class.DocNotifyContext, {
+      parentObjectId: tx.objectId
+    })
+    if (contexts.length === 0 && contextsByParent.length === 0) continue
+
+    const objectOps: DocumentUpdate<DocNotifyContext> = {}
+    const parentOps: DocumentUpdate<DocNotifyContext> = {}
+
+    if (updateTitle) {
+      const title = await getDocTitle(control, doc)
+      objectOps.objectTitle = title
+      parentOps.parentObjectTitle = title
+    }
+
+    if (updateIdentifier) {
+      const identifier = await getDocIdentifier(control, doc)
+      objectOps.objectIdentifier = identifier
+      parentOps.parentObjectIdentifier = identifier
+    }
+
+    if (updateIcon) {
+      const icon = await getDocIcon(control, doc)
+      objectOps.objectIcon = icon
+      parentOps.parentObjectIcon = icon
+    }
+
+    if (updateLabel) {
+      const label = await getDocLabel(control, doc)
+      objectOps.objectLabel = label
+      parentOps.parentObjectLabel = label
+    }
+
+    for (const context of contexts) {
+      res.push(control.txFactory.createTxUpdateDoc(context._class, context.space, context._id, objectOps))
+    }
+
+    for (const context of contextsByParent) {
+      res.push(control.txFactory.createTxUpdateDoc(context._class, context.space, context._id, parentOps))
+    }
+  }
+
+  return res
+}
+
+export { getClassNotificationGroup, generateAttributeNotificationType } from './utils'
+
 export async function OnDocClassChanged (txes: TxUpdateDoc<Doc>[], control: TriggerControl): Promise<Tx[]> {
   const result: Tx[] = []
 
@@ -323,34 +258,22 @@ export async function OnDocClassChanged (txes: TxUpdateDoc<Doc>[], control: Trig
     for (const context of contexts) {
       result.push(control.txFactory.createTxUpdateDoc(context._class, context.space, context._id, { objectClass }))
     }
-
-    const notifications = await control.findAll(control.ctx, notification.class.InboxNotification, {
-      objectId: tx.objectId
-    })
-    for (const item of notifications) {
-      result.push(control.txFactory.createTxUpdateDoc(item._class, item.space, item._id, { objectClass }))
-    }
   }
 
   return result
 }
-
-export * from './push'
-export type * from './types'
-export * from './utils'
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export default async () => ({
   trigger: {
     OnAttributeCreate,
     OnAttributeUpdate,
-    OnDocRemove,
     OnDocCreated,
+    OnDocUpdate,
+    OnDocRemove,
     OnDocSpaceChanged,
     OnDocClassChanged,
-    OnEmployeeDeactivate,
-    PushNotificationsHandler,
-    OnCollaboratorRemoved
+    OnEmployeeDeactivate
   },
   function: {
     IsUserFieldValueTypeMatch,

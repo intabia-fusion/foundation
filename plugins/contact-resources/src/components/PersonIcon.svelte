@@ -15,13 +15,33 @@
 <script lang="ts">
   import { Person } from '@hcengineering/contact'
   import { IconSize } from '@hcengineering/ui'
+  import { IdMap, Ref } from '@hcengineering/core'
+
+  import { getPersonByPersonRefStore } from '../index'
+
   import Avatar from './Avatar.svelte'
 
   export let value: Person | undefined
+  export let _id: Ref<Person> | undefined
   export let size: IconSize = 'small'
   export let showStatus: boolean = false
+
+  let _person: Person | undefined = undefined
+
+  $: personByRefStore = getPersonByPersonRefStore(_id ? [_id] : [])
+
+  $: loadPerson(value, _id, $personByRefStore)
+  function loadPerson (value: Person | undefined, personId: Ref<Person> | undefined, personById: IdMap<Person>): void {
+    if (value != null) {
+      _person = value
+    } else if (personId != null) {
+      _person = personById.get(personId)
+    } else {
+      _person = undefined
+    }
+  }
 </script>
 
-{#if value}
-  <Avatar person={value} {size} name={value.name} {showStatus} />
+{#if _person}
+  <Avatar person={_person} {size} name={_person.name} {showStatus} />
 {/if}

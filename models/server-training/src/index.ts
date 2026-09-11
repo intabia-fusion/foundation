@@ -23,7 +23,8 @@ export function createModel (builder: Builder): void {
   )
 
   builder.mixin(training.class.TrainingRequest, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverTraining.function.TrainingRequestTitlePresenter
+    presenter: serverTraining.function.TrainingRequestTitlePresenter,
+    triggerFields: ['title', 'name']
   })
 
   builder.mixin(training.class.TrainingRequest, core.class.Class, serverActivity.mixin.UrlPresenter, {

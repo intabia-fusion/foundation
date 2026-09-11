@@ -14,72 +14,44 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import notification, {
-    ActivityNotificationViewlet,
-    DisplayInboxNotification,
-    DocNotifyContext
-  } from '@hcengineering/notification'
+  import notification, { ActivityNotificationViewlet, DocNotifyContext } from '@hcengineering/notification'
   import { Ref } from '@hcengineering/core'
   import { createEventDispatcher } from 'svelte'
   import { ListView } from '@hcengineering/ui'
   import { getClient } from '@hcengineering/presentation'
 
-  import { InboxNotificationsClientImpl } from '../../inboxNotificationsClient'
   import DocNotifyContextCard from '../DocNotifyContextCard.svelte'
-  import { removeContextNotifications, notificationsComparator } from '../../utils'
-  import { InboxData } from '../../types'
+  import { removeDocNotifyContext } from '../../actions'
 
-  export let data: InboxData
+  export let contexts: DocNotifyContext[] = []
   export let selectedContext: Ref<DocNotifyContext> | undefined
 
   const client = getClient()
   const dispatch = createEventDispatcher()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
-  const contextByIdStore = inboxClient.contextById
 
   let list: ListView
   let listSelection = 0
   let element: HTMLDivElement | undefined
 
-  let clearingContexts = new Set<Ref<DocNotifyContext>>()
+  let removingContexts = new Set<Ref<DocNotifyContext>>()
   let viewlets: ActivityNotificationViewlet[] = []
 
   void client.findAll(notification.class.ActivityNotificationViewlet, {}).then((res) => {
     viewlets = res
   })
 
-  let displayData: [Ref<DocNotifyContext>, DisplayInboxNotification[]][] = []
+  async function removeContext (listSelection: number): Promise<void> {
+    const context = contexts[listSelection]
+    if (context === undefined) return
 
-  $: displayData = Array.from(data.entries()).sort(([, a], [, b]) => notificationsComparator(a[0], b[0]))
-
-  let stableIndex = 0
-  $: {
-    const idx = displayData.findIndex(([c]) => c === selectedContext)
-    if (idx !== -1) {
-      stableIndex = idx
-    } else if (selectedContext && !data.has(selectedContext)) {
-      // Selection move logic when current item is deleted
-      const validIndex = Math.max(0, Math.min(stableIndex, displayData.length - 1))
-      const nextContextId = displayData[validIndex]?.[0]
-      dispatch('click', { context: nextContextId ? $contextByIdStore.get(nextContextId) : undefined })
-    }
-  }
-
-  async function clearContext (context: DocNotifyContext): Promise<void> {
-    clearingContexts = clearingContexts.add(context._id)
+    removingContexts = removingContexts.add(context._id)
 
     try {
-      await removeContextNotifications(context)
+      await removeDocNotifyContext(context)
     } finally {
-      clearingContexts.delete(context._id)
-      clearingContexts = clearingContexts
+      removingContexts.delete(context._id)
+      removingContexts = removingContexts
     }
-  }
-
-  function handleActionClear (index: number): void {
-    const contextId = displayData[index]?.[0]
-    const context = $contextByIdStore.get(contextId)
-    if (context != null) void clearContext(context)
   }
 
   async function onKeydown (key: KeyboardEvent): Promise<void> {
@@ -94,14 +66,17 @@
         selectIndex(0)
       },
       End: () => {
-        selectIndex(displayData.length - 1)
+        selectIndex(contexts.length - 1)
       },
-      Enter: () => dispatch('click', { context: $contextByIdStore.get(displayData[listSelection]?.[0]) }),
+      Enter: () =>
+        dispatch('click', {
+          context: contexts[listSelection]
+        }),
       Backspace: () => {
-        handleActionClear(listSelection)
+        void removeContext(listSelection)
       },
       Delete: () => {
-        handleActionClear(listSelection)
+        void removeContext(listSelection)
       }
     }
 
@@ -114,12 +89,14 @@
 
   $: if (element != null) element.focus()
 
-  const getContextKey = (index: number): string => displayData[index]?.[0] ?? index.toString()
-
   function selectIndex (index: number): void {
-    if (displayData.length > 0) {
-      list.select(Math.max(0, Math.min(index, displayData.length - 1)))
+    if (contexts.length > 0) {
+      list.select(Math.max(0, Math.min(index, contexts.length - 1)))
     }
+  }
+  function getContextKey (index: number): string {
+    const contextId = contexts[index]?._id
+    return contextId ?? index.toString()
   }
 </script>
 
@@ -134,31 +111,26 @@
   <ListView
     bind:this={list}
     bind:selection={listSelection}
-    count={displayData.length}
-    items={displayData}
-    highlightIndex={Math.max(0, Math.min(stableIndex, displayData.length - 1))}
+    count={contexts.length}
+    items={contexts}
+    highlightIndex={contexts.findIndex((context) => context._id === selectedContext)}
     noScroll
     kind="full-size"
     colorsSchema="lumia"
     getKey={getContextKey}
   >
-    <svelte:fragment slot="item" let:item={itemIndex} let:value={item}>
-      {#if item}
-        {@const [contextId, contextNotifications] = item}
-        {@const context = $contextByIdStore.get(contextId)}
-        {#if context}
-          <DocNotifyContextCard
-            value={context}
-            notifications={contextNotifications}
-            {viewlets}
-            isClearing={clearingContexts.has(contextId)}
-            on:clear={() => clearContext(context)}
-            on:click={(event) => {
-              dispatch('click', event.detail)
-              listSelection = itemIndex
-            }}
-          />
-        {/if}
+    <svelte:fragment slot="item" let:item={itemIndex} let:value={context}>
+      {#if context}
+        <DocNotifyContextCard
+          value={context}
+          {viewlets}
+          isClearing={removingContexts.has(context._id)}
+          on:clear={() => removeContext(itemIndex)}
+          on:click={(event) => {
+            dispatch('click', event.detail)
+            listSelection = itemIndex
+          }}
+        />
       {/if}
     </svelte:fragment>
   </ListView>

@@ -15,8 +15,9 @@
 import calendar, { Event } from '@hcengineering/calendar'
 import contact from '@hcengineering/contact'
 import { AccountUuid, Doc, MeasureContext, PersonId, Ref, Space, WorkspaceUuid } from '@hcengineering/core'
-import notification from '@hcengineering/notification'
 import { IntlString } from '@hcengineering/platform'
+import notification from '@hcengineering/notification'
+
 import { getClient } from './utils'
 
 export enum MeetingNotificationType {
@@ -38,24 +39,24 @@ export async function createNotification (
   forEvent: Event,
   modifiedBy: PersonId
 ): Promise<void> {
-  const { client, accountClient } = await getClient(workspaceUuid)
-  const personUuid = await accountClient.findPersonBySocialId(forEvent.user, true)
-  if (personUuid === undefined) {
-    throw new Error(`Global person not found for social-id ${forEvent.user}`)
-  }
-  const person = await client.findOne(contact.class.Person, { personUuid }, { projection: { _id: 1 } })
-  if (person === undefined) {
-    throw new Error(`Local person not found for person-uuid ${personUuid}`)
-  }
-  const space = await client.findOne(contact.class.PersonSpace, { person: person._id }, { projection: { _id: 1 } })
-  if (space === undefined) {
-    throw new Error(`Person space not found for person ${person._id}`)
+  if (notificationMessages[type] === undefined) {
+    throw new Error('Invalid notification type')
   }
 
-  const user = personUuid as AccountUuid
+  const { client, accountClient } = await getClient(workspaceUuid)
+
+  const accountUuid = (await accountClient.findPersonBySocialId(forEvent.user, true)) as AccountUuid | undefined
+  if (accountUuid === undefined) {
+    throw new Error(`Global person not found for social-id ${forEvent.user}`)
+  }
+
+  const space = await client.findOne(contact.class.PersonSpace, { account: accountUuid }, { projection: { _id: 1 } })
+  if (space === undefined) {
+    throw new Error(`Person space not found for account ${accountUuid}`)
+  }
+
   let objectId: Ref<Doc<Space>> = forEvent._id
   let objectClass = forEvent._class
-  let objectSpace = forEvent.space
 
   if (type === MeetingNotificationType.Canceled) {
     const calendr = await client.findOne(
@@ -68,41 +69,30 @@ export async function createNotification (
     }
     objectId = calendr._id
     objectClass = calendar.class.Calendar
-    objectSpace = calendr.space
   }
 
-  const docNotifyContext = await client.findOne(notification.class.DocNotifyContext, { objectId, user })
-  let docNotifyContextId = docNotifyContext?._id
-  docNotifyContextId ??= await client.createDoc(notification.class.DocNotifyContext, space._id, {
-    objectId,
-    objectClass,
-    objectSpace,
-    user
-  })
-
-  if (notificationMessages[type] === undefined) {
-    throw new Error('Invalid notification type')
-  }
-
-  // Here we need another client with that account who created the event
-  // to make the notification in the inbox displaying the author name
-  const { client: txClient } = await getClient(workspaceUuid, modifiedBy)
-
-  await txClient.createDoc(notification.class.CommonInboxNotification, space._id, {
-    user,
-    objectId,
-    objectClass,
-    icon: calendar.icon.Calendar,
-    message: notificationMessages[type],
-    intlParams: { title: forEvent.title },
-    isViewed: false,
-    archived: false,
-    docNotifyContext: docNotifyContextId,
-    allowedProviders: {}
-  })
+  await client.createDoc(
+    notification.class.CreateNotificationAction,
+    space._id,
+    {
+      attachedTo: objectId,
+      attachedToClass: objectClass,
+      account: accountUuid,
+      notification: {
+        icon: calendar.icon.Calendar,
+        messageIntl: notificationMessages[type]
+      },
+      intl: {
+        intlParams: { title: forEvent.title }
+      }
+    },
+    undefined,
+    forEvent.createdOn,
+    modifiedBy
+  )
 
   ctx.info('Notification created', {
-    personUuid,
+    accountUuid,
     eventId: forEvent.eventId,
     objectId: forEvent._id,
     spaceId: space._id

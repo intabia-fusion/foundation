@@ -258,8 +258,8 @@
 
         <slot name="content" {readonly} />
 
-        {#if !hideFooter}
-          <Replies {embedded} object={message} {onReply} />
+        {#if !hideFooter && !embedded && (message.replies ?? 0) > 0}
+          <Replies object={message} {onReply} />
         {/if}
         <ReactionsPresenter object={message} {readonly} />
         {#if parentMessage && showEmbedded}

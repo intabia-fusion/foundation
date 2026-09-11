@@ -57,7 +57,7 @@ import { makeRank } from '@hcengineering/rank'
 import { getAccountBySocialId, getCurrentPerson } from '@hcengineering/server-contact'
 import serverCore, { TriggerControl } from '@hcengineering/server-core'
 import { workbenchId } from '@hcengineering/workbench'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl, IconPresenterFn, Icon } from '@hcengineering/server-activity'
 
 import { ManageCollaboratorsTrigger, CollaboratorTitlePresenter } from './collaborators'
 
@@ -374,18 +374,18 @@ export async function OnChannelUpdate (txes: Tx[], control: TriggerControl): Pro
   return result
 }
 
-const personUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const personUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${contactId}/${doc._id}`
   return concatLink(front, path)
 }
 
-const personTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const personTitlePresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const person = doc as Person
   return `${getName(control.hierarchy, person, control.branding?.lastNameFirst)}`
 }
 
-const organizationUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const organizationUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${contactId}/${doc._id}`
   return concatLink(front, path)
@@ -478,6 +478,10 @@ export async function getContactFirstName (
   }
 }
 
+export const contactIconPresenter: IconPresenterFn<Contact> = async (doc: Contact): Promise<Icon> => {
+  return { props: { _id: doc._id } }
+}
+
 export * from './collaborators/index'
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
@@ -497,6 +501,7 @@ export default async () => ({
     CollaboratorTitlePresenter,
     OrganizationUrlPresenter: organizationUrlPresenter,
     ContactNameProvider: contactNameProvider,
+    ContactIconPresenter: contactIconPresenter,
     GetCurrentEmployeeName: getCurrentEmployeeName,
     GetCurrentEmployeeEmail: getCurrentEmployeeEmail,
     GetContactName: getContactName,

@@ -28,15 +28,14 @@ import { translate } from '@hcengineering/platform'
 import request, { Request, RequestStatus } from '@hcengineering/request'
 import type { TriggerControl } from '@hcengineering/server-core'
 import {
-  CreateNotificationFunc,
+  CreateTxNotificationFunc,
   CreateNotificationResult,
   Receiver,
   TypeMatchClient,
   TypeMatchFunc
 } from '@hcengineering/server-notification'
 import { Employee } from '@hcengineering/contact'
-import { getDocTitle } from '@hcengineering/server-activity-resources'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl, getDocTitle } from '@hcengineering/server-activity'
 
 /**
  * @public
@@ -106,7 +105,7 @@ async function OnRequestUpdate (ctx: TxUpdateDoc<Request>, control: TriggerContr
   return []
 }
 
-const requestTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const requestTitlePresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const request = doc as Request
   const title = await translate(control.hierarchy.getClass(request._class).label, {}, control.branding?.defaultLanguage)
 
@@ -143,7 +142,7 @@ export const sendRequestMatch: TypeMatchFunc = async (
   return false
 }
 
-export const sendRequestCreateNotification: CreateNotificationFunc = async (
+export const sendRequestCreateNotification: CreateTxNotificationFunc = async (
   client: TypeMatchClient,
   _tx: TxCUD<Doc>,
   attachedToDoc: Doc | undefined,
@@ -154,14 +153,15 @@ export const sendRequestCreateNotification: CreateNotificationFunc = async (
 
   const req = object as Request
   const clazz = client.hierarchy.getClass(req._class)
-  const titleKey = client.hierarchy.getClass(attachedToDoc._class).titleKey
-  const title = (titleKey != null ? (attachedToDoc as any)[titleKey] : undefined) ?? ''
 
   return {
-    icon: clazz.icon,
-    message: request.string.NewRequestNotification,
-    intlParams: { title },
-    intlParamsNotLocalized: { name: clazz.label }
+    notification: {
+      icon: clazz.icon,
+      messageIntl: request.string.NewRequestNotification
+    },
+    intl: {
+      intlParamsNotLocalized: { name: clazz.label }
+    }
   }
 }
 
@@ -182,7 +182,7 @@ export const removeRequestMatch: TypeMatchFunc = async (
   return false
 }
 
-export const removeRequestCreateNotification: CreateNotificationFunc = async (
+export const removeRequestCreateNotification: CreateTxNotificationFunc = async (
   client: TypeMatchClient,
   _tx: TxCUD<Doc>,
   attachedToDoc: Doc | undefined,
@@ -193,14 +193,15 @@ export const removeRequestCreateNotification: CreateNotificationFunc = async (
 
   const req = object as Request
   const clazz = client.hierarchy.getClass(req._class)
-  const titleKey = client.hierarchy.getClass(attachedToDoc._class).titleKey
-  const title = (titleKey != null ? (attachedToDoc as any)[titleKey] : undefined) ?? ''
 
   return {
-    icon: clazz.icon,
-    message: request.string.CancelRequestNotification,
-    intlParams: { title },
-    intlParamsNotLocalized: { name: clazz.label }
+    notification: {
+      icon: clazz.icon,
+      messageIntl: request.string.CancelRequestNotification
+    },
+    intl: {
+      intlParamsNotLocalized: { name: clazz.label }
+    }
   }
 }
 

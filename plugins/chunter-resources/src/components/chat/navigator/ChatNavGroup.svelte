@@ -232,28 +232,28 @@
 </script>
 
 {#each sections as section (section.id)}
-  <ChatNavSection
-    id={section.id}
-    _class={section._class ?? core.class.Doc}
-    objects={section.objects}
-    objectId={object?._id}
-    header={section.label}
-    actions={model.actionsFn()}
-    createAction={model.createAction}
-    sortFn={model.sortFn}
-    showEmpty={model.showEmpty}
-    itemsCount={section.count}
-    {pinned}
-    sortByScore={search !== ''}
-    on:show-more={() => {
-      if (section._class !== undefined) {
-        const query = objectsQueryByClass.get(section._class)
-        if (query?.limit != null) {
-          query.limit += 50
-          loadObjects(model, pinned, search)
+  {#if section.objects.length > 0 || model.showEmpty}
+    <ChatNavSection
+      id={section.id}
+      _class={section._class ?? core.class.Doc}
+      objects={section.objects}
+      objectId={object?._id}
+      header={section.label}
+      actions={model.actionsFn()}
+      createAction={model.createAction}
+      sortFn={model.sortFn}
+      showEmpty={model.showEmpty}
+      itemsCount={section.count}
+      on:show-more={() => {
+        if (section._class !== undefined) {
+          const query = objectsQueryByClass.get(section._class)
+          if (query?.limit != null) {
+            query.limit += 50
+            loadObjects(model, pinned, search)
+          }
         }
-      }
-    }}
-    on:select
-  />
+      }}
+      on:select
+    />
+  {/if}
 {/each}

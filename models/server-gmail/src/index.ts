@@ -50,13 +50,4 @@ export function createModel (builder: Builder): void {
       match: serverGmail.function.IsIncomingMessageTypeMatch
     }
   )
-
-  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
-    trigger: serverGmail.trigger.NotificationsHandler,
-    isAsync: true,
-    txMatch: {
-      _class: core.class.TxCreateDoc,
-      objectClass: notification.class.InboxNotification
-    }
-  })
 }

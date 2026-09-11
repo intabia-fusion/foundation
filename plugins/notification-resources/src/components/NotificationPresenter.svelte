@@ -15,19 +15,18 @@
 <script lang="ts">
   import { Doc } from '@hcengineering/core'
   import { getPlatformColor, themeStore } from '@hcengineering/ui'
-  import { InboxNotificationsClientImpl } from '../inboxNotificationsClient'
+
+  import { NotificationClientImpl } from '../client'
 
   export let value: Doc
   export let kind: 'table' | 'block' = 'block'
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
   const contextByDocStore = inboxClient.contextByDoc
-  const inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
 
+  $: void inboxClient.loadContextByDoc(value._id)
   $: notifyContext = $contextByDocStore.get(value._id)
-  $: inboxNotifications = notifyContext ? ($inboxNotificationsByContextStore.get(notifyContext._id) ?? []) : []
-
-  $: hasNotification = inboxNotifications.some(({ isViewed }) => !isViewed)
+  $: hasNotification = (notifyContext?.unreadCount ?? 0) > 0
 </script>
 
 {#if hasNotification}

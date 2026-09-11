@@ -14,8 +14,6 @@
 -->
 <script lang="ts">
   import { Doc, Ref } from '@hcengineering/core'
-  import { DocNotifyContext } from '@hcengineering/notification'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
   import { ActivityMessage } from '@hcengineering/activity'
 
   import Channel from './Channel.svelte'
@@ -30,13 +28,6 @@
   export let readonly: boolean = false
   export let onReply: ((message: ActivityMessage) => void) | undefined = undefined
 
-  const notificationsClient = InboxNotificationsClientImpl.getClient()
-  const contextByDocStore = notificationsClient.contextByDoc
-
-  let context: DocNotifyContext | undefined = undefined
-
-  $: context = object ? $contextByDocStore.get(object._id) : undefined
-
   $: renderChannel = threadId === undefined
   $: visible = height !== '0px' && width !== '0px'
 </script>
@@ -47,7 +38,6 @@
       <slot name="header" />
       <Channel
         {object}
-        {context}
         syncLocation={false}
         freeze={threadId !== undefined}
         {collection}
@@ -58,7 +48,7 @@
     {/key}
   </div>
 {/if}
-{#if threadId && visible}
+{#if threadId != null && visible}
   <div class="thread" style:height style:width>
     <ThreadView _id={threadId} syncLocation={false} {onReply} {readonly} on:channel on:close />
   </div>

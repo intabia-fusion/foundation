@@ -30,8 +30,8 @@
   import { TreeNode } from '@hcengineering/view-resources'
   import { SpacesNavModel } from '@hcengineering/workbench'
   import { createEventDispatcher } from 'svelte'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
-  import { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
+  import { DocNotifyContext } from '@hcengineering/notification'
 
   import plugin from '../../plugin'
   import TreeSeparator from './TreeSeparator.svelte'
@@ -80,24 +80,17 @@
     }
   }
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
   const notifyContextByDocStore = inboxClient.contextByDoc
-  const inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
 
-  function isChanged (
-    space: Space,
-    notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): boolean {
-    const context = notifyContextByDoc.get(space._id)
+  function isChanged (space: Space, notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext | null>): boolean {
+    const context = notifyContextByDoc.get(space._id) ?? undefined
 
-    if (context === undefined) {
+    if (context == null) {
       return false
     }
 
-    const inboxNotifications = inboxNotificationsByContext.get(context._id) ?? []
-
-    return inboxNotifications.filter(({ isViewed }) => !isViewed).length > 0
+    return context.unreadCount > 0
   }
 
   function getParentActions (): Action[] {
@@ -144,6 +137,8 @@
     (currentSpecial !== undefined || currentFragment !== undefined || currentFragment !== '') &&
     !deselect &&
     !empty
+
+  $: void inboxClient.loadContextsByDoc(filteredSpaces.map((it) => it._id))
 </script>
 
 <TreeNode
@@ -164,7 +159,7 @@
       {currentSpecial}
       {currentFragment}
       {deselect}
-      isChanged={isChanged(space, $notifyContextByDocStore, $inboxNotificationsByContextStore)}
+      isChanged={isChanged(space, $notifyContextByDocStore)}
       spaceActions={[starSpace]}
     />
   {/each}
@@ -178,7 +173,7 @@
         {currentSpecial}
         {currentFragment}
         {deselect}
-        isChanged={isChanged(visibleSpace, $notifyContextByDocStore, $inboxNotificationsByContextStore)}
+        isChanged={isChanged(visibleSpace, $notifyContextByDocStore)}
         spaceActions={[starSpace]}
         forciblyСollapsed
       />

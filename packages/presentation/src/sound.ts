@@ -1,7 +1,19 @@
-import { type Class, type Doc, type Ref } from '@hcengineering/core'
-import { type Asset, getMetadata, getResource } from '@hcengineering/platform'
-import { getClient } from '.'
-import notification from '@hcengineering/notification'
+//
+// Copyright © 2026 Intabia Fusion.
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+import { type Asset, getMetadata } from '@hcengineering/platform'
 
 // Raw undecoded audio, survives AudioContext recreation (AudioBuffer does not).
 const sounds = new Map<Asset, ArrayBuffer>()
@@ -24,19 +36,6 @@ function releaseContext (): void {
   const ctx = context
   context = undefined
   void ctx.close().catch(() => {})
-}
-
-export async function isNotificationAllowed (_class?: Ref<Class<Doc>>): Promise<boolean> {
-  if (_class === undefined) return false
-  const client = getClient()
-  const notificationType = client
-    .getModel()
-    .findAllSync(notification.class.NotificationType, { objectClass: _class })[0]
-
-  if (notificationType === undefined) return false
-
-  const isAllowedFn = await getResource(notification.function.IsNotificationAllowed)
-  return isAllowedFn(notificationType, notification.providers.SoundNotificationProvider)
 }
 
 async function loadSound (key: string): Promise<ArrayBuffer | undefined> {
@@ -151,14 +150,4 @@ export function playThrottledSound (soundKey: string): void {
   }
   // Otherwise ensure a single trailing play at window end.
   st.timer ??= setTimeout(fire, THROTTLE_WINDOW_MS - elapsed)
-}
-
-export async function playNotificationSound (
-  soundKey: string,
-  _class?: Ref<Class<Doc>>,
-  loop = false
-): Promise<(() => void) | null> {
-  const allowed = await isNotificationAllowed(_class)
-  if (!allowed) return null
-  return await playSound(soundKey, loop)
 }

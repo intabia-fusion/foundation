@@ -27,7 +27,7 @@ import core, {
   type Space,
   type WithLookup
 } from '@hcengineering/core'
-import notification from '@hcengineering/notification'
+import notification, { isUnreadMessageChunk, isUnreadMessageId } from '@hcengineering/notification'
 import { readNotifyContext } from '@hcengineering/notification-resources'
 import { getClient } from '@hcengineering/presentation'
 import { type Action, showPopup } from '@hcengineering/ui'
@@ -214,25 +214,34 @@ function sortActivityChannels (items: ChatNavItemModel[], option: SortFnOptions)
   const { contextByDoc } = option
 
   return items.sort((i1, i2) => {
-    const context1 = contextByDoc.get(i1.id)
-    const context2 = contextByDoc.get(i2.id)
+    const context1 = contextByDoc.get(i1.id) ?? undefined
+    const context2 = contextByDoc.get(i2.id) ?? undefined
 
-    const hasNewMessages1 = (context1?.lastUpdate ?? 0) > (context1?.lastView ?? 0)
-    const hasNewMessages2 = (context2?.lastUpdate ?? 0) > (context2?.lastView ?? 0)
+    const hasUnreadMessages1 = (context1?.unreadMessages?.length ?? 0) > 0
+    const hasUnreadMessages2 = (context2?.unreadMessages?.length ?? 0) > 0
 
-    if (hasNewMessages1 && hasNewMessages2) {
-      return (context2?.lastUpdate ?? 0) - (context1?.lastUpdate ?? 0)
+    if (hasUnreadMessages1 && hasUnreadMessages2) {
+      const unreadMessages1 = context1?.unreadMessages ?? []
+      const unreadMessages2 = context2?.unreadMessages ?? []
+      const lastUnreadMessage1 = unreadMessages1[unreadMessages1.length - 1]
+      const lastUnreadMessage2 = unreadMessages2[unreadMessages2.length - 1]
+      const lastUnreadMessageTs1 = isUnreadMessageId(lastUnreadMessage1)
+        ? lastUnreadMessage1.createdOn
+        : isUnreadMessageChunk(lastUnreadMessage1)
+          ? lastUnreadMessage1.to
+          : 0
+      const lastUnreadMessageTs2 = isUnreadMessageId(lastUnreadMessage2)
+        ? lastUnreadMessage2.createdOn
+        : isUnreadMessageChunk(lastUnreadMessage2)
+          ? lastUnreadMessage2.to
+          : 0
+
+      return lastUnreadMessageTs2 - lastUnreadMessageTs1
     }
+    if (hasUnreadMessages1 && !hasUnreadMessages2) return -1
+    if (hasUnreadMessages2 && !hasUnreadMessages1) return 1
 
-    if (hasNewMessages1 && !hasNewMessages2) {
-      return -1
-    }
-
-    if (hasNewMessages2 && !hasNewMessages1) {
-      return 1
-    }
-
-    return (context2?.lastUpdate ?? i2.object.modifiedOn) - (context1?.lastUpdate ?? i2.object.modifiedOn)
+    return i2.object.modifiedOn - i1.object.modifiedOn
   })
 }
 

@@ -13,21 +13,19 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import notification, { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
+  import notification, {
+    DocNotificationSetting,
+    DocNotifyContext,
+    getUnreadMessageCount
+  } from '@hcengineering/notification'
   import { translate } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
   import { Action, languageStore, lowercaseFirstLetter, Menu, showPopup } from '@hcengineering/ui'
   import { getObjectLinkId, canLeaveSpace, IconPicker } from '@hcengineering/view-resources'
-  import {
-    getNotificationsCount,
-    InboxNotificationsClientImpl,
-    isActivityNotification,
-    isMentionNotification,
-    MutePopup
-  } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl, MutePopup } from '@hcengineering/notification-resources'
   import { createEventDispatcher } from 'svelte'
   import view from '@hcengineering/view'
-  import { Doc, getCurrentAccount, Ref, Space } from '@hcengineering/core'
+  import { Doc, getCurrentAccount, Space } from '@hcengineering/core'
   import { Channel, Chat } from '@hcengineering/chunter'
   import workbench from '@hcengineering/workbench'
 
@@ -46,39 +44,24 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
   const dispatch = createEventDispatcher()
-  const notificationClient = InboxNotificationsClientImpl.getClient()
-  const notificationsByContextStore = notificationClient.inboxNotificationsByContext
+  const notificationClient = NotificationClientImpl.getClient()
+  const settingByDocStore = notificationClient.docSettingByDoc
 
-  let count: number | null = null
+  let setting: DocNotificationSetting | undefined = undefined
+  let count: number = 0
   let actions: Action[] = []
 
-  $: count = countNotifications(context, $notificationsByContextStore)
+  $: void notificationClient.loadDocSetting(item.object._id)
+  $: setting = $settingByDocStore.get(item.object._id) ?? undefined
+  $: count = context != null ? getUnreadMessageCount(context) : 0
 
-  $: void getActions(item.object, item.chat, context).then((res) => {
+  $: void getActions(item.object, item.chat).then((res) => {
     actions = res
   })
 
-  function countNotifications (
-    context: DocNotifyContext | undefined,
-    notificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): number | null {
-    if (context === undefined) {
-      return null
-    }
-
-    const notifications = (notificationsByContext.get(context._id) ?? []).filter((n) => {
-      if (isActivityNotification(n)) return true
-
-      return isMentionNotification(n) && hierarchy.isDerived(n.mentionedInClass, chunter.class.ChatMessage)
-    })
-
-    const res = getNotificationsCount(context, notifications)
-    return res === 0 ? null : res
-  }
-
   const linkProviders = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
 
-  async function getActions (object: Doc, chat?: Chat, context?: DocNotifyContext): Promise<Action[]> {
+  async function getActions (object: Doc, chat?: Chat): Promise<Action[]> {
     const result: Action[] = []
 
     result.push({
@@ -222,14 +205,13 @@
   {isSelected}
   iconProps={{ ...item.iconProps, value: item.object }}
   {count}
+  countColor={(context?.unreadCount ?? 0) === 0 ? 'gray' : 'red'}
   title={item.title}
   subTitle={item.subTitle}
   identifier={item.identifier}
-  secondaryNotifyMarker={(context?.lastView ?? 0) < (context?.lastUpdate ?? 0) &&
-    (context?.lastNotifiedMessage ?? 0) < (context?.lastUpdate ?? 0)}
   {actions}
   {type}
-  muted={context?.settings?.mode === 'mute'}
+  muted={setting?.mode === 'mute'}
   {pressed}
   on:click={() => {
     const select = { chat: item.chat, object: item.object }

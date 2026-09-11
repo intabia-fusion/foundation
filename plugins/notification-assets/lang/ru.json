@@ -8,7 +8,6 @@
     "PlatformNotification": "в системе",
     "Track": "Отслеживать",
     "DontTrack": "Не отслеживать",
-    "BrowserNotification": "в браузере",
     "Remove": "Удалить нотификацию",
     "RemoveAll": "Удалить все нотификации",
     "MarkAllAsRead": "Отметить все нотификации как прочитанные",
@@ -35,7 +34,7 @@
     "ChangedCollaborators": "Изменены участники",
     "NewCollaborators": "Новые участники",
     "RemovedCollaborators": "Удалены участники",
-    "Edited": "отредактировал(а)",
+    "Edited": "отредактировано",
     "Pinned": "Закреплено",
     "Message": "Сообщение",
     "ClearAll": "Очистить все",
@@ -86,7 +85,10 @@
     "AddMeInCollaborators": "Меня добавили в участники",
     "RemoveMeFromCollaborators": "Меня удалили из участников",
     "ShowChatBadge": "Показывать индикатор уведомлений чата",
-    "Appearance": "Внешний вид"
+    "Appearance": "Внешний вид",
+    "ReactedToYourMessage": "отреагировал(а) на ваше сообщение",
+    "Clearing": "Очистка...",
+    "Reading": "Чтение..."
   },
   "emailTemplate": {
     "MeAddedInCollaboratorsNotificationText": "{sender} добавил(а) вас как соавтора в {doc}.",

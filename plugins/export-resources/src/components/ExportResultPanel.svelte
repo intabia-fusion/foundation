@@ -30,7 +30,7 @@
 
   const query = createQuery()
   const docsQuery = createQuery()
-  const inboxClient = getResource(notification.function.GetInboxNotificationsClient).then((res) => res())
+  const inboxClient = getResource(notification.function.GetNotificationsClient).then((res) => res())
   const dispatch = createEventDispatcher()
 
   let object: ExportResultRecord | undefined = undefined

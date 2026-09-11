@@ -180,8 +180,12 @@ export interface TxMixin<D extends Doc, M extends D> extends TxCUD<D> {
 /**
  * @public
  */
+type PullCondition<X> = X extends string | number | boolean | symbol | null | undefined
+  ? Partial<X>
+  : { [K in keyof X]?: X[K] | { $in: NonNullable<X[K]>[] } }
+
 export type ArrayAsElement<T> = {
-  [P in keyof T]: T[P] extends Arr<infer X> ? Partial<X> | PullArray<X> | X : never
+  [P in keyof T]: T[P] extends Arr<infer X> ? PullCondition<X> | PullArray<X> | X : never
 }
 
 /**
@@ -190,6 +194,7 @@ export type ArrayAsElement<T> = {
 export interface Position<X extends PropertyType> {
   $each: X[]
   $position: number
+  $slice?: number
 }
 
 /**

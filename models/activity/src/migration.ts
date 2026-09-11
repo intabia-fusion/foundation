@@ -51,20 +51,14 @@ import {
   getSocialIdFromOldAccount,
   getSocialKeyByOldAccount
 } from '@hcengineering/model-core'
-import notification, {
-  type ActivityInboxNotification,
-  type DocNotifyContext,
-  DOMAIN_DOC_NOTIFY,
-  DOMAIN_NOTIFICATION,
-  type MentionInboxNotification,
-  type ReactionInboxNotification
-} from '@hcengineering/notification'
+import notification, { type DocNotifyContext, DOMAIN_DOC_NOTIFY } from '@hcengineering/notification'
 
 import { activityId, DOMAIN_ACTIVITY, DOMAIN_REACTION, DOMAIN_USER_MENTION } from './index'
 import activity from './plugin'
 
 const DOMAIN_CHUNTER = 'chunter' as Domain
 const DOMAIN_CONTACT = 'contact' as Domain
+const DOMAIN_NOTIFICATION = 'notification' as Domain
 
 async function migrateReactions (client: MigrationClient): Promise<void> {
   await client.update(
@@ -489,12 +483,12 @@ async function migrateCollaboratorsActivity (client: MigrationClient): Promise<v
       _class: notification.class.DocNotifyContext,
       objectId: { $in: docs.map((it) => it._id) }
     })
-    await client.deleteMany<ActivityInboxNotification>(DOMAIN_NOTIFICATION, {
-      _class: notification.class.ActivityInboxNotification,
+    await client.deleteMany(DOMAIN_NOTIFICATION, {
+      _class: 'notification:class:ActivityInboxNotification' as any,
       attachedTo: { $in: docs.map((it) => it._id) }
     })
-    await client.deleteMany<ReactionInboxNotification>(DOMAIN_NOTIFICATION, {
-      _class: notification.class.ReactionInboxNotification,
+    await client.deleteMany(DOMAIN_NOTIFICATION, {
+      _class: 'notification:class:ReactionInboxNotification' as any,
       attachedTo: { $in: docs.map((it) => it._id) }
     })
     await client.deleteMany(DOMAIN_ACTIVITY, { _id: { $in: docs.map((it) => it._id) } })
@@ -812,16 +806,16 @@ async function migrateAggregateDocUpdateMessages (client: MigrationClient): Prom
         _class: notification.class.DocNotifyContext,
         objectId: { $in: arr }
       })
-      await client.deleteMany<ActivityInboxNotification>(DOMAIN_NOTIFICATION, {
-        _class: notification.class.ActivityInboxNotification,
+      await client.deleteMany<any>(DOMAIN_NOTIFICATION, {
+        _class: 'notification:class:ActivityInboxNotification' as any,
         attachedTo: { $in: arr }
       })
-      await client.deleteMany<ReactionInboxNotification>(DOMAIN_NOTIFICATION, {
-        _class: notification.class.ReactionInboxNotification,
+      await client.deleteMany<any>(DOMAIN_NOTIFICATION, {
+        _class: 'notification:class:ReactionInboxNotification' as any,
         attachedTo: { $in: arr }
       })
-      await client.deleteMany<MentionInboxNotification>(DOMAIN_NOTIFICATION, {
-        _class: notification.class.MentionInboxNotification,
+      await client.deleteMany<any>(DOMAIN_NOTIFICATION, {
+        _class: 'notification:class:MentionInboxNotification' as any,
         mentionedIn: { $in: arr }
       })
       await client.deleteMany(DOMAIN_ACTIVITY, { _id: { $in: arr } })

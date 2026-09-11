@@ -16,7 +16,7 @@
 import type { Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import type { TriggerFunc } from '@hcengineering/server-core'
-import { Presenter } from '@hcengineering/server-activity'
+import { StringPresenterFn } from '@hcengineering/server-activity'
 
 /**
  * @public
@@ -28,7 +28,7 @@ export const serverCardId = 'server-card' as Plugin
  */
 export default plugin(serverCardId, {
   function: {
-    CardUrlPresenter: '' as Resource<Presenter>
+    CardUrlPresenter: '' as Resource<StringPresenterFn>
   },
   trigger: {
     OnAttribute: '' as Resource<TriggerFunc>,

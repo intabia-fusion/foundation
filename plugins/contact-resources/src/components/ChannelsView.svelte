@@ -16,12 +16,10 @@
 <script lang="ts">
   import type { Channel, ChannelProvider } from '@hcengineering/contact'
   import { AttachedData, Doc, Ref, toIdMap } from '@hcengineering/core'
-  import notification, { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
-  import { Asset, IntlString, getResource } from '@hcengineering/platform'
+  import { Asset, IntlString } from '@hcengineering/platform'
   import type { AnyComponent } from '@hcengineering/ui'
   import { Button } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
-  import { readable, Readable, Writable, writable } from 'svelte/store'
 
   import { channelProviders } from '../utils'
   import ChannelsPopup from './ChannelsPopup.svelte'
@@ -31,15 +29,6 @@
   export let length: 'short' | 'full' = 'full'
   export let reverse: boolean = false
   export let integrations: Set<Ref<Doc>> = new Set<Ref<Doc>>()
-
-  let contextByDocStore: Writable<Map<Ref<Doc>, DocNotifyContext>> = writable(new Map())
-  let inboxNotificationsByContextStore: Readable<Map<Ref<DocNotifyContext>, InboxNotification[]>> = readable(new Map())
-
-  getResource(notification.function.GetInboxNotificationsClient).then((res) => {
-    const inboxClient = res()
-    contextByDocStore = inboxClient.contextByDoc
-    inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
-  })
 
   interface Item {
     label: IntlString
@@ -52,18 +41,10 @@
 
   const dispatch = createEventDispatcher()
 
-  function getProvider (
-    item: AttachedData<Channel>,
-    map: Map<Ref<ChannelProvider>, ChannelProvider>,
-    notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): any | undefined {
+  function getProvider (item: AttachedData<Channel>, map: Map<Ref<ChannelProvider>, ChannelProvider>): any | undefined {
     const provider = map.get(item.provider)
-    if (provider) {
-      const notification =
-        (item as Channel)._id !== undefined
-          ? isNew(item as Channel, notifyContextByDoc, inboxNotificationsByContext)
-          : false
+    if (provider != null) {
+      const notification = (item as Channel)._id !== undefined ? isNew(item as Channel) : false
       return {
         label: provider.label,
         icon: provider.icon as Asset,
@@ -75,28 +56,11 @@
     }
   }
 
-  function isNew (
-    item: Channel,
-    notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): boolean {
-    const notifyContext = notifyContextByDoc.get(item._id)
-
-    if (notifyContext === undefined) {
-      return (item.items ?? 0) > 0
-    }
-
-    const inboxNotifications = inboxNotificationsByContext.get(notifyContext._id) ?? []
-
-    return inboxNotifications.some(({ isViewed }) => !isViewed)
+  function isNew (item: Channel): boolean {
+    return (item.items ?? 0) > 0
   }
 
-  async function update (
-    value: AttachedData<Channel>[] | Channel | null,
-    notifyContextByDoc: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>,
-    channels: ChannelProvider[]
-  ) {
+  async function update (value: AttachedData<Channel>[] | Channel | null, channels: ChannelProvider[]): Promise<void> {
     if (value === null) {
       displayItems = []
       return
@@ -105,13 +69,13 @@
     const map = toIdMap(channels)
     if (Array.isArray(value)) {
       for (const item of value) {
-        const provider = getProvider(item, map, notifyContextByDoc, inboxNotificationsByContext)
+        const provider = getProvider(item, map)
         if (provider !== undefined) {
           result.push(provider)
         }
       }
     } else {
-      const provider = getProvider(value, map, notifyContextByDoc, inboxNotificationsByContext)
+      const provider = getProvider(value, map)
       if (provider !== undefined) {
         result.push(provider)
       }
@@ -119,7 +83,7 @@
     displayItems = result
   }
 
-  $: if (value) update(value, $contextByDocStore, $inboxNotificationsByContextStore, $channelProviders)
+  $: if (value != null) void update(value, $channelProviders)
 
   let displayItems: Item[] = []
   let divHTML: HTMLElement

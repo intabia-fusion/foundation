@@ -18,7 +18,7 @@
   import { AttachmentPresenter } from '@hcengineering/attachment-resources'
   import contact, { Channel, Contact, getName as getContactName } from '@hcengineering/contact'
   import core, { generateId, getCurrentAccount, Markup, Ref, toIdMap } from '@hcengineering/core'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { getResource, setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import setting, { Integration } from '@hcengineering/setting'
@@ -67,7 +67,7 @@
   let channels: Channel[] = []
 
   const client = getClient()
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
 
   const attachmentParentId = generateId()
   const account = getCurrentAccount()

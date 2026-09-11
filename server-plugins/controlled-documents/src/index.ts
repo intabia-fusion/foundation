@@ -7,7 +7,7 @@ import type { Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import { TriggerFunc } from '@hcengineering/server-core'
 import { TypeMatchFuncResource } from '@hcengineering/server-notification'
-import { Presenter } from '@hcengineering/server-activity'
+import { StringPresenterFn } from '@hcengineering/server-activity'
 
 /**
  * @public
@@ -26,7 +26,7 @@ export default plugin(serverDocumentsId, {
     OnDocTitleChanged: '' as Resource<TriggerFunc>
   },
   function: {
-    ControlledDocumentUrlPresenter: '' as Resource<Presenter>,
+    ControlledDocumentUrlPresenter: '' as Resource<StringPresenterFn>,
     CoAuthorsTypeMatch: '' as TypeMatchFuncResource
   }
 })

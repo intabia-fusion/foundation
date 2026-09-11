@@ -31,6 +31,7 @@ export interface Config {
   ApplyTxBatchSize: number
   FrontUrl: string
   BrandingPath: string
+  LatestNotificationsSliceSize: number
 }
 
 function getAllowedProviders (): (Ref<NotificationProvider> | 'all')[] {
@@ -52,7 +53,8 @@ const config: Config = (() => {
     DbUrl: process.env.DB_URL,
     ApplyTxBatchSize: parseInt(process.env.APPLY_TX_BATCH_SIZE ?? '100'),
     FrontUrl: process.env.FRONT_URL,
-    BrandingPath: process.env.BRANDING_PATH ?? ''
+    BrandingPath: process.env.BRANDING_PATH ?? '',
+    LatestNotificationsSliceSize: parseInt(process.env.LATEST_NOTIFICATIONS_SLICE_SIZE ?? '5')
   }
 
   const missingEnv = (Object.keys(params) as Array<keyof Config>).filter((key) => params[key] === undefined)

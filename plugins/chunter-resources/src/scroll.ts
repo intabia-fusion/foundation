@@ -1,5 +1,6 @@
 //
 // Copyright © 2024 Hardcore Engineering Inc.
+// Copyright © 2026 Intabia Fusion.
 //
 // Licensed under the Eclipse Public License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License. You may
@@ -12,143 +13,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import { getDay, type Timestamp } from '@hcengineering/core'
-import { get } from 'svelte/store'
 import { sortActivityMessages } from '@hcengineering/activity-resources'
 import { type ActivityMessage } from '@hcengineering/activity'
-import { type ReadState } from '@hcengineering/notification'
-
-import { getClosestDate, readChannelMessages } from './utils'
-import { type ChannelDataProvider } from './channelDataProvider'
-
-const dateSelectorHeight = 30
-const headerHeight = 52
-
-function isDateRendered (date: Timestamp, uuid: string): boolean {
-  const day = getDay(date)
-  const id = `${uuid}-${day.toString()}`
-
-  return document.getElementById(id) != null
-}
-
-export function getScrollToDateOffset (date: Timestamp, uuid: string): number | undefined {
-  const day = getDay(date)
-  const id = `${uuid}-${day.toString()}`
-  const element = document.getElementById(id)
-
-  if (element === null) return undefined
-
-  const offsetTop = element?.offsetTop
-  if (offsetTop === undefined) {
-    return
-  }
-
-  return offsetTop - headerHeight - dateSelectorHeight / 2
-}
-
-export function jumpToDate (
-  e: CustomEvent<{ date?: Timestamp }>,
-  provider: ChannelDataProvider,
-  uuid: string,
-  scrollDiv?: HTMLElement | null
-): {
-    scrollOffset?: number
-    dateToJump?: Timestamp
-  } {
-  const date = e.detail.date
-
-  if (date === undefined || scrollDiv == null) {
-    return {}
-  }
-
-  const closestDate = getClosestDate(date, get(provider.datesStore))
-  if (closestDate === undefined) {
-    return {}
-  }
-
-  if (isDateRendered(closestDate, uuid)) {
-    const offset = getScrollToDateOffset(closestDate, uuid)
-    return { scrollOffset: offset }
-  } else {
-    void provider.jumpToDate(closestDate)
-    return { dateToJump: closestDate }
-  }
-}
-
-export function getSelectedDate (
-  provider: ChannelDataProvider,
-  uuid: string,
-  scrollDiv?: HTMLElement | null,
-  contentDiv?: HTMLElement | null
-): Timestamp | undefined {
-  if (contentDiv == null || scrollDiv == null) return
-
-  const containerRect = scrollDiv.getBoundingClientRect()
-  const messagesElements = contentDiv?.getElementsByClassName('activityMessage')
-
-  if (messagesElements === undefined) return
-
-  const reversedDates = [...get(provider.datesStore)].reverse()
-  const messages = get(provider.messagesStore)
-
-  let selectedDate: Timestamp | undefined
-
-  for (const message of messages) {
-    const msgElement = messagesElements?.[message._id as any]
-    if (msgElement == null) continue
-
-    const createdOn = message.createdOn
-    if (createdOn === undefined) continue
-
-    const messageRect = msgElement.getBoundingClientRect()
-
-    const isInView =
-      messageRect.top > 0 &&
-      messageRect.top < containerRect.bottom &&
-      messageRect.bottom - headerHeight - 2 * dateSelectorHeight > 0 &&
-      messageRect.bottom <= containerRect.bottom
-
-    if (isInView) {
-      selectedDate = reversedDates.find((date) => date <= createdOn)
-      break
-    }
-  }
-
-  if (selectedDate !== undefined) {
-    const day = getDay(selectedDate)
-    const dateId = `${uuid}-${day.toString()}`
-    const dateElement = document.getElementById(dateId)
-
-    let isElementVisible = false
-
-    if (dateElement !== null) {
-      const elementRect = dateElement.getBoundingClientRect()
-      isElementVisible = elementRect.top + 10 >= containerRect.top && elementRect.bottom <= containerRect.bottom
-    }
-
-    if (isElementVisible) {
-      selectedDate = undefined
-    }
-  }
-
-  return selectedDate
-}
+import notification, { type DocNotifyContext, type ReadState, isUnreadMessageId } from '@hcengineering/notification'
+import { type Doc, getCurrentAccount, type Ref } from '@hcengineering/core'
+import { get, writable } from 'svelte/store'
+import { getClient } from '@hcengineering/presentation'
 
 export function messageInView (msgElement: Element, containerRect: DOMRect): boolean {
   const rect = msgElement.getBoundingClientRect()
   return rect.bottom > containerRect.top && rect.top < containerRect.bottom
 }
 
-const messagesToReadAccumulator: Set<ActivityMessage> = new Set<ActivityMessage>()
-let messagesToReadAccumulatorTimer: any
+type MessagePick = Pick<ActivityMessage, '_id' | 'createdOn' | 'modifiedOn'>
+const accumulatorsByChannel = new Map<string, Map<Ref<Doc>, MessagePick>>()
+const timersByChannel = new Map<string, any>()
+
+// NOTE: Store timestamp updates to avoid unnecessary updates if the server takes a long time to respond
+const lastViewTimestampStore = writable<Map<Ref<Doc>, number>>(new Map())
+// NOTE: Sometimes user can read message before notification is created and we should mark it as viewed when notification is received
+export const chatReadMessagesStore = writable<Set<Ref<ActivityMessage>>>(new Set())
+
+const toRead = new Set<Ref<ActivityMessage>>()
+let toReadTimer: any
 
 export function readViewportMessages (
+  chatId: Ref<Doc>,
   messages: ActivityMessage[],
   scrollDiv?: HTMLElement | null,
   contentDiv?: HTMLElement | null,
-  readState?: ReadState | null
+  context?: DocNotifyContext,
+  readState?: ReadState
 ): void {
-  if (scrollDiv == null || contentDiv == null) return
+  if (scrollDiv == null || contentDiv == null || messages.length === 0) return
 
   const scrollRect = scrollDiv.getBoundingClientRect()
   const messagesElements = contentDiv?.getElementsByClassName('activityMessage')
@@ -158,15 +55,125 @@ export function readViewportMessages (
     if (msgElement == null) continue
 
     if (messageInView(msgElement, scrollRect)) {
-      messagesToReadAccumulator.add(message)
+      let accumulator = accumulatorsByChannel.get(chatId)
+      if (accumulator == null) {
+        accumulator = new Map<Ref<Doc>, MessagePick>()
+        accumulatorsByChannel.set(chatId, accumulator)
+      }
+      accumulator.set(message._id, {
+        _id: message._id,
+        createdOn: message.createdOn,
+        modifiedOn: message.modifiedOn
+      })
     }
   }
 
-  clearTimeout(messagesToReadAccumulatorTimer)
-  messagesToReadAccumulatorTimer = setTimeout(() => {
-    const messagesToRead = [...messagesToReadAccumulator]
-    messagesToReadAccumulator.clear()
+  const timer = timersByChannel.get(chatId)
+  if (timer !== undefined) {
+    clearTimeout(timer)
+  }
+
+  const newTimer = setTimeout(() => {
+    timersByChannel.delete(chatId)
+    const accumulator = accumulatorsByChannel.get(chatId)
+    if (accumulator == null) return
+    accumulatorsByChannel.delete(chatId)
+
+    const messagesToRead = Array.from(accumulator.values())
     if (messagesToRead.length === 0) return
-    void readChannelMessages(sortActivityMessages(messagesToRead), readState)
+    void readMessages(sortActivityMessages(messagesToRead), context, readState)
   }, 500)
+
+  timersByChannel.set(chatId, newTimer)
+}
+
+export function recheckNotifications (context: DocNotifyContext): void {
+  const messages = get(chatReadMessagesStore)
+
+  if (messages.size === 0) return
+
+  for (const unread of context.unreadMessages ?? []) {
+    if (isUnreadMessageId(unread)) {
+      if (messages.has(unread.id)) {
+        toRead.add(unread.id)
+      }
+    }
+  }
+
+  if (toRead.size === 0) return
+
+  clearTimeout(toReadTimer)
+  toReadTimer = setTimeout(() => {
+    const toReadData = Array.from(toRead)
+    toRead.clear()
+    void (async () => {
+      const client = getClient()
+      const me = getCurrentAccount()
+      await client.createDoc(notification.class.ReadNotificationAction, context.space, {
+        attachedTo: context.objectId,
+        attachedToClass: context.objectClass,
+        account: me.uuid,
+        messageIds: toReadData
+      })
+    })()
+  }, 500)
+}
+
+export async function readMessages (
+  messages: Array<Pick<ActivityMessage, '_id' | 'createdOn' | 'modifiedOn'>>,
+  context?: DocNotifyContext,
+  readState?: ReadState
+): Promise<void> {
+  if (messages.length === 0) return
+  if (context == null && readState == null) return
+
+  const messageIds = messages.map((m) => m._id)
+  chatReadMessagesStore.update((store) => {
+    for (const id of messageIds) {
+      store.add(id)
+    }
+    return store
+  })
+
+  const client = getClient()
+  const op = client.apply()
+  const me = getCurrentAccount()
+  const lastMessage = messages[messages.length - 1]
+  const newTimestamp = lastMessage.createdOn ?? lastMessage.modifiedOn ?? 0
+
+  if (readState != null && newTimestamp > 0) {
+    const storedTimestampUpdates = get(lastViewTimestampStore).get(readState.attachedTo)
+    const position = readState[me.uuid]
+    const prevTimestamp = Math.max(storedTimestampUpdates ?? 0, position?.timestamp ?? 0)
+
+    if (prevTimestamp < newTimestamp) {
+      lastViewTimestampStore.update((store) => {
+        store.set(readState.attachedTo, newTimestamp)
+        return store
+      })
+
+      await op.update(readState, {
+        [me.uuid]: {
+          messageId: lastMessage._id,
+          timestamp: newTimestamp
+        }
+      })
+    }
+  }
+
+  if (context != null && context.unreadReactions.length > 0) {
+    const messageIds = messages.map((m) => m._id)
+    const reactionsToClear = context.unreadReactions.filter((r) => messageIds.includes(r.attachedTo))
+    if (reactionsToClear.length > 0) {
+      const reactionIds = reactionsToClear.map((r) => r.id)
+      await op.createDoc(notification.class.ReadNotificationAction, context.space, {
+        attachedTo: context.objectId,
+        attachedToClass: context.objectClass,
+        account: me.uuid,
+        reactionIds
+      })
+    }
+  }
+
+  await op.commit()
 }

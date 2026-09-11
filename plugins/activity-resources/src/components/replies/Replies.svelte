@@ -13,60 +13,46 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Doc, Ref, WithLookup } from '@hcengineering/core'
   import activity, { ActivityMessage } from '@hcengineering/activity'
   import notification, {
-    ActivityInboxNotification,
     DocNotifyContext,
-    InboxNotification,
-    InboxNotificationsClient
+    NotificationClient,
+    getUnreadMessageCount
   } from '@hcengineering/notification'
   import { getResource } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
+  import { Readable } from 'svelte/store'
+  import { Doc, Ref } from '@hcengineering/core'
+  import { onMount } from 'svelte'
 
   import RepliedPersons from './RepliedPersons.svelte'
   import LastReply from './LastReply.svelte'
   import RepliesCount from './RepliesCount.svelte'
 
   export let object: ActivityMessage
-  export let embedded = false
   export let onReply: ((message: ActivityMessage) => void) | undefined = undefined
 
   const client = getClient()
 
   $: lastReply = object.lastReply ?? new Date().getTime()
 
-  let inboxClient: InboxNotificationsClient | undefined = undefined
+  let inboxClient: NotificationClient
+  let contextByDocStore: Readable<Map<Ref<Doc>, DocNotifyContext | null>> | undefined
 
-  void getResource(notification.function.GetInboxNotificationsClient).then((getClientFn) => {
+  onMount(async () => {
+    const getClientFn = await getResource(notification.function.GetNotificationsClient)
+
     inboxClient = getClientFn()
+    contextByDocStore = inboxClient.contextByDoc
+
+    void inboxClient.loadContextByDoc(object._id)
   })
 
-  $: contextByDocStore = inboxClient?.contextByDoc
-  $: notificationsByContextStore = inboxClient?.inboxNotificationsByContext
+  $: hasNew = hasNewReplies($contextByDocStore?.get(object._id) ?? undefined)
 
-  $: hasNew = hasNewReplies(object, $contextByDocStore, $notificationsByContextStore)
-
-  function hasNewReplies (
-    message: ActivityMessage,
-    notifyContexts?: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext?: Map<Ref<DocNotifyContext>, WithLookup<InboxNotification>[]>
-  ): boolean {
-    const context: DocNotifyContext | undefined = notifyContexts?.get(message._id)
-
-    if (context === undefined) {
-      return false
-    }
-
-    return (inboxNotificationsByContext?.get(context._id) ?? [])
-      .filter((it) => {
-        const activityNotifications = it as ActivityInboxNotification
-        return (
-          activityNotifications.attachedToClass !== activity.class.DocUpdateMessage &&
-          it._class !== notification.class.ReactionInboxNotification
-        )
-      })
-      .some(({ isViewed }) => !isViewed)
+  function hasNewReplies (context?: DocNotifyContext): boolean {
+    if (context == null) return false
+    return getUnreadMessageCount(context) > 0
   }
 
   const replyProvider = client.getModel().findAllSync(activity.class.ReplyProvider, {})[0]
@@ -86,24 +72,22 @@
   }
 </script>
 
-{#if !embedded && (object.replies ?? 0) > 0}
-  <div class="replies-container flex-grow">
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="replies" on:click={handleReply}>
-      <RepliedPersons repliedPersons={object.repliedPersons} />
+<div class="replies-container flex-grow">
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div class="replies" on:click={handleReply}>
+    <RepliedPersons repliedPersons={object.repliedPersons} />
 
-      {#if hasNew}
-        <div class="notifyMarker" />
-      {/if}
+    {#if hasNew}
+      <div class="notifyMarker" />
+    {/if}
 
-      <span class="text overflow-label">
-        <RepliesCount count={object.replies ?? 0} />
-        <LastReply {lastReply} />
-      </span>
-    </div>
+    <span class="text overflow-label">
+      <RepliesCount count={object.replies ?? 0} />
+      <LastReply {lastReply} />
+    </span>
   </div>
-{/if}
+</div>
 
 <style lang="scss">
   .replies-container {

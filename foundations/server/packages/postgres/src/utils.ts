@@ -152,6 +152,8 @@ function parseDataType (type: string): DataType {
       return 'text'
     case 'bigint':
       return 'bigint'
+    case 'integer':
+      return 'integer'
     case 'boolean':
       return 'bool'
     case 'ARRAY':
@@ -167,7 +169,9 @@ async function createTable (client: postgres.Sql | postgres.TransactionSql, doma
   const fields: string[] = []
   for (const key in schema) {
     const val = schema[key]
-    fields.push(`"${key}" ${val.type} ${val.notNull ? 'NOT NULL' : ''}`)
+    fields.push(
+      `"${key}" ${val.type}${val.check != null ? ` CHECK (${val.check})` : ''} ${val.notNull ? 'NOT NULL' : ''}`
+    )
   }
   const colums = fields.join(', ')
   await client.unsafe(`CREATE TABLE IF NOT EXISTS ${domain} (
@@ -184,7 +188,9 @@ async function createTable (client: postgres.Sql | postgres.TransactionSql, doma
           CREATE INDEX IF NOT EXISTS ${domain}_${key}__index ON ${domain} ${getIndex(val)} ("${key}")
         `)
     }
-    fields.push(`"${key}" ${val.type} ${val.notNull ? 'NOT NULL' : ''}`)
+    fields.push(
+      `"${key}" ${val.type}${val.check != null ? ` CHECK (${val.check})` : ''} ${val.notNull ? 'NOT NULL' : ''}`
+    )
   }
 
   if (indexes !== undefined) {
@@ -245,6 +251,7 @@ export function convertDoc<T extends Doc> (
         // We missing required field, and we need to add a dummy value for it.
         // Null value is not allowed
         switch (_type.type) {
+          case 'integer':
           case 'bigint':
             extractedFields[key] = 0
             break
@@ -282,6 +289,9 @@ export function inferType (val: any): string {
   }
   if (Array.isArray(val)) {
     const type = inferType(val[0] ?? val[1])
+    if (type === '::jsonb') {
+      return '::jsonb'
+    }
     if (type !== '') {
       return type + '[]'
     }
@@ -480,7 +490,7 @@ function assignColumns (doc: DBDoc, target: Record<string, any>, schema: Schema)
     } else {
       const field = schema[key]
       if (field !== undefined) {
-        if (field.type === 'bigint') {
+        if (field.type === 'bigint' || field.type === 'integer') {
           value = Number.parseInt(value)
         } else if (field.type === 'text[]' && typeof value === 'string') {
           value = decodeArray(value)

@@ -8,7 +8,6 @@
     "PlatformNotification": "平台内",
     "Track": "跟踪",
     "DontTrack": "不跟踪",
-    "BrowserNotification": "浏览器内",
     "Remove": "删除通知",
     "RemoveAll": "删除所有通知",
     "MarkAllAsRead": "标记所有通知为已读",
@@ -86,7 +85,10 @@
     "Appearance": "外观",
     "ShowChatBadge": "显示聊天徽章",
     "HasNewNotifications": "You have new notifications",
-    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}"
+    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}",
+    "ReactedToYourMessage": "对您的消息做出了反应",
+    "Clearing": "正在清除...",
+    "Reading": "正在读取..."
   },
   "emailTemplate": {
     "MeAddedInCollaboratorsNotificationText": "{sender} added you as a collaborator to {doc}.",

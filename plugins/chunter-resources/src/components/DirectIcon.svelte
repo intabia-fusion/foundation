@@ -16,15 +16,15 @@
   import { DirectMessage } from '@hcengineering/chunter'
   import contact, { Person } from '@hcengineering/contact'
   import { Avatar, CombineAvatars } from '@hcengineering/contact-resources'
-  import { Ref } from '@hcengineering/core'
+  import { AccountUuid, Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { Icon, IconSize } from '@hcengineering/ui'
-  import { classIcon } from '@hcengineering/view-resources'
+  import { IconSize } from '@hcengineering/ui'
 
   import chunter from '../plugin'
   import { getDmPersons } from '../utils'
 
   export let value: DirectMessage | undefined
+  export let members: AccountUuid[] = []
   export let _id: Ref<DirectMessage> | undefined = undefined
   export let size: IconSize = 'small'
   export let showStatus = false
@@ -43,11 +43,9 @@
     value = undefined
   }
 
-  $: if (value !== undefined) {
-    void getDmPersons(client, value).then((res) => {
-      persons = res
-    })
-  }
+  $: void getDmPersons(client, value?.members ?? members ?? []).then((res) => {
+    persons = res
+  })
 
   let avatarSize = size
 
@@ -55,10 +53,6 @@
     avatarSize = 'x-small'
   }
 </script>
-
-{#if persons.length === 0}
-  <Icon icon={classIcon(client, chunter.class.DirectMessage) ?? chunter.icon.Chunter} {size} />
-{/if}
 
 {#if persons.length === 1}
   <Avatar person={persons[0]} size={avatarSize} name={persons[0].name} {showStatus} />

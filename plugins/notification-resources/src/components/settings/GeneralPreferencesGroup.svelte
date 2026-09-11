@@ -19,7 +19,7 @@
   import core, { Ref } from '@hcengineering/core'
   import { getResource } from '@hcengineering/platform'
 
-  import { providersSettings } from '../../utils'
+  import { providersSettings } from '../../stores'
   import ProviderPreferences from './ProviderPreferences.svelte'
 
   const client = getClient()

@@ -1,25 +1,31 @@
 # Notification Service
 
-A microservice for sending push notifications: web push to browsers, APNs to iOS and FCM to Android.
+A background worker that delivers push notifications: web push to browsers, APNs to iOS and FCM to Android.
 
 ## Overview
 
-The notification service provides endpoints for sending web push notifications to subscribed clients. It uses the Web Push Protocol with VAPID (Voluntary Application Server Identification) for secure delivery of notifications.
+The service consumes `QueueNotificationMessage` payloads from the platform queue
+(`QueueTopic.UserNotifications`) and delivers them to every push subscription carried by the
+message. Web Push is signed with VAPID keys; native subscriptions go to APNs or FCM instead.
+Subscriptions the transport reports as dead are removed from the workspace through the
+transactor, so no cleanup is required from the caller.
+
+There is no HTTP API - the service does not listen on a port.
 
 ## Features
 
 - **Web Push Notifications**: Send push notifications to web browsers
 - **Native Push**: APNs and FCM delivery for the mobile apps, chosen per subscription
 - **VAPID Support**: Secure authentication using VAPID keys
-- **Subscription Management**: Handles expired and invalid subscriptions
-- **Token Authentication**: Optional bearer token authentication
-- **Error Handling**: Automatic cleanup of invalid subscriptions
+- **Queue Consumer**: Kafka-backed consumer with retries and poison-message acknowledgement
+- **Subscription Cleanup**: Expired and invalid subscriptions are deleted via the transactor
 
 ## Prerequisites
 
 - Node.js (version specified in package.json)
+- A reachable platform queue (Kafka / Redpanda), accounts service and transactor
 - VAPID key pair for web push authentication
-- Valid push subscriptions from client applications
+- APNs and/or FCM credentials for mobile delivery
 
 ## Configuration
 
@@ -27,9 +33,13 @@ The service is configured via environment variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PORT` | Yes | 8091 | Port number for the service |
 | `SOURCE` | Yes | - | Source identifier for the service |
-| `AUTH_TOKEN` | No | - | Bearer token for API authentication |
+| `ACCOUNTS_URL` | Yes | - | Accounts service endpoint, used to resolve the transactor |
+| `SECRET` | Yes | - | Server secret used to sign the system token |
+| `QUEUE_CONFIG` | No | - | Queue (Kafka/Redpanda) connection string |
+| `QUEUE_REGION` | No | - | Queue region |
+| `SERVICE_ID` | No | `web-push-service` | Service identifier used for tracing, queue client IDs and tokens |
+| `TTL` | No | `86400` | Push TTL in seconds (24 hours) |
 | `PUSH_PUBLIC_KEY` | No | - | VAPID public key for web push |
 | `PUSH_PRIVATE_KEY` | No | - | VAPID private key for web push |
 | `PUSH_SUBJECT` | No | `mailto:hey@huly.io` | VAPID subject (email or URL) |
@@ -57,8 +67,8 @@ field under a scheme of its own:
 | anything else | Web Push |
 
 Neither the notification model nor the trigger that collects subscriptions knows about the
-split: they still pass one list, and the service still answers with the subscriptions that
-turned out to be dead so the caller can delete them.
+split: they still pass one list, and the service still resolves the subscriptions that
+turned out to be dead and deletes them.
 
 APNs sends an alert push rather than a silent one - waking a sleeping phone is the point,
 and `content-available` alone is throttled by iOS. FCM carries a `notification` block, so
@@ -74,220 +84,92 @@ The FCM credentials are the service-account JSON from the Firebase console
 (Project settings, Service accounts, "Generate new private key"). The legacy server key is
 not supported - Google switched it off in 2024.
 
-### VAPID Keys
+### VAPID Keys Generation
 
-To generate VAPID keys, you can use the `web-push` library:
+If you need to generate new VAPID keys, you can run:
 
 ```bash
 npx web-push generate-vapid-keys
 ```
 
-This will output a public and private key pair that should be set in the environment variables.
-
-## Installation
-
-```bash
-npm install
-```
-
 ## Running the Service
 
-### Development
+### Development Local Run
 ```bash
 pnpm run run-local
 ```
 
-### Docker
+### Docker Run
 ```bash
-docker build -t notification-service .
-docker run -p 8091:8091 \
-  -e SOURCE=notification \
+docker run -d \
+  -e SOURCE=no-reply@huly.io \
   -e PUSH_PUBLIC_KEY=your_public_key \
   -e PUSH_PRIVATE_KEY=your_private_key \
-  notification-service
+  -e QUEUE_CONFIG=redpanda:9092 \
+  -e ACCOUNTS_URL=http://account:3000 \
+  -e SECRET=secret \
+  intabiafusion/notification
 ```
 
-## API Endpoints
+## Internal Architecture
 
-### POST `/web-push`
+The consumer listens to `QueueTopic.UserNotifications` for `QueueNotificationMessage` payloads.
 
-Sends web push notifications to subscribed clients.
+When a message is received:
+1. It is skipped unless the message lists `PushNotificationProvider` among its providers.
+2. Title and body are truncated to `PUSH_NOTIFICATION_TITLE_SIZE` / `PUSH_NOTIFICATION_BODY_SIZE`.
+3. Every subscription in `pushSubscriptions` is delivered through the transport its endpoint
+   selects: APNs, FCM or `web-push`.
+4. A transport that reports the token as gone (HTTP 410, `Unregistered`, `BadDeviceToken`,
+   `DeviceTokenNotForTopic`, FCM `UNREGISTERED`/`INVALID_ARGUMENT`, or a `WebPushError` body
+   containing `expired`, `Unregistered`, `No such subscription`, `VapidPkHashMismatch`)
+   marks that subscription for deletion. Other errors are treated as transient and the
+   subscription is kept.
+5. For the failed subscriptions the service generates a system token, resolves the
+   transactor endpoint and removes the `PushSubscription` documents via `RestClient`.
 
-#### Authentication
-- **Header**: `Authorization: Bearer <token>` (if `AUTH_TOKEN` is configured)
+Processing is wrapped in `withRetry` (3 attempts, exponential backoff 1s → 5s). If all
+attempts fail, the message is logged and acknowledged so it does not poison the topic.
 
-#### Request Body
-```json
-{
-  "data": {
-    "title": "Notification Title",
-    "body": "Notification message",
-    "icon": "/icon.png",
-    "badge": "/badge.png",
-    "tag": "notification-tag",
-    "url": "/target-url"
-  },
-  "subscriptions": [
-    {
-      "_id": "subscription-id",
-      "endpoint": "https://fcm.googleapis.com/fcm/send/...",
-      "keys": {
-        "p256dh": "client-public-key",
-        "auth": "client-auth-secret"
-      }
-    }
-  ]
-}
-```
+### Push payload
 
-#### Response
-```json
-{
-  "result": ["subscription-id-1", "subscription-id-2"]
-}
-```
-
-The `result` array contains IDs of subscriptions that failed due to:
-- Expired subscriptions
-- Unregistered subscriptions  
-- Invalid subscriptions
-
-These subscription IDs should be removed from your database.
-
-#### Error Responses
-
-- **400 Bad Request**: Missing `data` or `subscriptions` in request body
-- **401 Unauthorized**: Invalid or missing auth token (when auth is enabled)
-- **500 Internal Server Error**: Server error during processing
-
-## Push Data Format
-
-The `data` object supports the following properties:
+The `PushData` delivered to clients:
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `title` | string | Yes | Notification title |
-| `body` | string | No | Notification body text |
-| `icon` | string | No | URL to notification icon |
-| `badge` | string | No | URL to notification badge |
-| `tag` | string | No | Tag for grouping notifications |
+| `body` | string | Yes | Notification body text |
+| `tag` | string | No | Tag for grouping notifications (the notification id) |
+| `domain` | string | No | Workspace domain the notification belongs to |
 | `url` | string | No | URL to open when notification is clicked |
-| `data` | object | No | Custom data payload |
+| `icon` | string | No | URL to notification icon |
 
-## Client Integration
+## Testing
 
-### Subscribing to Push Notifications
+Jest is used for unit and integration testing.
 
-```javascript
-// Register service worker
-const registration = await navigator.serviceWorker.register('/sw.js');
-
-// Subscribe to push notifications
-const subscription = await registration.pushManager.subscribe({
-  userVisibleOnly: true,
-  applicationServerKey: 'your-vapid-public-key'
-});
-
-// Send subscription to your server
-await fetch('/api/subscribe', {
-  method: 'POST',
-  body: JSON.stringify(subscription),
-  headers: { 'Content-Type': 'application/json' }
-});
-```
-
-### Service Worker (sw.js)
-
-```javascript
-self.addEventListener('push', event => {
-  const data = event.data ? event.data.json() : {};
-  
-  const options = {
-    body: data.body,
-    icon: data.icon,
-    badge: data.badge,
-    tag: data.tag,
-    data: { url: data.url }
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
-});
-
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  
-  if (event.notification.data?.url) {
-    event.waitUntil(
-      clients.openWindow(event.notification.data.url)
-    );
-  }
-});
-```
-
-## Error Handling
-
-The service automatically handles common web push errors:
-
-- **Expired subscriptions**: Automatically identified and returned in response
-- **Invalid endpoints**: Subscriptions with invalid endpoints are flagged
-- **Unregistered subscriptions**: Previously valid subscriptions that are no longer active
-
-Applications should monitor the response and remove failed subscription IDs from their database.
-
-## Monitoring
-
-The service logs the following events:
-
-- Service startup and VAPID configuration
-- Authentication failures
-- Push notification errors
-- Subscription cleanup events
-
-## Security
-
-- **VAPID Authentication**: All push messages are signed with VAPID keys
-- **Token Authentication**: Optional bearer token authentication for API access
-- **HTTPS Required**: Web Push Protocol requires HTTPS in production
-- **Origin Validation**: Push subscriptions are tied to specific origins
-
-## Development
-
-### Project Structure
-```
-src/
-├── main.ts          # Main application entry point
-├── config.ts        # Configuration management
-├── server.ts        # Express server setup
-└── types.ts         # TypeScript type definitions
+Run tests:
+```bash
+rushx test
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Failed subscriptions are not being deleted
+- Verify that both `ACCOUNTS_URL` and `SECRET` are set correctly in the service environment.
+- Check service logs for "Failed to initialize RestClient or fetch transactor endpoint" or "Failed to remove expired subscription" error messages.
 
-1. **"No VAPID keys configured"**
-   - Ensure `PUSH_PUBLIC_KEY` and `PUSH_PRIVATE_KEY` are set
-   - Verify keys are valid VAPID keys
+### Nothing is delivered to mobile devices
+- APNs needs all of `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_KEY`; FCM needs `FCM_SERVICE_ACCOUNT`.
+  When they are missing the matching subscriptions are silently skipped, not failed.
+- On a development build the device is registered against the APNs sandbox - set `APNS_PRODUCTION=false`.
 
-2. **"Invalid auth token"**
-   - Check `AUTH_TOKEN` environment variable
-   - Verify bearer token in Authorization header
+### TypeError on bad error bodies
+- The service uses safe error parsing to prevent type crashes if `web-push` throws an error with a `null` or `undefined` body. Check that you are using version `0.7.0` or higher which contains this fix.
 
-3. **Push notifications not delivered**
-   - Verify subscription is still valid
-   - Check browser developer tools for service worker errors
-   - Ensure HTTPS is used in production
-
-4. **High subscription failure rate**
-   - Check if users are unsubscribing
-   - Verify subscription objects are properly formatted
-   - Monitor browser console for push registration errors
-
-## Related Documentation
-
+### Links
 - [Web Push Protocol](https://tools.ietf.org/html/rfc8030)
 - [VAPID Specification](https://tools.ietf.org/html/rfc8292)
 - [Push API MDN Documentation](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
-- [Service Worker API](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)
+- [Apple Push Notification service](https://developer.apple.com/documentation/usernotifications)
+- [Firebase Cloud Messaging HTTP v1](https://firebase.google.com/docs/cloud-messaging/migrate-v1)

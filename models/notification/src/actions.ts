@@ -81,7 +81,7 @@ export function defineActions (builder: Builder): void {
   createAction(
     builder,
     {
-      action: notification.actionImpl.RemoveContextNotifications,
+      action: notification.actionImpl.RemoveDocNotifyContext,
       label: notification.string.Clear,
       icon: view.icon.CheckCircle,
       input: 'focus',
@@ -89,7 +89,7 @@ export function defineActions (builder: Builder): void {
       target: notification.class.DocNotifyContext,
       context: { mode: ['panel'], application: notification.app.Notification, group: 'remove' }
     },
-    notification.action.RemoveContextNotifications
+    notification.action.RemoveDocNotifyContext
   )
 
   createAction(

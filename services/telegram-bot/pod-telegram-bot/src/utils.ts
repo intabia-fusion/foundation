@@ -24,7 +24,6 @@ import {
 } from 'telegraf/types'
 import { Parser } from 'htmlparser2'
 import { Context, Input } from 'telegraf'
-import { TelegramNotificationQueueMessage } from '@hcengineering/server-telegram'
 import { systemAccountUuid } from '@hcengineering/core'
 import { generateToken } from '@hcengineering/server-token'
 
@@ -57,7 +56,7 @@ const maxQuoteLength = 500
 const maxBodyLength = 2000
 const maxSenderLength = 100
 
-export function toTelegramHtml (record: TelegramNotificationQueueMessage): {
+export function toTelegramHtml (record: any): {
   full: string
   short: string
 } {

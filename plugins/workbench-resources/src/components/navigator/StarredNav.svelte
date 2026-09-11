@@ -13,9 +13,9 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import type { Class, Doc, Ref, Space } from '@hcengineering/core'
-  import { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import type { Class, Ref, Space } from '@hcengineering/core'
+  import { DocNotifyContext } from '@hcengineering/notification'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
   import { IntlString } from '@hcengineering/platform'
   import { getClient } from '@hcengineering/presentation'
   import { TreeNode } from '@hcengineering/view-resources'
@@ -42,20 +42,14 @@
     return undefined
   }
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
   const notifyContextByDocStore = inboxClient.contextByDoc
-  const inboxNotificationsByContextStore = inboxClient.inboxNotificationsByContext
 
-  function isChanged (
-    space: Space,
-    docUpdates: Map<Ref<Doc>, DocNotifyContext>,
-    inboxNotificationsByContext: Map<Ref<DocNotifyContext>, InboxNotification[]>
-  ): boolean {
-    const notifyContext = docUpdates.get(space._id)
-    if (notifyContext === undefined) return false
-    return !!inboxNotificationsByContext.get(notifyContext._id)?.length
+  function isChanged (context: DocNotifyContext | undefined): boolean {
+    return (context?.unreadCount ?? 0) > 0
   }
   $: visibleSpace = spaces.find((space) => currentSpace === space._id)
+  $: void inboxClient.loadContextsByDoc(spaces.map((s) => s._id))
 </script>
 
 <TreeNode
@@ -75,7 +69,7 @@
       {currentSpecial}
       {currentFragment}
       {deselect}
-      isChanged={isChanged(space, $notifyContextByDocStore, $inboxNotificationsByContextStore)}
+      isChanged={isChanged($notifyContextByDocStore.get(space._id) ?? undefined)}
     />
   {/each}
 
@@ -89,7 +83,7 @@
         {currentSpecial}
         {currentFragment}
         {deselect}
-        isChanged={isChanged(visibleSpace, $notifyContextByDocStore, $inboxNotificationsByContextStore)}
+        isChanged={isChanged($notifyContextByDocStore.get(visibleSpace._id) ?? undefined)}
         forciblyСollapsed
       />
     {/if}

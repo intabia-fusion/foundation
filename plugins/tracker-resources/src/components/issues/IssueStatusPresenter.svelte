@@ -15,21 +15,29 @@
 
 <script lang="ts">
   import { taskTypeStore } from '@hcengineering/task-resources'
-  import { Issue } from '@hcengineering/tracker'
+  import { Issue, IssueStatus, Project } from '@hcengineering/tracker'
   import { IconSize } from '@hcengineering/ui'
-  import { getTaskTypeStates } from '@hcengineering/task'
+  import { getTaskTypeStates, TaskType } from '@hcengineering/task'
   import { statusStore } from '@hcengineering/view-resources'
+  import { Ref } from '@hcengineering/core'
 
   import IssueStatusIcon from './IssueStatusIcon.svelte'
 
-  export let value: Issue | undefined
+  export let value: Issue | undefined = undefined
+  export let kind: Ref<TaskType> | undefined = undefined
+  export let status: Ref<IssueStatus> | undefined = undefined
+  export let space: Ref<Project> | undefined = undefined
   export let size: IconSize = 'small'
 
-  $: statuses = value ? getTaskTypeStates(value.kind, $taskTypeStore, $statusStore.byId) : []
+  $: _kind = value?.kind ?? kind
+  $: _status = value?.status ?? status
+  $: _space = value?.space ?? space
 
-  $: issueStatus = statuses?.find((status) => status._id === value?.status) ?? statuses[0]
+  $: statuses = _kind != null ? getTaskTypeStates(_kind, $taskTypeStore, $statusStore.byId) : []
+
+  $: issueStatus = statuses?.find((status) => status._id === _status) ?? statuses[0]
 </script>
 
-{#if value}
-  <IssueStatusIcon value={issueStatus} taskType={value.kind} {size} space={value.space} />
+{#if issueStatus != null && _kind != null && _space != null}
+  <IssueStatusIcon value={issueStatus} taskType={_kind} {size} space={_space} />
 {/if}

@@ -221,7 +221,8 @@ export default plugin(chunterId, {
     Leave: '' as IntlString,
     HideAll: '' as IntlString,
     GroupChat: '' as IntlString,
-    Seen: '' as IntlString
+    Seen: '' as IntlString,
+    Threads: '' as IntlString
   },
   emailTemplate: {
     DMNotificationText: '' as IntlString,

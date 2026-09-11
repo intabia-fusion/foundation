@@ -19,12 +19,12 @@ import { getMetadata } from '@hcengineering/platform'
 import serverCore from '@hcengineering/server-core'
 import view from '@hcengineering/view'
 import { workbenchId } from '@hcengineering/workbench'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl } from '@hcengineering/server-activity'
 
 /**
  * @public
  */
-const leadUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const leadUrlPresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const lead = doc as Lead
   const front = control.branding?.front ?? getMetadata(serverCore.metadata.FrontUrl) ?? ''
   const path = `${workbenchId}/${control.workspace.url}/${leadId}/${lead.space}/#${view.component.EditDoc}|${lead._id}|${lead._class}|content`
@@ -34,7 +34,7 @@ const leadUrlPresenter: Presenter = async (doc: Doc, control: PresenterControl):
 /**
  * @public
  */
-const leadIdentifierPresenter: Presenter = async (doc: Doc): Promise<string> => {
+const leadIdentifierPresenter: StringPresenterFn = async (doc: Doc): Promise<string> => {
   const lead = doc as Lead
   return `LEAD-${lead.number}`
 }

@@ -1,7 +1,7 @@
 import type { Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import { TriggerFunc } from '@hcengineering/server-core'
-import { Presenter } from '@hcengineering/server-activity'
+import { StringPresenterFn } from '@hcengineering/server-activity'
 
 /**
  * @public
@@ -13,7 +13,7 @@ export const serverLoveId = 'server-love' as Plugin
  */
 export default plugin(serverLoveId, {
   function: {
-    MeetingMinutesUrlPresenter: '' as Resource<Presenter>
+    MeetingMinutesUrlPresenter: '' as Resource<StringPresenterFn>
   },
   trigger: {
     OnEmployee: '' as Resource<TriggerFunc>,

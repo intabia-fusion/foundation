@@ -28,11 +28,17 @@ export { serverTrackerId } from '@hcengineering/server-tracker'
 
 export function createModel (builder: Builder): void {
   builder.mixin(tracker.class.Issue, core.class.Class, serverActivity.mixin.IdentifierPresenter, {
-    presenter: serverTracker.function.IssueIdentifierPresenter
+    presenter: serverTracker.function.IssueIdentifierPresenter,
+    triggerFields: ['seqNumber', 'prefix']
   })
 
   builder.mixin(tracker.class.Issue, core.class.Class, serverActivity.mixin.UrlPresenter, {
     presenter: serverTracker.function.IssueUrlPresenter
+  })
+
+  builder.mixin(tracker.class.Issue, core.class.Class, serverActivity.mixin.IconPresenter, {
+    presenter: serverTracker.function.IssueIconPresenter,
+    triggerFields: ['space', 'status', 'kind']
   })
 
   builder.createDoc(serverActivity.class.AttributePresenter, core.space.Model, {
@@ -46,7 +52,8 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(tracker.class.TimeSpendReport, core.class.Class, serverActivity.mixin.TitlePresenter, {
-    presenter: serverTracker.function.TimeSpendReportTitlePresenter
+    presenter: serverTracker.function.TimeSpendReportTitlePresenter,
+    triggerFields: ['value']
   })
 
   builder.mixin(tracker.class.Issue, core.class.Class, serverView.mixin.ServerLinkIdProvider, {

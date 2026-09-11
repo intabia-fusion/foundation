@@ -19,7 +19,7 @@ import hr, { Department, fromTzDate, PublicHoliday, Request, Staff, tzDateEqual 
 import { translate } from '@hcengineering/platform'
 import { TriggerControl } from '@hcengineering/server-core'
 import { getEmployee } from '@hcengineering/server-contact'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl } from '@hcengineering/server-activity'
 
 async function getOldDepartment (
   currentTx: TxMixin<Employee, Staff>,
@@ -241,7 +241,7 @@ export async function OnEmployeeDeactivate (txes: Tx[], control: TriggerControl)
 /**
  * @public
  */
-const RequestTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const RequestTitlePresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const request = doc as Request
   const employee = (await control.findAll(control.ctx, contact.mixin.Employee, { _id: request.attachedTo }))[0]
   const who = getName(control.hierarchy, employee, control.branding?.lastNameFirst)
@@ -259,7 +259,7 @@ const RequestTitlePresenter: Presenter = async (doc: Doc, control: PresenterCont
 /**
  * @public
  */
-const PublicHolidayTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const PublicHolidayTitlePresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const holiday = doc as PublicHoliday
   const employee = await getEmployee(control, holiday.modifiedBy)
   if (employee === undefined) return ''

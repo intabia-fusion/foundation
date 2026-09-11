@@ -35,7 +35,7 @@
   export let withIconBackground: boolean = true
   export let isSelected: boolean = false
   export let count: number | null = null
-  export let secondaryNotifyMarker: boolean = false
+  export let countColor: 'red' | 'gray' = 'red'
   export let title: string | undefined = undefined
   export let subTitle: string | undefined = undefined
   export let intlTitle: IntlString | undefined = undefined
@@ -110,13 +110,7 @@
     {#if count != null && count > 0}
       <div class="antiHSpacer" />
       <div class="notify">
-        <NotifyMarker {count} />
-      </div>
-      <div class="antiHSpacer" />
-    {:else if secondaryNotifyMarker}
-      <div class="antiHSpacer" />
-      <div class="notify">
-        <NotifyMarker count={0} kind="simple" size="xx-small" color="gray" />
+        <NotifyMarker {count} color={countColor} />
       </div>
       <div class="antiHSpacer" />
     {/if}

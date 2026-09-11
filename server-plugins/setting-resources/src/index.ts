@@ -17,9 +17,9 @@ import core, { PersonId, Doc, Role, Tx, TxUpdateDoc } from '@hcengineering/core'
 import { getEmbeddedLabel, translate } from '@hcengineering/platform'
 import type { TriggerControl } from '@hcengineering/server-core'
 import setting, { Integration } from '@hcengineering/setting'
-import { Presenter, PresenterControl } from '@hcengineering/server-activity'
+import { StringPresenterFn, PresenterControl } from '@hcengineering/server-activity'
 
-const integrationTitlePresenter: Presenter = async (doc: Doc, control: PresenterControl): Promise<string> => {
+const integrationTitlePresenter: StringPresenterFn = async (doc: Doc, control: PresenterControl): Promise<string> => {
   const integration = doc as Integration
   const type = (await control.modelDb.findAll(setting.class.IntegrationType, { _id: integration.type }))[0]
   if (type === undefined) return ''

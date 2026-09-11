@@ -8,7 +8,6 @@
     "PlatformNotification": "in der Plattform",
     "Track": "Verfolgen",
     "DontTrack": "Nicht verfolgen",
-    "BrowserNotification": "im Browser",
     "Remove": "Benachrichtigung löschen",
     "RemoveAll": "Alle Benachrichtigungen löschen",
     "MarkAllAsRead": "Alle als gelesen markieren",
@@ -86,7 +85,10 @@
     "Appearance": "Aussehen",
     "ShowChatBadge": "Zeige Chat-Badge",
     "HasNewNotifications": "You have new notifications",
-    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}"
+    "UnreadNotificationsCount": "{count, plural, =1 {# unread} other {# unread}}",
+    "ReactedToYourMessage": "reagierte auf Ihre Nachricht",
+    "Clearing": "Lösche...",
+    "Reading": "Lese..."
   },
   "emailTemplate": {
     "MeAddedInCollaboratorsNotificationText": "{sender} added you as a collaborator to {doc}.",

@@ -6,12 +6,14 @@ module.exports = {
       displayName: 'node',
       testEnvironment: 'node',
       preset: 'ts-jest',
+      transform: { '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }] },
       testMatch: ['<rootDir>/src/__test__/main/**/*.test.ts']
     },
     {
       displayName: 'jsdom',
       testEnvironment: 'jsdom',
       preset: 'ts-jest',
+      transform: { '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }] },
       testMatch: ['<rootDir>/src/__test__/ui/**/*.test.ts'],
       moduleNameMapper: {
         '^@hcengineering/platform-rig/profiles/ui/svelte$': `${SVELTE_MOCKS_PATH}/svelte-runtime.ts`,

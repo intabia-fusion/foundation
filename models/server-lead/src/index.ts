@@ -30,7 +30,8 @@ export function createModel (builder: Builder): void {
   })
 
   builder.mixin(lead.class.Lead, core.class.Class, serverActivity.mixin.IdentifierPresenter, {
-    presenter: serverLead.function.LeadIdentifierPresenter
+    presenter: serverLead.function.LeadIdentifierPresenter,
+    triggerFields: ['number']
   })
 
   builder.mixin<NotificationType, TypeMatch>(

@@ -16,7 +16,7 @@
 import type { Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import type { TriggerFunc } from '@hcengineering/server-core'
-import { Presenter } from '@hcengineering/server-activity'
+import { StringPresenterFn } from '@hcengineering/server-activity'
 
 /**
  * @public
@@ -34,7 +34,7 @@ export default plugin(serverHrId, {
     OnDepartmentRemove: '' as Resource<TriggerFunc>
   },
   function: {
-    RequestTitlePresenter: '' as Resource<Presenter>,
-    PublicHolidayTitlePresenter: '' as Resource<Presenter>
+    RequestTitlePresenter: '' as Resource<StringPresenterFn>,
+    PublicHolidayTitlePresenter: '' as Resource<StringPresenterFn>
   }
 })

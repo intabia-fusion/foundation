@@ -32,7 +32,7 @@
   import { Action, Button, IconEdit, languageStore, deviceOptionsStore } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { getDocLinkTitle } from '@hcengineering/view-resources'
-  import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
+  import { NotificationClientImpl } from '@hcengineering/notification-resources'
 
   import { shownTranslatedMessagesStore, translatedMessagesStore, translatingMessagesStore } from '../../stores'
   import ChatMessageInput from './ChatMessageInput.svelte'
@@ -154,7 +154,7 @@
     editingMessageStore.set(value._id)
   }
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
+  const inboxClient = NotificationClientImpl.getClient()
   const readStateByDocStore = inboxClient.readStateByDoc
 
   $: if (value != null) {

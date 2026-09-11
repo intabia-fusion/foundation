@@ -73,13 +73,15 @@ import {
   type WorkspaceDestroyAdapter
 } from '@hcengineering/server-core'
 import { generateToken } from '@hcengineering/server-token'
-import { createStorageDataAdapter } from './blobStorage'
 
 import { RatingMiddleware } from '@hcengineering/server-rating'
 import { ChunterMiddleware } from '@hcengineering/server-chunter'
 import { NotificationMiddleware } from '@hcengineering/server-notification'
 import { TaskMiddleware } from '@hcengineering/server-task'
 import { WorkflowMiddleware } from '@hcengineering/server-workflow'
+
+import { createStorageDataAdapter } from './blobStorage'
+
 /**
  * @public
  */

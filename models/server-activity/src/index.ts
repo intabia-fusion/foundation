@@ -19,11 +19,15 @@ import serverCore from '@hcengineering/server-core'
 import core, { DOMAIN_MODEL } from '@hcengineering/core'
 import serverActivity, {
   type IdentifierPresenter,
-  type Presenter,
+  type StringPresenterFn,
+  type IconPresenterFn,
   type TitlePresenter,
   type UrlPresenter,
+  type IntlStringPresenterFn,
+  type LabelPresenter,
   type AttributePresenter,
-  type AttributePresenterFn
+  type AttributePresenterFn,
+  type IconPresenter
 } from '@hcengineering/server-activity'
 import { TClass, TDoc } from '@hcengineering/model-core'
 import activity from '@hcengineering/activity'
@@ -35,17 +39,34 @@ export { serverActivityId } from '@hcengineering/server-activity'
 
 @Mixin(serverActivity.mixin.TitlePresenter, core.class.Class)
 export class TTitlePresenter extends TClass implements TitlePresenter {
-  presenter!: Resource<Presenter>
+  presenter!: Resource<StringPresenterFn>
+  triggerFields!: string[]
+  personalized?: boolean
+}
+
+@Mixin(serverActivity.mixin.LabelPresenter, core.class.Class)
+export class TLabelPresenter extends TClass implements LabelPresenter {
+  presenter!: Resource<IntlStringPresenterFn>
+  triggerFields!: string[]
 }
 
 @Mixin(serverActivity.mixin.IdentifierPresenter, core.class.Class)
 export class TIdentifierPresenter extends TClass implements IdentifierPresenter {
-  presenter!: Resource<Presenter>
+  presenter!: Resource<StringPresenterFn>
+  triggerFields!: string[]
 }
 
 @Mixin(serverActivity.mixin.UrlPresenter, core.class.Class)
 export class TUrlPresenter extends TClass implements UrlPresenter {
-  presenter!: Resource<Presenter>
+  presenter!: Resource<StringPresenterFn>
+  triggerFields!: string[]
+}
+
+@Mixin(serverActivity.mixin.IconPresenter, core.class.Class)
+export class TIconPresenter extends TClass implements IconPresenter {
+  presenter!: Resource<IconPresenterFn>
+  triggerFields!: string[]
+  personalized?: boolean
 }
 
 @Model(serverActivity.class.AttributePresenter, core.class.Doc, DOMAIN_MODEL)
@@ -55,7 +76,14 @@ export class TAttributePresenter extends TDoc implements AttributePresenter {
 }
 
 export function createModel (builder: Builder): void {
-  builder.createModel(TIdentifierPresenter, TUrlPresenter, TTitlePresenter, TAttributePresenter)
+  builder.createModel(
+    TIdentifierPresenter,
+    TUrlPresenter,
+    TTitlePresenter,
+    TAttributePresenter,
+    TIconPresenter,
+    TLabelPresenter
+  )
 
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
     trigger: serverActivity.trigger.OnDocRemoved,
@@ -76,9 +104,9 @@ export function createModel (builder: Builder): void {
       objectClass: { $ne: activity.class.ActivityReference },
       attachedToClass: {
         $nin: [
-          notification.class.InboxNotification,
+          notification.class.ReadState,
           notification.class.DocNotifyContext,
-          notification.class.BrowserNotification
+          notification.class.AppPushNotification
         ]
       }
     },

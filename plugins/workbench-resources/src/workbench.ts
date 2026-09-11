@@ -329,7 +329,7 @@ configurationStore.subscribe((config) => {
   setMetadata(core.metadata.DisablePermissions, arePermissionsDisabled)
 })
 
-export const workspacesNotificationStore = writable<WorkspacesNotification | undefined>(undefined)
+export const crossWorkspaceNotificationStore = writable<WorkspacesNotification | undefined>(undefined)
 
 const workspacesNotificationQuery = createQuery(true)
 onClient(() => {
@@ -341,7 +341,7 @@ onClient(() => {
     (res) => {
       const r = res[0]
       if (r != null) {
-        workspacesNotificationStore.set(r)
+        crossWorkspaceNotificationStore.set(r)
       }
     },
     {

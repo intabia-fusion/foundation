@@ -17,7 +17,7 @@
 import type { Metadata, Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import type { ObjectDDParticipantFunc, TriggerFunc } from '@hcengineering/server-core'
-import { Presenter } from '@hcengineering/server-activity'
+import { StringPresenterFn } from '@hcengineering/server-activity'
 
 /**
  * @public
@@ -32,9 +32,9 @@ export default plugin(serverCalendarId, {
     EndpointURL: '' as Metadata<string>
   },
   function: {
-    ReminderUrlPresenter: '' as Resource<Presenter>,
-    ReminderTitlePresenter: '' as Resource<Presenter>,
-    ReminderIdentifierPresenter: '' as Resource<Presenter>,
+    ReminderUrlPresenter: '' as Resource<StringPresenterFn>,
+    ReminderTitlePresenter: '' as Resource<StringPresenterFn>,
+    ReminderIdentifierPresenter: '' as Resource<StringPresenterFn>,
     FindReminders: '' as Resource<ObjectDDParticipantFunc>
   },
   trigger: {

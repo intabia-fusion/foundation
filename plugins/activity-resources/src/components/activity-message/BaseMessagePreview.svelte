@@ -15,25 +15,20 @@
 
 <script lang="ts">
   import { IntlString } from '@hcengineering/platform'
-  import { ActivityMessage, ActivityMessagePreviewType } from '@hcengineering/activity'
+  import { ActivityMessageLite, ActivityMessagePreviewType } from '@hcengineering/activity'
 
-  import ReactionsPreview from '../reactions/ReactionsPreview.svelte'
   import BasePreview from '../BasePreview.svelte'
-  import { Action } from '@hcengineering/ui'
 
   export let text: string | undefined = undefined
   export let intlLabel: IntlString | undefined = undefined
   export let readonly = false
   export let type: ActivityMessagePreviewType = 'full'
-  export let message: ActivityMessage
-  export let actions: Action[] = []
+  export let message: ActivityMessageLite
 
-  let previewElement: BasePreview
   let isCompact = false
 </script>
 
 <BasePreview
-  bind:this={previewElement}
   bind:isCompact
   {text}
   {intlLabel}
@@ -46,20 +41,4 @@
   <svelte:fragment slot="content">
     <slot />
   </svelte:fragment>
-  <svelte:fragment slot="right">
-    {#if type === 'full' && !isCompact}
-      <ReactionsPreview {message} {readonly} />
-    {/if}
-  </svelte:fragment>
-  <!--  <svelte:fragment slot="actions">-->
-  <!--    {#if previewElement}-->
-  <!--      <ActivityMessageActions-->
-  <!--        {message}-->
-  <!--        {actions}-->
-  <!--        withActionMenu={false}-->
-  <!--        onOpen={previewElement.onActionsOpened}-->
-  <!--        onClose={previewElement.onActionsClosed}-->
-  <!--      />-->
-  <!--    {/if}-->
-  <!--  </svelte:fragment>-->
 </BasePreview>

@@ -22,8 +22,8 @@ import { TNotificationType } from '@hcengineering/model-notification'
 import notification from '@hcengineering/notification'
 import serverCore from '@hcengineering/server-core'
 import serverNotification, {
-  type CreateNotificationResource,
-  type NotificationContentProviderResource,
+  type CreateTxNotificationResource,
+  type NotificationIntlProviderResource,
   type TypeMatch,
   type TypeMatchFuncResource
 } from '@hcengineering/server-notification'
@@ -33,8 +33,8 @@ export { serverNotificationId } from '@hcengineering/server-notification'
 @Mixin(serverNotification.mixin.TypeMatch, notification.class.NotificationType)
 export class TTypeMatch extends TNotificationType implements TypeMatch {
   match?: TypeMatchFuncResource
-  create?: CreateNotificationResource
-  contentProvider?: NotificationContentProviderResource
+  create?: CreateTxNotificationResource
+  contentProvider?: NotificationIntlProviderResource
 }
 
 export function createModel (builder: Builder): void {
@@ -64,29 +64,18 @@ export function createModel (builder: Builder): void {
   })
 
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverNotification.trigger.OnDocUpdate,
+    txMatch: {
+      _class: core.class.TxUpdateDoc
+    }
+  })
+
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
     trigger: serverNotification.trigger.OnEmployeeDeactivate,
     isAsync: true,
     txMatch: {
       _class: core.class.TxMixin,
       mixin: contact.mixin.Employee
-    }
-  })
-
-  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
-    trigger: serverNotification.trigger.PushNotificationsHandler,
-    isAsync: true,
-    txMatch: {
-      _class: core.class.TxCreateDoc,
-      objectClass: notification.class.InboxNotification
-    }
-  })
-
-  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
-    trigger: serverNotification.trigger.OnCollaboratorRemoved,
-    isAsync: true,
-    txMatch: {
-      _class: core.class.TxRemoveDoc,
-      objectClass: core.class.Collaborator
     }
   })
 

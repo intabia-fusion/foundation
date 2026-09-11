@@ -17,7 +17,7 @@
   import activity, { ActivityMessage } from '@hcengineering/activity'
   import chunter from '@hcengineering/chunter'
   import { Class, Doc, Ref } from '@hcengineering/core'
-  import { DocNotifyContext, InboxNotification, notificationId } from '@hcengineering/notification'
+  import { ContextNotification, DocNotifyContext, notificationId } from '@hcengineering/notification'
   import { ActionContext, getClient } from '@hcengineering/presentation'
   import {
     AnyComponent,
@@ -26,85 +26,92 @@
     defineSeparators,
     deviceOptionsStore as deviceInfo,
     getCurrentLocation,
-    Label,
     Location,
     location as locationStore,
     restoreLocation,
-    Scroller,
     Separator,
-    TabItem,
-    TabList
+    Scroller
   } from '@hcengineering/ui'
   import view, { decodeObjectURI } from '@hcengineering/view'
   import { parseLinkId } from '@hcengineering/view-resources'
-  import { get } from 'svelte/store'
   import { getResource } from '@hcengineering/platform'
 
-  import { InboxNotificationsClientImpl } from '../../inboxNotificationsClient'
   import notification from '../../plugin'
-  import { InboxData, InboxNotificationsFilter } from '../../types'
-  import { getDisplayInboxData, resetInboxContext, resolveLocation, selectInboxContext } from '../../utils'
+  import { InboxFilter } from '../../types'
+  import { resetInboxContext, resolveLocation, selectInboxContext } from '../../utils'
+  import { onDestroy, onMount } from 'svelte'
+  import InboxHeader from './InboxHeader.svelte'
   import InboxGroupedListView from './InboxGroupedListView.svelte'
-  import InboxMenuButton from './InboxMenuButton.svelte'
-  import { onDestroy } from 'svelte'
-  import SettingsButton from './SettingsButton.svelte'
+  import { updateInboxContexts, inboxContextsStore, hasInboxNextPageStore } from '../../stores'
+  import LoadingHistory from '../LoadingHistory.svelte'
 
+  import { NotificationClientImpl } from '../../client'
+
+  const inboxClient = NotificationClientImpl.getClient()
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  const inboxClient = InboxNotificationsClientImpl.getClient()
-  const notificationsByContextStore = inboxClient.inboxNotificationsByContext
-  const contextByIdStore = inboxClient.contextById
-  const contextByDocStore = inboxClient.contextByDoc
-  const contextsStore = inboxClient.contexts
-
-  const allTab: TabItem = {
-    id: 'all',
-    labelIntl: notification.string.All
-  }
+  let syncLocationToken = 0
 
   const linkProviders = client.getModel().findAllSync(view.mixin.LinkIdProvider, {})
-
-  let syncLocationToken = 0
+  const unsubscribeLoc = locationStore.subscribe((loc) => {
+    void syncLocation(loc)
+  })
 
   let urlObjectId: Ref<Doc> | undefined = undefined
   let urlObjectClass: Ref<Class<Doc>> | undefined = undefined
 
-  let inboxData: InboxData = new Map()
-
-  let filteredData: InboxData = new Map()
-  let filter: InboxNotificationsFilter = (localStorage.getItem('inbox-filter') as InboxNotificationsFilter) ?? 'all'
-
-  let tabItems: TabItem[] = []
-  let selectedTabId: string | number = allTab.id
+  let filter: InboxFilter | undefined = undefined
+  let selectedTabId: string = 'all'
 
   let selectedContextId: Ref<DocNotifyContext> | undefined = undefined
   let selectedContext: DocNotifyContext | undefined = undefined
   let selectedComponent: AnyComponent | undefined = undefined
-
   let selectedMessage: ActivityMessage | undefined = undefined
 
+  let divScroll: HTMLDivElement | null | undefined = undefined
   let replacedPanel: HTMLElement
 
-  $: inboxData = getDisplayInboxData($notificationsByContextStore)
+  let limit = 20
+  let contexts: DocNotifyContext[] = $inboxContextsStore
 
-  $: filteredData = filterData(filter, selectedTabId, inboxData)
+  let isLocationInitialized = false
 
-  const unsubscribeLoc = locationStore.subscribe((newLocation) => {
-    void syncLocation(newLocation)
-  })
+  $: updateInboxContexts(
+    {
+      ...(selectedTabId === 'all'
+        ? {}
+        : { objectClass: { $in: Array.from(new Set(hierarchy.getDescendants(selectedTabId as Ref<Class<Doc>>))) } }),
+      ...(filter === 'unread' ? { unreadCount: { $gt: 0 } } : {})
+    },
+    limit
+  )
+  $: contexts = $inboxContextsStore
 
-  let isContextsLoaded = false
+  $: initializeLocation(contexts)
 
-  const unsubscribeContexts = contextByDocStore.subscribe((docs) => {
-    if (selectedContext !== undefined || docs.size === 0 || isContextsLoaded) {
+  let prevTabId = selectedTabId
+  let prevFilter: InboxFilter | undefined = filter
+
+  $: if (selectedTabId !== prevTabId || filter !== prevFilter) {
+    prevTabId = selectedTabId
+    prevFilter = filter
+    limit = 20
+    if (divScroll != null) {
+      divScroll.scrollTop = 0
+    }
+  }
+
+  function initializeLocation (contexts: DocNotifyContext[]): void {
+    if (selectedContext !== undefined || contexts.length === 0 || isLocationInitialized) {
       return
     }
 
+    isLocationInitialized = true
+
     const loc = getCurrentLocation()
     void syncLocation(loc)
-    isContextsLoaded = true
-  })
+  }
 
   async function syncLocation (newLocation: Location): Promise<void> {
     const token = ++syncLocationToken
@@ -124,13 +131,30 @@
 
     const [id, _class] = decodeObjectURI(loc?.loc.path[3] ?? '')
     const _id = await parseLinkId(linkProviders, id, _class)
+
     if (token !== syncLocationToken) return
     urlObjectId = _id
     urlObjectClass = _class
+
     const thread = loc?.loc.path[4] as Ref<ActivityMessage>
     const queryContext = loc.loc.query?.context as Ref<DocNotifyContext>
-    const context = $contextByIdStore.get(queryContext) ?? $contextByDocStore.get(thread) ?? $contextByDocStore.get(_id)
 
+    urlObjectId = _id
+    urlObjectClass = _class
+
+    let context: DocNotifyContext | undefined = undefined
+
+    if (queryContext != null) {
+      context =
+        contexts.find((c) => c._id === queryContext) ??
+        (await client.findOne(notification.class.DocNotifyContext, { _id: queryContext }))
+    } else if (thread != null) {
+      context = await client.findOne(notification.class.DocNotifyContext, { objectId: thread })
+    } else {
+      context = await client.findOne(notification.class.DocNotifyContext, { objectId: _id })
+    }
+
+    if (token !== syncLocationToken) return
     selectedContextId = context?._id
 
     if (selectedContextId !== selectedContext?._id) {
@@ -146,65 +170,20 @@
     }
 
     if (selectedMessageId !== undefined) {
-      selectedMessage = get(inboxClient.activityInboxNotifications).find(
-        ({ attachedTo }) => attachedTo === selectedMessageId
-      )?.$lookup?.attachedTo
-      if (selectedMessage === undefined) {
-        const msg = await client.findOne(activity.class.ActivityMessage, { _id: selectedMessageId })
-        if (token !== syncLocationToken) return
-        selectedMessage = msg
-      }
+      const msg = await client.findOne(activity.class.ActivityMessage, { _id: selectedMessageId })
+      if (token !== syncLocationToken) return
+      selectedMessage = msg
     }
   }
 
-  $: selectedContext = selectedContextId ? (selectedContext ?? $contextByIdStore.get(selectedContextId)) : undefined
+  $: selectedContext =
+    selectedContextId != null ? (selectedContext ?? contexts.find((c) => c._id === selectedContextId)) : undefined
 
   $: void updateSelectedPanel(selectedContext, urlObjectClass)
-  $: void updateTabItems(inboxData, $contextsStore)
 
-  async function updateTabItems (inboxData: InboxData, notifyContexts: DocNotifyContext[]): Promise<void> {
-    const displayClasses = new Set(
-      notifyContexts.filter(({ _id }) => inboxData.has(_id)).map(({ objectClass }) => objectClass)
-    )
-
-    const classes = Array.from(displayClasses)
-    const tabs: TabItem[] = []
-
-    let messagesTab: TabItem | undefined = undefined
-
-    for (const _class of classes) {
-      if (hierarchy.isDerived(_class, activity.class.ActivityMessage)) {
-        if (messagesTab === undefined) {
-          messagesTab = {
-            id: activity.class.ActivityMessage,
-            labelIntl: activity.string.Messages
-          }
-        }
-        continue
-      }
-
-      const clazz = hierarchy.getClass(_class)
-      const intlLabel = clazz.pluralLabel ?? clazz.label ?? _class
-      tabs.push({
-        id: _class,
-        labelIntl: intlLabel
-      })
-    }
-
-    if (messagesTab !== undefined) {
-      tabs.push(messagesTab)
-    }
-
-    tabItems = [allTab].concat(tabs.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '')))
-  }
-
-  function selectTab (event: CustomEvent): void {
-    if (event.detail !== undefined) {
-      selectedTabId = event.detail.id
-    }
-  }
-
-  async function selectContext (event?: CustomEvent): Promise<void> {
+  async function selectContext (
+    event?: CustomEvent<{ context?: DocNotifyContext, notification?: ContextNotification }>
+  ): Promise<void> {
     closePanel()
     selectedContext = event?.detail?.context
     selectedContextId = selectedContext?._id
@@ -214,10 +193,11 @@
       return
     }
 
-    const selectedNotification: InboxNotification | undefined = event?.detail?.notification
+    const selectedNotification: ContextNotification | undefined = event?.detail?.notification
 
-    void selectInboxContext(linkProviders, selectedContext, selectedNotification, event?.detail.object)
+    void selectInboxContext(linkProviders, selectedContext, selectedNotification)
   }
+
   function isChunterChannel (selectedContext: DocNotifyContext, urlObjectClass?: Ref<Class<Doc>>): boolean {
     const isActivityMessageContext = hierarchy.isDerived(selectedContext.objectClass, activity.class.ActivityMessage)
     const chunterClass = isActivityMessageContext
@@ -243,65 +223,11 @@
 
     selectedComponent = panelComponent?.component ?? view.component.EditDoc
 
-    const contextNotifications = $notificationsByContextStore.get(selectedContext._id) ?? []
-
-    const ops = getClient().apply(undefined, 'readNotifications')
-    try {
-      await inboxClient.readNotifications(
-        ops,
-        contextNotifications
-          .filter(({ _class, isViewed }) =>
-            isChunter ? _class === notification.class.CommonInboxNotification : !isViewed
-          )
-          .map(({ _id }) => _id)
-      )
-    } finally {
-      await ops.commit()
+    if (isChunter) {
+      await inboxClient.readNotificationsWithoutMessage(selectedContext.objectId)
+    } else {
+      await inboxClient.readDoc(selectedContext.objectId)
     }
-  }
-
-  function filterData (
-    filter: InboxNotificationsFilter,
-    selectedTabId: string | number,
-    inboxData: InboxData
-  ): InboxData {
-    if (selectedTabId === allTab.id && filter === 'all') {
-      return inboxData
-    }
-
-    const result = new Map()
-
-    for (const [key, notifications] of inboxData) {
-      if (filter === 'unread' && key !== selectedContext?._id && !notifications.some(({ isViewed }) => !isViewed)) {
-        continue
-      }
-
-      if (notifications.length === 0) {
-        continue
-      }
-
-      if (selectedTabId === allTab.id) {
-        result.set(key, notifications)
-        continue
-      }
-
-      const context = $contextByIdStore.get(key)
-
-      if (context === undefined) {
-        continue
-      }
-
-      if (
-        selectedTabId === activity.class.ActivityMessage &&
-        hierarchy.isDerived(context.objectClass, activity.class.ActivityMessage)
-      ) {
-        result.set(key, notifications)
-      } else if (context.objectClass === selectedTabId) {
-        result.set(key, notifications)
-      }
-    }
-
-    return result
   }
 
   defineSeparators('inbox', [
@@ -310,26 +236,25 @@
     { size: 20, minSize: 20, maxSize: 50, float: 'aside' }
   ])
 
-  function onUnreadsToggled (): void {
-    filter = filter === 'unread' ? 'all' : 'unread'
-    localStorage.setItem('inbox-filter', filter)
-    void selectContext(undefined)
-  }
-
-  $: items = [
-    {
-      id: 'unread',
-      on: filter === 'unread',
-      label: notification.string.Unreads,
-      onToggle: onUnreadsToggled
-    }
-  ]
   $: $deviceInfo.replacedPanel = replacedPanel
 
+  function handleScroll (): void {
+    if (divScroll != null && $hasInboxNextPageStore && contexts.length === limit) {
+      const isAtBottom = divScroll.scrollTop + divScroll.clientHeight >= divScroll.scrollHeight - 400
+      if (isAtBottom) {
+        limit += 20
+      }
+    }
+  }
+
+  onMount(() => {
+    divScroll?.addEventListener('scroll', handleScroll)
+  })
   onDestroy(() => {
     $deviceInfo.replacedPanel = undefined
     unsubscribeLoc()
-    unsubscribeContexts()
+
+    divScroll?.removeEventListener('scroll', handleScroll)
   })
 </script>
 
@@ -348,20 +273,13 @@
       class:fly={$deviceInfo.navigator.float}
     >
       <div class="antiPanel-wrap__content hulyNavPanel-container">
-        <div class="hulyNavPanel-header withButton small">
-          <span class="overflow-label"><Label label={notification.string.Inbox} /></span>
-          <div class="flex-row-center flex-gap-2">
-            <SettingsButton {items} />
-            <InboxMenuButton />
-          </div>
-        </div>
+        <InboxHeader bind:filter bind:selectedTabId />
 
-        <div class="tabs">
-          <TabList items={tabItems} selected={selectedTabId} on:select={selectTab} padding={'var(--spacing-1) 0'} />
-        </div>
-
-        <Scroller padding="0">
-          <InboxGroupedListView data={filteredData} selectedContext={selectedContextId} on:click={selectContext} />
+        <Scroller padding="0" bind:divScroll>
+          <InboxGroupedListView {contexts} selectedContext={selectedContextId} on:click={selectContext} />
+          {#if $hasInboxNextPageStore && contexts.length > 0}
+            <LoadingHistory isLoading={contexts.length < limit} />
+          {/if}
         </Scroller>
       </div>
       {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
@@ -378,7 +296,7 @@
     />
   {/if}
   <div bind:this={replacedPanel} class="hulyComponent">
-    {#if selectedContext && selectedComponent}
+    {#if selectedContext != null && selectedComponent != null}
       <Component
         is={selectedComponent}
         props={{
@@ -399,12 +317,3 @@
     {/if}
   </div>
 </div>
-
-<style lang="scss">
-  .tabs {
-    display: flex;
-    align-items: center;
-    padding: var(--spacing-0_5) var(--spacing-1_5);
-    border-bottom: 1px solid var(--theme-navpanel-border);
-  }
-</style>

@@ -13,82 +13,97 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Label, languageStore, tooltip } from '@hcengineering/ui'
-  import { DocNotifyContext } from '@hcengineering/notification'
-  import { getClient } from '@hcengineering/presentation'
+  import { Component, Icon, Label, tooltip } from '@hcengineering/ui'
+  import notification, { DocNotifyContext } from '@hcengineering/notification'
+  import { getClient, IconWithEmoji } from '@hcengineering/presentation'
   import { Class, Doc, Ref } from '@hcengineering/core'
-  import { getDocLinkTitle, getDocTitle, ObjectIcon } from '@hcengineering/view-resources'
+  import { classIcon } from '@hcengineering/view-resources'
   import { ChatMessage, ThreadMessage } from '@hcengineering/chunter'
   import contact from '@hcengineering/contact'
   import { getEmbeddedLabel } from '@hcengineering/platform'
+  import { ActivityMessageLite } from '@hcengineering/activity'
+  import view from '@hcengineering/view'
 
   import chunter from '../../plugin'
   import ChatMessagePreview from '../chat-message/ChatMessagePreview.svelte'
   import ThreadMessagePreview from '../threads/ThreadMessagePreview.svelte'
 
-  export let context: DocNotifyContext
-  export let object: ChatMessage
+  export let context: DocNotifyContext<ChatMessage>
 
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  let title: string | undefined = undefined
-  let channel: Doc | undefined = undefined
+  let message: ActivityMessageLite<ChatMessage> | undefined = undefined
+  let channelTitle: string | undefined = undefined
+
+  $: message = context.object as ActivityMessageLite<ChatMessage>
 
   $: isThread = hierarchy.isDerived(context.objectClass, chunter.class.ThreadMessage)
+  $: channelTitle =
+    context.parentObjectClass != null &&
+    hierarchy.isDerived(context.parentObjectClass, chunter.class.Channel) &&
+    (context.parentObjectTitle ?? '').startsWith('#')
+      ? context.parentObjectTitle?.slice(1)
+      : (context.parentObjectIdentifier ?? context.parentObjectTitle)
 
-  $: loadChannel(object, isThread)
-  $: channel &&
-    getDocLinkTitle(client, channel._id, channel._class, channel, $languageStore).then((res) => {
-      title = res
-    })
-
-  function loadChannel (object: ChatMessage, isThread: boolean): void {
-    const _class = isThread ? (object as ThreadMessage).objectClass : object.attachedToClass
-    const _id = isThread ? (object as ThreadMessage).objectId : object.attachedTo
-
-    void client.findOne(_class, { _id, ...(isThread ? { space: object.space } : {}) }).then((res) => {
-      channel = res
-    })
+  function toThread (message: ChatMessage): ActivityMessageLite<ThreadMessage> {
+    return message as ActivityMessageLite<ThreadMessage>
   }
 
-  function toThread (message: ChatMessage): ThreadMessage {
-    return message as ThreadMessage
-  }
-
-  function isAvatarIcon (_class: Ref<Class<Doc>>): boolean {
+  function isAvatarIcon (_class?: Ref<Class<Doc>>): boolean {
+    if (_class == null) return false
     return hierarchy.isDerived(_class, contact.class.Person) || hierarchy.isDerived(_class, chunter.class.DirectMessage)
   }
+
+  $: iconMixin =
+    context.parentObjectClass != null
+      ? hierarchy.classHierarchyMixin(context.parentObjectClass, view.mixin.ObjectIcon)
+      : undefined
+  $: iconSize = isAvatarIcon(context?.parentObjectClass) ? 'tiny' : 'small'
 </script>
 
 <span class="flex-presenter flex-gap-1 header">
-  {#if isThread || (object.replies ?? 0) > 0}
-    <Label label={chunter.string.Thread} />
-  {:else}
-    <Label label={chunter.string.Message} />
-  {/if}
-  {#if title && channel}
-    <span class="lower">
-      <Label label={chunter.string.In} />
+  <Label label={chunter.string.Thread} />
+  <span class="lower">
+    <Label label={chunter.string.In} />
+  </span>
+  <span
+    class="flex-presenter flex-gap-0-5"
+    use:tooltip={channelTitle != null ? { label: getEmbeddedLabel(channelTitle) } : {}}
+  >
+    {#if iconMixin}
+      <Component
+        is={iconMixin.component}
+        props={{
+          ...context.parentObjectIcon?.props,
+          asset: context.parentObjectIcon?.asset,
+          emoji: context.parentObjectIcon?.emoji,
+          size: iconSize
+        }}
+        showLoading={false}
+      />
+    {:else if context.parentObjectIcon?.emoji}
+      <IconWithEmoji icon={context.parentObjectIcon.emoji} size="small" />
+    {:else}
+      <Icon
+        icon={context.parentObjectIcon?.asset ??
+          classIcon(client, context.parentObjectClass) ??
+          notification.icon.Notifications}
+        size="small"
+      />
+    {/if}
+    <span class="overflow-label ml-0-5">
+      {channelTitle}
     </span>
-    {#await getDocTitle(client, channel._id, channel._class, channel) then tooltipLabel}
-      <span
-        class="flex-presenter flex-gap-0-5"
-        use:tooltip={tooltipLabel ? { label: getEmbeddedLabel(tooltipLabel) } : undefined}
-      >
-        <ObjectIcon value={channel} size={isAvatarIcon(channel._class) ? 'tiny' : 'small'} />
-        <span class="overflow-label">
-          {title}
-        </span>
-      </span>
-    {/await}
-  {/if}
+  </span>
 </span>
 <span class="font-normal mt-1">
-  {#if isThread}
-    <ThreadMessagePreview value={toThread(object)} readonly type="content-only" />
-  {:else}
-    <ChatMessagePreview value={object} readonly type="content-only" />
+  {#if message}
+    {#if isThread}
+      <ThreadMessagePreview value={toThread(message)} readonly type="content-only" />
+    {:else}
+      <ChatMessagePreview value={message} readonly type="content-only" />
+    {/if}
   {/if}
 </span>
 

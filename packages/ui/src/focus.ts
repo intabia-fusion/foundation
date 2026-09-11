@@ -37,7 +37,6 @@ class FocusManagerImpl implements FocusManager {
   }
 
   sort (): void {
-    // this.needSort = 0
     this.elements.sort((a, b) => {
       return a.order - b.order
     })

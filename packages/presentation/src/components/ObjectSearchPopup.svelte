@@ -40,7 +40,6 @@
   export let relatedDocuments: RelatedDocument[] | undefined = undefined
   export let ignore: RelatedDocument[] | undefined = undefined
   export let allowCategory: Ref<ObjectSearchCategory>[] | undefined = undefined
-  // export let hideButtons = false
 
   let items: ObjectSearchResult[] = []
 

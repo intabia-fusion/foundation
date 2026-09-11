@@ -742,24 +742,6 @@ function defineFile (builder: Builder): void {
     drive.action.DeleteFile
   )
 
-  // createAction(
-  //   builder,
-  //   {
-  //     action: drive.actionImpl.UploadFile,
-  //     label: drive.string.UploadFile,
-  //     icon: drive.icon.File,
-  //     category: drive.category.Drive,
-  //     input: 'focus',
-  //     target: drive.class.File,
-  //     context: {
-  //       mode: ['context', 'browser'],
-  //       application: drive.app.Drive,
-  //       group: 'tools'
-  //     }
-  //   },
-  //   drive.action.UploadFile
-  // )
-
   createAction(builder, {
     ...actionTemplates.move,
     action: view.actionImpl.ShowPopup,

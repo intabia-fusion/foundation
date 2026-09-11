@@ -134,7 +134,6 @@
   const parentQuery = createQuery()
 
   let _space = draft?.space ?? space
-  // let project: Project | undefined
   let object = getDefaultObjectFromDraft() ?? getDefaultObject(id)
   let isAssigneeTouched = false
   let kind: Ref<TaskType> | undefined = undefined

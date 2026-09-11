@@ -142,7 +142,6 @@ export class WorkspaceClient {
         originalWidth: preset.width
       }
     }
-    // await createFile(this.client, love.space.Drive, drive.ids.Root, { ...data, title: name })
     await this.attachToMeetingMinutes({ ...data, name }, meetingMinutes)
   }
 

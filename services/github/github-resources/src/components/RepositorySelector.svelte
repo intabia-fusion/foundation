@@ -14,7 +14,6 @@
   export let value: Ref<GithubIntegrationRepository> | null | undefined
   export let githubProject: Ref<GithubProject>
 
-  // export let shouldShowLabel: boolean = true
   export let isEditable: boolean = true
   export let onChange: ((newRepositoryId: Ref<GithubIntegrationRepository> | undefined) => void) | undefined = undefined
   export let popupPlaceholder: IntlString = github.string.Repository

@@ -152,9 +152,7 @@ import {
 const workspaceLimitPerUser =
   process.env.WORKSPACE_LIMIT_PER_USER != null ? parseInt(process.env.WORKSPACE_LIMIT_PER_USER) : 10
 
-/* =================================== */
 /* ============OPERATIONS============= */
-/* =================================== */
 
 /**
  * Given an email and password, logs the user in and returns the account information and token.
@@ -1732,9 +1730,7 @@ export async function deleteWorkspace (
   )
 }
 
-/* =================================== */
 /* ==========READ OPERATIONS========== */
-/* =================================== */
 
 export async function getRegionInfo (
   ctx: MeasureContext,

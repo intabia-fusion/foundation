@@ -149,7 +149,6 @@ describe('server', () => {
   it('should send many requests', (done) => {
     const conn = connect()
     const total = 10
-    // const start = Date.now()
     conn.on('open', () => {
       for (let i = 0; i < total; i++) {
         conn.send(handler.serialize({ method: 'tx', params: [], id: i }, false))
@@ -159,7 +158,6 @@ describe('server', () => {
     conn.on('message', (msg: string) => {
       handler.readResponse(msg, false)
       if (++received === total) {
-        // console.log('resp:', resp, ' Time: ', Date.now() - start)
         conn.close(1000)
       }
     })

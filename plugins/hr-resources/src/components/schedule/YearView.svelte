@@ -55,7 +55,6 @@
     return new Intl.DateTimeFormat('default', { month: 'long' }).format(date)
   }
 
-  // let hoveredIndex: number = -1
 </script>
 
 {#if departmentStaff.length}

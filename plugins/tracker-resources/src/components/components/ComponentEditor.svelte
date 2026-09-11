@@ -27,7 +27,6 @@
 
   export let value: Issue | Issue[] | IssueTemplate | AttachedData<Issue>
   export let isEditable: boolean = true
-  // export let shouldShowLabel: boolean = true
   export let popupPlaceholder: IntlString = tracker.string.MoveToComponent
   export let shouldShowPlaceholder = true
   export let size: ButtonSize = 'large'
@@ -37,12 +36,10 @@
   export let width: string | undefined = '100%'
   export let maxWidth: string | undefined = undefined
   export let maxLabelWidth: string | undefined = '5rem'
-  // export let onlyIcon: boolean = false
   export let isAction: boolean = false
   export let groupBy: string | undefined = undefined
   export let enlargedText: boolean = false
   export let compression: boolean = false
-  // export let shrink: number = 0
   export let space: Ref<Project> | undefined = undefined
 
   const client = getClient()

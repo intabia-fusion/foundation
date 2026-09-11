@@ -123,7 +123,6 @@
     min-height: 0;
     font-size: 0.8125rem;
     border-radius: 0.25rem;
-    // width: fit-content;
     border: 1px solid transparent;
 
     &.between {

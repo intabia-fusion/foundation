@@ -212,7 +212,6 @@ export function configureNotifications (): void {
       const notification = getLasUnViewedNotification(unViewedNotifications, notificationHistory)
 
       if (preferences.showNotifications && initTimestamp > 0 && notification !== undefined) {
-        // const notification = notificationsAfterLaunch[notificationsAfterLaunch.length - 1]
         const notificationData = await hydrateNotificationAsYouCan(notification)
         if (notificationData !== undefined) {
           if (notificationData.body === '') {

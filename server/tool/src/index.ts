@@ -430,7 +430,6 @@ async function prepareMigrationClient (
   }
 
   const migrateState = new Map<string, Set<string>>(sts.map((it) => [it[0], _toSet(it[1])]))
-  // const migrateState = new Map(sts.map((it) => [it[0], new Set(it[1].map((q) => q.state))]))
   migrateClient.migrateState = migrateState
 
   return { migrateClient, migrateState }

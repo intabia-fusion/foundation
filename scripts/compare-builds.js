@@ -858,9 +858,7 @@ async function main() {
   const toArg = args.toPackage ? ['--to', args.toPackage] : []
 
   if (!args.compareOnly) {
-    // ========================================
     // Rush Build Benchmarks
-    // ========================================
     if (!args.skipRush) {
       printSection('Clean all outputs and Rush cache', 1)
       cleanBuildOutputs(packages)
@@ -893,9 +891,7 @@ async function main() {
       collectTypesFiles(packages, RUSH_VALIDATE_TYPES)
     }
 
-    // ========================================
     // Fast Build Benchmarks
-    // ========================================
     if (!args.skipFast) {
       printSection('Clean for fast-build test', 4)
       cleanBuildOutputs(packages)
@@ -927,9 +923,7 @@ async function main() {
     }
   }
 
-  // ========================================
   // Compare Outputs
-  // ========================================
   printSection('Compare outputs', 8)
 
   console.log('')
@@ -957,9 +951,7 @@ async function main() {
   // Write detailed report
   writeReport(OUTPUT_DIR, results, args.toPackage)
 
-  // ========================================
   // Print Summary
-  // ========================================
   printSection('Benchmark Summary', 9)
   printBenchmarkTable(results)
 

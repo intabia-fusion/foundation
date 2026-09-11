@@ -884,20 +884,6 @@ describe('query', () => {
   // it('update with over limit', async () => {
   //   const { liveQuery, factory } = await getClient()
 
-  //   const spaces = await liveQuery.findAll(core.class.Space, {})
-  //   let attempt = 0
-  //   const pp = new Promise((resolve) => {
-  //     liveQuery.query<Space>(
-  //       core.class.Space,
-  //       {},
-  //       (result) => {
-  //         expect(result[0].name).toEqual(`Sp${++attempt}`)
-  //         if (attempt === spaces.length + 1) resolve(null)
-  //       },
-  //       { sort: { name: SortingOrder.Ascending }, limit: 1 }
-  //     )
-  //   })
-
   //   for (let index = 0; index < spaces.length; index++) {
   //     const space = spaces[index]
   //     await factory.updateDoc(space._class, space.space, space._id, {

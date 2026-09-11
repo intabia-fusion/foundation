@@ -333,7 +333,6 @@ describe('Noise reduction', () => {
         samples[i] = (Math.random() - 0.5) * 0.1
       }
 
-      // estimateNoiseSpectrum(samples, sampleRate, frameSize)
       const frameSize = 512
       const spectrum = estimateNoiseSpectrum(samples, 16000, frameSize)
 

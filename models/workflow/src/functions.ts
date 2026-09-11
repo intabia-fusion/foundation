@@ -357,20 +357,6 @@ export function defineValueFunctions (builder: Builder): void {
     workflow.function.ReplaceAll
   )
 
-  // builder.createDoc(
-  //   workflow.class.WorkflowValueFunction,
-  //   core.space.Model,
-  //   {
-  //     of: core.class.TypeString,
-  //     category: 'attribute',
-  //     label: workflow.string.Split,
-  //     type: 'transform',
-  //     editor: workflow.transformEditor.SplitEditor,
-  //     propsLabelPresenter: workflow.propsLabelPresenter.SplitPresenter
-  //   },
-  //   workflow.function.Split
-  // )
-
   builder.createDoc(
     workflow.class.WorkflowValueFunction,
     core.space.Model,

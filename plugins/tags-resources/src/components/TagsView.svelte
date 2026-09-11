@@ -31,7 +31,6 @@
   import tags from '../plugin'
   import CategoryBar from './CategoryBar.svelte'
   import CreateTagElement from './CreateTagElement.svelte'
-  // import { deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { TagElementInfo } from '../utils'
 
   export let title: IntlString = tags.string.Tags

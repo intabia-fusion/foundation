@@ -35,7 +35,6 @@
   export let disabled = false
   export let shouldShowAvatar: boolean = true
   export let shouldShowName = true
-  // export let element: HTMLElement | undefined = undefined
   export let shouldShowPlaceholder = false
   export let noUnderline: boolean = false
   export let defaultName: IntlString | undefined = undefined

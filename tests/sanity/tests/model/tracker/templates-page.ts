@@ -65,7 +65,6 @@ export class TemplatePage extends CommonTrackerPage {
         await this.addNewTagPopup(this.page, data.labels, 'Tag from templateNewIssue')
       }
       await this.checkFromDropdown(this.page, data.labels)
-      // await this.inputIssueTitle.click({ force: true })
       await this.buttonPopupCreateNewTemplatePriority().click({ force: true })
     }
     if (data.estimation != null) {

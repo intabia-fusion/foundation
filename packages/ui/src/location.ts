@@ -101,8 +101,6 @@ function parseHash (hash: string): string {
   return decodeURIComponent(hash)
 }
 
-// ------------------------
-
 export function getRawCurrentLocation (): PlatformLocation {
   return parseLocation(window.location)
 }

@@ -2,9 +2,7 @@ import { MeasureContext } from '@hcengineering/core'
 import { Config } from '../config'
 import { parseLinkPreviewDetails, LinkPreviewError } from '../parse'
 
-// ============================================================================
 // Test Utilities & Mocks
-// ============================================================================
 
 const createMockContext = (): MeasureContext =>
   ({
@@ -43,9 +41,7 @@ const createJsonResponse = (data: object): Response => {
   })
 }
 
-// ============================================================================
 // URL Validation Tests
-// ============================================================================
 
 describe('URL Validation', () => {
   let ctx: MeasureContext
@@ -159,9 +155,7 @@ describe('URL Validation', () => {
   })
 })
 
-// ============================================================================
 // Open Graph Parsing Tests
-// ============================================================================
 
 describe('Open Graph Parsing', () => {
   let ctx: MeasureContext
@@ -300,9 +294,7 @@ describe('Open Graph Parsing', () => {
   })
 })
 
-// ============================================================================
 // Description Extraction Tests
-// ============================================================================
 
 describe('Description Extraction', () => {
   let ctx: MeasureContext
@@ -379,9 +371,7 @@ describe('Description Extraction', () => {
   })
 })
 
-// ============================================================================
 // oEmbed Tests
-// ============================================================================
 
 describe('oEmbed Integration', () => {
   let ctx: MeasureContext
@@ -551,9 +541,7 @@ describe('oEmbed Integration', () => {
   })
 })
 
-// ============================================================================
 // Charset Handling Tests
-// ============================================================================
 
 describe('Charset Handling', () => {
   let ctx: MeasureContext
@@ -622,9 +610,7 @@ describe('Charset Handling', () => {
   })
 })
 
-// ============================================================================
 // Error Handling Tests
-// ============================================================================
 
 describe('Error Handling', () => {
   let ctx: MeasureContext
@@ -689,9 +675,7 @@ describe('Error Handling', () => {
   })
 })
 
-// ============================================================================
 // Image Handling Tests
-// ============================================================================
 
 describe('Image Handling', () => {
   let ctx: MeasureContext
@@ -751,9 +735,7 @@ describe('Image Handling', () => {
   })
 })
 
-// ============================================================================
 // Edge Cases
-// ============================================================================
 
 describe('Edge Cases', () => {
   let ctx: MeasureContext
@@ -904,9 +886,7 @@ describe('Edge Cases', () => {
   })
 })
 
-// ============================================================================
 // Login Redirect Detection Tests
-// ============================================================================
 
 describe('Login Redirect Detection', () => {
   let ctx: MeasureContext
@@ -1027,9 +1007,7 @@ describe('Login Redirect Detection', () => {
   })
 })
 
-// ============================================================================
 // Integration-style Tests
-// ============================================================================
 
 describe('Real-world Scenarios', () => {
   let ctx: MeasureContext

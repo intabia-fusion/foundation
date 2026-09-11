@@ -26,7 +26,6 @@
   export let value: Ref<Component> | null | undefined
   export let space: DocumentQuery<Component>['space'] | undefined = undefined
   export let query: DocumentQuery<Component> = {}
-  // export let shouldShowLabel: boolean = true
   export let isEditable: boolean = true
   export let onChange: ((newComponentId: Ref<Component> | undefined) => void) | undefined = undefined
   export let popupPlaceholder: IntlString = tracker.string.AddToComponent
@@ -36,7 +35,6 @@
   export let justify: 'left' | 'center' = 'center'
   export let width: string | undefined = 'min-content'
   export let maxLabelWidth: string | undefined = undefined
-  // export let onlyIcon: boolean = false
   export let enlargedText: boolean = false
   export let short: boolean = false
   export let focusIndex: number | undefined = undefined

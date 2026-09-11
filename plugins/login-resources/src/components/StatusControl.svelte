@@ -17,8 +17,6 @@
   import { Severity } from '@hcengineering/platform'
   import { IconInfo, Label } from '@hcengineering/ui'
 
-  // import { Status as StatusControl } from '@hcengineering/ui'
-
   export let status: Status
   // Validation messages wrap onto several lines instead of being ellipsised.
   export let overflow: boolean = false

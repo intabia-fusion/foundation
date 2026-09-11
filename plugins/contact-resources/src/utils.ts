@@ -588,44 +588,10 @@ export const grouppingPersonManager: GrouppingManager = {
 export function groupByPersonAccountCategories (categories: any[]): AggregateValue[] {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // const mgr = get(personStore)
+  // TODO: implement
 
-  // const existingCategories: AggregateValue[] = [new AggregateValue(undefined, [])]
-  // const personMap = new Map<string, AggregateValue>()
+  // TODO: implement
 
-  // const usedSpaces = new Set<Ref<Space>>()
-  // const personAccountList: Array<WithLookup<PersonAccount>> = []
-  // for (const v of categories) {
-  //   const personAccount = mgr.getIdMap().get(v)
-  //   if (personAccount !== undefined) {
-  //     personAccountList.push(personAccount)
-  //     usedSpaces.add(personAccount.space)
-  //   }
-  // }
-
-  // for (const personAccount of personAccountList) {
-  //   if (personAccount !== undefined) {
-  //     let fst = personMap.get(personAccount.person)
-  //     if (fst === undefined) {
-  //       const people = mgr
-  //         .getDocs()
-  //         .filter(
-  //           (it) => it.person === personAccount.person && (categories.includes(it._id) || usedSpaces.has(it.space))
-  //         )
-  //         .sort((a, b) => a.email.localeCompare(b.email))
-  //         .map((it) => new AggregateValueData(it.person, it._id, it.space))
-  //       fst = new AggregateValue(personAccount.person, people)
-  //       personMap.set(personAccount.person, fst)
-  //       if (fst.name === undefined) {
-  //         existingCategories[0] = new AggregateValue(undefined, [...existingCategories[0].values, ...fst.values])
-  //         // Join with first value
-  //       } else {
-  //         existingCategories.push(fst)
-  //       }
-  //     }
-  //   }
-  // }
-  // return existingCategories
 }
 
 /**
@@ -634,21 +600,7 @@ export function groupByPersonAccountCategories (categories: any[]): AggregateVal
 export function groupPersonAccountValues (val: Doc[], targets: Set<any>): Doc[] {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // const values = val
-  // const result: Doc[] = []
-  // const unique = [...new Set(val.map((c) => (c as PersonAccount).person))]
-  // unique.forEach((label, i) => {
-  //   let exists = false
-  //   values.forEach((c) => {
-  //     if ((c as PersonAccount).person === label) {
-  //       if (!exists) {
-  //         result[i] = c
-  //         exists = targets.has(c?._id)
-  //       }
-  //     }
-  //   })
-  // })
-  // return result
+  // TODO: implement
 }
 
 /**
@@ -657,9 +609,7 @@ export function groupPersonAccountValues (val: Doc[], targets: Set<any>): Doc[] 
 export function hasPersonAccountValue (value: Doc | undefined | null, values: any[]): boolean {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // const mgr = get(personStore)
-  // const personSet = new Set(mgr.filter((it) => it.person === (value as PersonAccount)?.person).map((it) => it._id))
-  // return values.some((it) => personSet.has(it))
+  // TODO: implement
 }
 
 /**
@@ -673,22 +623,7 @@ export function groupPersonAccountValuesWithEmpty (
 ): Array<Ref<Doc>> {
   // TODO: FIXME
   throw new Error('Not implemented')
-  // const mgr = get(personStore)
-  // let personAccountList = mgr.getDocs()
-  // if (query !== undefined) {
-  //   const { [key]: st, space } = query
-  //   const resQuery: DocumentQuery<Doc> = {}
-  //   if (space !== undefined) {
-  //     resQuery.space = space
-  //   }
-  //   if (st !== undefined) {
-  //     resQuery._id = st
-  //   }
-  //   personAccountList = matchQuery<Doc>(personAccountList, resQuery, _class, hierarchy) as unknown as Array<
-  //   WithLookup<PersonAccount>
-  //   >
-  // }
-  // return personAccountList.map((it) => it._id)
+  // TODO: implement
 }
 
 export async function resolveLocationData (loc: Location): Promise<LocationData> {

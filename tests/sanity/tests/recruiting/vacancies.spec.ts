@@ -50,21 +50,6 @@ test.describe('Vacancy tests', () => {
     // TODO: Application search is broken, since indexer now index from child to parent.
     //   await page.locator('[id="app-recruit\\:string\\:RecruitApplication"]').click()
 
-    //   await page.locator('text=Vacancies').click()
-    //   await page.click('text=Software Engineer')
-
-    //   await expect(page.locator('text=M. Marina')).toBeVisible()
-    //   expect(await page.locator('.antiTable-body__row').count()).toBeGreaterThan(2)
-
-    //   const searchBox = page.locator('[placeholder="Search"]')
-    //   await searchBox.fill('Frontend Engineer')
-    //   await searchBox.press('Enter')
-
-    //   await expect(page.locator('.antiTable-body__row')).toHaveCount(1)
-
-    //   await searchBox.fill('')
-    //   await searchBox.press('Enter')
-
     //   await expect(page.locator('text=M. Marina')).toBeVisible()
     //   expect(await page.locator('.antiTable-body__row').count()).toBeGreaterThan(2)
     // })

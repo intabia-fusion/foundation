@@ -331,7 +331,6 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   const ipcMain = ipcMainExposed()
   const config: Config = await ipcMain.config()
   const myBranding: Branding = await ipcMain.branding()
-  // await (await fetch(devConfig? '/config-dev.json' : '/config.json')).json()
   console.log('loading configuration', config)
   console.log('loaded branding', myBranding)
 

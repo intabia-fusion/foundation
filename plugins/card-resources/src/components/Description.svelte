@@ -43,23 +43,6 @@
     try {
       const uploadFile = await getResource(attachment.helper.UploadFile)
       const { uuid } = await uploadFile(file)
-      // const attachmentId: Ref<Attachment> = generateId()
-
-      // await client.addCollection(
-      //   attachment.class.Embedding,
-      //   doc.space,
-      //   doc._id,
-      //   doc._class,
-      //   'embeddings',
-      //   {
-      //     file: uuid,
-      //     name: file.name,
-      //     type: file.type,
-      //     size: file.size,
-      //     lastModified: file.lastModified
-      //   },
-      //   attachmentId
-      // )
 
       return { file: uuid, type: file.type }
     } catch (err: any) {

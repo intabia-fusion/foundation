@@ -208,7 +208,6 @@ class ClientImpl implements Client, BackupClient {
           }
         }
       } catch (err) {
-        // console.error('failed to apply model transaction, skipping', t)
         continue
       }
     }

@@ -33,8 +33,6 @@
   export let comparedYdoc: Ydoc | undefined = undefined
   export let comparedField: string | undefined = undefined
 
-  // export let mode: 'unified' = 'unified'
-
   let element: HTMLElement
   let editor: Editor
 

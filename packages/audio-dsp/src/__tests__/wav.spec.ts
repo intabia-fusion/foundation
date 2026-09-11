@@ -82,14 +82,12 @@ describe('WAV utilities', () => {
     })
 
     it('should calculate correct byte rate', () => {
-      // byteRate = sampleRate * channels * (bitsPerSample / 8)
       const header = createWavHeader(1000, 44100, 2, 16)
       const view = new DataView(header.buffer)
       expect(view.getUint32(28, true)).toBe(44100 * 2 * 2)
     })
 
     it('should calculate correct block align', () => {
-      // blockAlign = channels * (bitsPerSample / 8)
       const header = createWavHeader(1000, 16000, 2, 16)
       const view = new DataView(header.buffer)
       expect(view.getUint16(32, true)).toBe(2 * 2)

@@ -254,9 +254,7 @@ function getV1Migration (ns: string, flavor: DBFlavor): [string, string] {
         CONSTRAINT members_account_fk FOREIGN KEY (account_uuid) REFERENCES ${ns}.account(uuid)
     );
 
-    /* ========================================================================================== */
     /* MAIN SCHEMA ENDS HERE */
-    /* ===================== */
 
     /* ======= O T P ======= */
     CREATE TABLE IF NOT EXISTS ${ns}.otp (

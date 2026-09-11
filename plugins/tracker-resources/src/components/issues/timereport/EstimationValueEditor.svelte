@@ -30,7 +30,6 @@
   export let size: ButtonSize = 'small'
   export let justify: 'left' | 'center' = 'left'
   export let width: string | undefined = '100%'
-  // export let attributeKey: string | undefined = undefined
 
   // $: childInfos = object?.childInfo ?? []
   // $: treeResult = reduceChildInfoTree(childInfos, 0, 0)

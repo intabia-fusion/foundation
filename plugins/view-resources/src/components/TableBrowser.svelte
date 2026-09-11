@@ -32,7 +32,6 @@
   export let options: FindOptions<Doc> | undefined = undefined
   export let baseMenuClass: Ref<Class<Doc>> | undefined = undefined
   export let config: Array<BuildModelKey | string>
-  // export let showFilterBar = true
   export let enableChecking = true
   export let tableId: string | undefined = undefined
   export let fade: FadeOptions = tableSP

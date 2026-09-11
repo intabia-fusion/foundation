@@ -2505,14 +2505,6 @@ describe('account operations', () => {
           email: mockEmail
         })
 
-        // expect(global.fetch).toHaveBeenCalledWith(`${mailUrl}/send`, {
-        //   method: 'post',
-        //   headers: {
-        //     'Content-Type': 'application/json',
-        //     Authorization: `Bearer ${mailAuth}`
-        //   },
-        //   body: expect.stringContaining(mockEmail)
-        // })
       })
 
       test('should fail if email not found', async () => {

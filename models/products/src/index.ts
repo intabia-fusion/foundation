@@ -341,20 +341,6 @@ function defineProductVersion (builder: Builder): void {
     inlineEditor: products.component.ProductVersionInlineEditor
   })
 
-  // builder.createDoc(
-  //   presentation.class.ObjectSearchCategory,
-  //   core.space.Model,
-  //   {
-  //     title: products.string.ProductVersions,
-  //     icon: products.icon.ProductVersion,
-  //     label: products.string.SearchProductVersion,
-  //     query: products.completion.ProductVersionQuery,
-  //     context: ['search', 'mention', 'spotlight'],
-  //     classToSearch: products.class.ProductVersion
-  //   },
-  //   products.completion.ProductVersionQueryCategory
-  // )
-
   builder.createDoc(
     view.class.Viewlet,
     core.space.Model,

@@ -54,8 +54,6 @@ interface InlineState {
   marks: MarkupMark[]
 }
 
-// *************************************************************
-
 function backticksFor (side: boolean): string {
   return side ? '`' : '`'
 }
@@ -86,8 +84,6 @@ const formatTodoItem: FirstDelim = (i, attrs, parentAttrs?: Record<string, any>)
   return `${bullet} [${attrs?.checked === true ? 'x' : ' '}] ${meta}`
 }
 
-// *************************************************************
-
 export const storeNodes: Record<string, NodeProcessor> = {
   blockquote: (state, node) => {
     state.wrapBlock('> ', null, node, () => {
@@ -98,7 +94,6 @@ export const storeNodes: Record<string, NodeProcessor> = {
     state.write('```' + `${nodeAttrs(node).language ?? ''}` + '\n')
     // TODO: Check for node.textContent
     state.renderInline(node)
-    // state.text(node.text ?? '', false)
     state.ensureNewLine()
     state.write('```')
     state.closeBlock(node)

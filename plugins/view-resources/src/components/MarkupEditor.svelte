@@ -22,14 +22,11 @@
   import type { EditorKitOptions } from '@hcengineering/text-editor-resources'
   import textEditorPlugin from '@hcengineering/text-editor'
 
-  // export let label: IntlString
   export let placeholder: IntlString = textEditorPlugin.string.EditorPlaceholder
   export let value: string
-  // export let focus: boolean = false
   export let onChange: (value: string) => void
   export let kind: 'no-border' | 'link' = 'no-border'
   export let readonly = false
-  // export let size: ButtonSize = 'x-large'
   export let justify: 'left' | 'center' = 'center'
   export let width: string | undefined = 'fit-content'
   export let kitOptions: Partial<EditorKitOptions> = { reference: true, emoji: true }

@@ -82,7 +82,6 @@
     revert?: () => void
   }
   export let listDiv: HTMLDivElement
-  // export let index: number
   export let groupPersistKey: string
   export let compactMode: boolean = false
   export let resultQuery: DocumentQuery<Doc>

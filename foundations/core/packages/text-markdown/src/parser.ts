@@ -62,9 +62,7 @@ interface ParsingIgnoreRule {
 type HandlerRecord = (state: MarkdownParseState, tok: Token) => void
 type HandlersRecord = Record<string, HandlerRecord>
 
-// ****************************************************************
 // Markdown parser
-// ****************************************************************
 function isText (a: MarkupNode, b: MarkupNode): boolean {
   return (a.type === MarkupNodeType.text || a.type === MarkupNodeType.reference) && b.type === MarkupNodeType.text
 }

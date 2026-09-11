@@ -74,19 +74,6 @@
       return
     }
     requestUpdate = false
-    // showPopup(
-    //   MessageBox,
-    //   {
-    //     label: survey.string.SurveySubmit,
-    //     message: survey.string.SurveySubmitConfirm
-    //   },
-    //   undefined,
-    //   async (result?: boolean) => {
-    //     if (result === true && object !== undefined) {
-    //       await getClient().updateDoc(object._class, object.space, object._id, { isCompleted: true })
-    //     }
-    //   }
-    // )
     await getClient().updateDoc(object._class, object.space, object._id, { isCompleted: true })
   }
 

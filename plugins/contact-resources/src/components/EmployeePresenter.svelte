@@ -22,7 +22,6 @@
   export let colorInherit: boolean = false
   export let accent: boolean = false
   export let defaultName: IntlString | undefined = ui.string.NotSelected
-  // export let element: HTMLElement | undefined = undefined
   export let noUnderline: boolean = false
   export let compact: boolean = false
   export let showStatus: boolean = false

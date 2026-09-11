@@ -29,7 +29,6 @@ export async function bmpToPng (ctx: MeasureContext, bmpFile: string): Promise<s
 
   // Manually convert to RGBA as library does not seem to handle this properly
   for (let i = 0; i < data.data.length; i += 4) {
-    // const a = data.data[i + 0]
     const b = data.data[i + 1]
     const g = data.data[i + 2]
     const r = data.data[i + 3]

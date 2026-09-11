@@ -48,9 +48,7 @@ function applyTransformFunction (val: unknown, call: WorkflowTransformCall): unk
   return transform != null ? transform(val, call.props ?? {}) : val
 }
 
-// ----------------------------------------------------------------------------
 // Specific Transformer Implementations using real workflow.function.* _ids
-// ----------------------------------------------------------------------------
 
 const STRING_TRANSFORMS: Record<Ref<WorkflowValueFunction>, TransformFn> = {
   [workflow.function.UpperCase]: (v) => (v != null ? stringifyValue(v).toUpperCase() : v),

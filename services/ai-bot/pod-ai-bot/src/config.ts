@@ -202,16 +202,13 @@ interface Config {
   // Fallback language for the bot's non-personal replies when a space has none set.
   DefaultLanguage: string
 
-  // ******************
   // Openai
   OpenAIKey: string
   OpenAIModel: OpenAI.ChatModel
   OpenAIBaseUrl: string
   OpenAITranslateModel: OpenAI.ChatModel
   OpenAISummaryModel: OpenAI.ChatModel
-  // ******************
 
-  // ******************
   // GigaChat configuration
   GigaChatCredentials: string
   GigaChatScope: string
@@ -219,10 +216,8 @@ interface Config {
   GigaChatBaseUrl: string
   GigaChatTimeout: string
   GigaChatMaxTokens: number
-  // ******************
 
   DataLabApiKey: string
-  // ******************
 
   // SttProvider is an opt-out switch: 'none' disables ASR even when the yaml `asr:` block is
   // present. Actual provider/model come from AsrProviders. Env: STT_PROVIDER.

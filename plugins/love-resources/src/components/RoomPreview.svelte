@@ -36,7 +36,6 @@
   import { IntlString } from '@hcengineering/platform'
   import { lkSessionConnected } from '../liveKitClient'
   import { AccountUuid, clone, getCurrentAccount, Ref } from '@hcengineering/core'
-  // import RoomLanguage from './RoomLanguage.svelte'
   import PersonActionPopup from './PersonActionPopup.svelte'
 
   export let room: Room

@@ -793,11 +793,6 @@ export function createModel (builder: Builder): void {
   //   }
   // })
 
-  // builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
-  //   extension: workbench.extensions.WorkbenchExtensions,
-  //   component: process.component.NotifierExtension
-  // })
-
   builder.createDoc(process.class.UpdateCriteriaComponent, core.space.Model, {
     category: 'attribute',
     editor: process.criteriaEditor.BaseCriteria,

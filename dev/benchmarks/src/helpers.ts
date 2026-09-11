@@ -38,9 +38,7 @@ import { makeRank } from '@hcengineering/rank'
 
 import type { BenchConfig } from './config'
 
-// ---------------------------------------------------------------------------
 // Stats
-// ---------------------------------------------------------------------------
 
 export interface StepStats {
   label: string
@@ -115,9 +113,7 @@ export function trackError (errors: Map<string, number>, err: any): void {
   errors.set(msg, (errors.get(msg) ?? 0) + 1)
 }
 
-// ---------------------------------------------------------------------------
 // Connection pool
-// ---------------------------------------------------------------------------
 
 export interface ConnectionPool {
   config: ServerConfig
@@ -169,9 +165,7 @@ export async function makeTxClient (wsToken: WorkspaceToken): Promise<TxOperatio
   return await createRestTxOperations(wsToken.endpoint, wsToken.workspaceId, wsToken.token)
 }
 
-// ---------------------------------------------------------------------------
 // Project helpers
-// ---------------------------------------------------------------------------
 
 export async function ensureProject (
   conn: RestClient,

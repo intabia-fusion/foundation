@@ -20,7 +20,6 @@
   import { createEventDispatcher } from 'svelte'
   import recruit from '../plugin'
 
-  // export let _class: Ref<Class<Doc>>
   export let filter: Filter
   export let onChange: (e: Filter) => void
 

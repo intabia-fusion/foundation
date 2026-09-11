@@ -28,8 +28,6 @@ describe('network client tests', () => {
       const client = createNetworkClient('localhost:37371')
       await client.waitConnection()
 
-      // const agents = await client.agents()
-      // expect(agents).toBeDefined()
       clients.push(client)
       const ed = performance.now()
       total += ed - st

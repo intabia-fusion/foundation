@@ -100,7 +100,6 @@ export const DOMAIN_GITHUB_COMMENTS = 'github_comments' as Domain
 
 @Model(github.class.DocSyncInfo, core.class.Doc, DOMAIN_GITHUB_SYNC)
 export class TDocSyncInfo extends TDoc implements DocSyncInfo {
-  // _id === objectId
   @Prop(TypeNumber(), getEmbeddedLabel('Github number'))
   @ReadOnly()
   @Index(IndexKind.Indexed)
@@ -890,24 +889,6 @@ export function createModel (builder: Builder): void {
 
   // TODO: Need rework this functionality, for now we need to allow set any user,
   // and github integration will skip change of field if value is not have a proper mixin instead.
-
-  // builder.createDoc(presentation.class.DocRules, core.space.Model, {
-  //   ofClass: tracker.class.Issue,
-  //   fieldRules: [
-  //     {
-  //       field: 'assignee',
-  //       query: {},
-  //       mixin: github.mixin.GithubIssue,
-  //       fieldQuery: {
-  //         [github.mixin.GithubUser + '.url']: { $exists: true }
-  //       },
-  //       fieldQueryFill: {},
-  //       allowConflict: false,
-  //       disableUnset: true,
-  //       disableEdit: true
-  //     }
-  //   ]
-  // })
 
   builder.mixin(github.class.DocSyncInfo, core.class.Class, core.mixin.IndexConfiguration, {
     indexes: [],

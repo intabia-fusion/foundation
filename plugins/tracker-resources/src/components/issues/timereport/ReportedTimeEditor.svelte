@@ -31,7 +31,6 @@
     DraftTimeReportService
   } from './service'
 
-  // export let label: IntlString
   export let placeholder: IntlString
   export let object: Issue
   export let value: number

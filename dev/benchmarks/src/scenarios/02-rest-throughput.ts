@@ -41,9 +41,7 @@ interface StepResult {
   stats: StepStats
 }
 
-// ---------------------------------------------------------------------------
 // Individual operations
-// ---------------------------------------------------------------------------
 
 async function opFindAllSpaces (client: RestClient): Promise<void> {
   await client.findAll(core.class.Space, {}, { limit: 100 })
@@ -73,9 +71,7 @@ async function opUpdateIssue (client: RestClient, issueIds: Array<Ref<Issue>>): 
   }
 }
 
-// ---------------------------------------------------------------------------
 // Run one step: N clients, one operation, fixed duration
-// ---------------------------------------------------------------------------
 
 async function runStep (
   clients: RestClient[],
@@ -144,9 +140,7 @@ async function runStep (
   return calcStats(`${operation}(${clients.length} clients)`, timings, wallMs, errors)
 }
 
-// ---------------------------------------------------------------------------
 // Public entry point
-// ---------------------------------------------------------------------------
 
 export async function runRestThroughput (cfg: BenchConfig, pool: ConnectionPool): Promise<StepResult[]> {
   console.log(`\n========================================`)

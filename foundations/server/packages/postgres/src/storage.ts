@@ -2105,7 +2105,6 @@ export class PostgresAdapter extends PostgresAdapterBase {
           }
           if (Object.keys(remainingData).length > 0) {
             const jsonData: Record<string, any> = {}
-            // const vals: string[] = []
             for (const key in remainingData) {
               if (ops[key] === undefined) continue
               const val = (remainingData as any)[key]

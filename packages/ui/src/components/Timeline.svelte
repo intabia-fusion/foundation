@@ -458,7 +458,6 @@
     // z-index: 2;
   }
   .timeline-header__time {
-    // overflow: hidden;
     position: relative;
     flex-grow: 1;
     height: 100%;

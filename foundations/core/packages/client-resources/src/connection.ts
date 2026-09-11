@@ -594,7 +594,6 @@ class Connection implements ClientConnection {
             data: resp.result as FindResult<any>
           }
         ]
-        // console.log(socketId, 'chunk', promise.method, promise.params, promise.chunks.length, (resp.result as []).length)
         if (resp.chunk.final) {
           promise.chunks.sort((a, b) => a.index - b.index)
           let result: any[] = []
@@ -701,7 +700,6 @@ class Connection implements ClientConnection {
       getMetadata(client.metadata.ClientSocketFactory) ??
       ((url: string) => {
         const s = new WebSocket(url)
-        // s.binaryType = 'arraybuffer'
         return s as ClientSocket
       })
 

@@ -27,7 +27,6 @@
   } from '@hcengineering/view-resources'
   import contact from '../plugin'
   import CreateContact from './CreateContact.svelte'
-  // import { deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
 
   let search = ''
   let searchQuery: DocumentQuery<Doc> = {}

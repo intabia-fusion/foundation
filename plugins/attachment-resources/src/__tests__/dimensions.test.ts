@@ -65,9 +65,7 @@ describe('Attachment Image Dimensions Suite (calculateAttachmentDimensions)', ()
     })
   })
 
-  // =========================================================================
   // 1. Standard Sizes, Retina Scaling & Default Presets
-  // =========================================================================
   describe('Standard Image Sizes & DPR Retina Scaling', () => {
     const testCases: AttachmentDimensionTestCase[] = [
       {
@@ -130,9 +128,7 @@ describe('Attachment Image Dimensions Suite (calculateAttachmentDimensions)', ()
     }
   })
 
-  // =========================================================================
   // 2. Square-ish Logo Capping (Ratio 0.85 to 1.18)
-  // =========================================================================
   describe('Square-ish Logo Capping (6rem = 96px cap for 0.85 <= ratio <= 1.18)', () => {
     const testCases: AttachmentDimensionTestCase[] = [
       {
@@ -176,9 +172,7 @@ describe('Attachment Image Dimensions Suite (calculateAttachmentDimensions)', ()
     }
   })
 
-  // =========================================================================
   // 3. Micro & Small Single Pixel / Tiny Images
-  // =========================================================================
   describe('Micro & Small Single Pixel / Tiny Images', () => {
     const testCases: AttachmentDimensionTestCase[] = [
       {
@@ -222,9 +216,7 @@ describe('Attachment Image Dimensions Suite (calculateAttachmentDimensions)', ()
     }
   })
 
-  // =========================================================================
   // 4. Ultra-Thin Vertical & Horizontal Lines
-  // =========================================================================
   describe('Ultra-Thin Lines (1xX & Xx1)', () => {
     const testCases: AttachmentDimensionTestCase[] = [
       {
@@ -286,9 +278,7 @@ describe('Attachment Image Dimensions Suite (calculateAttachmentDimensions)', ()
     }
   })
 
-  // =========================================================================
   // 5. Extreme Panoramic & Tall Aspect Ratios
-  // =========================================================================
   describe('Extreme Panoramic & Tall Aspect Ratios', () => {
     const testCases: AttachmentDimensionTestCase[] = [
       {
@@ -332,9 +322,7 @@ describe('Attachment Image Dimensions Suite (calculateAttachmentDimensions)', ()
     }
   })
 
-  // =========================================================================
   // 6. Fallback & Missing Metadata Handling
-  // =========================================================================
   describe('Fallback & Missing Metadata Handling', () => {
     test('returns default fallback when metadata is undefined', () => {
       const dims = calculateAttachmentDimensions(undefined, 'x-large', 1)
@@ -362,9 +350,7 @@ describe('Attachment Image Dimensions Suite (calculateAttachmentDimensions)', ()
   })
 })
 
-// =========================================================================
 // 7. Core Low-Level Utility Unit Tests (getImageDimensions)
-// =========================================================================
 describe('Low-Level Utility Unit Tests (getImageDimensions)', () => {
   test('enforces min bounds when enforceMinBounds option is true', () => {
     const dims = getImageDimensions(

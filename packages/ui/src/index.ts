@@ -59,7 +59,6 @@ export {
   accentColorOptions,
   type AccentColorOption
 } from '@hcengineering/theme'
-// export { applicationShortcutKey } from './utils'
 export { getCurrentLocation, locationToUrl, navigate, location, setLocationStorageKey } from './location'
 
 export { default as EditBox } from './components/EditBox.svelte'
@@ -115,8 +114,6 @@ export { default as Html } from './components/Html.svelte'
 export { default as StylishEdit } from './components/StylishEdit.svelte'
 export { default as Grid } from './components/Grid.svelte'
 export { default as Row } from './components/Row.svelte'
-// export { default as CheckBoxWithLabel } from './components/CheckBoxWithLabel.svelte'
-// export { default as CheckBoxList } from './components/CheckBoxList.svelte.txt'
 export { default as EditWithIcon } from './components/EditWithIcon.svelte'
 export { default as SearchEdit } from './components/SearchEdit.svelte'
 export { default as SearchPicker } from './components/SearchPicker.svelte'

@@ -790,7 +790,6 @@
       }
     }
     if (offset === 0) {
-      // scrollInto(objState, obj)
       dispatch('obj-focus', obj)
     }
   }

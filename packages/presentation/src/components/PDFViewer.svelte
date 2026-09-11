@@ -13,7 +13,6 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  // import { Doc } from '@hcengineering/core'
   import type { Blob, Ref } from '@hcengineering/core'
   import { Button, Dialog, EmbeddedPDF, Label, Spinner } from '@hcengineering/ui'
   import { createEventDispatcher, onMount } from 'svelte'
@@ -24,8 +23,6 @@
   export let file: Ref<Blob> | undefined
   export let name: string
   export let contentType: string | undefined
-  // export let popupOptions: PopupOptions
-  // export let value: Doc
   export let showIcon = true
   export let fullSize = false
   export let isLoading = false

@@ -1002,8 +1002,6 @@ export function createModel (builder: Builder): void {
     enabledTypes: [love.ids.MeetingMinutesChatNotification]
   })
 
-  // defineCollaborators(builder, love.class.MeetingMinutes, { fields: ['createdBy'], provideSecurity: true })
-
   builder.mixin(love.class.Room, core.class.Class, core.mixin.IndexConfiguration, {
     indexes: [],
     searchDisabled: true

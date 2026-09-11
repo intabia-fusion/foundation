@@ -419,7 +419,6 @@ export async function fetchWorkspace (): Promise<[Status, WorkspaceInfoWithStatu
     const workspaceWithStatus = await getAccountClient(token).getWorkspaceInfo(true)
 
     Analytics.handleEvent('Fetch workspace')
-    // Analytics.setWorkspace(workspaceWithStatus.url)
 
     return [OK, workspaceWithStatus, true]
   } catch (err: any) {

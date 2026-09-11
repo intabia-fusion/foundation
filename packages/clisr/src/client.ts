@@ -618,7 +618,6 @@ export class ClisrClient {
       this.opt?.socketFactory ??
       ((url: string) => {
         const s = new WebSocket(url)
-        // s.binaryType = 'arraybuffer'
         return s as ClientSocket
       })
 

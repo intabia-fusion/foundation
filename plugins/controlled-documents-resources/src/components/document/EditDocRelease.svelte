@@ -66,26 +66,6 @@
   //   await client.update($controlledDocument, { plannedEffectiveDate })
   // }
 
-  // let selectedDate: Timestamp =
-  //   $controlledDocument?.plannedEffectiveDate != null && $controlledDocument?.plannedEffectiveDate > 0
-  //     ? $controlledDocument.plannedEffectiveDate
-  //     : Date.now()
-
-  // let selected: IntlString | undefined = undefined
-  // if ($controlledDocument?.plannedEffectiveDate === 0) {
-  //   selected = documentsRes.string.EffectiveImmediately
-  // } else if ($controlledDocument?.plannedEffectiveDate != null) {
-  //   selected = documentsRes.string.EffectiveOn
-  // }
-
-  // async function changeSelectedDate (ev: CustomEvent) {
-  //   if (ev.detail !== undefined) {
-  //     selectedDate = ev.detail
-  //     await changePlannedEffectiveDate(ev.detail)
-  //     selected = documentsRes.string.EffectiveOn
-  //   }
-  // }
-
   const reviewIntervals: DropdownTextItem[] = []
   for (const interval of periodicReviewIntervals) {
     reviewIntervals.push({

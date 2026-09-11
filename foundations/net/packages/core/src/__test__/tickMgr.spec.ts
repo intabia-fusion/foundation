@@ -5,7 +5,6 @@ describe('check tickManager', () => {
     const mgr = new TickManagerImpl(20)
     const h1 = mgr.hashCounter++ % mgr.tps
 
-    // await mgr.tick()
     expect(mgr.isMe(h1, 1)).toBe(true)
     expect(mgr.isMe(h1, 2)).toBe(true)
     expect(mgr.isMe(h1, 3)).toBe(true)

@@ -23,7 +23,6 @@
   export let displayedDaysCount = 7
   export let displayedHours = 24
   export let startFromWeekStart = true
-  // export let startHour = 0
 
   const dispatch = createEventDispatcher()
 

@@ -23,7 +23,6 @@
   import EventPresenter from './EventPresenter.svelte'
 
   export let event: Event
-  // export let hourHeight: number
   export let size: { width: number, height: number }
 
   $: oneRow = size.height < 42 || event.allDay

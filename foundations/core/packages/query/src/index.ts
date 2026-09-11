@@ -1126,7 +1126,6 @@ export class LiveQuery implements WithTx, Client {
     for (const queries of this.queries.entries()) {
       const doc = this.client.getHierarchy().isDerived(queries[0], core.class.Tx) ? tx : docTx
       for (const q of queries[1].values()) {
-        // await this.handleDocAdd(q, doc, true, docCache)
         if (this.match(q, doc, q.options?.lookup !== undefined)) {
           await this.handleDocAdd(q, doc, true, docCache)
         }

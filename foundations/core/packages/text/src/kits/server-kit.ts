@@ -31,10 +31,8 @@ export const ServerKitFactory = (e: ExtensionFactory) =>
   ({
     ...CommonKitFactory(e),
 
-    // ==========================================================================================
     // Extensions and kits with separate / extended implementations in the client-side editor kit
     // See file://./../../../../plugins/text-editor-resources/src/kits/editor-kit.ts
-    // =============================================================================
 
     lists: e(ListKit),
     codeSnippets: e(CodeSnippetsKit),

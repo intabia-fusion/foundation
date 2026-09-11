@@ -536,7 +536,6 @@ abstract class MongoAdapterBase implements DbAdapter {
     for (const association of associations) {
       const _id = association[0]
       const isReverse = association[1] === -1
-      // const key = _id + (isReverse ? '.a' : '.b')
       const fullId = _id + (isReverse ? '_a' : '_b')
       const assocKey = parentKey + fullId + '_hidden_association'
       const data = source[assocKey]

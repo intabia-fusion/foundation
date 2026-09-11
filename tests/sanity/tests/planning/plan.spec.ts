@@ -271,7 +271,6 @@ test.describe('Planning ToDo tests', () => {
     await loginPage.login(data.userName, '1234')
     const swp = new SelectWorkspacePage(page)
     await swp.selectWorkspace(data.workspaceName)
-    // await (await page.goto(`${PlatformURI}/workbench/${data.workspaceName}`))?.finished()
     await leftSideMenuPage.clickPlanner()
 
     const planningNavigationMenuPage = new PlanningNavigationMenuPage(page)

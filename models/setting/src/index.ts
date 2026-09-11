@@ -292,19 +292,6 @@ export function createModel (builder: Builder): void {
     },
     setting.ids.Members
   )
-  // builder.createDoc(
-  //   setting.class.WorkspaceSettingCategory,
-  //   core.space.Model,
-  //   {
-  //     name: 'allSpaces',
-  //     label: setting.string.Spaces,
-  //     icon: setting.icon.Views,
-  //     component: setting.component.Spaces,
-  //     order: 1100,
-  //     role: AccountRole.Maintainer
-  //   },
-  //   setting.ids.Spaces
-  // )
   builder.createDoc(
     setting.class.WorkspaceSettingCategory,
     core.space.Model,

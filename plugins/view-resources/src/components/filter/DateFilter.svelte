@@ -20,8 +20,6 @@
   import { createEventDispatcher, onMount } from 'svelte'
   import view from '../../plugin'
 
-  // export let _class: Ref<Class<Doc>>
-  // export let space: Ref<Space> | undefined = undefined
   export let filter: Filter
   export let onChange: (e: Filter) => void
 

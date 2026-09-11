@@ -131,9 +131,7 @@ describe('WorkflowMiddleware', () => {
     middleware = WorkflowMiddleware.create(mockClient, mockNext)
   })
 
-  // =========================================================================
   // Helper factories
-  // =========================================================================
 
   function createMockUpdateTx<T extends Doc> (
     objectId: Ref<T>,
@@ -272,9 +270,7 @@ describe('WorkflowMiddleware', () => {
     } as unknown as ScreenField
   }
 
-  // =========================================================================
   // 1. Middleware Lifecycle & Presentation Pipeline Integration
-  // =========================================================================
   describe('Lifecycle & Pipeline Integration', () => {
     it('should create instance via WorkflowMiddleware.create without next', () => {
       const mw = WorkflowMiddleware.create(mockClient)
@@ -311,9 +307,7 @@ describe('WorkflowMiddleware', () => {
     })
   })
 
-  // =========================================================================
   // 2. Transaction Pass-Through (Bypass / Non-Task)
-  // =========================================================================
   describe('Transaction Pass-Through', () => {
     it('should delegate non-TxUpdateDoc transactions directly to provideTx', async () => {
       const createTx = createMockCreateTx('doc-1' as Ref<Doc>, 'some:class' as Ref<Class<Doc>>, { name: 'Item' })
@@ -361,9 +355,7 @@ describe('WorkflowMiddleware', () => {
     })
   })
 
-  // =========================================================================
   // 3. Status Transition Bypasses (No Status Change / Task Missing)
-  // =========================================================================
   describe('Status Transition Bypasses', () => {
     it('should pass through when update operations do not contain status', async () => {
       const updateTx = createMockUpdateTx('task-1' as Ref<Task>, task.class.Task, {
@@ -413,9 +405,7 @@ describe('WorkflowMiddleware', () => {
     })
   })
 
-  // =========================================================================
   // 4. Workflow Resolution (`getWorkflowForTask`)
-  // =========================================================================
   describe('Workflow Resolution (getWorkflowForTask)', () => {
     it('should pass through when project is not found', async () => {
       const existingTask = createMockTask('task-1', 'issue', 'todo', 'proj-unknown')
@@ -515,9 +505,7 @@ describe('WorkflowMiddleware', () => {
     })
   })
 
-  // =========================================================================
   // 5. Transition Matching & Rejection
-  // =========================================================================
   describe('Transition Matching & Rejection', () => {
     it('should throw PlatformError when no transition matches toStatus', async () => {
       const existingTask = createMockTask('task-1', 'issue', 'todo', 'proj-1')
@@ -666,9 +654,7 @@ describe('WorkflowMiddleware', () => {
     })
   })
 
-  // =========================================================================
   // 6. Screen Requests Evaluation
-  // =========================================================================
   describe('Screen Requests Evaluation', () => {
     it('should pass through when transition has no requests property', async () => {
       const existingTask = createMockTask('task-1', 'issue', 'todo', 'proj-1')
@@ -975,9 +961,7 @@ describe('WorkflowMiddleware', () => {
     })
   })
 
-  // =========================================================================
   // 7. Screen Ordering & Modal Presentation Flow
-  // =========================================================================
   describe('Screen Ordering & Modal Presentation Flow', () => {
     it('should preserve screen ordering from screenRequests and skip screens with 0 fields', async () => {
       const existingTask = createMockTask('task-1', 'issue', 'todo', 'proj-1')
@@ -1179,9 +1163,7 @@ describe('WorkflowMiddleware', () => {
     })
   })
 
-  // =========================================================================
   // 8. ScreenModal Results & Extra Transactions
-  // =========================================================================
   describe('ScreenModal Results & Extra Transactions Application', () => {
     it('should merge modal updates into updateTx operations when no extra txes', async () => {
       const existingTask = createMockTask('task-1', 'issue', 'todo', 'proj-1')

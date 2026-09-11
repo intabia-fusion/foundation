@@ -20,7 +20,6 @@
   import { getDefaultHiddenApps, hideApplication, isAllowedToRole, showApplication } from '../utils'
   import { Loading, IconCheck, Label, Icon, deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { getMetadata } from '@hcengineering/platform'
-  // import Drag from './icons/Drag.svelte'
 
   export let apps: Application[] = []
 

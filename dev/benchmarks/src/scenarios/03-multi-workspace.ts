@@ -42,9 +42,7 @@ import {
 } from '../helpers'
 import { createWorkspaces, connectToWorkspaces, type WorkspaceInfo } from '../workspace-manager'
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 interface WorkspaceStepResult {
   workspaceName: string
@@ -60,9 +58,7 @@ interface MultiWorkspaceResult {
   aggregate: StepStats
 }
 
-// ---------------------------------------------------------------------------
 // Per-workspace worker
-// ---------------------------------------------------------------------------
 
 async function runWorkspaceWorker (
   wsInfo: WorkspaceInfo,
@@ -186,9 +182,7 @@ async function runWorkspaceWorker (
   return results
 }
 
-// ---------------------------------------------------------------------------
 // Public entry point
-// ---------------------------------------------------------------------------
 
 export async function runMultiWorkspace (cfg: BenchConfig): Promise<MultiWorkspaceResult> {
   const wsCount = cfg.workspaces

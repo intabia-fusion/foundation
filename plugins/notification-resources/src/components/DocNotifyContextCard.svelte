@@ -181,12 +181,6 @@
     dispatch('clear')
   }
 
-  // function canShowTooltip (group: InboxNotification[]): boolean {
-  //   const first = group[0]
-  //
-  //   return canGroup(first)
-  // }
-
   function getKey (group: InboxNotification[]): string {
     return group.map((it) => it._id).join('-')
   }

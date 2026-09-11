@@ -538,7 +538,6 @@ export async function compactBackup (
 
           const tmpFile = join(tmpRoot, basename(storageFile) + '.tmp')
           const tempFile = createWriteStream(tmpFile)
-          // const dataStream = await storage.write(storageFile)
 
           const sizePass = new PassThrough()
           let sz = 0
@@ -1063,7 +1062,6 @@ export async function loadDigest (
       break
     }
   }
-  // ctx.info('load-digest', { domain, snapshots: snapshots.length, documents: result.size })
   return result
 }
 export async function verifyDigest (

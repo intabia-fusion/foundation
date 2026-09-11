@@ -29,8 +29,6 @@ const application = config.ServiceID
 const setupMetadata = (): void => {
   setMetadata(serverToken.metadata.Secret, config.Secret)
   setMetadata(serverToken.metadata.Service, config.ServiceID)
-  // setMetadata(serverClient.metadata.Endpoint, config.AccountsUrl)
-  // setMetadata(serverClient.metadata.UserAgent, config.ServiceID)
 }
 
 async function main (): Promise<void> {

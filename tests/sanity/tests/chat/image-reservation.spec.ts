@@ -100,9 +100,7 @@ test.describe('Chat image container space reservation tests', () => {
       // Container lookup must succeed immediately (within 1s), well before network response
       await expect(container).toBeVisible({ timeout: 1000 })
 
-      // ==========================================
       // 1. Space reserved immediately (BEFORE LOAD) - Exact expected value assertion
-      // ==========================================
       const boxBeforeLoad = await container.boundingBox()
       expect(boxBeforeLoad).not.toBeNull()
       expect(boxBeforeLoad?.width).toBeCloseTo(expectedWidth, 1)
@@ -112,16 +110,12 @@ test.describe('Chat image container space reservation tests', () => {
       const styleAttr = await container.getAttribute('style')
       expect(styleAttr).toContain('aspect-ratio')
 
-      // ==========================================
       // 2. Preview exists (Blurhash canvas during network loading)
-      // ==========================================
       // Check preview immediately within 1s (while network request is delayed by 5s)
       const canvasPreview = container.locator('canvas').first()
       await expect(canvasPreview).toBeVisible({ timeout: 1000 })
 
-      // ==========================================
       // 3. Dimensions after load remain unchanged - Exact expected value assertion
-      // ==========================================
       // The route above holds the image for 5s. Wait for it to actually arrive rather than for a
       // sleep long enough to cover it - the assertion below is about the size after the load.
       const imgElement = container.locator('img').first()

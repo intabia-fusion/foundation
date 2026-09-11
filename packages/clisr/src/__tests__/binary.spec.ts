@@ -297,9 +297,7 @@ describe('integration: binary requests over WebSocket', () => {
     }
   })
 
-  // ============================================
   // Mixed binary/JSON request-response tests
-  // ============================================
 
   it('client sends binary request and receives JSON response (e.g., file upload -> transcription)', async () => {
     const ctx = new MeasureMetricsContext('clisr-binary-to-json', {})
@@ -603,9 +601,7 @@ describe('integration: binary requests over WebSocket', () => {
     }
   })
 
-  // ============================================
   // Headers tests
-  // ============================================
 
   it('client sends binary request with headers to server', async () => {
     const ctx = new MeasureMetricsContext('clisr-binary-headers', {})

@@ -27,12 +27,6 @@
   }
 
   function getTitle (day: Date, now: Timestamp): IntlString {
-    // const today = new Date(now)
-    // const tomorrow = new Date(new Date(now).setDate(new Date(now).getDate() + 1))
-    // const yesterday = new Date(new Date(now).setDate(new Date(now).getDate() - 1))
-    // if (areDatesEqual(day, today)) return time.string.Today
-    // if (areDatesEqual(day, yesterday)) return time.string.Yesterday
-    // if (areDatesEqual(day, tomorrow)) return time.string.Tomorrow
     const isCurrentYear = day.getFullYear() === new Date().getFullYear()
     return getEmbeddedLabel(
       day.toLocaleDateString('default', {

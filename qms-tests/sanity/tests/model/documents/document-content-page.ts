@@ -556,9 +556,6 @@ export class DocumentContentPage extends DocumentCommonPage {
 
   async fillTeamspaceFormManager (spaceName: string): Promise<void> {
     await this.page.getByPlaceholder('New teamspace').fill(spaceName)
-    // await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).first().click()
-    // await this.page.getByRole('button', { name: 'DK Dirak Kainin' }).nth(2).click()
-    // await this.page.keyboard.press('Escape')
     await this.page.waitForTimeout(1000)
     await this.createButton.click()
   }

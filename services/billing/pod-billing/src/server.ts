@@ -56,8 +56,6 @@ import onHeaders from 'on-headers'
 
 const KEEP_ALIVE_TIMEOUT = 5 // seconds
 
-// const cacheControlNoCache = 'public, no-store, no-cache, must-revalidate, max-age=0'
-
 type AsyncRequestHandler = (
   ctx: MeasureContext,
   db: BillingDB,

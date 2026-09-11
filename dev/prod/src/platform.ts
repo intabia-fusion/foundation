@@ -436,7 +436,6 @@ export async function configurePlatform() {
     }
   }
 
-
   setMetadata(platform.metadata.LoadHelper, async (loader) => {
     for (let i = 0; i < 5; i++) {
       try {
@@ -488,13 +487,11 @@ export async function configurePlatform() {
   }
 
   configureAnalytics(config)
-  // tryOpenInDesktopApp(config.APP_PROTOCOL ?? 'huly://')
 
   setMetadata(login.metadata.AccountsUrl, config.ACCOUNTS_URL)
   setMetadata(login.metadata.DisableSignUp, config.DISABLE_SIGNUP === 'true')
   setMetadata(login.metadata.HideLocalLogin, config.HIDE_LOCAL_LOGIN === 'true')
   setMetadata(login.metadata.LoginTheme, config.LOGIN_THEME ?? 'intabia')
-
 
   const updatesUrl = config.DESKTOP_UPDATES_URL
   // NOTE: env format is: default_value;key1:value1;key2:value2...

@@ -425,7 +425,6 @@ export function defineAlpha (dark: boolean, color: string, percent = 100): strin
     g: g * p1 + bg.g * (1 - p1),
     b: b * p1 + bg.b * (1 - p1)
   })
-  // return rgb + addZero(Math.round((percent / 100) * 255).toString(16))
 }
 
 /**

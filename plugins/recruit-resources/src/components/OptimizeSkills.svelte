@@ -30,13 +30,8 @@
 
   const dispatch = createEventDispatcher()
 
-  // const query = createQuery()
-  // const elementsQuery = createQuery()
-  // const refsQuery = createQuery()
-
   let categories: TagCategory[] = []
   let elements: TagElement[] = []
-  // let refs: TagReference[] = []
 
   let loading1: boolean = false
   let loading2: boolean = false

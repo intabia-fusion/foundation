@@ -21,7 +21,6 @@
   export let label: IntlString
   export let value: string
   export let type: EnumOf
-  // export let focus: boolean
   export let onChange: (value: string) => void
   export let kind: ButtonKind = 'link'
   export let size: ButtonSize = 'large'

@@ -104,25 +104,6 @@
     }
     inputFile.value = ''
   }
-  // function onDelete () {
-  //   showPopup(
-  //     MessageBox,
-  //     {
-  //       label: view.string.DeleteObject,
-  //       message: view.string.DeleteObjectConfirm,
-  //       params: { count: filtered.length }
-  //     },
-  //     undefined,
-  //     (result?: boolean) => {
-  //       if (result === true) {
-  //         client.update(value, {
-  //           $pull: { enumValues: { $in: filtered } }
-  //         })
-  //         newValue = ''
-  //       }
-  //     }
-  //   )
-  // }
 
   async function update (value: Enum): Promise<void> {
     await client.update(value, {

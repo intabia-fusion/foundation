@@ -279,7 +279,6 @@ export function fitPopupElement (
     newProps.maxWidth = newProps.width = newProps.minWidth = ''
     if (typeof element !== 'string') {
       const result = fitPopupPositionedElement(modalHTML, element, newProps)
-      // applyStyle(newProps, modalHTML)
       return result
     } else if (element === 'right' && contentPanel !== undefined) {
       const rect = contentPanel.getBoundingClientRect()
@@ -372,7 +371,6 @@ export function fitPopupElement (
       newProps.bottom = '0'
       newProps.left = '0'
       newProps.right = '0'
-      // newProps.width = '100vw'
       newProps.height = '100vh'
       show = false
     } else if (element === 'full' && contentPanel !== undefined) {
@@ -392,10 +390,8 @@ export function fitPopupElement (
     } else if (element === 'content' && contentPanel !== undefined) {
       const rect = contentPanel.getBoundingClientRect()
       newProps.top = `${rect.top}px`
-      // newProps.bottom = `${Math.min(document.body.clientHeight - rect.bottom + 1, window.innerHeight - rect.top - 1)}px`
       newProps.height = `${Math.min(rect.height, window.innerHeight - rect.top)}px`
       newProps.left = `${rect.left}px`
-      // newProps.right = `${Math.min(document.body.clientWidth - rect.right, window.innerWidth - rect.left - 5)}px`
       newProps.width = `${Math.min(rect.width, window.innerWidth - rect.left)}px`
     } else if (element === 'middle') {
       if (contentPanel !== undefined) {
@@ -435,7 +431,6 @@ export function fitPopupElement (
     }
     show = true
   }
-  // applyStyle(newProps, modalHTML)
   return { props: newProps, showOverlay: show, direction: '' }
 }
 

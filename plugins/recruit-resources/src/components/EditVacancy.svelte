@@ -52,7 +52,6 @@
   const client = getClient()
 
   const query = createQuery()
-  // const clazz = client.getHierarchy().getClass(recruit.class.Vacancy)
 
   function updateObject (_id: Ref<Vacancy>): void {
     if (lastId !== _id) {

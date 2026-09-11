@@ -27,9 +27,6 @@
 
   let space: Space
 
-  // export let label: IntlString
-  // export let icon: Asset | AnySvelteComponent
-
   const dispatch = createEventDispatcher()
 
   const client = getClient()

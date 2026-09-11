@@ -730,7 +730,6 @@ export async function backup (
             domainInfo.storage = [...(domainInfo.storage ?? []), storageFile]
             const tmpFile = join(tmpRoot, basename(storageFile) + '.tmp')
             const tempFile = createWriteStream(tmpFile)
-            // const dataStream = await storage.write(storageFile)
 
             const sizePass = new PassThrough()
             let sz = 0
@@ -1193,7 +1192,6 @@ export async function backup (
             domainInfo.storage = [...(domainInfo.storage ?? []), storageFile]
             const tmpFile = join(tmpRoot, basename(storageFile) + '.tmp')
             const tempFile = createWriteStream(tmpFile)
-            // const dataStream = await storage.write(storageFile)
 
             const sizePass = new PassThrough()
             let sz = 0

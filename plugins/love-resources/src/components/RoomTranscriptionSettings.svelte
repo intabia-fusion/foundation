@@ -16,7 +16,6 @@
   import { Label, ModernToggle } from '@hcengineering/ui'
   import love, { Room } from '@hcengineering/love'
   import { getClient } from '@hcengineering/presentation'
-  // import RoomLanguageSelector from './RoomLanguageSelector.svelte'
 
   export let room: Room
 

@@ -446,41 +446,6 @@ export function createModel (builder: Builder): void {
   //   components: { input: { component: chunter.component.ChatMessageInput } }
   // })
 
-  // builder.createDoc(
-  //   notification.class.NotificationGroup,
-  //   core.space.Model,
-  //   {
-  //     label: lead.string.Funnels,
-  //     icon: lead.icon.Funnel,
-  //     objectClass: lead.class.Funnel
-  //   },
-  //   lead.ids.FunnelNotificationGroup
-  // )
-
-  // builder.createDoc<MessageNotificationType>(
-  //   notification.class.MessageNotificationType,
-  //   core.space.Model,
-  //   {
-  //     hidden: false,
-  //     generated: false,
-  //     label: lead.string.LeadCreateLabel,
-  //     group: lead.ids.FunnelNotificationGroup,
-  //     field: 'space',
-  //     messageClass: activity.class.DocUpdateMessage,
-  //     objectClass: lead.class.Funnel,
-  //     attachedToClass: lead.class.Funnel,
-  //     defaultEnabled: false,
-  //     templates: {
-  //       textTemplate: '{body}',
-  //       htmlTemplate: '<p>{body}</p><p>{link}</p>',
-  //       subjectTemplate: '{title}'
-  //     }
-  //   },
-  //   lead.ids.LeadCreateNotification
-  // )
-
-  // generateClassNotificationTypes(builder, lead.class.Funnel, lead.ids.FunnelNotificationGroup, [], ['comments'])
-
   builder.createDoc(
     view.class.Viewlet,
     core.space.Model,

@@ -210,11 +210,6 @@
     await accountClient.updatePasswordAgingRule(passwordAgingRule)
   }
 
-  // async function handleGenerateApiToken (): Promise<void> {
-  //   const { token } = await accountClient.selectWorkspace(workspaceUrl)
-  //   showPopup(ApiTokenPopup, { token })
-  // }
-
   function handleTogglePermissions (): void {
     const newState = !arePermissionsDisabled
     showPopup(MessageBox, {

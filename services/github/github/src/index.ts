@@ -31,7 +31,6 @@ import { PaletteColorIndexes } from '@hcengineering/ui/src/colors'
  * Define information about bi-directional synchronization with some other source.
  */
 export interface DocSyncInfo extends Doc {
-  // _id === objectId
   url: string
   objectClass: Ref<Class<Doc>>
 

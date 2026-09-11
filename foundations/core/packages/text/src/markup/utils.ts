@@ -48,11 +48,6 @@ export function jsonToText (node: MarkupNode, schema?: Schema, extensions?: Exte
   return pmNode.textBetween(0, pmNode.content.size, '\n', '')
 }
 
-// export function markupToText (markup: Markup, schema?: Schema, extensions?: Extensions): string {
-//   const pmNode = markupToPmNode(markup, schema, extensions)
-//   return pmNode.textBetween(0, pmNode.content.size, '\n', '')
-// }
-
 // HTML
 
 /** @public */

@@ -19,9 +19,7 @@ import { imageSize } from 'image-size'
 import oembedProviders from 'oembed-providers'
 import net from 'node:net'
 
-// ============================================================================
 // Types and Interfaces
-// ============================================================================
 
 export interface LinkPreviewDetails {
   title?: string
@@ -82,17 +80,13 @@ interface ImageDimensions {
   height: number
 }
 
-// ============================================================================
 // Constants
-// ============================================================================
 
 const DEFAULT_TIMEOUT_MS = 10_000
 const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10MB
 const OEMBED_SERVICE_NAME = 'Huly Link Preview Service/1.0'
 
-// ============================================================================
 // Error Classes
-// ============================================================================
 
 export class LinkPreviewError extends Error {
   constructor (
@@ -111,9 +105,7 @@ export class LinkPreviewError extends Error {
   }
 }
 
-// ============================================================================
 // URL Validation
-// ============================================================================
 
 function normalizeHostnameForChecks (hostname: string): string {
   // URL.hostname is already punycode-normalized by WHATWG URL for IDNs.
@@ -309,9 +301,7 @@ async function fetchWithValidatedRedirects (
   throw new LinkPreviewError('Too many redirects')
 }
 
-// ============================================================================
 // Fetch Utilities
-// ============================================================================
 
 async function fetchWithTimeout (url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController()
@@ -339,9 +329,7 @@ async function fetchWithTimeout (url: string, options: RequestInit, timeoutMs: n
   }
 }
 
-// ============================================================================
 // oEmbed Functions
-// ============================================================================
 
 function findOEmbedProviderUrl (targetUrl: string): string | null {
   for (const provider of oembedProviders as OEmbedProvider[]) {
@@ -491,9 +479,7 @@ function convertOEmbedToPreview (
   }
 }
 
-// ============================================================================
 // Charset Parsing
-// ============================================================================
 
 function parseCharset (headers: Headers, $: ReturnType<typeof cheerio.load>): string {
   // Try Content-Type header first
@@ -536,9 +522,7 @@ function normalizeCharset (charset: string): string {
   return charset.toLowerCase().trim().replace(/^["']/, '').replace(/["']$/, '')
 }
 
-// ============================================================================
 // Description Parsing
-// ============================================================================
 
 function parseDescription ($: ReturnType<typeof cheerio.load>, config: Config): string | undefined {
   const paragraphs = $('p')
@@ -587,9 +571,7 @@ function extractSentences (text: string): string[] {
   return matches.map((s) => s.trim()).filter((s) => s.length > 0)
 }
 
-// ============================================================================
 // Image Size Loading
-// ============================================================================
 
 async function loadImageSize (ctx: MeasureContext, url: string, config: Config): Promise<ImageDimensions | undefined> {
   const timeoutMs = config.TimeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -653,9 +635,7 @@ async function loadImageSize (ctx: MeasureContext, url: string, config: Config):
   }
 }
 
-// ============================================================================
 // Open Graph Parsing
-// ============================================================================
 
 function parseOpenGraphData (
   $: ReturnType<typeof cheerio.load>,
@@ -762,9 +742,7 @@ function isNonEmptyString (value: string | undefined | null): value is string {
   return value !== undefined && value !== null && value.length > 0
 }
 
-// ============================================================================
 // Main Export
-// ============================================================================
 
 export async function parseLinkPreviewDetails (
   ctx: MeasureContext,

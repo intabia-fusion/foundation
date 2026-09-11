@@ -45,9 +45,7 @@ const DESKTOP_INDEX = path.resolve(__dirname, '..', '..', '..', 'desktop', 'src'
 
 const DEFAULT_THRESHOLD = 4.5;
 
-/* ------------------------------
    Utilities: file read / simple parsing
-   ------------------------------ */
 
 function readFileSafe(p) {
   try {
@@ -150,9 +148,7 @@ function parseThemeOverridesFromButton(content) {
   return themeOverrides;
 }
 
-/* ------------------------------
    CSS var resolution and color parsing
-   ------------------------------ */
 
 function parseHexColor(h) {
   // h includes leading #
@@ -294,9 +290,7 @@ function resolveCssValue(raw, varResolver, seen = new Set()) {
   return null;
 }
 
-/* ------------------------------
    Logic: define checks and run them for each accent/theme
-   ------------------------------ */
 
 const CHECKS = [
   // primary - default / hover / pressed / disabled
@@ -513,9 +507,7 @@ function evaluateAccent(accentName, theme, accentBlocks, themeOverrides, rootVar
   return results;
 }
 
-/* ------------------------------
    Git diff checking for last commit
-   ------------------------------ */
 
 function getLastCommitChangedFiles(range = 'HEAD~1..HEAD') {
   try {
@@ -559,9 +551,7 @@ function analyzeDiffs(range = 'HEAD~1..HEAD') {
   return report;
 }
 
-/* ------------------------------
    Main entry
-   ------------------------------ */
 
 function main() {
   // CLI args

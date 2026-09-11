@@ -163,7 +163,6 @@ test.describe.skip('QMS. PDF Download and Preview', () => {
       const documentsPageSecond = new DocumentsPage(userSecondPage)
       await documentsPageSecond.openDocument(approveDocument.title)
       await documentContentPageSecond.clickApproveButtonAndFillPassword()
-      //   await documentContentPageSecond.completeReview()
       await documentsPageSecond.openDocument(approveDocument.title)
     })
     await test.step('7. Show Full screen preview', async () => {

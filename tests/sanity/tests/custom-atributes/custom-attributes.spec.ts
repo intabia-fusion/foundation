@@ -35,7 +35,6 @@ test.describe.skip('Custom attributes tests', () => {
     // Straight into the workspace from the account token: the login form plus the workspace
     // picker are three page loads and cost about a second per test.
     await createAccountAndWorkspace(page, request, data)
-    // await (await page.goto(`${PlatformURI}/workbench/${data.workspaceName}`))?.finished()
   })
 
   test('Check if all custom attributes exists', async ({ browser, page }) => {

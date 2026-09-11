@@ -304,7 +304,6 @@
     flex-shrink: 0;
     padding: 0.5rem 1.25rem;
     gap: 1rem;
-    //overflow: hidden;
     border: 1px solid transparent;
     border-radius: 0.25rem;
     width: 100%;

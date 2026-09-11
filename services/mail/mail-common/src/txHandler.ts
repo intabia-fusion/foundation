@@ -22,11 +22,6 @@ import { normalizeEmail } from './utils'
 import { MailRecipients } from './types'
 
 export function isNewChannelTx (tx: Tx): boolean {
-  // if (tx._class !== core.class.TxCreateDoc) {
-  //   return false
-  // }
-  // const createTx = tx as TxCreateDoc<any>
-  // return createTx.objectClass === chat.masterTag.Thread
   return false
 }
 

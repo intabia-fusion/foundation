@@ -13,13 +13,12 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getClient as getAccountClient } from '@hcengineering/account-client'
-  import { getMetadata } from '@hcengineering/platform'
-  import presentation, { Card } from '@hcengineering/presentation'
+  import { Card } from '@hcengineering/presentation'
   import { Button, EditBox, Label, ticker1 } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
 
   import login from '../plugin'
+  import { getAccountClient } from '../utils'
 
   const dispatch = createEventDispatcher()
 
@@ -34,8 +33,7 @@
     sending = true
     sendFailed = false
     try {
-      const client = getAccountClient(getMetadata(login.metadata.AccountsUrl), getMetadata(presentation.metadata.Token))
-      const info = await client.requestOperationOtp()
+      const info = await getAccountClient().requestOperationOtp()
       retryOn = info.retryOn
       sent = true
     } catch (err) {

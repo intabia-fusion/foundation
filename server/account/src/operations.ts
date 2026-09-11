@@ -52,7 +52,6 @@ import { cancelWorkspaceSubscriptions, type AccountServiceMethods, getServiceMet
 import {
   type Account,
   type AccountDB,
-  AccountEventType,
   type AccountMethodHandler,
   type LoginInfo,
   type LoginInfoRequest,

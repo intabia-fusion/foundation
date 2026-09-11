@@ -19,11 +19,8 @@ import { type AccountUuid, type WorkspaceUuid } from '@hcengineering/core'
 import { DEV_OTP, isRefused, rpc, STAND_URL } from './admin.fixtures'
 
 /**
- * The support scenario: a user asks to be removed, an admin deletes the workspace and the account,
- * and the same person can sign up again later with the same email.
- *
- * Written against the behaviour we want. What fails today is listed in
- * docs/memory/identity-deletion.md.
+ * Deletion is deferred: a request only stamps a deadline, and the support path (`force`) is what
+ * purges an identity right away. Covers both, plus the re-signup that follows a purge.
  */
 describe('identity-deletion', () => {
   const email = `purge-${Date.now()}@example.com`
@@ -54,9 +51,13 @@ describe('identity-deletion', () => {
     return res.result?.actions ?? []
   }
 
-  async function workspaceMode (uuid: WorkspaceUuid): Promise<string | undefined> {
+  async function workspaceStatus (uuid: WorkspaceUuid): Promise<any> {
     const res = await rpc(config, adminSession, 'listWorkspaces', {})
-    return res.result?.find((it: any) => it.uuid === uuid)?.status?.mode
+    return res.result?.find((it: any) => it.uuid === uuid)?.status
+  }
+
+  async function workspaceMode (uuid: WorkspaceUuid): Promise<string | undefined> {
+    return (await workspaceStatus(uuid))?.mode
   }
 
   async function waitMode (uuid: WorkspaceUuid, mode: string, timeoutMs = 180000): Promise<void> {
@@ -92,21 +93,45 @@ describe('identity-deletion', () => {
     expect(can.result.ownedWorkspaces.map((it: any) => it.uuid)).toContain(wsUuid)
   }, 60000)
 
-  it('deletes the workspace through the admin panel and records who did it', async () => {
+  it('schedules the workspace from the admin panel instead of dropping it, and records who did it', async () => {
     const res = await adminOp('performWorkspaceOperation', { workspaceId: wsUuid, event: 'delete', params: [] })
     expect(res.error).toBeUndefined()
-    await waitMode(wsUuid, 'deleted')
+
+    // Deferred: the workspace keeps running read-only until the deadline the sweep acts on.
+    const status = await workspaceStatus(wsUuid)
+    expect(status.mode).toEqual('active')
+    expect(status.deleteOn).toBeGreaterThan(Date.now())
 
     const entry = (await auditActions('workspace_delete')).find((a) => a.target === wsUuid)
     expect(entry).toBeDefined()
     expect(entry.actorEmail).toEqual('admin')
-  }, 240000)
+  }, 120000)
 
-  it('deletes the account once nothing is left behind it', async () => {
+  it('marks the account without touching it while a scheduled workspace no longer blocks', async () => {
     const can = await rpc(config, userToken, 'canDeleteAccount', {})
     expect(can.result.canDelete).toBe(true)
 
     const res = await adminOp('deleteAccount', { uuid: userAccount })
+    expect(res.error).toBeUndefined()
+
+    // Still able to sign in - that is the way back - and told when the account goes away.
+    const relogin = await rpc(config, undefined, 'login', { email, password })
+    expect(relogin.error).toBeUndefined()
+    expect(relogin.result.deleteOn).toBeGreaterThan(Date.now())
+    userToken = relogin.result.token
+  }, 60000)
+
+  it('takes the mark off when the person calls the deletion off', async () => {
+    const cancelled = await rpc(config, userToken, 'cancelAccountDeletion', {})
+    expect(cancelled.error).toBeUndefined()
+
+    const relogin = await rpc(config, undefined, 'login', { email, password })
+    expect(relogin.error).toBeUndefined()
+    expect(relogin.result.deleteOn ?? null).toBeNull()
+  }, 60000)
+
+  it('purges the identity right away on the support path', async () => {
+    const res = await adminOp('deleteAccount', { uuid: userAccount, force: true })
     expect(res.error).toBeUndefined()
 
     const relogin = await rpc(config, undefined, 'login', { email, password })
@@ -119,7 +144,7 @@ describe('identity-deletion', () => {
     expect(again.result.account).not.toEqual(userAccount)
   }, 60000)
 
-  it('records who deleted a workspace when the owner does it themselves', async () => {
+  it('records who scheduled a workspace when the owner does it themselves', async () => {
     const ownerEmail = `owner-${Date.now()}@example.com`
     const signedUp = await rpc(config, undefined, 'signUp', {
       email: ownerEmail,
@@ -144,14 +169,26 @@ describe('identity-deletion', () => {
 
     const deleted = await rpc(config, selected.result.token, 'deleteWorkspace', { otpCode: DEV_OTP })
     expect(deleted.error).toBeUndefined()
+    expect((await workspaceStatus(ownedUuid)).deleteOn).toBeGreaterThan(Date.now())
 
     const entry = (await auditActions('workspace_delete')).find((a) => a.target === ownedUuid)
     expect(entry).toBeDefined()
     expect(entry.actor).toEqual(signedUp.result.account)
     expect(entry.actorEmail).toEqual(ownerEmail)
+
+    // An owner can call it off, and nothing was archived yet, so the workspace just keeps running.
+    const cancelled = await adminOp('performWorkspaceOperation', {
+      workspaceId: ownedUuid,
+      event: 'cancel-delete',
+      params: []
+    })
+    expect(cancelled.error).toBeUndefined()
+    const after = await workspaceStatus(ownedUuid)
+    expect(after.deleteOn ?? null).toBeNull()
+    expect(after.mode).toEqual('active')
   }, 240000)
 
-  it('lets a person who owns nothing delete themselves', async () => {
+  it('lets a person who owns nothing schedule their own deletion', async () => {
     const selfEmail = `self-${Date.now()}@example.com`
     const signedUp = await rpc(config, undefined, 'signUp', {
       email: selfEmail,
@@ -165,6 +202,8 @@ describe('identity-deletion', () => {
     const res = await rpc(config, selfToken, 'deleteAccount', { otpCode: DEV_OTP })
     expect(res.error).toBeUndefined()
 
-    expect(isRefused(await rpc(config, undefined, 'login', { email: selfEmail, password }))).toBe(true)
+    const relogin = await rpc(config, undefined, 'login', { email: selfEmail, password })
+    expect(relogin.error).toBeUndefined()
+    expect(relogin.result.deleteOn).toBeGreaterThan(Date.now())
   }, 120000)
 })

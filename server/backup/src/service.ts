@@ -127,9 +127,9 @@ export async function cleanupDeletedBackups (
   config: BackupConfig,
   region: string
 ): Promise<WorkspaceUuid[]> {
-  // Negative disables the sweep; 0 means "as soon as the workspace is deleted".
-  if (config.DeletedRetentionDays < 0) return []
+  // Zero or less disables the sweep - that is how the one-shot workspace-service pipeline opts out.
   const retentionMs = config.DeletedRetentionDays * 24 * 3600 * 1000
+  if (retentionMs <= 0) return []
 
   const now = Date.now()
   // isDisabled: null - a deleted workspace is always disabled, the default view would hide it.

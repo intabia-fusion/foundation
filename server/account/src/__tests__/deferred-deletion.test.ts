@@ -13,7 +13,13 @@
 // limitations under the License.
 //
 
-import { AccountRole, type AccountUuid, type MeasureContext, type WorkspaceUuid } from '@hcengineering/core'
+import {
+  AccountRole,
+  type AccountUuid,
+  type MeasureContext,
+  type WorkspaceMode,
+  type WorkspaceUuid
+} from '@hcengineering/core'
 import { PlatformError } from '@hcengineering/platform'
 import { decodeTokenVerbose } from '@hcengineering/server-token'
 
@@ -252,8 +258,8 @@ describe('purgeAccount', () => {
 describe('performWorkspaceOperation deletion events', () => {
   let statusById: Record<string, Partial<WorkspaceStatus>>
 
-  const setup = (mode: string, deleteOn?: number): AccountDB => {
-    const status = { workspaceUuid: 'w1' as WorkspaceUuid, mode, deleteOn } as Partial<WorkspaceStatus>
+  const setup = (mode: WorkspaceMode, deleteOn?: number): AccountDB => {
+    const status: Partial<WorkspaceStatus> = { workspaceUuid: 'w1' as WorkspaceUuid, mode, deleteOn }
     statusById = { w1: status }
     const { db } = fakeDb([status])
     jest

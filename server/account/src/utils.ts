@@ -2053,11 +2053,7 @@ export async function sendEmail (info: EmailInfo, ctx: MeasureContext): Promise<
 }
 
 function escapeHtml (value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 /**
@@ -2075,7 +2071,10 @@ export async function notifyWorkspaceDeleted (
 
   try {
     const { account } = decodeTokenVerbose(ctx, token)
-    const emails = await db.socialId.find({ personUuid: account, type: SocialIdType.EMAIL })
+    // A retired social id carries a mangled value, an unverified one was never proven to be theirs.
+    const emails = (await db.socialId.find({ personUuid: account, type: SocialIdType.EMAIL })).filter(
+      (sid) => sid.isDeleted !== true && sid.verifiedOn != null
+    )
     const actor = emails.sort((a, b) => (a.createdOn ?? 0) - (b.createdOn ?? 0))[0]?.value ?? account
     const subject = `Workspace deleted: ${workspace.name}`
     const text = `${actor} deleted workspace "${workspace.name}" (${workspace.url}, ${workspace.uuid}) at ${new Date().toISOString()}.`

@@ -40,4 +40,16 @@
 ## Конфигурация
 
 `DELETION_GRACE_DAYS` (21), `DELETION_READONLY_DAYS` (7) - account-service.
-`DELETED_RETENTION_DAYS` (было 7, стало 1) - backup pod; отрицательное выключает чистку архива.
+`DELETED_RETENTION_DAYS` (было 7, стало 1) - backup pod; 0 и меньше выключает чистку архива,
+этим пользуется одноразовый пайплайн workspace-service.
+
+## CI PR #434
+
+Падения uitest-pg и uitest-qms (auth.setup: страница логина в бесконечном reload) - не от этой
+работы. Ветка была собрана до `f7d6499abd fix webpack error` (develop, 2026-09-10 21:06), который
+добавляет `rootDir`/`include`/`exclude` в `dev/prod/tsconfig.json`. Механика: фронтовый чанк логина
+не грузится -> `LoadHelper` (`dev/prod/src/platform.ts:440`) после 5 попыток делает
+`location.reload()`. Лечится ребейзом на develop.
+
+uitest-workspaces - это `ws-tests/api-tests`, там падал `identity-deletion.test.ts`, написанный под
+немедленное удаление. Переписан под отсрочку.

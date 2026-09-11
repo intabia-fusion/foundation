@@ -15,7 +15,9 @@
 -->
 <script lang="ts">
   import {
+    type AccountUuid,
     WorkspaceInfoWithStatus,
+    type WorkspaceUuid,
     isActiveMode,
     isArchivingMode,
     isRestoringMode,
@@ -116,22 +118,25 @@
     }
   }
 
+  async function deleteAccount (uuid: AccountUuid, token: string | null, code: string): Promise<void> {
+    try {
+      await getAccountClient(token).deleteAccount(uuid, code)
+      await logOut()
+      goTo('login')
+    } catch (err: any) {
+      console.error('Failed to delete the account', err)
+      status = new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
+    }
+  }
+
   function handleDeleteAccount (): void {
     if (account?.account == null) return
     const uuid = account.account
-    const token = account.token
+    const token = account.token ?? null
+    // showPopup hands the result to a sync callback, hence the detached promise.
     showPopup(DeleteAccountDialog, {}, undefined, (code) => {
       if (typeof code !== 'string' || code.length === 0) return
-      void (async () => {
-        try {
-          await getAccountClient(token ?? null).deleteAccount(uuid, code)
-          await logOut()
-          goTo('login')
-        } catch (err: any) {
-          console.error('Failed to delete the account', err)
-          status = new Status(Severity.ERROR, login.status.JoinWorkspaceError, {})
-        }
-      })()
+      void deleteAccount(uuid, token, code)
     })
   }
 
@@ -154,6 +159,12 @@
 
   function formatDeleteOn (deleteOn: number): string {
     return new Date(deleteOn).toLocaleDateString()
+  }
+
+  async function cancelDeletion (uuid: WorkspaceUuid, token: string): Promise<void> {
+    if (await cancelWorkspaceDeletion(uuid, token)) {
+      await awaitRestore(uuid)
+    }
   }
 
   /** Waits out the restore the cancel kicked off, so the row stops showing a stale mode. */
@@ -179,13 +190,11 @@
         WorkspaceDeletionDialog,
         { uuid: ws.uuid, dataId: ws.dataId, deleteOn: ws.deleteOn, token },
         undefined,
+        // showPopup hands the result to a sync callback, hence the detached promise.
         (res) => {
-          if (res !== 'cancel') return
-          void (async () => {
-            if (await cancelWorkspaceDeletion(ws.uuid, token)) {
-              await awaitRestore(ws.uuid)
-            }
-          })()
+          if (res === 'cancel') {
+            void cancelDeletion(ws.uuid, token)
+          }
         }
       )
       status = loginStatus
@@ -299,7 +308,10 @@
               <span class="label overflow-label flex-center">
                 {wsName}
                 {#if workspace.deleteOn != null}
-                  - <Label label={login.string.ScheduledForDeletion} params={{ date: formatDeleteOn(workspace.deleteOn) }} />
+                  - <Label
+                    label={login.string.ScheduledForDeletion}
+                    params={{ date: formatDeleteOn(workspace.deleteOn) }}
+                  />
                 {:else if isArchivingMode(workspace.mode)}
                   - <Label label={presentation.string.Archived} />
                 {/if}
@@ -357,11 +369,9 @@
       </div>
       {#if canDeleteAccount}
         <div class="delete-account">
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <span on:click={handleDeleteAccount}>
+          <button type="button" on:click={handleDeleteAccount}>
             <Label label={login.string.DeleteAccount} />
-          </span>
+          </button>
         </div>
       {/if}
     </div>
@@ -448,7 +458,12 @@
       font-size: 0.75rem;
       color: var(--theme-darker-color);
 
-      span {
+      button {
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: inherit;
+        font: inherit;
         cursor: pointer;
 
         &:hover {

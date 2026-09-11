@@ -1,20 +1,14 @@
-import {
-  ApiEndpoint,
-  generateId,
-  LoginPage,
-  SelectWorkspacePage,
-  UserProfilePage
-} from '@hcengineering/tests-sanity'
+import { ApiEndpoint, generateId, LoginPage, SelectWorkspacePage, UserProfilePage } from '@hcengineering/tests-sanity'
 import { expect, test, type Page } from '@playwright/test'
 import { AdminPage } from '../model/admin.page'
 
 /**
- * The support scenario end to end: a workspace goes away, then the account behind it, and the
- * person can come back later with the same email. Both routes are covered - the admin panel and
- * the person doing it themselves.
+ * Deletion is deferred: both routes - the admin panel and the person themselves - only stamp a
+ * deadline. Nothing is destroyed here, so the checks are about the mark being set, taken off, and
+ * about the person still being able to sign in while it stands.
  */
 test.describe('Workspace and account deletion', () => {
-  test('admin deletes a workspace and then the account behind it', async ({ page, request }) => {
+  test('admin schedules a workspace and the account behind it', async ({ page, request }) => {
     const api: ApiEndpoint = new ApiEndpoint(request)
     const wsId = generateId(5)
     const email = `admin-purge-${wsId}@example.com`
@@ -26,30 +20,36 @@ test.describe('Workspace and account deletion', () => {
     const adminPage = new AdminPage(page)
     await adminPage.gotoAdmin()
 
-    await test.step('delete the workspace', async () => {
+    const row = page.locator(`[id="${workspaceInfo.workspace}"]`)
+
+    await test.step('schedule the workspace', async () => {
       await adminPage.openWorkspacesTab()
       await adminPage.searchWorkspace(workspaceInfo.workspace)
-      await page.locator(`[id="${workspaceInfo.workspace}"]`).getByRole('button', { name: 'Delete' }).click()
+      await row.getByRole('button', { name: 'Delete' }).click()
       await adminPage.confirmOtp()
-      // Workspaces on their way out are hidden by default.
-      await adminPage.toggleFilter('Show deleted workspaces')
-      await adminPage.waitWorkspaceMode(workspaceInfo.workspace, 'deleted')
+      // The deadline replaces the Delete button with the way back.
+      await expect(row.getByRole('button', { name: 'Cancel deletion' })).toBeVisible({ timeout: 30000 })
     })
 
-    await test.step('delete the account', async () => {
+    await test.step('and can call it off', async () => {
+      await row.getByRole('button', { name: 'Cancel deletion' }).click()
+      await adminPage.confirmOtp()
+      await expect(row.getByRole('button', { name: 'Delete' })).toBeVisible({ timeout: 30000 })
+    })
+
+    await test.step('mark the account', async () => {
       await adminPage.openAccountsTab()
       await adminPage.enableAccountDeletion()
       await adminPage.searchAccount(email)
       await adminPage.deleteAccount(accountUuid)
-      await expect(page.locator(`[id="${accountUuid}"]`)).toHaveCount(0, { timeout: 30000 })
     })
 
-    await test.step('the email no longer signs in', async () => {
-      await expect(api.loginAndGetToken(email, '1234')).rejects.toThrow()
+    await test.step('the email still signs in while the mark stands', async () => {
+      await expect(api.loginAndGetToken(email, '1234')).resolves.toBeTruthy()
     })
   })
 
-  test('owner deletes their workspace and then themselves', async ({ page, request }) => {
+  test('owner schedules their workspace and then themselves', async ({ page, request }) => {
     const api: ApiEndpoint = new ApiEndpoint(request)
     const wsId = generateId(5)
     const email = `self-purge-${wsId}@example.com`
@@ -72,7 +72,7 @@ test.describe('Workspace and account deletion', () => {
       await selectWorkspacePage.selectWorkspace(wsId)
     })
 
-    await test.step('delete the workspace from its settings', async () => {
+    await test.step('schedule the workspace from its settings', async () => {
       await userProfilePage.openProfileMenu()
       await userProfilePage.clickSettings()
       await page.getByRole('button', { name: 'General' }).click()
@@ -83,7 +83,7 @@ test.describe('Workspace and account deletion', () => {
       await page.waitForURL((url) => url.pathname.startsWith('/login'), { timeout: 60000 })
     })
 
-    await test.step('delete the account from the workspace list', async () => {
+    await test.step('schedule the account from the workspace list', async () => {
       const link = page.getByText('Delete account', { exact: true })
       await expect(link).toBeVisible({ timeout: 30000 })
       await link.click()
@@ -96,8 +96,10 @@ test.describe('Workspace and account deletion', () => {
       await page.waitForURL((url) => url.pathname.startsWith('/login'), { timeout: 60000 })
     })
 
-    await test.step('the email no longer signs in', async () => {
-      await expect(api.loginAndGetToken(email, '1234')).rejects.toThrow()
+    await test.step('the email still signs in and is asked about the deletion', async () => {
+      await expect(api.loginAndGetToken(email, '1234')).resolves.toBeTruthy()
+      await loginPage.login(email, '1234')
+      await expect(page.getByText('Account scheduled for deletion')).toBeVisible({ timeout: 30000 })
     })
   })
 })

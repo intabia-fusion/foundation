@@ -50,10 +50,7 @@ export function isReadOnlyPending (status: { mode: WorkspaceMode, deleteOn?: num
  * Workspaces the account is the last owner of. Deleting the account would leave them ownerless,
  * so they have to be scheduled for deletion first. Already scheduled ones do not block.
  */
-export async function findOrphanedWorkspaces (
-  db: AccountDB,
-  uuid: AccountUuid
-): Promise<WorkspaceInfoWithStatus[]> {
+export async function findOrphanedWorkspaces (db: AccountDB, uuid: AccountUuid): Promise<WorkspaceInfoWithStatus[]> {
   const blocking: WorkspaceInfoWithStatus[] = []
   for (const ws of await db.getAccountWorkspaces(uuid)) {
     if (isDeletingMode(ws.status.mode) || ws.status.deleteOn != null) continue
@@ -88,7 +85,13 @@ export async function sweepScheduledDeletions (ctx: MeasureContext, db: AccountD
     ctx.info('Deleting a workspace whose deferral is over', { workspace: status.workspaceUuid })
     await db.workspaceStatus.update(
       { workspaceUuid: status.workspaceUuid, mode: 'archived' },
-      { mode: 'pending-deletion', isDisabled: true, processingAttempts: 0, processingProgress: 0, lastProcessingTime: 0 }
+      {
+        mode: 'pending-deletion',
+        isDisabled: true,
+        processingAttempts: 0,
+        processingProgress: 0,
+        lastProcessingTime: 0
+      }
     )
   }
 

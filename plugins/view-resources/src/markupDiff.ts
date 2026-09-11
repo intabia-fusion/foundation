@@ -216,7 +216,7 @@ function align (a: MarkupNode[], b: MarkupNode[]): Array<[MarkupNode | undefined
   const n = a.length
   const m = b.length
 
-  // ponytail: O(n*m) LCS, fall back to positional pairing on huge documents
+  // O(n*m) LCS, fall back to positional pairing on huge documents
   if (n * m > 250000) {
     const pairs: Array<[MarkupNode | undefined, MarkupNode | undefined]> = []
     for (let i = 0; i < Math.max(n, m); i++) {

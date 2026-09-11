@@ -151,8 +151,8 @@ export function registerRecordingTests (): void {
       }
     })
 
-    // D20: `transcriptionState` used to be written only by ai-bot, so without a bot the
-    // button never flipped and stopping was unreachable.
+    // Guards the bug where transcriptionState was written only by ai-bot,
+    // leaving the stop button stuck when no bot was present.
     test('transcription toggle flips transcriptionState both ways', async ({ browser }) => {
       test.setTimeout(120000)
 

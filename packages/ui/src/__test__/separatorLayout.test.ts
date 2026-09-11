@@ -230,7 +230,7 @@ describe('invariants across layout combinations', () => {
 })
 
 describe('performance', () => {
-  // ponytail: a coarse guard against an accidental O(n^2); `pnpm bench` has the real numbers.
+  // Coarse guard against an accidental O(n^2); `pnpm bench` has the real numbers.
   it('stays linear enough for a wide layout', () => {
     const separators: SeparatedItem[] = []
     const children: LayoutChild[] = []

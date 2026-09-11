@@ -77,7 +77,7 @@ export function isLoginInfoRequest (info: LoginInfoByToken): info is LoginInfoRe
 }
 
 // Every account RPC sends this as a header, and resolving it was ~4% of a service's CPU.
-// ponytail: process-lifetime cache, drop it if a client must follow an OS timezone change.
+// Process-lifetime cache, drop it if a client must follow an OS timezone change.
 let cachedTimezone: string | undefined
 let timezoneResolved = false
 

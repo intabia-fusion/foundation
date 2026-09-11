@@ -20,7 +20,7 @@ import { createReadStream, statSync, readdirSync } from 'fs'
 import * as yaml from 'js-yaml'
 import * as crypto from 'crypto'
 
-// ponytail: single dist dir per process; createDistServer sets it. Make it an
+// Single dist dir per process; createDistServer sets it. Make it an
 // instance field if this ever has to host two roots at once.
 let DIST_DIR = '/app/dist'
 

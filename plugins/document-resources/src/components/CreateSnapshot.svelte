@@ -27,19 +27,7 @@
   let name = ''
 
   async function create (): Promise<void> {
-    // TODO implement me
-    // const snapshot = await takeSnapshot(doc.content, name)
-    // await client.addCollection(
-    //   document.class.DocumentSnapshot,
-    //   doc.space,
-    //   doc._id,
-    //   document.class.Document,
-    //   'snapshots',
-    //   {
-    //     name,
-    //     content: snapshot
-    //   }
-    // )
+    // TODO: implement snapshot creation
   }
 </script>
 

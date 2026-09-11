@@ -240,7 +240,7 @@ export async function createTranscriptionsSupport (
         const resolved = await resolveProvider(pctx, workspace)
         const asrProvider = resolved?.provider ?? provider
         const asrLevel = resolved?.level ?? config.AsrDefaultLevel
-        // ponytail: race, not abort - providers take no signal, so a hung request leaks until it
+        // Race, not abort - providers take no signal, so a hung request leaks until it
         // settles. Bounded here so the attachment never stays 'pending' forever when ASR is down.
         const result = await Promise.race([
           asrProvider.transcribe(Buffer.concat(audio), { audioFormat, language: task.language }),

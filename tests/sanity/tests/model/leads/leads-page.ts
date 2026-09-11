@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { retryIntervals } from '../../retry'
 
 export class LeadsPage {
   readonly page: Page
@@ -50,7 +51,14 @@ export class LeadsPage {
     await this.antiCardFormDetached().waitFor({ state: 'detached' })
   }
 
-  async checkContactExistsMessage (): Promise<void> {
-    await expect(this.contactExistsMessage()).toBeVisible()
+  // `CreateCustomer.svelte` looks duplicates up in a reactive block that never cancels an earlier
+  // lookup, so the empty-name answer can overtake the one for the typed name and leave `matches`
+  // empty for good. Nothing re-runs it on its own - retype to ask again.
+  async checkContactExistsMessage (companyName: string): Promise<void> {
+    await expect(async () => {
+      await this.companyNameInput().fill('')
+      await this.companyNameInput().fill(companyName)
+      await expect(this.contactExistsMessage()).toBeVisible({ timeout: 3000 })
+    }).toPass({ intervals: retryIntervals, timeout: 30000 })
   }
 }

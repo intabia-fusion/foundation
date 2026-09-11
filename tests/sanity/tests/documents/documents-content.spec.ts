@@ -367,6 +367,10 @@ test.describe('Content in the Documents tests', () => {
     await documentsSecondPage.openTeamspace(testDocument.space)
     await documentsSecondPage.openDocument(testDocument.title)
     await documentContentSecondPage.checkDocumentTitle(testDocument.title)
+    // The title is there as soon as the document opens, but the body replays through the
+    // collaborator afterwards - wait for the image, the last edit the first page made, so a slow
+    // sync does not read as a missing link.
+    await expect(documentContentSecondPage.imageInContent()).toBeVisible({ timeout: 30000 })
     await documentContentSecondPage.checkLinkInTheText('Line 8', testLink)
     await documentContentSecondPage.goToByTOC('Line 15')
     await documentContentSecondPage.checkImage()

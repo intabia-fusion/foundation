@@ -51,9 +51,11 @@ test.describe('Tracker duplicate issue tests', () => {
 
     await issuesPage.checkIssuesCount(secondIssue.title, 2, 30)
 
-    const secondIssueId = await issuesPage.getIssueId(secondIssue.title, 0)
-
-    expect(firstIssueId).not.toEqual(secondIssueId)
+    // Both issues carry the same title, so a position says nothing about which one it is - the
+    // list does not always put the newer one first, and index 0 then returns the first issue again.
+    const otherId = (await issuesPage.getIssueIds(secondIssue.title)).find((id) => id !== firstIssueId)
+    expect(otherId).toBeDefined()
+    const secondIssueId = otherId as string
     await issuesPage.checkIssuesCount(firstIssue.title, 2, 30)
 
     await test.step('Update the first issue title', async () => {

@@ -2,6 +2,16 @@
 
 Changelog.
 
+## [0.8.44] - 2026-09-10
+
+* 🐛 BUG FIXES: · Build fixes ([#433](https://github.com/hcengineering/platform/issues/433))
+
+## [0.8.41] - 2026-09-10
+
+* 🚀 FEATURES: · FUSIO-634 Hiding call button ([#432](https://github.com/hcengineering/platform/issues/432))
+* 🐛 BUG FIXES: · FUSIO-1338: Fix Scroller on Planner ([#429](https://github.com/hcengineering/platform/issues/429)) · FUSIO-1331: Fix kafka reconnect on outage ([#424](https://github.com/hcengineering/platform/issues/424)) · FUSIO-1324: Fix screen resolution ([#425](https://github.com/hcengineering/platform/issues/425)) · Fix task type UI bugs · Fix test stability ([#420](https://github.com/hcengineering/platform/issues/420)) · Fix wasm file rebuild on every build ([#431](https://github.com/hcengineering/platform/issues/431))
+* 🧩 OTHER: · Upgrade tooling ([#426](https://github.com/hcengineering/platform/issues/426)) · Revise README for Intabia Platform branding
+
 ## [0.8.40] - 2026-09-08
 
 * 🐛 BUG FIXES: · Fix desktop build

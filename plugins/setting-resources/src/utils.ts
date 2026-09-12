@@ -8,14 +8,15 @@ import {
   type Hierarchy,
   type IntegrationKind,
   type PluginConfiguration,
-  type Ref
+  type Ref,
+  type Space
 } from '@hcengineering/core'
 import {
   getIntegrationClient as getIntegrationClientRaw,
   type IntegrationClient
 } from '@hcengineering/integration-client'
 import login from '@hcengineering/login'
-import { getMetadata } from '@hcengineering/platform'
+import platform, { getMetadata, PlatformError, translate } from '@hcengineering/platform'
 import presentation, { getClient } from '@hcengineering/presentation'
 import type { PersonRating } from '@hcengineering/rating'
 import setting from '@hcengineering/setting'
@@ -24,6 +25,7 @@ import { showPopup } from '@hcengineering/ui'
 import { get } from 'svelte/store'
 
 import OperationOtpDialog from './components/OperationOtpDialog.svelte'
+import settingsRes from './plugin'
 
 function isEditable (hierarchy: Hierarchy, p: Class<Doc>): boolean {
   let ancestors = [p._id]
@@ -114,6 +116,29 @@ export function getAccountClient (): AccountClient {
   const token = getMetadata(presentation.metadata.Token)
 
   return getAccountClientRaw(accountsUrl, token)
+}
+
+// An allowlist, not a denylist: only the space kinds an API key operation can target. Class ids as string
+// literals - the same escape hatch export-resources uses to avoid a tracker/chunter/document dependency here.
+// Shared by ApiKeySpacesPopup (the picker) and CreateApiKeyPopup (its "Add all" chip control) so the two can
+// never disagree about what is selectable.
+export const apiKeySpacePickableClasses = [
+  'tracker:class:Project',
+  'chunter:class:Channel',
+  'document:class:Teamspace'
+].map((id) => id as Ref<Class<Doc>>)
+
+export function isApiKeyPickableSpace (hierarchy: Hierarchy, doc: Doc): boolean {
+  const space = doc as Space
+  return !space.archived && apiKeySpacePickableClasses.some((cls) => hierarchy.isDerived(space._class, cls))
+}
+
+// Shared by CreateApiKeyPopup and the incoming-webhooks section - both call accountClient.createApiKey directly.
+export async function formatApiKeyError (err: unknown): Promise<string> {
+  if (err instanceof PlatformError && err.status.code === platform.status.ApiKeyLimitReached) {
+    return await translate(settingsRes.string.ApiKeyLimitReachedError, { limit: err.status.params?.limit ?? 0 })
+  }
+  return String(err)
 }
 
 export async function getIntegrationClient (kind: IntegrationKind): Promise<IntegrationClient> {

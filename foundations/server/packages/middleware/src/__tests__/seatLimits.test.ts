@@ -52,12 +52,14 @@ const WRITE_TX = {
 function makeContext (
   members: WorkspaceMemberInfo[],
   usersLimit: number,
-  systemAccounts: AccountUuid[] = []
+  systemAccounts: AccountUuid[] = [],
+  integrationAccounts: AccountUuid[] = []
 ): { context: PipelineContext, provider: LimitsProvider } {
   const provider: LimitsProvider = {
     getPlanLimits: async () => ({ usersLimit }) as unknown as PlanLimits,
     getWorkspaceMembers: async () => members,
     getSystemAccounts: async () => new Set(systemAccounts),
+    getIntegrationAccounts: async () => new Set(integrationAccounts),
     getReadOnlyAllowedClasses: () => new Set<Ref<Class<Doc>>>()
   }
   const context = {
@@ -121,6 +123,28 @@ describe('SeatLimitsMiddleware', () => {
     const mw = await SeatLimitsMiddleware.create(ctx, context, makeNext().next)
 
     expect((await runTx(mw, { uuid: uuid('u1'), role: AccountRole.User })).rejected).toBe(false)
+  })
+
+  it('excludes an API-key integration account from the seat count', async () => {
+    // limit 1: apikey holds a User role but is not seat-eligible, so only real users compete for it.
+    const members = [member('apikey', AccountRole.User), member('u1', AccountRole.User), member('u2', AccountRole.User)]
+    const { context } = makeContext(members, 1, [], [uuid('apikey')])
+    const mw = await SeatLimitsMiddleware.create(ctx, context, makeNext().next)
+
+    // apikey never eats the seat, and does not block u1 from getting it.
+    expect((await runTx(mw, { uuid: uuid('u1'), role: AccountRole.User })).rejected).toBe(false)
+    // u2 is a normal member beyond the limit - unlike apikey, it does compete for the same seat.
+    expect((await runTx(mw, { uuid: uuid('u2'), role: AccountRole.User })).rejected).toBe(true)
+  })
+
+  it('lets an API-key integration account write even with every seat taken', async () => {
+    // Taking no seat must not mean read-only: apikey is never in seatSet, yet its writes go through.
+    const members = [member('u1', AccountRole.User), member('apikey', AccountRole.User)]
+    const { context } = makeContext(members, 1, [], [uuid('apikey')])
+    const mw = await SeatLimitsMiddleware.create(ctx, context, makeNext().next)
+
+    expect((await runTx(mw, { uuid: uuid('u1'), role: AccountRole.User })).rejected).toBe(false)
+    expect((await runTx(mw, { uuid: uuid('apikey'), role: AccountRole.User })).rejected).toBe(false)
   })
 
   it('does not count Admin or guest roles toward seats', async () => {

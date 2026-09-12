@@ -28,6 +28,7 @@ import core, {
 } from '@hcengineering/core'
 import type { Token } from '@hcengineering/server-token'
 import { QueueTopic } from '@hcengineering/server-core'
+import { UNAUTHORIZED } from '@hcengineering/platform'
 import os from 'os'
 
 // Import the module under test after mocks are set up
@@ -1919,6 +1920,68 @@ describe('TSessionManager', () => {
       const result = await sessionManager.getLoginWithWorkspaceInfo(mockContext, 'token-123')
 
       expect(result).toEqual(mockLoginInfo)
+    })
+  })
+
+  describe('addSession - API-key without workspace membership', () => {
+    function createMockSocket (): any {
+      return {
+        id: 'sock-' + generateId(),
+        isClosed: false,
+        close: jest.fn(),
+        send: jest.fn().mockResolvedValue(undefined),
+        isBackpressure: () => false,
+        backpressure: jest.fn().mockResolvedValue(undefined),
+        sendPong: jest.fn(),
+        data: () => ({}),
+        readRequest: jest.fn(),
+        checkState: () => true
+      }
+    }
+
+    it('denies an apikey token when the key has no membership in the workspace (revoked)', async () => {
+      const { getClient } = await import('@hcengineering/account-client')
+      ;(getClient as jest.Mock).mockReturnValue({
+        getLoginWithWorkspaceInfo: jest.fn().mockResolvedValue({
+          account: 'key-account' as AccountUuid,
+          socialIds: [],
+          workspaces: {} // key was revoked - unassignWorkspace already ran
+        })
+      })
+
+      const token = {
+        account: 'key-account' as AccountUuid,
+        workspace: 'ws-1' as WorkspaceUuid,
+        extra: { apikey: 'key-1' }
+      } satisfies Token
+
+      const result = await sessionManager.addSession(mockContext, createMockSocket(), token, 'raw-token', undefined)
+
+      expect(result).toEqual({ error: UNAUTHORIZED, terminate: true })
+    })
+
+    it('does not deny a plain user token without workspace membership (falls through to guest/system handling)', async () => {
+      const { getClient } = await import('@hcengineering/account-client')
+      ;(getClient as jest.Mock).mockReturnValue({
+        getLoginWithWorkspaceInfo: jest.fn().mockResolvedValue({
+          account: 'some-account' as AccountUuid,
+          socialIds: [],
+          workspaces: {}
+        }),
+        getWorkspaceInfo: jest.fn().mockResolvedValue(undefined)
+      })
+
+      const token = {
+        account: 'some-account' as AccountUuid,
+        workspace: 'ws-1' as WorkspaceUuid,
+        extra: {}
+      } satisfies Token
+
+      const result = await sessionManager.addSession(mockContext, createMockSocket(), token, 'raw-token', undefined)
+
+      // Falls through past the apikey guard into the existing guest/system path, which here
+      // fails later (no workspace info available) - the point is it is NOT the apikey UNAUTHORIZED.
+      expect(result).not.toEqual({ error: UNAUTHORIZED, terminate: true })
     })
   })
 

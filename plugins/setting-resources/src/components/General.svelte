@@ -60,7 +60,6 @@
   let isEditingName = false
   let oldName: string
   let name: string = ''
-  let workspaceUrl = ''
   let allowReadOnlyGuests: boolean
   let allowGuestSignUp: boolean
   let passwordAgingRule: number | undefined = undefined
@@ -86,7 +85,6 @@
   async function loadWorkspaceName (): Promise<void> {
     const res = await accountClient.getWorkspaceInfo()
 
-    workspaceUrl = res.url
     oldName = res.name
     name = oldName
     allowReadOnlyGuests = res.allowReadOnlyGuest ?? false
@@ -209,11 +207,6 @@
     passwordAgingRule = val !== undefined ? Math.max(val, 1) : undefined
     await accountClient.updatePasswordAgingRule(passwordAgingRule)
   }
-
-  // async function handleGenerateApiToken (): Promise<void> {
-  //   const { token } = await accountClient.selectWorkspace(workspaceUrl)
-  //   showPopup(ApiTokenPopup, { token })
-  // }
 
   function handleTogglePermissions (): void {
     const newState = !arePermissionsDisabled
@@ -400,19 +393,6 @@
             description={settingsRes.string.ImportDocumentDescription}
             allowGuests={true}
           />
-          <!--
-          <div class="flex-col flex-gap-4 mt-6">
-            <div class="title"><Label label={settingsRes.string.ApiAccess} /></div>
-            <div class="w-32">
-              <Button
-                label={settingsRes.string.GenerateApiToken}
-                kind="regular"
-                disabled={workspaceUrl === ''}
-                showTooltip={{ label: settingsRes.string.GenerateApiToken }}
-                on:click={handleGenerateApiToken}
-              />
-            </div>
-          </div> -->
 
           <div class="flex-col flex-gap-4 mt-6">
             <div class="title"><Label label={settingsRes.string.DangerZone} /></div>

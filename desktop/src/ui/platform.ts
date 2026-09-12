@@ -569,6 +569,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
   configureNotifications()
 
   setMetadata(setting.metadata.BackupUrl, config.BACKUP_URL ?? '')
+  setMetadata(setting.metadata.WebhookServiceUrl, config.WEBHOOK_SERVICE_URL ?? '')
 
   if (config.INITIAL_URL !== '') {
     setLocationStorageKey('uberflow_child')

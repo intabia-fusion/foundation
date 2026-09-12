@@ -51,6 +51,7 @@ import { Action, ActionCategory, IconProps } from '@hcengineering/view'
 
 export * from './analytics'
 export * from './duration'
+export * from './ops'
 
 /**
  * @public
@@ -467,6 +468,8 @@ export * from './analytics'
 export interface NewIssue {
   title: string
   description?: Markup
+  /** Already-uploaded description; when set, `createIssue` skips `uploadMarkup`. */
+  descriptionRef?: MarkupBlobRef
   priority?: IssuePriority
   // Effort in hours, as the estimation editor shows it.
   estimation?: number

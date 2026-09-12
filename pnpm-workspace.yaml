@@ -477,6 +477,8 @@ packages:
   - services/sign/pod-sign
   - services/telegram-bot/pod-telegram-bot
   - services/telegram/pod-telegram
+  - services/webhook/pod-webhook
+  - services/webhook/pod-webhook-mock
   - services/worker
   - tests/sanity
   - ws-tests/api-tests

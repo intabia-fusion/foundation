@@ -139,6 +139,7 @@
     "Edit": "编辑",
     "Save": "保存",
     "DisabledFeaturesOverride": "禁用功能覆盖",
+    "MaxApiKeys": "API 密钥上限",
     "EditSubscription": "编辑订阅",
     "PricePerPeriod": "每期价格",
     "RecalculatePrice": "重新计算",

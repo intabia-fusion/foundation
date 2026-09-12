@@ -55,7 +55,14 @@ export enum QueueTopic {
   // Raw inbound TBank webhooks. The HTTP handler verifies the signature and enqueues here; the pod's
   // own consumer rechecks state via GetState and applies the effect. Decouples the bank's 200 from
   // downstream processing (reliability) and keeps unverified payloads out of the pipeline (security).
-  TbankWebhook = 'tbank-webhook'
+  TbankWebhook = 'tbank-webhook',
+
+  // Incoming webhook jobs (API-key authenticated). pod-webhook's HTTP handler verifies the key and
+  // enqueues here; the pod's own consumer resolves the space and runs the action.
+  Webhook = 'webhook',
+
+  // Outgoing webhook deliveries (to be produced once workspaces can register outbound webhooks).
+  WebhookDelivery = 'webhook-delivery'
 }
 
 export interface ConsumerHandle {

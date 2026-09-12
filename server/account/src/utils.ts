@@ -376,6 +376,13 @@ const maxFailedLoginAttempts =
  * @param account The account to check
  * @returns true if account is locked, false otherwise
  */
+/** Env-configured integer. A blank or non-numeric value falls back rather than yielding NaN, which
+ * would silently disable whatever limit it feeds. */
+export function parseEnvInt (value: string | undefined, defaultVal: number): number {
+  const parsed = value !== undefined ? parseInt(value.trim(), 10) : NaN
+  return Number.isFinite(parsed) ? parsed : defaultVal
+}
+
 export function isAccountPasswordLocked (account: Account): boolean {
   if (maxFailedLoginAttempts <= 0) {
     return false

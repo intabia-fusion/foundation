@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 
+export * from './apiKeyPermissions'
 export * from './applyTx'
 export * from './broadcast'
 export * from './configuration'

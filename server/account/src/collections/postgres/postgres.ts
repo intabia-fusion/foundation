@@ -1518,7 +1518,7 @@ export class PostgresAccountDB implements AccountDB {
         ) bs ON TRUE`
     const sql = `SELECT
           w.uuid, w.name, w.url, w.branding, w.location, w.region,
-          w.created_by, w.created_on, w.billing_account, w.disabled_features_override,
+          w.created_by, w.created_on, w.billing_account, w.disabled_features_override, w.max_api_keys,
           bs.plan AS billing_plan, bs.status AS billing_status, bs.period_end AS billing_period_end,
           ${this.workspaceStatusJson('s')} status,
           COUNT(*) OVER() AS total

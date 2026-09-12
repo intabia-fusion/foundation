@@ -60,14 +60,10 @@ import { getWorkspaceToken } from './utils'
 export async function connect (url: string, options: ConnectOptions): Promise<PlatformClient> {
   const config = await loadServerConfig(url)
 
-  const { endpoint, token } = await getWorkspaceToken(url, options, config)
+  // getWorkspaceToken already selected the workspace - reuse its info instead of asking again.
+  const { endpoint, token, info: wsLoginInfo } = await getWorkspaceToken(url, options, config)
   const accountClient = getAccountClient(config.ACCOUNTS_URL, token)
   const socialIds = await accountClient.getSocialIds(true)
-  const wsLoginInfo = await accountClient.selectWorkspace(options.workspace)
-
-  if (wsLoginInfo === undefined) {
-    throw new Error(`Workspace ${options.workspace} not found`)
-  }
 
   const account: Account = {
     uuid: wsLoginInfo.account,

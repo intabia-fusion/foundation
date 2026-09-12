@@ -139,6 +139,7 @@
     "Edit": "編集",
     "Save": "保存",
     "DisabledFeaturesOverride": "無効化機能のオーバーライド",
+    "MaxApiKeys": "APIキー上限数",
     "EditSubscription": "サブスクリプションを編集",
     "PricePerPeriod": "期間あたりの価格",
     "RecalculatePrice": "再計算",

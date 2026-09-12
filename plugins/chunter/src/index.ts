@@ -103,6 +103,7 @@ export const chunterId = 'chunter' as Plugin
 
 export * from './utils'
 export * from './analytics'
+export * from './ops'
 
 export default plugin(chunterId, {
   icon: {

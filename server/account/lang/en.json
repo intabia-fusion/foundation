@@ -19,6 +19,12 @@
     "ResendInviteSubject": "Re-invitation to {ws}",
     "AdminOtpSubject": "Confirmation code for an administrator action",
     "AdminOtpText": "You are about to perform a sensitive administrator action in {app} (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).\n\nYour confirmation code is:\n\n{code}\n\nEnter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.",
-    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>"
+    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>",
+    "ApiKeyCreatedSubject": "New API key issued in {ws}",
+    "ApiKeyCreatedText": "An API key was issued in {ws}.\n\nName: {name}\nKey: {masked}\nAllowed operations: {ops}\n{hasExpiry, select, yes {Expires: {expiresOn}} other {No expiration}}\nIssued by: {actor}\n\nIf you did not expect this, revoke the key in workspace settings.",
+    "ApiKeyCreatedHTML": "<p>An API key was issued in <b>{ws}</b>.</p><p>Name: {name}<br/>Key: {masked}<br/>Allowed operations: {ops}<br/>{hasExpiry, select, yes {Expires: {expiresOn}} other {No expiration}}<br/>Issued by: {actor}</p><p>If you did not expect this, revoke the key in workspace settings.</p>",
+    "ApiKeyRevokedSubject": "API key revoked in {ws}",
+    "ApiKeyRevokedText": "An API key was revoked in {ws}.\n\nName: {name}\nKey: {masked}\nRevoked by: {actor}",
+    "ApiKeyRevokedHTML": "<p>An API key was revoked in <b>{ws}</b>.</p><p>Name: {name}<br/>Key: {masked}<br/>Revoked by: {actor}</p>"
   }
 }

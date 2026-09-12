@@ -17,8 +17,14 @@
     "ResendInviteText": "Vous avez été réinvité à {ws}. Veuillez utiliser le lien suivant pour rejoindre : {link}. Le lien de réinvitation est valide pendant {expHours} heures.",
     "ResendInviteHTML": "<p>Vous avez été réinvité à {ws}. Pour rejoindre, cliquez sur le lien ci-dessous : <a href={link}>Rejoindre</a></p><p>Si le lien d'invitation ci-dessus ne fonctionne pas, collez le lien suivant dans la barre d'URL de votre navigateur : {link}</p><p>Le lien de réinvitation est valide pendant {expHours} heures.</p>",
     "ResendInviteSubject": "Réinvitation à {ws}",
-    "AdminOtpSubject": "Confirmation code for an administrator action",
-    "AdminOtpText": "You are about to perform a sensitive administrator action in {app} (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).\n\nYour confirmation code is:\n\n{code}\n\nEnter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.",
-    "AdminOtpHTML": "<p>You are about to perform a sensitive administrator action in <b>{app}</b> (deleting/archiving a workspace, changing members or a subscription, renaming a URL, or deleting an account).</p><p>Your confirmation code is:</p><h2>{code}</h2><p>Enter it in the admin panel to confirm. If you did not initiate this action, do NOT share this code and review your account security.</p>"
+    "AdminOtpSubject": "Code de confirmation pour une action d'administrateur",
+    "AdminOtpText": "Vous êtes sur le point d'effectuer une action d'administrateur sensible dans {app} (suppression/archivage d'un espace de travail, modification des membres ou d'un abonnement, renommage d'une URL ou suppression d'un compte).\n\nVotre code de confirmation est :\n\n{code}\n\nSaisissez-le dans le panneau d'administration pour confirmer. Si vous n'êtes pas à l'origine de cette action, NE partagez PAS ce code et vérifiez la sécurité de votre compte.",
+    "AdminOtpHTML": "<p>Vous êtes sur le point d'effectuer une action d'administrateur sensible dans <b>{app}</b> (suppression/archivage d'un espace de travail, modification des membres ou d'un abonnement, renommage d'une URL ou suppression d'un compte).</p><p>Votre code de confirmation est :</p><h2>{code}</h2><p>Saisissez-le dans le panneau d'administration pour confirmer. Si vous n'êtes pas à l'origine de cette action, NE partagez PAS ce code et vérifiez la sécurité de votre compte.</p>",
+    "ApiKeyCreatedSubject": "Nouvelle clé API émise dans {ws}",
+    "ApiKeyCreatedText": "Une nouvelle clé API a été émise dans {ws}.\n\nNom : {name}\nClé : {masked}\nOpérations autorisées : {ops}\n{hasExpiry, select, yes {Expire le : {expiresOn}} other {Sans expiration}}\nÉmise par : {actor}\n\nSi vous ne vous attendiez pas à cela, révoquez la clé dans les paramètres du workspace.",
+    "ApiKeyCreatedHTML": "<p>Une nouvelle clé API a été émise dans <b>{ws}</b>.</p><p>Nom : {name}<br/>Clé : {masked}<br/>Opérations autorisées : {ops}<br/>{hasExpiry, select, yes {Expire le : {expiresOn}} other {Sans expiration}}<br/>Émise par : {actor}</p><p>Si vous ne vous attendiez pas à cela, révoquez la clé dans les paramètres du workspace.</p>",
+    "ApiKeyRevokedSubject": "Clé API révoquée dans {ws}",
+    "ApiKeyRevokedText": "Une clé API a été révoquée dans {ws}.\n\nNom : {name}\nClé : {masked}\nRévoquée par : {actor}",
+    "ApiKeyRevokedHTML": "<p>Une clé API a été révoquée dans <b>{ws}</b>.</p><p>Nom : {name}<br/>Clé : {masked}<br/>Révoquée par : {actor}</p>"
   }
 }

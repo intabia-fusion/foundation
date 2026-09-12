@@ -74,6 +74,7 @@ function isSystemAccount (
 export class SeatLimitsMiddleware extends BaseMiddleware implements Middleware {
   private usersLimit = 0
   private readonly seatSet = new Set<AccountUuid>()
+  private integrationAccounts = new Set<AccountUuid>()
   /** System/AI account uuids (never occupy a seat). Resolved lazily; undefined = not yet resolved. */
   private systemAccounts: Set<AccountUuid> | undefined
   /** Last members-version this instance rebuilt against; a bump by the host consumer forces a rebuild. */
@@ -142,14 +143,24 @@ export class SeatLimitsMiddleware extends BaseMiddleware implements Middleware {
     return this.systemAccounts
   }
 
+  /**
+   * API-key integration account uuids. Refreshed with the seat set (both follow the members-version
+   * bump the account service publishes when a key is issued or revoked), never cached beyond it.
+   */
+  private async resolveIntegrationAccounts (): Promise<Set<AccountUuid>> {
+    this.integrationAccounts = (await this.provider?.getIntegrationAccounts(this.context.workspace.uuid)) ?? new Set()
+    return this.integrationAccounts
+  }
+
   /** Seat-eligible workspace members (uuid), sorted by role priority then uuid for a deterministic set. */
   private async eligibleMembers (): Promise<AccountUuid[]> {
     const provider = this.provider
     if (provider === undefined) return []
     const members = await provider.getWorkspaceMembers(this.context.workspace.uuid)
     const systemAccounts = await this.resolveSystemAccounts()
+    const integrationAccounts = await this.resolveIntegrationAccounts()
 
-    const eligible = members.filter((m) => this.seatEligible(m.person, m.role, systemAccounts))
+    const eligible = members.filter((m) => this.seatEligible(m.person, m.role, systemAccounts, integrationAccounts))
     const roleOf = new Map<AccountUuid, AccountRole>()
     for (const m of members) roleOf.set(m.person, m.role)
     return eligible
@@ -169,9 +180,15 @@ export class SeatLimitsMiddleware extends BaseMiddleware implements Middleware {
     for (const uuid of eligible.slice(0, this.usersLimit)) this.seatSet.add(uuid)
   }
 
-  /** A seat is consumed by any member except system/AI/Admin and guest-role accounts. */
-  private seatEligible (uuid: AccountUuid, role: AccountRole, systemAccounts: Set<AccountUuid>): boolean {
+  /** A seat is consumed by any member except system/AI/Admin, API-key integrations and guest-role accounts. */
+  private seatEligible (
+    uuid: AccountUuid,
+    role: AccountRole,
+    systemAccounts: Set<AccountUuid>,
+    integrationAccounts: Set<AccountUuid>
+  ): boolean {
     if (systemAccounts.has(uuid)) return false
+    if (integrationAccounts.has(uuid)) return false
     if (role === AccountRole.Admin) return false
     return !GUEST_ROLES.has(role)
   }
@@ -251,6 +268,12 @@ export class SeatLimitsMiddleware extends BaseMiddleware implements Middleware {
     await this.refreshSeatSetIfStale(ctx)
 
     if (GUEST_ROLES.has(account.role)) {
+      return await this.provideTx(ctx, txes)
+    }
+
+    // An API-key account takes no seat, so it is never in seatSet - and must not be read-only for it.
+    // Only seat accounting is lifted: counted limits and the unpaid mode still apply elsewhere.
+    if (this.integrationAccounts.has(account.uuid)) {
       return await this.provideTx(ctx, txes)
     }
 

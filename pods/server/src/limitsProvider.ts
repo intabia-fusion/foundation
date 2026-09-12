@@ -145,4 +145,16 @@ export class AccountLimitsProvider implements LimitsProvider {
     }
     return this.systemAccounts
   }
+
+  // Not cached: keys are created/revoked at any time, unlike the fixed system account uuids above.
+  // The caller (seat-limits middleware) already hits this only when rebuilding the seat set, which
+  // is rare, so a plain per-call fetch is enough.
+  async getIntegrationAccounts (workspace: WorkspaceUuid): Promise<Set<AccountUuid>> {
+    try {
+      const accounts = await this.accountClient(workspace).getApiKeyAccounts(workspace)
+      return new Set(accounts)
+    } catch {
+      return new Set()
+    }
+  }
 }

@@ -47,6 +47,15 @@ import {
 import { isHumanAdminLogin, requireAdminOp, requireAdminSession, verifyAdminOtpLimited } from './adminOp'
 
 import { accountPlugin } from './plugin'
+import { getWorkspaceOwnerEmails } from './operations'
+import {
+  type ApiKeyCheck,
+  type ApiKeySecret,
+  apiKeyKind,
+  apiKeyOperations,
+  hashApiKey,
+  isApiKeyUsable
+} from './apiKeys'
 import { SubscriptionStatus, SubscriptionType } from './types'
 import type {
   WorkspaceLoginInfo,
@@ -126,6 +135,8 @@ const IMPERSONATION_TTL_SEC = 1800
 
 // Move to config?
 const processingTimeoutMs = 30 * 1000
+// Exported: loginWithApiKey in operations.ts reuses the same throttle.
+export const lastUsedResolutionMs = 60 * 1000
 
 export async function listWorkspaces (
   ctx: MeasureContext,
@@ -818,6 +829,29 @@ export async function adminUpdateWorkspaceDisabledFeatures (
     features: params.features
   })
   await logAdminAction(ctx, db, token, 'set_disabled_features', params.workspace, params.features.join(', '))
+}
+
+/** Same scheme as workspace disabled-features override. `maxApiKeys: null` resets to the env default. */
+export async function adminUpdateApiKeyLimit (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { workspace: WorkspaceUuid, maxApiKeys: number | null, otpCode: string }
+): Promise<void> {
+  await requireAdminOp(ctx, db, token, 'set_api_key_limit', params.otpCode, params.workspace)
+  if (params.maxApiKeys != null && (!Number.isInteger(params.maxApiKeys) || params.maxApiKeys < 1)) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
+  }
+  const ws = await getWorkspaceById(db, params.workspace)
+  if (ws == null) {
+    throw new PlatformError(
+      new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUuid: params.workspace })
+    )
+  }
+  await db.workspace.update({ uuid: params.workspace }, { maxApiKeys: params.maxApiKeys })
+  ctx.info('admin: workspace API key limit updated', { workspace: params.workspace, maxApiKeys: params.maxApiKeys })
+  await logAdminAction(ctx, db, token, 'set_api_key_limit', params.workspace, String(params.maxApiKeys))
 }
 
 export async function adminUpdateWorkspaceUrl (
@@ -1728,6 +1762,99 @@ export async function listIntegrationsSecrets (
   return await db.integrationSecret.find({ socialId, kind, workspaceUuid, key })
 }
 
+export async function getWorkspaceOwnerEmailsSvc (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { workspace: WorkspaceUuid }
+): Promise<string[]> {
+  const { extra } = decodeTokenVerbose(ctx, token)
+  verifyAllowedServices(['webhook', 'tool'], extra)
+
+  const { workspace } = params
+  if (workspace == null) {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
+  }
+
+  return await getWorkspaceOwnerEmails(db, workspace)
+}
+
+export async function verifyApiKey (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { key: string }
+): Promise<ApiKeyCheck | null> {
+  const { extra } = decodeTokenVerbose(ctx, token)
+  verifyAllowedServices(['webhook', 'tool'], extra)
+
+  const { key } = params
+  if (key == null || key === '') {
+    throw new PlatformError(new Status(Severity.ERROR, platform.status.BadRequest, {}))
+  }
+
+  const hash = hashApiKey(key)
+  const row = await db.integrationSecret.findOne({ kind: apiKeyKind, key: hash })
+  if (row?.workspaceUuid == null) return null
+
+  const secret: ApiKeySecret = JSON.parse(row.secret)
+  if (!isApiKeyUsable(secret)) return null
+
+  const socialId = await db.socialId.findOne({ _id: row.socialId })
+  if (socialId == null) return null
+
+  const now = Date.now()
+  // One write per minute at most: lastUsed is for the owner's eyes, not an audit log.
+  // Matched on the secret we just read, so this never writes a stale copy back: a revoke landing
+  // between the read and this update would otherwise be erased and the key would go live again.
+  if (secret.lastUsed === undefined || now - secret.lastUsed > lastUsedResolutionMs) {
+    await db.integrationSecret.update(
+      { socialId: row.socialId, kind: apiKeyKind, workspaceUuid: row.workspaceUuid, key: row.key, secret: row.secret },
+      { secret: JSON.stringify({ ...secret, lastUsed: now }) }
+    )
+  }
+
+  return {
+    keyId: secret.keyId,
+    name: secret.name,
+    workspace: row.workspaceUuid,
+    socialId: row.socialId,
+    personUuid: socialId.personUuid,
+    // An unrestricted key carries its user's own rights, so every operation is on the table here too -
+    // its stored `ops` is empty, which would otherwise read as "no writes" on the ingest path.
+    ops: secret.unrestricted === true ? apiKeyOperations : secret.ops,
+    spaces: secret.spaces,
+    // Independent of ops/unrestricted - a key with full rights still needs `incoming` set explicitly.
+    incoming: secret.incoming === true
+  }
+}
+
+/** Person uuids of every non-revoked API key in the workspace. Used by seat enforcement to exclude them. */
+export async function getApiKeyAccounts (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { workspace: WorkspaceUuid }
+): Promise<AccountUuid[]> {
+  const { extra } = decodeTokenVerbose(ctx, token)
+  verifyAllowedServices(['transactor', 'tool'], extra)
+
+  const rows = await db.integrationSecret.find({ kind: apiKeyKind, workspaceUuid: params.workspace })
+  const result: AccountUuid[] = []
+  for (const row of rows) {
+    const secret: ApiKeySecret = JSON.parse(row.secret)
+    if (secret.revokedOn !== undefined) continue
+    // A personal key's account IS the user's own - exempting it here would let every member escape seat counting.
+    if (secret.personal === true) continue
+    const socialId = await db.socialId.findOne({ _id: row.socialId })
+    if (socialId != null) result.push(socialId.personUuid as AccountUuid)
+  }
+  return result
+}
+
 export async function findFullSocialIdBySocialKey (
   ctx: MeasureContext,
   db: AccountDB,
@@ -2571,6 +2698,7 @@ export type AccountServiceMethods =
   | 'adminCancelSubscription'
   | 'adminUpdateWorkspaceName'
   | 'adminUpdateWorkspaceDisabledFeatures'
+  | 'adminUpdateApiKeyLimit'
   | 'adminUpdateWorkspaceUrl'
   | 'adminReleaseSocialId'
   | 'adminDeletePerson'
@@ -2590,6 +2718,9 @@ export type AccountServiceMethods =
   | 'deleteIntegrationSecret'
   | 'getIntegrationSecret'
   | 'listIntegrationsSecrets'
+  | 'verifyApiKey'
+  | 'getWorkspaceOwnerEmails'
+  | 'getApiKeyAccounts'
   | 'findFullSocialIdBySocialKey'
   | 'mergeSpecifiedAccounts'
   | 'findPersonBySocialKey'
@@ -2653,6 +2784,7 @@ export function getServiceMethods (): Partial<Record<AccountServiceMethods, Acco
     adminCancelSubscription: wrap(adminCancelSubscription),
     adminUpdateWorkspaceName: wrap(adminUpdateWorkspaceName),
     adminUpdateWorkspaceDisabledFeatures: wrap(adminUpdateWorkspaceDisabledFeatures),
+    adminUpdateApiKeyLimit: wrap(adminUpdateApiKeyLimit),
     adminUpdateWorkspaceUrl: wrap(adminUpdateWorkspaceUrl),
     adminReleaseSocialId: wrap(adminReleaseSocialId),
     adminDeletePerson: wrap(adminDeletePerson),
@@ -2672,6 +2804,9 @@ export function getServiceMethods (): Partial<Record<AccountServiceMethods, Acco
     deleteIntegrationSecret: wrap(deleteIntegrationSecret),
     getIntegrationSecret: wrap(getIntegrationSecret),
     listIntegrationsSecrets: wrap(listIntegrationsSecrets),
+    verifyApiKey: wrap(verifyApiKey),
+    getWorkspaceOwnerEmails: wrap(getWorkspaceOwnerEmailsSvc),
+    getApiKeyAccounts: wrap(getApiKeyAccounts),
     findFullSocialIdBySocialKey: wrap(findFullSocialIdBySocialKey),
     findFullSocialIds: wrap(findFullSocialIds),
     mergeSpecifiedAccounts: wrap(mergeSpecifiedAccounts),

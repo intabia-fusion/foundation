@@ -196,6 +196,7 @@ export interface Config {
   USE_BINARY_PROTOCOL?: boolean | string
   TRANSACTOR_OVERRIDE?: string
   BACKUP_URL?: string
+  WEBHOOK_SERVICE_URL?: string
   STREAM_URL?: string
   PUBLIC_SCHEDULE_URL?: string
   CALDAV_SERVER_URL?: string
@@ -794,6 +795,7 @@ export async function configurePlatform() {
   setMetadata(workbench.metadata.DefaultHiddenApplications, ['contact', 'drive'])
 
   setMetadata(setting.metadata.BackupUrl, config.BACKUP_URL ?? '')
+  setMetadata(setting.metadata.WebhookServiceUrl, config.WEBHOOK_SERVICE_URL ?? '')
 
   await loadAssets()
   initThemeStore()

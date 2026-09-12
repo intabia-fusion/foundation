@@ -83,6 +83,12 @@ export const accountPlugin = plugin(accountId, {
     SignUpOtpHTML: '' as IntlString,
     AdminOtpText: '' as IntlString,
     AdminOtpHTML: '' as IntlString,
-    AdminOtpSubject: '' as IntlString
+    AdminOtpSubject: '' as IntlString,
+    ApiKeyCreatedText: '' as IntlString,
+    ApiKeyCreatedHTML: '' as IntlString,
+    ApiKeyCreatedSubject: '' as IntlString,
+    ApiKeyRevokedText: '' as IntlString,
+    ApiKeyRevokedHTML: '' as IntlString,
+    ApiKeyRevokedSubject: '' as IntlString
   }
 })

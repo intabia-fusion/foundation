@@ -38,5 +38,7 @@
 --to @hcengineering/pod-notification \
 --to @hcengineering/pod-notifications \
 --to @hcengineering/pod-activity \
---to @hcengineering/pod-db-migrator
+--to @hcengineering/pod-db-migrator \
+--to @hcengineering/pod-webhook \
+--to @hcengineering/pod-webhook-mock
 # --to @hcengineering/pod-hulylake

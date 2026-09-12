@@ -23,9 +23,11 @@ import type {
   Mixin,
   Rank,
   Ref,
+  Space,
   AccountUuid,
   Domain,
-  IntegrationKind
+  IntegrationKind,
+  Timestamp
 } from '@hcengineering/core'
 import type { Metadata, Plugin } from '@hcengineering/platform'
 import { Asset, IntlString, Resource, plugin } from '@hcengineering/platform'
@@ -38,6 +40,7 @@ import { SpaceTypeCreator, SpaceTypeEditor } from './spaceTypeEditor'
 export type * from './spaceTypeEditor'
 export * from './utils'
 export * from './analytics'
+export * from './webhookSecret'
 
 export const DOMAIN_SETTING = 'setting' as Domain
 
@@ -158,6 +161,230 @@ export enum IntegrationError {
 
 /**
  * @public
+ * One signing secret. Up to two may be active on an endpoint at once, for rotation without downtime.
+ */
+export interface WebhookSecretEntry {
+  id: string
+  secret: string
+  createdOn: Timestamp
+}
+
+/**
+ * @public
+ * A registered outgoing webhook recipient. Delivery worker reads/writes this via REST from the
+ * transactor - it never loads the workspace model directly (see docs/memory/webhook_ingest_pod.md).
+ */
+export interface WebhookEndpoint extends Doc {
+  url: string
+  /** Shown instead of the raw URL wherever the endpoint is named - several endpoints on one host
+   * are unreadable otherwise, and the auto-disable mail has nothing to call them by. */
+  name?: string
+  description?: string
+  /** Domain event names this endpoint subscribes to, e.g. 'issue.created'. */
+  events: string[]
+  /** Oldest first; all active secrets sign each delivery, so a receiver can rotate without downtime. */
+  secrets: WebhookSecretEntry[]
+  enabled: boolean
+  /** Whitelist. Empty means every non-private space: a private one is exported only when listed here,
+   * so configuring an endpoint never hands out content its owner cannot read themselves. */
+  spaces?: Ref<Space>[]
+  /** Consecutive delivery failures since the last success; auto-disables the endpoint past a threshold. */
+  failureCount: number
+  lastDeliveryOn?: Timestamp
+  lastError?: string
+}
+
+/**
+ * @public
+ * Domain event names outgoing webhooks can subscribe to - the single source of truth shared with
+ * pod-webhook's eventTable.ts (its domainRules[].type is typed against this union, so the two
+ * can't drift apart) and with the UI's event checkboxes.
+ */
+export const webhookEventTypes = [
+  'issue.created',
+  'issue.status_changed',
+  'issue.assigned',
+  'issue.commented',
+  'issue.time_reported',
+  'issue.time_report_updated',
+  'message.posted',
+  'document.created'
+] as const
+
+/**
+ * @public
+ */
+export type WebhookEventType = (typeof webhookEventTypes)[number]
+
+/**
+ * @public
+ * One example delivery body per event, shown in the settings dialog so the receiver's author sees
+ * the exact shape. `data` keys must match eventTable.ts's dataFields - a pod-webhook test asserts it.
+ */
+export const webhookEventSamples: Record<WebhookEventType, Record<string, unknown>> = {
+  'issue.created': {
+    action: 'create',
+    type: 'issue.created',
+    // Refs a receiver cannot use are sent as the tokens the ingest API accepts back: a person is an
+    // email, a status and a priority are names, and every object carries its front link.
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c91',
+      identifier: 'FUSIO-123',
+      title: 'Payment webhook retries indefinitely',
+      status: 'In Progress',
+      assignee: 'assignee@example.com',
+      priority: 'urgent'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  // `data.identifier` is present only if pod-webhook still has this issue's create cached in-process
+  // (see txTranslator.ts's `ponytail:` note) - unknown after a restart, same as `updatedFrom`. Without
+  // it there is no issue link either: the front resolves an issue by its identifier.
+  'issue.status_changed': {
+    action: 'update',
+    type: 'issue.status_changed',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c91',
+      identifier: 'FUSIO-123',
+      status: 'In Progress'
+    },
+    updatedFrom: {
+      status: 'Todo'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.assigned': {
+    action: 'update',
+    type: 'issue.assigned',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c91',
+      identifier: 'FUSIO-123',
+      assignee: 'assignee@example.com'
+    },
+    updatedFrom: {
+      assignee: null
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.commented': {
+    action: 'create',
+    type: 'issue.commented',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c95',
+      issue: 'FUSIO-123',
+      message: 'Reproduced on staging, looking into the retry loop now.'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.time_reported': {
+    action: 'create',
+    type: 'issue.time_reported',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c98',
+      // The issue identifier `issue:time_report` takes as its `space`, and the report id it takes as
+      // `id` to update this very report later.
+      issue: 'FUSIO-123',
+      employee: 'assignee@example.com',
+      date: 1789084800000,
+      value: 2.5,
+      description: 'Investigated the retry loop'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'issue.time_report_updated': {
+    action: 'update',
+    type: 'issue.time_report_updated',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/tracker/FUSIO-123',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c98',
+      issue: 'FUSIO-123',
+      value: 3.5
+    },
+    updatedFrom: {
+      value: 2.5
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'message.posted': {
+    action: 'create',
+    type: 'message.posted',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/chunter/64f10a1b2c3d4e5f6a7b8c90|chunter:class:Channel',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c96',
+      // The name `chat:post` takes as its `space`, so an answer can go straight back to this channel.
+      channel: 'general',
+      message: 'Deploy finished, all green.'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  },
+  'document.created': {
+    action: 'create',
+    type: 'document.created',
+    actor: 'author@example.com',
+    actorUrl: 'https://fusion.example.com/workbench/acme/contact/64f10a1b2c3d4e5f6a7b8c8f',
+    url: 'https://fusion.example.com/workbench/acme/document/q3-roadmap-64f10a1b2c3d4e5f6a7b8c97',
+    data: {
+      id: '64f10a1b2c3d4e5f6a7b8c97',
+      title: 'Q3 Roadmap'
+    },
+    organizationId: '9c858f36-6b1a-4d3a-8f2e-1a2b3c4d5e6f'
+  }
+}
+
+/**
+ * @public
+ * One HTTP delivery attempt's outcome, kept for the endpoint's "recent deliveries" list. Bounded
+ * per endpoint (oldest trimmed on write, see pod-webhook's delivery.ts) - a debugging aid, not the
+ * source of truth for endpoint health (that's WebhookEndpoint.failureCount/lastError).
+ */
+export interface WebhookDelivery extends Doc {
+  endpoint: Ref<WebhookEndpoint>
+  deliveryId: string
+  attempt: number
+  /** HTTP status on a completed request; absent for a network/SSRF error (see `error`). */
+  status?: number
+  /** Set on failure only - either a transport error message or `http <status>` for a non-2xx. */
+  error?: string
+}
+
+/**
+ * @public
+ * A message counter, one doc per (direction, target, type). Kept as its own satellite doc rather than
+ * a `Record<type, number>` field on WebhookEndpoint/an API key - `$inc` only writes flat top-level
+ * numeric properties (see docs/memory/webhook_outgoing_delivery.md), a map field would need a
+ * read-modify-write and lose increments under concurrent deliveries.
+ */
+export interface WebhookStat extends Doc {
+  direction: 'in' | 'out'
+  /** keyId for an incoming stat, Ref<WebhookEndpoint> for an outgoing one. */
+  target: string
+  /** ApiKeyOperation for incoming, WebhookEventType for outgoing. */
+  type: string
+  count: number
+  lastOn: Timestamp
+}
+
+/**
+ * @public
  */
 export const settingId = 'setting' as Plugin
 
@@ -180,6 +407,7 @@ export default plugin(settingId, {
     ManageSpaces: '' as Ref<Doc>,
     Spaces: '' as Ref<Doc>,
     Backup: '' as Ref<Doc>,
+    ApiKeys: '' as Ref<Doc>,
     Export: '' as Ref<Doc>,
     OfficeSettings: '' as Ref<Doc>,
     DisablePermissionsConfiguration: '' as Ref<Configuration>,
@@ -199,7 +427,10 @@ export default plugin(settingId, {
     IntegrationType: '' as Ref<Class<IntegrationType>>,
     InviteSettings: '' as Ref<Class<InviteSettings>>,
     OfficeSettings: '' as Ref<Class<OfficeSettings>>,
-    WorkspaceSetting: '' as Ref<Class<WorkspaceSetting>>
+    WorkspaceSetting: '' as Ref<Class<WorkspaceSetting>>,
+    WebhookEndpoint: '' as Ref<Class<WebhookEndpoint>>,
+    WebhookDelivery: '' as Ref<Class<WebhookDelivery>>,
+    WebhookStat: '' as Ref<Class<WebhookStat>>
   },
   component: {
     Settings: '' as AnyComponent,
@@ -222,6 +453,7 @@ export default plugin(settingId, {
     RoleAssignmentEditor: '' as AnyComponent,
     RelationSetting: '' as AnyComponent,
     Backup: '' as AnyComponent,
+    ApiKeys: '' as AnyComponent,
     CreateAttributePopup: '' as AnyComponent,
     CreateRelation: '' as AnyComponent,
     EditRelation: '' as AnyComponent,
@@ -241,6 +473,7 @@ export default plugin(settingId, {
     Spaces: '' as IntlString,
     WorkspaceSettings: '' as IntlString,
     Integrations: '' as IntlString,
+    ApiAndWebhooks: '' as IntlString,
     Support: '' as IntlString,
     Privacy: '' as IntlString,
     Terms: '' as IntlString,
@@ -363,6 +596,7 @@ export default plugin(settingId, {
     Value: '' as Ref<TemplateField>
   },
   metadata: {
-    BackupUrl: '' as Metadata<string>
+    BackupUrl: '' as Metadata<string>,
+    WebhookServiceUrl: '' as Metadata<string>
   }
 })

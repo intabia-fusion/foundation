@@ -146,6 +146,7 @@ export interface Workspace {
   allowGuestSignUp: boolean
   passwordAgingRule?: number | null // Number of days after which password must be changed, null disables it
   disabledFeaturesOverride?: string[] // Features from DISABLED_FEATURES to re-enable for this workspace
+  maxApiKeys?: number | null // Admin override for the active-API-key quota, same scheme as Account.maxWorkspaces; null resets to the env default
   dataId?: WorkspaceDataId // Old workspace identifier. E.g. Database name in Mongo, bucket in R2, etc.
   branding?: string
   location?: Location

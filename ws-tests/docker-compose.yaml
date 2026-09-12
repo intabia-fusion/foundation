@@ -28,6 +28,38 @@ services:
       - STREAM_REGION=
       - STREAM_QUEUE_CONFIG=${QUEUE_CONFIG}
     restart: unless-stopped
+  time-machine:
+    image: 'intabiafusion/worker:${DOCKER_TAG:-latest}'
+    pull_policy: never
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB_URL=${DB_PG_URL}
+      # Short poll so a scheduled-retry test doesn't wait the 20s prod default.
+      - POLL_INTERVAL=2000
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+    restart: unless-stopped
+  webhook:
+    image: 'intabiafusion/webhook:${DOCKER_TAG:-latest}'
+    pull_policy: never
+    depends_on:
+      redpanda:
+        condition: service_started
+      account:
+        condition: service_started
+    environment:
+      - PORT=4043
+      - SECRET=secret
+      - ACCOUNTS_URL=http://account:3003
+      - QUEUE_CONFIG=${QUEUE_CONFIG}
+      - QUEUE_REGION=
+    restart: unless-stopped
   postgres:
     image: postgres:18.1
     command: ['postgres', '-p', '5433']

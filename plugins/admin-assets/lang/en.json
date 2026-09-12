@@ -139,6 +139,7 @@
     "Edit": "Edit",
     "Save": "Save",
     "DisabledFeaturesOverride": "Disabled features override",
+    "MaxApiKeys": "Max API keys",
     "EditSubscription": "Edit subscription",
     "PricePerPeriod": "Price per period",
     "RecalculatePrice": "Recalculate",

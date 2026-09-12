@@ -26,6 +26,10 @@ export interface DelayedEventRecord {
 
 const delayedEventsTable = 'time_machine.delayed_events'
 
+// ponytail: caps a single poll's batch so a large backlog isn't pulled in one query; the rest
+// drains over the following polls, oldest first. Bump if POLL_INTERVAL * this stops draining backlog.
+const EXPIRED_EVENTS_BATCH_SIZE = 500
+
 export class TimeMachineDB {
   constructor (private readonly client: postgres.Sql) {}
 
@@ -73,12 +77,14 @@ export class TimeMachineDB {
     `
   }
 
-  async getExpiredEvents (): Promise<DelayedEventRecord[]> {
+  async getExpiredEvents (limit: number = EXPIRED_EVENTS_BATCH_SIZE): Promise<DelayedEventRecord[]> {
     const now = Date.now()
     const res = await this.client`
-      SELECT id, workspace, target_date, topic, data 
-      FROM time_machine.delayed_events 
+      SELECT id, workspace, target_date, topic, data
+      FROM time_machine.delayed_events
       WHERE target_date <= ${now}
+      ORDER BY target_date ASC
+      LIMIT ${limit}
     `
     return res.map((r: any) => ({
       id: r.id,

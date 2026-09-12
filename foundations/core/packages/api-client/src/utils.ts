@@ -32,6 +32,11 @@ export async function getWorkspaceToken (
 ): Promise<WorkspaceToken> {
   config ??= await loadServerConfig(url)
 
+  if ('apiKey' in options) {
+    const ws = await getAccountClient(config.ACCOUNTS_URL).loginWithApiKey(options.apiKey)
+    return { endpoint: ws.endpoint, token: ws.token, workspaceId: ws.workspace, info: ws }
+  }
+
   let token: string | undefined
 
   if ('token' in options) {

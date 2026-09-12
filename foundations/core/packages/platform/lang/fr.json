@@ -26,6 +26,7 @@
     "PasswordLoginLocked": "La connexion par mot de passe est verrouillée en raison de trop nombreuses tentatives échouées. Veuillez utiliser une méthode de connexion OTP pour déverrouiller votre compte.",
     "InviteNotFound": "Invitation avec e-mail:{email} introuvable.",
     "WorkspaceLimitReached": "Vous avez atteint la limite d'espace de travail. Veuillez contacter nous...",
+    "ApiKeyLimitReached": "Vous avez atteint la limite de {limit} clés API pour cet espace de travail.",
     "ReadOnlyAccount": "Démo invité anonyme",
     "SystemAccount": "Compte système",
     "SocialIdAlreadyExists": "L'ID social existe déjà"

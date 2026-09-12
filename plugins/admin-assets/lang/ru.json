@@ -139,6 +139,7 @@
     "Edit": "Изменить",
     "Save": "Сохранить",
     "DisabledFeaturesOverride": "Переопределение отключённых функций",
+    "MaxApiKeys": "Лимит API-ключей",
     "EditSubscription": "Изменить подписку",
     "PricePerPeriod": "Цена за период",
     "RecalculatePrice": "Пересчитать",

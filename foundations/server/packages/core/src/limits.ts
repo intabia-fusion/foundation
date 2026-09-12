@@ -41,6 +41,11 @@ export interface LimitsProvider {
    */
   getSystemAccounts: (workspace: WorkspaceUuid) => Promise<Set<AccountUuid>>
   /**
+   * Account uuids holding an API-key integration in this workspace. Unlike getSystemAccounts this
+   * ONLY exempts them from seat counting — every other enforcement (quotas, unpaid mode) still applies.
+   */
+  getIntegrationAccounts: (workspace: WorkspaceUuid) => Promise<Set<AccountUuid>>
+  /**
    * Doc classes a read-only (seatless) member may still create/update —
    * direct messages and chat. The host names them so the middleware needs no chunter dependency.
    */

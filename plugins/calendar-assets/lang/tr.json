@@ -125,6 +125,14 @@
     "SynchronizedCalendars": "Senkronize takvimler",
     "Account": "Hesap",
     "NoCalendars": "Senkronizasyon için takvim seçilmedi",
-    "PersonalCalendar": "Kişisel Takvim"
+    "PersonalCalendar": "Kişisel Takvim",
+    "Going": "Katılıyorum",
+    "NotGoing": "Katılmıyorum",
+    "Maybe": "Belki",
+    "WillYouAttend": "Katılacak mısınız?",
+    "RsvpAccepted": "katılıyor",
+    "RsvpDeclined": "katılmıyor",
+    "RsvpTentative": "belki",
+    "RsvpPending": "yanıt yok"
   }
 }

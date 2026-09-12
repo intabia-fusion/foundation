@@ -16,12 +16,19 @@ import { expect, test } from '../fixtures'
 import { generateId, PlatformSetting, PlatformURI } from '../utils'
 import { CalendarPage } from '../model/calendar-page'
 import { SidebarPage } from '../model/sidebar-page'
+import { dropStaleCalendarEvents } from '../API/CalendarApi'
 
 test.use({
   storageState: PlatformSetting
 })
 
 test.describe('Calendar tests', () => {
+  // The widget shows a single day and nothing cleans it up, so a few runs' worth of events
+  // fill every hour and there is no free cell left to click.
+  test.beforeAll(async () => {
+    await dropStaleCalendarEvents(['Calendar event '])
+  })
+
   test.beforeEach(async ({ page }) => {
     await (await page.goto(`${PlatformURI}/workbench/sanity-ws`))?.finished()
   })

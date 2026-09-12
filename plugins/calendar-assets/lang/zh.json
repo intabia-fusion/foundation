@@ -125,6 +125,14 @@
     "SynchronizedCalendars": "已同步的日历",
     "Account": "帐户",
     "NoCalendars": "未选择同步日历",
-    "PersonalCalendar": "个人日历"
+    "PersonalCalendar": "个人日历",
+    "Going": "参加",
+    "NotGoing": "不参加",
+    "Maybe": "待定",
+    "WillYouAttend": "您会参加吗？",
+    "RsvpAccepted": "参加",
+    "RsvpDeclined": "不参加",
+    "RsvpTentative": "待定",
+    "RsvpPending": "未回复"
   }
 }

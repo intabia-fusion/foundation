@@ -98,30 +98,53 @@ export class CalendarPage extends CommonPage {
 
   // Scanning starts at midnight rather than "now": other specs book the current hour and the
   // ones right after it, so the early morning is nearly always free and the scan ends at once.
+  private async tryClickFreeCellAtTime (time: string): Promise<boolean> {
+    const cell = this.emptyCellAtTime(time)
+    try {
+      await cell.scrollIntoViewIfNeeded({ timeout: 2000 })
+      await cell.click({ timeout: 2000 })
+    } catch (e) {
+      // Only "the cell is covered by an event" is expected here, anything else is a real failure.
+      if (!(e instanceof errors.TimeoutError)) throw e
+      return false
+    }
+    // The click can land on a sliver of a cell that is mostly covered and open nothing, so the
+    // create popup is the only proof the hour was really free.
+    if (
+      await this.createEventPopup()
+        .isVisible({ timeout: 2000 })
+        .catch(() => false)
+    ) {
+      return true
+    }
+    await this.page.keyboard.press('Escape')
+    return false
+  }
+
   async clickFreeCellInWidget (from: number = 0): Promise<string> {
     for (let i = 0; i < 24; i++) {
       const time = this.hourLabel((from + i) % 24)
-      const cell = this.emptyCellAtTime(time)
-      try {
-        await cell.scrollIntoViewIfNeeded({ timeout: 2000 })
-        await cell.click({ timeout: 2000 })
-      } catch (e) {
-        // Only "the cell is covered by an event" is expected here, anything else is a real failure.
-        if (!(e instanceof errors.TimeoutError)) throw e
-        continue
-      }
-      // The click can land on a sliver of a cell that is mostly covered and open nothing, so the
-      // create popup is the only proof the hour was really free.
-      if (
-        await this.createEventPopup()
-          .isVisible({ timeout: 2000 })
-          .catch(() => false)
-      ) {
-        return time
-      }
-      await this.page.keyboard.press('Escape')
+      if (await this.tryClickFreeCellAtTime(time)) return time
     }
     throw new Error('no free hour left in the calendar widget')
+  }
+
+  /**
+   * Books `title` in `other`'s calendar at an hour free in *both* widgets, leaving this widget's
+   * create popup open on it - an hour free only there is covered here, and swallows the click.
+   */
+  async clickFreeCellInBothWidgets (other: CalendarPage, title: string, from: number = 0): Promise<string> {
+    for (let i = 0; i < 24; i++) {
+      const time = this.hourLabel((from + i) % 24)
+      if (!(await this.tryClickFreeCellAtTime(time))) continue
+      await this.closeCreateEventPopup()
+      if (!(await other.tryClickFreeCellAtTime(time))) continue
+      await other.inputEventTitle().fill(title)
+      await other.buttonCreateEventSubmit().click()
+      if (await this.tryClickFreeCellAtTime(time)) return time
+      throw new Error(`hour ${time} was free a moment ago and is taken now`)
+    }
+    throw new Error('no hour free in both calendar widgets')
   }
 
   async createEventInWidget (title: string, from: number = 0): Promise<string> {
@@ -157,6 +180,8 @@ export class CalendarPage extends CommonPage {
 
   async closeEventPopup (): Promise<void> {
     await this.cardCloseButton().click()
+    // The overlay outlives a half-closed popup and swallows every following click.
+    await expect(this.page.locator('div.modal-overlay')).toHaveCount(0)
   }
 
   // EventTimeExtraButton dispatches 'repeat', opening ReccurancePopup.svelte (div.repeatPopup-container).

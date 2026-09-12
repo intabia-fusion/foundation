@@ -13,15 +13,16 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Event } from '@hcengineering/calendar'
+  import { Event, ReccuringInstance } from '@hcengineering/calendar'
   import { getCurrentAccount } from '@hcengineering/core'
   import love from '../plugin'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { ObjectPresenter } from '@hcengineering/view-resources'
-  import { MeetingMinutes, MeetingStatus } from '@hcengineering/love'
-  import { Button, Icon, IconRedo, Label } from '@hcengineering/ui'
+  import { LIVE_MEETING_STATUSES, MeetingMinutes } from '@hcengineering/love'
+  import { Button, ButtonIcon, Icon, IconSettings, Label, eventToHTMLElement, showPopup } from '@hcengineering/ui'
   import MeetingMinutesStatusPresenter from './MeetingMinutesStatusPresenter.svelte'
-  import { joinMeeting, leaveMeeting } from '../meetings'
+  import { joinMeeting, joinScheduledMeeting, leaveMeeting } from '../meetings'
+  import MeetingLinkPopup from './MeetingLinkPopup.svelte'
 
   export let value: Event
   export let readOnly: boolean = false
@@ -42,22 +43,27 @@
 
   let meetingDoc: MeetingMinutes | undefined
 
-  $: meetingQuery.query(love.class.MeetingMinutes, { _id: meeting?.meetingId }, (r) => {
-    meetingDoc = r.shift()
-  })
+  // An expanded occurrence is virtual: `getInstance` gives it a brand new eventId that exists in
+  // no database. Everything about the meeting hangs off the series, so resolve that instead.
+  $: seriesEventId = (_value as ReccuringInstance).recurringEventId ?? _value.eventId
 
-  // Check if current user is owner of the meeting
-  $: isOwner = meetingDoc?.owners?.includes(currentAccount.uuid) ?? false
-
-  async function resetMeeting (meetingDoc: MeetingMinutes): Promise<void> {
-    if (meetingDoc.status === MeetingStatus.Active || meetingDoc.status === MeetingStatus.Pending) {
-      // Disallow change for active meeting
-      return
+  // A session exists only while the meeting is running - it is looked up by the series, not by a
+  // reference on the event, which no longer holds one.
+  $: meetingQuery.query(
+    love.class.MeetingMinutes,
+    { eventId: seriesEventId, status: { $in: LIVE_MEETING_STATUSES } },
+    (r) => {
+      meetingDoc = r.shift()
     }
-    await client.diffUpdate(meetingDoc, { status: MeetingStatus.Scheduled })
-  }
+  )
 
   async function openMeeting (): Promise<void> {
+    // Sessions of a series are opened by the love service, addressed by the event. The old path
+    // stays for meetings whose mixin still points at a session created by the client (F1 §7).
+    if (seriesEventId !== undefined && meeting?.linkVersion !== undefined) {
+      await joinScheduledMeeting(seriesEventId)
+      return
+    }
     if (meetingDoc === undefined) return
     await joinMeeting(meetingDoc)
   }
@@ -67,8 +73,7 @@
   }
 </script>
 
-{#if isMeeting && meetingDoc !== undefined}
-  {@const doc = meetingDoc}
+{#if isMeeting}
   <div class="flex-col mt-2">
     <div class="flex-row-center">
       <div class="mr-2">
@@ -78,23 +83,35 @@
         <Label label={love.string.Meeting} />
       </div>
       <div class="flex-grow">
-        <ObjectPresenter
-          shouldShowAvatar={false}
-          objectId={meetingDoc._id}
-          _class={meetingDoc._class}
-          value={meetingDoc}
-        />
+        {#if meetingDoc !== undefined}
+          <ObjectPresenter
+            shouldShowAvatar={false}
+            objectId={meetingDoc._id}
+            _class={meetingDoc._class}
+            value={meetingDoc}
+          />
+        {/if}
       </div>
       <div class="ml-3 flex flex-row-center flex-gap-2">
-        <MeetingMinutesStatusPresenter object={meetingDoc} value={meetingDoc.status} attributeKey={'status'} />
-        {#if isOwner}
-          {#if meetingDoc.status === MeetingStatus.Scheduled}
-            <Button kind={'primary'} label={love.string.StartMeeting} size={'x-small'} on:click={openMeeting} />
-          {:else if meetingDoc.status === MeetingStatus.Active || meetingDoc.status === MeetingStatus.Pending}
-            <Button kind={'negative'} label={love.string.EndMeeting} size={'x-small'} on:click={closeMeeting} />
-          {:else if meetingDoc.status === MeetingStatus.Finished}
-            <Button kind={'ghost'} icon={IconRedo} size={'x-small'} on:click={() => resetMeeting(doc)} />
-          {/if}
+        {#if meetingDoc !== undefined}
+          <MeetingMinutesStatusPresenter object={meetingDoc} value={meetingDoc.status} attributeKey={'status'} />
+        {/if}
+        {#if !readOnly}
+          <ButtonIcon
+            icon={IconSettings}
+            size={'small'}
+            kind={'tertiary'}
+            tooltip={{ label: love.string.MeetingLinkSettings }}
+            on:click={(e) => {
+              showPopup(MeetingLinkPopup, { event: _value }, eventToHTMLElement(e))
+            }}
+          />
+        {/if}
+        <!-- Any participant may start a scheduled meeting, not only its owner. -->
+        {#if meetingDoc !== undefined}
+          <Button kind={'negative'} label={love.string.EndMeeting} size={'x-small'} on:click={closeMeeting} />
+        {:else}
+          <Button kind={'primary'} label={love.string.StartMeeting} size={'x-small'} on:click={openMeeting} />
         {/if}
       </div>
     </div>

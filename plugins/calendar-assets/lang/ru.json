@@ -125,6 +125,14 @@
     "SynchronizedCalendars": "Синхронизированные календари",
     "Account": "Аккаунт",
     "NoCalendars": "Календари для синхронизации не выбраны",
-    "PersonalCalendar": "Личный календарь"
+    "PersonalCalendar": "Личный календарь",
+    "Going": "Приду",
+    "NotGoing": "Не приду",
+    "Maybe": "Возможно",
+    "WillYouAttend": "Придёте?",
+    "RsvpAccepted": "придут",
+    "RsvpDeclined": "не придут",
+    "RsvpTentative": "возможно",
+    "RsvpPending": "без ответа"
   }
 }

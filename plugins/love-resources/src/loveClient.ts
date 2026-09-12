@@ -1,5 +1,5 @@
 import { concatLink, type Ref } from '@hcengineering/core'
-import love, { type MeetingMinutes, type Room } from '@hcengineering/love'
+import love, { type MeetingLinkKind, type MeetingMinutes, type Room } from '@hcengineering/love'
 import { getMetadata } from '@hcengineering/platform'
 import { getPlatformToken } from './utils'
 import { getCurrentEmployee } from '@hcengineering/contact'
@@ -28,6 +28,70 @@ const LOVE_HOUSEKEEPING_TIMEOUT_MS = 4000
 export class LoveClient {
   async getRoomToken (meetingMinutes: MeetingMinutes): Promise<string> {
     return await this.refreshRoomToken(meetingMinutes)
+  }
+
+  /**
+   * The shareable link of a meeting series.
+   *
+   * Assembled on demand rather than stored: the account service deduplicates short links by
+   * payload, so the same meeting always yields the same URL.
+   */
+  async getMeetingLink (eventId: string, kind: MeetingLinkKind = 'event'): Promise<string> {
+    const query = new URLSearchParams({ eventId, kind })
+    const res = await fetch(concatLink(this.getLoveEndpoint(), `/meetingLink?${query.toString()}`), {
+      headers: { Authorization: 'Bearer ' + getPlatformToken() }
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new LoveServiceError(res.status, `meetingLink failed: ${res.status} ${text}`)
+    }
+    const data = await res.json()
+    return data?.shortId ?? ''
+  }
+
+  /**
+   * The session to join for a scheduled meeting, opening it if this occurrence has come.
+   *
+   * Sessions of a series are created by the service alone - a client doing it left two writers
+   * racing over one occurrence.
+   */
+  async resolveSession (
+    eventId: string,
+    kind: MeetingLinkKind = 'event'
+  ): Promise<{ meetingId: Ref<MeetingMinutes>, occurrence?: number }> {
+    const res = await fetch(concatLink(this.getLoveEndpoint(), '/resolveSession'), {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + getPlatformToken(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ eventId, kind })
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new LoveServiceError(res.status, `resolveSession failed: ${res.status} ${text}`)
+    }
+    return await res.json()
+  }
+
+  /**
+   * Sets or clears (`password: null`) the guest password of a meeting link. The plaintext never
+   * touches a document - love hashes it server-side and never sends the hash back either.
+   */
+  async setGuestPassword (eventId: string, password: string | null, kind: 'event' | 'meeting' = 'event'): Promise<void> {
+    const res = await fetch(concatLink(this.getLoveEndpoint(), '/meetingPassword'), {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + getPlatformToken(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ eventId, kind, password })
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new LoveServiceError(res.status, `meetingPassword failed: ${res.status} ${text}`)
+    }
   }
 
   async updateSessionLanguage (mm: MeetingMinutes, room: Room): Promise<void> {

@@ -141,7 +141,7 @@ function makeRoom (): Room {
   } as unknown as Room
 }
 
-describe('createMeetingDocument ignores Scheduled meetings (defect D)', () => {
+describe('createMeetingDocument opens or joins the session of a room', () => {
   beforeEach(() => {
     mockFakeDb.length = 0
     setCurrentAccount({
@@ -152,54 +152,35 @@ describe('createMeetingDocument ignores Scheduled meetings (defect D)', () => {
     } as unknown as Account)
   })
 
-  it('reuses the existing Scheduled meeting instead of creating a second one for the same room (defect: notMatch omits Scheduled)', async () => {
+  it('joins the live session of the room instead of opening a second one', async () => {
     const { createMeeting } = require('../meetings')
 
     const room = makeRoom()
-    mockFakeDb.push({
-      _id: 'scheduled-1',
-      roomId: room._id,
-      status: MeetingStatus.Scheduled,
-      meetingScheduledDate: Date.now(),
-      name: 'Scheduled meeting'
-    })
+    mockFakeDb.push({ _id: 'live-1', roomId: room._id, status: MeetingStatus.Pending, name: 'Already here' })
 
     const result = await createMeeting(room)
 
-    const meetingsForRoom = mockFakeDb.filter((d) => d.roomId === room._id)
-    // Someone clicking the room while a calendar-scheduled meeting is pending
-    // must land in that same meeting, not spin up a second LiveKit room.
-    expect(meetingsForRoom).toHaveLength(1)
-    expect((result as { meeting?: MeetingMinutes }).meeting?._id).toBe('scheduled-1')
+    expect(mockFakeDb.filter((d) => d.roomId === room._id)).toHaveLength(1)
+    expect((result as { meeting?: MeetingMinutes }).meeting?._id).toBe('live-1')
   })
 
-  it('starts a fresh ad-hoc meeting when the only Scheduled one is outside its start window', async () => {
+  it('opens a session for an empty room', async () => {
     const { createMeeting } = require('../meetings')
 
     const room = makeRoom()
-    mockFakeDb.push({
-      _id: 'scheduled-next-week',
-      roomId: room._id,
-      status: MeetingStatus.Scheduled,
-      meetingScheduledDate: Date.now() + 7 * 24 * 60 * 60 * 1000,
-      name: 'Next week planning'
-    })
-
     const result = await createMeeting(room)
 
-    const created = (result as { meeting?: MeetingMinutes }).meeting
-    expect(created?._id).not.toBe('scheduled-next-week')
-    expect(mockFakeDb.find((d) => d._id === 'scheduled-next-week')?.status).toBe(MeetingStatus.Scheduled)
+    expect((result as { meeting?: MeetingMinutes }).meeting?.status).toBe(MeetingStatus.Pending)
   })
 
-  it('starts a fresh ad-hoc meeting when the Scheduled one carries no date', async () => {
+  it('ignores a finished session of the same room', async () => {
     const { createMeeting } = require('../meetings')
 
     const room = makeRoom()
-    mockFakeDb.push({ _id: 'scheduled-no-date', roomId: room._id, status: MeetingStatus.Scheduled, name: 'Dateless' })
+    mockFakeDb.push({ _id: 'done-1', roomId: room._id, status: MeetingStatus.Finished, name: 'Yesterday' })
 
     const result = await createMeeting(room)
 
-    expect((result as { meeting?: MeetingMinutes }).meeting?._id).not.toBe('scheduled-no-date')
+    expect((result as { meeting?: MeetingMinutes }).meeting?._id).not.toBe('done-1')
   })
 })

@@ -101,10 +101,11 @@ describe('WorkspaceClient.checkUnfinishedMeetings', () => {
     expect(fake.finished).toEqual(expect.arrayContaining([active._id, pending._id]))
   })
 
-  it('does NOT finish a Scheduled meeting (no LiveKit room until someone starts it)', async () => {
-    const scheduled = createMockMeeting({
-      _id: 'm:scheduled' as Ref<MeetingMinutes>,
-      status: MeetingStatus.Scheduled,
+  it('leaves a finished meeting alone', async () => {
+    // Only live sessions are force-finished; there is no third status to protect any more.
+    const done = createMockMeeting({
+      _id: 'm:done' as Ref<MeetingMinutes>,
+      status: MeetingStatus.Finished,
       modifiedOn: oldModifiedOn
     })
     const active = createMockMeeting({
@@ -112,13 +113,13 @@ describe('WorkspaceClient.checkUnfinishedMeetings', () => {
       status: MeetingStatus.Active,
       modifiedOn: oldModifiedOn
     })
-    const fake = createFakeClient([scheduled, active])
+    const fake = createFakeClient([done, active])
 
     const wc = makeWorkspaceClient(createMockContext(), fake.client)
     await wc.checkUnfinishedMeetings([])
 
     expect(fake.finished).toContain(active._id)
-    expect(fake.finished).not.toContain(scheduled._id)
+    expect(fake.finished).not.toContain(done._id)
   })
 
   it('does not finish meetings present in the active room list', async () => {

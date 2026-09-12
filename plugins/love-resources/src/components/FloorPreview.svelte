@@ -31,7 +31,7 @@
     showPopup,
     type SelectPopupValueType
   } from '@hcengineering/ui'
-  import love, { Floor, isOffice, Office, ParticipantInfo, Room } from '@hcengineering/love'
+  import love, { Floor, isOffice, isServiceFloor, Office, ParticipantInfo, Room } from '@hcengineering/love'
   import { createEventDispatcher, onMount } from 'svelte'
   import plugin from '../plugin'
   import { infos } from '../stores'
@@ -71,7 +71,9 @@
     hovered = n
   }
 
-  $: editable = hasAccountRole(me, AccountRole.Maintainer)
+  // The service floor is created by fixed id and owned by the workspace - renaming or deleting it
+  // would strand every scheduled meeting, so it never offers the edit affordances.
+  $: editable = hasAccountRole(me, AccountRole.Maintainer) && !isServiceFloor(floor._id)
   $: rows = calculateFloorSize(rooms) - (cropped ? 1 : 0)
 
   const client = getClient()

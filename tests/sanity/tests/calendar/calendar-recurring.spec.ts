@@ -16,6 +16,7 @@ import { expect, test, type Page } from '../fixtures'
 import { generateId, getSecondPage, PlatformSetting, PlatformURI } from '../utils'
 import { CalendarPage } from '../model/calendar-page'
 import { SidebarPage } from '../model/sidebar-page'
+import { dropStaleCalendarEvents } from '../API/CalendarApi'
 
 test.use({
   storageState: PlatformSetting
@@ -34,6 +35,12 @@ async function openCalendarWidget (page: Page): Promise<CalendarPage> {
 }
 
 test.describe('Calendar recurring events', () => {
+  // The widget shows a single day and nothing cleans it up, so a few runs' worth of events
+  // fill every hour and there is no free cell left to click.
+  test.beforeAll(async () => {
+    await dropStaleCalendarEvents(['Recurring meeting ', 'Recurring occupancy '])
+  })
+
   test('A recurring meeting is visible to a participant and expands to a later day', async ({ page, browser }) => {
     const title = `Recurring meeting ${generateId()}`
 

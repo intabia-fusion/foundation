@@ -70,7 +70,7 @@
     await joinMeeting(object)
   }
 
-  $: connectLabel = object.status !== MeetingStatus.Scheduled ? love.string.JoinMeeting : love.string.StartMeeting
+  const connectLabel = love.string.JoinMeeting
 
   function showConnectionButton (object: MeetingMinutes, connecting: boolean, isConnected: boolean): boolean {
     if (object.status === MeetingStatus.Finished) {

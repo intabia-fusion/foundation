@@ -14,10 +14,11 @@
 -->
 <script lang="ts">
   import { AccountRole, getCurrentAccount, hasAccountRole, Ref, WithLookup } from '@hcengineering/core'
-  import { Floor, Room } from '@hcengineering/love'
+  import { Floor, isServiceFloor, Room } from '@hcengineering/love'
   import { Component, DropdownLabels, Header, IconEdit, ModernButton } from '@hcengineering/ui'
   import { Viewlet, ViewletPreference } from '@hcengineering/view'
   import { ViewletSelector } from '@hcengineering/view-resources'
+  import ScheduledFloorView from './ScheduledFloorView.svelte'
   import { createEventDispatcher } from 'svelte'
 
   import lovePlg from '../plugin'
@@ -38,7 +39,8 @@
   const me = getCurrentAccount()
 
   let editable: boolean = false
-  $: editable = hasAccountRole(me, AccountRole.Maintainer)
+  // The service floor has no grid to configure - FloorPreview holds the same invariant.
+  $: editable = hasAccountRole(me, AccountRole.Maintainer) && !isServiceFloor(floor)
 
   let items = $floors.map((p) => {
     return { id: p._id, label: p.name }
@@ -80,7 +82,11 @@
     </svelte:fragment>
   </Header>
   <div class="hulyComponent-content__column content">
-    {#if viewlet?.$lookup?.descriptor?.component}
+    <!-- The viewlet preference is per class, not per floor, so the service floor is branched by
+         its own id: it has no grid to render and no room worth switching views over. -->
+    {#if isServiceFloor(floor)}
+      <ScheduledFloorView />
+    {:else if viewlet?.$lookup?.descriptor?.component}
       <Component is={viewlet.$lookup.descriptor.component} props={{ floor, rooms }} on:open />
     {/if}
   </div>

@@ -14,11 +14,21 @@
 // limitations under the License.
 //
 
-import { createRestClient, RestClient } from '@hcengineering/api-client'
-import { WorkspaceUuid } from '@hcengineering/core'
+import { createRestClient, createRestTxOperations, RestClient } from '@hcengineering/api-client'
+import core, { TxOperations, WorkspaceUuid } from '@hcengineering/core'
 import { getTransactorEndpoint } from '@hcengineering/server-client'
 
 export async function getClient (token: string, workspaceId: WorkspaceUuid): Promise<RestClient> {
   const endpoint = await getTransactorEndpoint(token)
   return createRestClient(endpoint, workspaceId, token)
+}
+
+// Same REST transport as getClient, wrapped into TxOperations - the only way to reach
+// `apply()`/`notMatch()`, which RestClient does not expose.
+export async function getTxOperations (token: string, workspaceId: WorkspaceUuid): Promise<TxOperations> {
+  const endpoint = await getTransactorEndpoint(token)
+  const ops = await createRestTxOperations(endpoint, workspaceId, token)
+  // The service's system account has no social ids, so `account.socialIds[0]` leaves
+  // `modifiedBy` undefined and the transactor rejects the batch as a bad request.
+  return ops.user === undefined ? new TxOperations(ops.client, core.account.System) : ops
 }

@@ -42589,6 +42589,9 @@ importers:
       '@hcengineering/billing-client':
         specifier: workspace:^0.7.0
         version: link:../../packages/billing-client
+      '@hcengineering/calendar':
+        specifier: workspace:^0.7.0
+        version: link:../../plugins/calendar
       '@hcengineering/client':
         specifier: workspace:^0.7.18
         version: link:../../foundations/core/packages/client
@@ -44774,9 +44777,15 @@ importers:
       '@hcengineering/api-client':
         specifier: workspace:^0.7.18
         version: link:../../foundations/core/packages/api-client
+      '@hcengineering/calendar':
+        specifier: workspace:^0.7.0
+        version: link:../../plugins/calendar
       '@hcengineering/client-resources':
         specifier: workspace:^0.7.18
         version: link:../../foundations/core/packages/client-resources
+      '@hcengineering/contact':
+        specifier: workspace:^0.7.0
+        version: link:../../plugins/contact
       '@hcengineering/core':
         specifier: workspace:^0.7.24
         version: link:../../foundations/core/packages/core

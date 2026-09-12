@@ -1,13 +1,15 @@
+import calendar, { AccessLevel } from '@hcengineering/calendar'
 import { AccountRole, generateId, getCurrentAccount, type Ref, type Space, type AccountUuid } from '@hcengineering/core'
 import love, {
+  LIVE_MEETING_STATUSES,
   MeetingStatus,
   TranscriptionState,
   RecordingState,
   type Room,
   RoomType,
   isOffice,
-  isScheduledJoinable,
-  type MeetingMinutes
+  type MeetingMinutes,
+  type PermanentMeeting
 } from '@hcengineering/love'
 import presentation, { getClient, onClient } from '@hcengineering/presentation'
 import {
@@ -167,6 +169,30 @@ export async function joinMeeting (meeting: MeetingMinutes): Promise<void> {
   })
 }
 
+/**
+ * Enter the scheduled meeting of a calendar event.
+ *
+ * The session is resolved - and opened, if this occurrence has come - by the love service, which
+ * is the only writer allowed to create one. The event itself carries no session reference.
+ */
+export async function joinScheduledMeeting (eventId: string): Promise<void> {
+  const { meetingId } = await loveClient.resolveSession(eventId)
+  const meeting = await getClient().findOne(love.class.MeetingMinutes, { _id: meetingId })
+  if (meeting === undefined) return
+  await joinMeeting(meeting)
+}
+
+/**
+ * Enter a permanent meeting (F4): the window is always open, so this always opens a session -
+ * unlike a scheduled meeting there is no occurrence to wait for.
+ */
+export async function joinPermanentMeeting (meeting: Ref<PermanentMeeting>): Promise<void> {
+  const { meetingId } = await loveClient.resolveSession(meeting, 'meeting')
+  const mm = await getClient().findOne(love.class.MeetingMinutes, { _id: meetingId })
+  if (mm === undefined) return
+  await joinMeeting(mm)
+}
+
 export async function joinOrCreateMeetingByInvite (meetingId: Ref<MeetingMinutes>): Promise<boolean> {
   return await withConnectingToMeeting(async () => {
     const client = getClient()
@@ -273,6 +299,16 @@ async function connectToMeeting (mm: MeetingMinutes, room?: Room, silent = false
     currentMeetingRoom = room?._id
   }
 
+  // The media mode of a scheduled meeting lives on its event, not on the room it runs in.
+  let mixinType: RoomType | undefined
+  if (mm.eventId !== undefined) {
+    const client = getClient()
+    const master = await client.findOne(calendar.class.Event, { eventId: mm.eventId, access: AccessLevel.Owner })
+    if (master !== undefined) {
+      mixinType = client.getHierarchy().as(master, love.mixin.MeetingEventLink).type
+    }
+  }
+
   await navigateToOfficeDoc(mm) // TODO: Select room?
 
   // Without this a failed attempt leaves `currentMeeting` set, and every retry early-returns.
@@ -291,7 +327,13 @@ async function connectToMeeting (mm: MeetingMinutes, room?: Room, silent = false
   myConnectingSessionId.set(sessionId)
 
   try {
-    await liveKitClient.connect(wsURL, token, room?.type === RoomType.Video)
+    // A scheduled meeting has no media mode of its own room - the service room is shared by all
+    // of them - so it comes from the meeting's mixin, falling back to video.
+    const withVideo =
+      room?.type === RoomType.Scheduled
+        ? (mixinType ?? RoomType.Video) === RoomType.Video
+        : room?.type === RoomType.Video
+    await liveKitClient.connect(wsURL, token, withVideo)
     await navigateToMeetingMinutes(mm)
   } catch (err: any) {
     console.error('[connectToMeeting] Error connecting:', err)
@@ -309,23 +351,10 @@ async function connectToMeeting (mm: MeetingMinutes, room?: Room, silent = false
   void loveClient.claimSession(mm)
 }
 
-const LIVE_MEETING_STATUSES = [MeetingStatus.Active, MeetingStatus.Pending]
-
-// A Scheduled meeting already owns its room, so creating a second one would split people
-// arriving by the calendar link from people clicking the room - but only inside its window.
-async function findJoinableScheduled (room: Room): Promise<MeetingMinutes | undefined> {
-  const scheduled = await getClient().findAll(love.class.MeetingMinutes, {
-    roomId: room._id,
-    status: MeetingStatus.Scheduled
-  })
-  return scheduled.find((it) => isScheduledJoinable(it))
-}
-
+// Only ad-hoc meetings are created here. A scheduled one never occupies an ordinary room, so
+// there is nothing of its to collide with, and its session is opened by the love service.
 async function createMeetingDocument (room: Room): Promise<{ meeting: MeetingMinutes, created: boolean }> {
   const client = getClient()
-
-  const joinableScheduled = await findJoinableScheduled(room)
-  if (joinableScheduled !== undefined) return { meeting: joinableScheduled, created: false }
 
   while (true) {
     const me = getCurrentEmployee()

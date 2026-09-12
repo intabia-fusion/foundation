@@ -3,10 +3,9 @@ import { connectMeeting, disconnectMeeting } from '@hcengineering/ai-bot-resourc
 import { Analytics } from '@hcengineering/analytics'
 import calendar, { type Event, type Schedule } from '@hcengineering/calendar'
 import chunter from '@hcengineering/chunter'
-import contact, { getName, getPersonsByPersonIds, getPersonsByPersonRefs, type Person } from '@hcengineering/contact'
+import contact, { getName } from '@hcengineering/contact'
 import workbench from '@hcengineering/workbench'
 import core, {
-  type AccountUuid,
   type Client,
   concatLink,
   type Data,
@@ -18,20 +17,21 @@ import core, {
   type Space,
   type TxOperations,
   type WithLookup,
-  reduceCalls,
-  generateId
+  reduceCalls
 } from '@hcengineering/core'
 import {
+  defaultMeetingAccess,
   isOffice,
   LoveEvents,
   loveId,
-  MeetingStatus,
-  RecordingState,
-  TranscriptionState,
+  meetingMasterQuery,
   type MeetingEventLink,
+  type MeetingLinkKind,
   type MeetingMinutes,
   type MeetingSchedule,
+  type PermanentMeeting,
   type Room,
+  RoomType,
   type UserMeetingInvite
 } from '@hcengineering/love'
 import { getEmbeddedLabel, getMetadata, translate, type IntlString } from '@hcengineering/platform'
@@ -360,7 +360,7 @@ void checkRecordAvailable()
 export async function createMeeting (
   client: TxOperations,
   _id: Ref<Event>,
-  space: Space,
+  _space: Space,
   _data: Data<Event>,
   store: Record<string, any>,
   phase: DocCreatePhase
@@ -368,7 +368,10 @@ export async function createMeeting (
   if (phase === 'post' && store.room != null && store.isMeeting === true) {
     const event = await client.findOne(calendar.class.Event, { _id })
     if (event === undefined) return
-    const events = await client.findAll(calendar.class.Event, { eventId: event.eventId })
+    // The mixin goes on the series master alone: onEventMixin mirrors it onto every copy sharing
+    // the eventId, and a copy cannot fan changes back (it returns early on access !== 'owner').
+    const master = await client.findOne(calendar.class.Event, meetingMasterQuery(event))
+    if (master === undefined) return
 
     const room = await client.findOne(love.class.Room, { _id: store.room as Ref<Room> })
     const isPrivate = room?.startPrivate ?? false
@@ -376,85 +379,34 @@ export async function createMeeting (
     const roomStartWithRecording = room?.startWithRecording ?? false
     const roomStartWithTranscription = room?.startWithTranscription ?? false
 
-    // Collect members from event creator and participants
-    const members = new Set<AccountUuid>()
-
-    // Add event creator (modifiedBy is PersonId/SocialId)
-    const creatorPersonIds = [event.modifiedBy]
-    if (event.createdBy !== undefined && event.createdBy !== event.modifiedBy) {
-      creatorPersonIds.push(event.createdBy)
-    }
-    const creatorPersons = await getPersonsByPersonIds(client, creatorPersonIds)
-    let creatorAccountUuid: AccountUuid | undefined
-    for (const person of creatorPersons.values()) {
-      if (person?.personUuid !== undefined) {
-        members.add(person.personUuid as unknown as AccountUuid)
-        creatorAccountUuid = person.personUuid as unknown as AccountUuid
-      }
-    }
-
-    // Add participants
-    if (event.participants !== undefined && event.participants.length > 0) {
-      const participantPersons = await getPersonsByPersonRefs(client, event.participants as Array<Ref<Person>>)
-      for (const person of participantPersons.values()) {
-        if (person?.personUuid !== undefined) {
-          members.add(person.personUuid as unknown as AccountUuid)
-        }
-      }
-    }
-
-    const membersArray = Array.from(members)
-
-    // Create MeetingMinutes as a Space - it must use its own _id as space
-    const meetingId = generateId<MeetingMinutes>()
-    await client.createDoc(
-      love.class.MeetingMinutes,
-      meetingId as unknown as Ref<Space>,
+    // No session is created here any more: the love service opens one when an occurrence comes,
+    // and it is the only writer allowed to (F1 §5). Scheduling only records what the meeting is.
+    await client.createMixin<Event, MeetingEventLink>(
+      master._id,
+      master._class,
+      master.space,
+      love.mixin.MeetingEventLink,
       {
-        name: event.title,
-        description: '',
+        type: RoomType.Audio === room?.type ? RoomType.Audio : RoomType.Video,
+        linkVersion: 1,
+        meetingAccess: defaultMeetingAccess,
         private: isPrivate,
-        archived: false,
-        members: membersArray,
-        owners: creatorAccountUuid !== undefined ? [creatorAccountUuid] : [],
-        descriptionRef: null,
-        summary: null,
-        roomId: store.room as Ref<Room>,
-        status: MeetingStatus.Scheduled,
         language: roomLanguage,
-        recordingState: RecordingState.NotStarted,
-        transcriptionState: TranscriptionState.NotStarted,
         startWithRecording: roomStartWithRecording,
-        startWithTranscription: roomStartWithTranscription,
-        meetingScheduledDate: event.date
-      },
-      meetingId
+        startWithTranscription: roomStartWithTranscription
+      }
     )
-
-    const meetingDoc = await client.findOne(love.class.MeetingMinutes, { _id: meetingId })
-    if (meetingDoc === undefined) {
-      throw new Error('Failed to create meeting minutes')
-    }
-
-    for (const event of events) {
-      await client.createMixin<Event, MeetingEventLink>(
-        event._id,
-        calendar.class.Event,
-        space._id,
-        love.mixin.MeetingEventLink,
-        {
-          room: store.room as Ref<Room>,
-          meetingId
-        }
-      )
-    }
     const navigateUrl = getCurrentLocation()
     navigateUrl.path[2] = loveId
     navigateUrl.query = {
       meetId: _id
     }
-    const link = await getMeetingGuestLink(meetingDoc)
-    await client.update(event, { location: link })
+    // Addressed by the event, so the link outlives every session of the series.
+    // The link belongs to the series, so it is addressed by the master's id, not the event's.
+    const link = await getEventMeetingLink(master.eventId)
+    if (link !== '') {
+      await client.update(event, { location: link })
+    }
   }
 }
 
@@ -534,6 +486,43 @@ export async function toggleRoomPrivacy (mm: MeetingMinutes): Promise<void> {
   await client.update(mm, {
     private: !mm.private
   })
+}
+
+/**
+ * Revokes the current link of a meeting: the next request mints a different short id, and the
+ * previous one stops being accepted even though it still resolves.
+ */
+/** Revoking a permanent meeting's link: same bump, but its policy lives on the doc, not a mixin. */
+export async function revokePermanentMeetingLink (meeting: PermanentMeeting): Promise<void> {
+  await getClient().update(meeting, { linkVersion: (meeting.linkVersion ?? 1) + 1 })
+}
+
+export async function revokeMeetingLink (event: Event): Promise<void> {
+  const client = getClient()
+  const master = await client.findOne(calendar.class.Event, meetingMasterQuery(event))
+  if (master === undefined) return
+  const link = client.getHierarchy().as(master, love.mixin.MeetingEventLink)
+  await client.updateMixin(master._id, master._class, master.space, love.mixin.MeetingEventLink, {
+    linkVersion: (link.linkVersion ?? 1) + 1
+  })
+}
+
+/**
+ * Shareable link of a scheduled meeting, addressed by its calendar event.
+ *
+ * Unlike the session-scoped guest link, this one survives every occurrence of the series - it
+ * points at the meeting, not at one of its sessions.
+ */
+export async function getEventMeetingLink (eventId: string, kind: MeetingLinkKind = 'event'): Promise<string> {
+  try {
+    const shortId = await getLoveClient().getMeetingLink(eventId, kind)
+    if (shortId === '') return ''
+    const front = getMetadata(presentation.metadata.FrontUrl) ?? window.location.origin
+    return concatLink(front, `/meetings/${shortId}`)
+  } catch (err: any) {
+    console.error('Failed to generate meeting link', err)
+    return ''
+  }
 }
 
 async function getMeetingGuestLink (mm: MeetingMinutes): Promise<string> {

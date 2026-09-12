@@ -15,7 +15,7 @@
 <script lang="ts">
   import { Contact, Person } from '@hcengineering/contact'
   import { Ref } from '@hcengineering/core'
-  import { Floor as FloorType, Office, Room, isOffice } from '@hcengineering/love'
+  import { Floor as FloorType, Office, Room, isOffice, isServiceFloor } from '@hcengineering/love'
   import { deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { onDestroy } from 'svelte'
   import { activeFloor, floors, rooms, selectedFloor } from '../stores'
@@ -26,8 +26,11 @@
     return rooms.filter((p) => p.floor === floor)
   }
 
-  let floor = $selectedFloor ?? ($activeFloor === '' ? $floors[0]?._id : $activeFloor)
-  $: floor = $selectedFloor ?? ($activeFloor === '' ? $floors[0]?._id : $activeFloor)
+  // The service floor is a calendar of scheduled meetings, not a place to land in by default -
+  // the fallback picks the first real office floor.
+  $: defaultFloor = $floors.find((it) => !isServiceFloor(it._id))?._id ?? $floors[0]?._id
+  let floor = $selectedFloor ?? ($activeFloor === '' ? defaultFloor : $activeFloor)
+  $: floor = $selectedFloor ?? ($activeFloor === '' ? defaultFloor : $activeFloor)
   let configure: boolean = false
   let replacedPanel: HTMLElement
 

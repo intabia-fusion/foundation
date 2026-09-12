@@ -19,8 +19,10 @@ import love, {
   MeetingStatus,
   type MeetingMinutes,
   type ParticipantInfo,
+  type PermanentMeeting,
   type UserMeetingInvite
 } from '@hcengineering/love'
+import calendar, { type Event } from '@hcengineering/calendar'
 import { generateToken } from '@hcengineering/server-token'
 import { PlatformURI, PlatformUserSecond } from '../utils'
 import { retry, retryIntervals } from '../retry'
@@ -55,6 +57,18 @@ export async function getMeetingsUser (): Promise<{ client: RestClient, account:
   return { client: cachedRestClient, account: cachedAccount }
 }
 
+/** Workspace uuid of the meetings workspace - what a link payload carries. */
+export async function getMeetingsWorkspace (): Promise<string> {
+  const baseUrl = (PlatformURI ?? 'http://localhost:8083').replace(/\/$/, '')
+  const config = await loadServerConfig(baseUrl)
+  const token = await getWorkspaceToken(
+    baseUrl,
+    { email: PlatformUserSecond, password: '1234', workspace: MEETINGS_WS },
+    config
+  )
+  return token.workspaceId
+}
+
 /** Raw workspace JWT for PlatformUserSecond - the same Bearer the browser sends to `/_love/*`. */
 export async function getPlatformToken (): Promise<string> {
   const baseUrl = (PlatformURI ?? 'http://localhost:8083').replace(/\/$/, '')
@@ -83,6 +97,36 @@ export async function getSystemRestClient (): Promise<RestClient> {
   const systemToken = generateToken(systemAccountUuid, token.workspaceId, undefined, 'secret')
   cachedSystemRestClient = createRestClient(token.endpoint, token.workspaceId, systemToken)
   return cachedSystemRestClient
+}
+
+/**
+ * Drops what a love spec left in `meetings-ws` in earlier runs - nothing else cleans it up.
+ * Titles and names must belong to the calling spec: another's rows are still in use.
+ */
+export async function dropStaleMeetings (opts: {
+  eventTitlePrefixes?: string[]
+  permanentMeetingNames?: string[]
+}): Promise<void> {
+  const sys = await getSystemRestClient()
+
+  for (const prefix of opts.eventTitlePrefixes ?? []) {
+    const events = await sys.findAll<Event>(calendar.class.Event, { title: { $like: `${prefix}%` } })
+    for (const event of events) {
+      for (const m of await sys.findAll<MeetingMinutes>(love.class.MeetingMinutes, { eventId: event.eventId })) {
+        await sys.remove(m)
+      }
+      await sys.remove(event)
+    }
+  }
+
+  for (const name of opts.permanentMeetingNames ?? []) {
+    for (const meeting of await sys.findAll<PermanentMeeting>(love.class.PermanentMeeting, { name })) {
+      for (const m of await sys.findAll<MeetingMinutes>(love.class.MeetingMinutes, { meeting: meeting._id })) {
+        await sys.remove(m)
+      }
+      await sys.remove(meeting)
+    }
+  }
 }
 
 /** Drains leftover invites past their 30s TTL. Needs a system token: invites live in
@@ -115,6 +159,18 @@ let cachedRoomClient: RoomServiceClient | undefined
  * Kills live sessions, so it belongs in teardown or in a test that means to end the meeting - never
  * in a `beforeEach`, where it drops the previous test's windows mid-setup.
  */
+/** System token for the meetings workspace - the love service skips participation checks for it. */
+export async function getSystemToken (): Promise<string> {
+  const baseUrl = (PlatformURI ?? 'http://localhost:8083').replace(/\/$/, '')
+  const config = await loadServerConfig(baseUrl)
+  const token = await getWorkspaceToken(
+    baseUrl,
+    { email: PlatformUserSecond, password: '1234', workspace: MEETINGS_WS },
+    config
+  )
+  return generateToken(systemAccountUuid, token.workspaceId, { service: 'love' }, 'secret')
+}
+
 export async function closeLiveKitRooms (): Promise<boolean> {
   try {
     const client = (cachedRoomClient ??= new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET))
@@ -135,13 +191,13 @@ export async function liveKitRoomOf (meetingId: Ref<MeetingMinutes>): Promise<st
 }
 
 /** Force-finishes every non-Finished meeting through the transactor: the `room_finished`
- *  webhook is not the path tests care about, and a leftover Scheduled one hijacks Connect. */
+ *  webhook is not the path tests care about. */
 async function forceFinishAllMeetings (): Promise<number> {
   try {
     const sys = await getSystemRestClient()
     const [meetings, participants] = await Promise.all([
       sys.findAll<MeetingMinutes>(love.class.MeetingMinutes, {
-        status: { $in: [MeetingStatus.Active, MeetingStatus.Pending, MeetingStatus.Scheduled] }
+        status: { $in: [MeetingStatus.Active, MeetingStatus.Pending] }
       }),
       sys.findAll<ParticipantInfo>(love.class.ParticipantInfo, {})
     ])
@@ -177,7 +233,7 @@ export async function waitForActiveMeetingsToFinish (timeoutMs = 20000): Promise
     const [meetings, participants, invites] = await Promise.all([
       client.findAll<MeetingMinutes>(
         love.class.MeetingMinutes,
-        { status: { $in: [MeetingStatus.Active, MeetingStatus.Pending, MeetingStatus.Scheduled] } },
+        { status: { $in: [MeetingStatus.Active, MeetingStatus.Pending] } },
         { limit: 1 }
       ),
       // A leftover row makes the office owner look "in a meeting" on the next test's floor

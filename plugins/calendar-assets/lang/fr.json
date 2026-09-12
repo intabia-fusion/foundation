@@ -124,6 +124,15 @@
     "WeekendDay": "Jour de congé",
     "SynchronizedCalendars": "Calendriers synchronisés",
     "Account": "Compte",
-    "NoCalendars": "Aucun calendrier sélectionné pour la synchronisation"
+    "NoCalendars": "Aucun calendrier sélectionné pour la synchronisation",
+    "PersonalCalendar": "Calendrier personnel",
+    "Going": "Je participe",
+    "NotGoing": "Je ne participe pas",
+    "Maybe": "Peut-être",
+    "WillYouAttend": "Participerez-vous ?",
+    "RsvpAccepted": "participent",
+    "RsvpDeclined": "ne participent pas",
+    "RsvpTentative": "peut-être",
+    "RsvpPending": "sans réponse"
   }
 }

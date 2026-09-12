@@ -18,7 +18,7 @@
   import { Ref } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { ActionIcon, EditBox, Icon, IconDelete, resizeObserver } from '@hcengineering/ui'
-  import { Room, RoomType, isOffice } from '@hcengineering/love'
+  import { Room, RoomType, isOffice, isServiceRoom } from '@hcengineering/love'
   import { createEventDispatcher, onMount } from 'svelte'
   import { cubicOut } from 'svelte/easing'
   import { tweened } from 'svelte/motion'
@@ -69,7 +69,10 @@
     await client.remove(room)
   }
 
-  $: removable = $infos.filter((i) => i.room === room._id).length === 0
+  // The service room is created by fixed id and every scheduled session points at it - it is not
+  // the user's to rename or delete. Position stays editable: those coordinates are cosmetic here.
+  $: service = isServiceRoom(room)
+  $: removable = $infos.filter((i) => i.room === room._id).length === 0 && !service
   $: dispatch('cursor', cursor)
   $: zoomOut = cellSize < 40
 
@@ -151,7 +154,7 @@
     shadowColor.set(shadowNormal)
   }
 
-  $: showButtons = room.type === RoomType.Video || removable
+  $: showButtons = (room.type === RoomType.Video || removable) && !service
   $: updateStyle(top, left, room, roomRect)
 
   const updateStyle = (t: number | undefined, l: number | undefined, r: Room, rect: DOMRect): void => {
@@ -223,7 +226,11 @@
     {/each}
   {/each}
   <div class="floorGrid-configureRoom__header">
-    <EditBox bind:value={room.name} on:change={updateName} placeholder={roomLabel} kind={'editbox'} />
+    {#if service}
+      <span class="overflow-label">{room.name}</span>
+    {:else}
+      <EditBox bind:value={room.name} on:change={updateName} placeholder={roomLabel} kind={'editbox'} />
+    {/if}
     {#if showButtons}
       <div
         class="flex-row-center flex-no-shrink h-full {zoomOut ? 'flex-gap-1' : 'flex-gap-2'}"

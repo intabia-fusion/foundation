@@ -128,11 +128,32 @@ export interface Event extends AttachedDoc {
 
   access: AccessLevel
 
+  /** Participant's own answer, written only into their copy of the event (F1 §8). */
+  rsvp?: RsvpStatus
+
+  /** Answers gathered on the master. Copies live in their owners' spaces, so only the server
+   *  can see them all - the organiser reads this, never the copies themselves. */
+  rsvpSummary?: RsvpSummary
+
   timeZone?: string
 
   user: PersonId
 
   blockTime: boolean
+}
+
+/**
+ * @public
+ */
+export type RsvpStatus = 'accepted' | 'declined' | 'tentative'
+
+/**
+ * @public
+ */
+export interface RsvpSummary {
+  accepted: number
+  declined: number
+  tentative: number
 }
 
 export enum AccessLevel {
@@ -322,7 +343,15 @@ const calendarPlugin = plugin(calendarId, {
     SynchronizedCalendars: '' as IntlString,
     Account: '' as IntlString,
     NoCalendars: '' as IntlString,
-    PersonalCalendar: '' as IntlString
+    PersonalCalendar: '' as IntlString,
+    Going: '' as IntlString,
+    NotGoing: '' as IntlString,
+    Maybe: '' as IntlString,
+    WillYouAttend: '' as IntlString,
+    RsvpAccepted: '' as IntlString,
+    RsvpDeclined: '' as IntlString,
+    RsvpTentative: '' as IntlString,
+    RsvpPending: '' as IntlString
   },
   handler: {
     DisconnectHandler: '' as Handler,

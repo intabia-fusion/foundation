@@ -17,7 +17,7 @@
   import { getPersonByPersonRefStore } from '@hcengineering/contact-resources'
   import { translate } from '@hcengineering/platform'
   import { notEmpty, Ref } from '@hcengineering/core'
-  import love, { isOffice, Room } from '@hcengineering/love'
+  import love, { isOffice, isServiceRoom, Room } from '@hcengineering/love'
   import { Dropdown, Icon } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import { rooms } from '../stores'
@@ -33,7 +33,9 @@
 
   $: items = $rooms
     .filter((room) => {
-      if (room._id === love.ids.Reception) {
+      // Neither Reception nor the service room is a place to hold a meeting in: the first is a
+      // lobby, the second is shared by every scheduled meeting of the workspace.
+      if (room._id === love.ids.Reception || isServiceRoom(room)) {
         return false
       }
       if (isOffice(room)) {

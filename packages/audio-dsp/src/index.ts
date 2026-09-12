@@ -12,18 +12,8 @@
 // limitations under the License.
 
 /**
- * @hcengineering/audio-dsp
- *
- * Audio Digital Signal Processing library for Huly platform.
- *
- * Provides:
- * - WAV file handling (parsing, creating, header manipulation)
- * - FFT/IFFT operations for spectral analysis
- * - Audio analysis (VAD, RMS, spectral features)
- * - Noise reduction using spectral subtraction
- * - Audio normalization and gain control
- *
- * Works in both Node.js (CommonJS/ESM) and browser environments.
+ * @hcengineering/audio-dsp - DSP for the Huly platform: WAV handling, FFT/IFFT,
+ * VAD/RMS analysis, spectral-subtraction noise reduction, normalization. Node + browser.
  */
 
 // WAV file utilities

@@ -80,7 +80,6 @@ interface ImageDimensions {
   height: number
 }
 
-// Constants
 
 const DEFAULT_TIMEOUT_MS = 10_000
 const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10MB

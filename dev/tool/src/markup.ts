@@ -282,7 +282,7 @@ export async function restoreControlledDocContentForDoc (
   const currentYdocId = value.split(':')[0] as Ref<Blob>
   const ydocId = makeCollabYdocId(makeDocCollabId(doc, attribute))
 
-  // Ensure that we don't have new content in storage
+  // Skip if there's nothing new in storage.
   const stat = await storageAdapter.stat(ctx, wsIds, ydocId)
   if (stat !== undefined) {
     console.log('content already restored', doc._class, doc._id, ydocId)

@@ -41,7 +41,7 @@ class Mutex {
     }
     ```
 
-    @return {Promise<VoidFunction>} promise that must be awaited in order to acquire the lock.
+    @return {Promise<VoidFunction>} promise that must be awaited to acquire the lock.
     When the promise is fulfulled it returns a function that must be invoked to release the lock.
   **/
   async lock (): Promise<VoidFunction> {

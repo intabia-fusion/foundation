@@ -55,13 +55,9 @@ export function fetchMetadataLocalStorage<T> (id: Metadata<T>): T | null {
 
 /**
  * @public
- *
- * Improved mobile detection:
- * - Prefer `navigator.userAgentData.mobile` when available (most reliable)
- * - Treat Android as mobile only when 'Mobile' is present in the UA (avoids treating tablets as phones)
- * - Explicitly treat iPhone/iPod and other mobile-only indicators as mobile
- * - Avoid classifying iPad/tablets as mobile by default
- * - Fallback to small viewport heuristic as a last resort
+ * Mobile detection: prefer userAgentData.mobile, treat Android as mobile only when
+ * 'Mobile' is in the UA (not tablets), iPhone/iPod always mobile, small-viewport
+ * heuristic as a last resort.
  */
 export function checkMobile (): boolean {
   try {

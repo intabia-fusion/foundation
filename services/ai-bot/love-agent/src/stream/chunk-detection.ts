@@ -147,7 +147,7 @@ export function scoreCutPoint (lookAheadBuffer: LookAheadFrame[], cutIndex: numb
   score += Math.min(40, silenceDurationMs / 5) // Max 40 points at 200ms
 
   // 2. Energy drop score (0-20 points)
-  // Look for frames where energy drops significantly
+  // Look for frames where energy drops sharply
   if (cutIndex > 0) {
     const prevFrame = lookAheadBuffer[cutIndex - 1]
     const energyDrop = prevFrame.analysis.rms - frame.analysis.rms
@@ -258,7 +258,7 @@ export function findOptimalCutPoint (lookAheadBuffer: LookAheadFrame[], minSilen
       }
     }
 
-    // Only use energy dip if it's significantly lower than average
+    // Only use energy dip if it's well below average
     if (minEnergyIndex >= 0) {
       let avgRms = 0
       for (const f of lookAheadBuffer) {

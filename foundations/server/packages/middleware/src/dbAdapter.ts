@@ -78,7 +78,7 @@ export class DBAdapterMiddleware extends BaseMiddleware implements Middleware {
 
     this.context.serviceAdapterManager = await createServiceAdaptersManager(this.conf.serviceAdapters, metrics)
 
-    // We need to init all next, since we will use model
+    // We need to init all next, since we use model
 
     const adapterManager = new DbAdapterManagerImpl(metrics, this.conf, this.context, defaultAdapter, adapters)
     this.context.adapterManager = adapterManager

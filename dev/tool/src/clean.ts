@@ -462,13 +462,6 @@ export async function removeDuplicateIds (
 //       .collection(DOMAIN_TX)
 //       .updateMany({ 'tx.objectId': doc._id }, { $set: { 'tx.objectId': newId, '%hash%': Date.now().toString(16) } })
 
-//     // we have generated ids for calendar, let's update in
-//     if (h.isDerived(doc._class, core.class.Account)) {
-//       await updateId(ctx, client, db, storage, workspaceId, {
-//         _id: `${doc._id}_calendar` as Ref<Doc>,
-//         _class: calendar.class.Calendar
-//       })
-//     }
 
 //     // update backlinks
 //     const backlinks = await client.findAll(activity.class.ActivityReference, { attachedTo: doc._id })

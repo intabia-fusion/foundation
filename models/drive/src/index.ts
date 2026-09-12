@@ -794,7 +794,7 @@ function defineApplication (builder: Builder): void {
             addSpaceLabel: drive.string.CreateDrive,
             createComponent: drive.component.CreateDrive,
             icon: drive.icon.Drive,
-            // intentionally left empty in order to make space presenter working
+            // empty placeholder for the space presenter
             specials: []
           }
         ]

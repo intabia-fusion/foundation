@@ -781,7 +781,7 @@ function isContextualValue (
   return false
 }
 
-/** Checks if a param key represents a slottable attribute. */
+/** Checks if a param key is a slottable attribute. */
 function scanParamKey (
   key: string,
   val: any,

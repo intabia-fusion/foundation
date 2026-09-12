@@ -860,9 +860,7 @@
     })
   }
 
-  // Statuses that represent a current subscription worth displaying.
-  // Active/Trialing first (a fresh paid sub wins), then PastDue/ReadOnly/Paused (needs user
-  // attention), ignoring terminal Canceled/Expired records left in history.
+  // Active statuses worth displaying: Active/Trialing first, then PastDue/ReadOnly/Paused.
   const DISPLAY_STATUS_PRIORITY: SubscriptionStatus[] = [
     SubscriptionStatus.Active,
     SubscriptionStatus.Trialing,

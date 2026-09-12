@@ -536,7 +536,7 @@ async function migrateIntegrations (client: MigrationClient): Promise<void> {
           map.set(secret.socialId, newOne)
           await moveMigration(client, secret, newOne)
         } else {
-          // oh, shit, it's a different person, let's remove it
+          // different person, remove it
           await client.accountClient.deleteIntegrationSecret(secret)
         }
       }

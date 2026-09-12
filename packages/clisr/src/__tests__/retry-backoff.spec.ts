@@ -153,9 +153,9 @@ describe('binaryRequest retry backoff', () => {
     // when we close the server while the request is still pending.
     reqP.catch(() => {})
 
-    // Sample ~2 seconds: with old 100ms tight loop we'd see ~20 attempts.
+    // Sample ~2 seconds: with the old 100ms tight loop we'd see ~20 attempts.
     // With backoff (100, 150, 225, 337, 506, 759, 1138, 1707, ...) we should
-    // see significantly fewer in 2s — and successive gaps must grow.
+    // see far fewer in 2s — and successive gaps must grow.
     await new Promise((resolve) => setTimeout(resolve, 2200))
 
     try {

@@ -22,14 +22,8 @@ import { BaseConfig, SyncOptions, type Attachment } from './types'
 import { EmailMessage, MailRecipient } from './types'
 
 /**
- * Creates mail messages in the platform
- *
- * This function processes an email message and creates corresponding chat messages. It handles:
- * - Ensuring persons exist for email addresses
- * - Finding or creating channels for participants
- * - Creating threads for messages
- * - Uploading attachments to storage
- * - Sending message events to Kafka
+ * Process an email message into platform chat messages: resolve/create persons and
+ * channels, build the thread, upload attachments, and emit message events to Kafka.
  *
  * @param {BaseConfig} config - Configuration options including storage and Kafka settings
  * @param {MeasureContext} ctx - Context for logging and performance measurement

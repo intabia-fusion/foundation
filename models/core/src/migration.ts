@@ -814,7 +814,7 @@ async function processMigrateJsonForDoc (
 
     const collabId = makeDocCollabId(doc, attribute.name)
     if (value.startsWith('{')) {
-      // For some reason we have documents that are already markups
+      // Some documents are already markups
       const jsonId = await retry(5, async () => {
         return await saveCollabJson(client.ctx, storageAdapter, wsIds, collabId, value)
       })
@@ -834,7 +834,7 @@ async function processMigrateJsonForDoc (
     const currentYdocId = value.split(':')[0] as Ref<Blob>
 
     try {
-      // If document id has changed, save it with new name to ensure we will be able to load it later
+      // If document id has changed, save it with new name to ensure we be able to load it later
       const ydocId = makeCollabYdocId(collabId)
       if (ydocId !== currentYdocId) {
         await retry(5, async () => {

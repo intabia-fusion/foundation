@@ -72,7 +72,7 @@
     // Remove state from old position
     states.splice(selected, 1)
 
-    // Adjust target index if moving forward
+    // Adjust target index when moving forward.
     const targetIndex = i > selected ? i - 1 : i
 
     // Insert state at new position

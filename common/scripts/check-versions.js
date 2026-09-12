@@ -371,9 +371,6 @@ function displayLockfileMismatches(mismatches) {
   }
 }
 
-/**
- * Main function
- */
 function main() {
   console.log('🚀 Checking @hcengineering dependency versions...\n')
   

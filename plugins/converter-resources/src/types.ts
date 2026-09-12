@@ -114,7 +114,7 @@ export interface TableConverter {
 }
 
 /**
- * Markdown implementation of TableConverter.
+ * Markdown table converter.
  */
 export class MarkdownTableConverter implements TableConverter {
   readonly format = 'markdown'

@@ -15,31 +15,9 @@
 
 'use strict'
 
-// update-changelog.js
-//
-// Usage:
-//   node update-changelog.js             # Dry run (prints summary and proposed changelog additions)
-//   node update-changelog.js --apply     # Apply changes to changelog.md (writes file)
-//   node update-changelog.js --origin upstream
-//   node update-changelog.js --from 0.7.318
-//
-// Description (English comments):
-// - Reads ./changelog.md and finds the latest released version recorded there.
-// - Inspects remote tags on the given remote (default 'origin') and considers only tags named like `vX.Y.Z`.
-// - For each tag strictly greater than the last version in changelog, gathers commits between the previous tag and the tag.
-// - Filters out merge commits and strips 'Signed-off-by:' footers.
-// - Picks only 'substantial' commits (heuristic: conventional commit types (feat/fix/perf/security/revert) or commits mentioning issue numbers or strong action verbs).
-// - Groups commits by category (FEATURES, BUG FIXES, PERFORMANCE, SECURITY, REVERTS, MISCELLANEOUS) and prepares a formatted changelog section.
-// - By default runs in dry-run mode (prints what would be inserted). Use `--apply` to write `changelog.md`.
-//
-// Notes:
-// - This tool inspects tags in remote (uses `git ls-remote --tags <remote>`).
-// - It will perform `git fetch --tags <remote>` to ensure tags are available locally for `git log`.
-// - It avoids duplicating versions already present in changelog.md (skips tags already recorded).
-//
-// Exit codes:
-// 0 - OK (nothing to do or dry-run completed)
-// 1 - Error (prints message)
+// Gathers vX.Y.Z tags newer than the last version in changelog.md, groups their
+// commits by category and appends a formatted section. Default is dry-run; --apply
+// writes changelog.md. Options: --origin <remote> (default origin), --from <version>.
 
 const fs = require('fs')
 const path = require('path')
@@ -276,7 +254,7 @@ function buildVersionBlock (version, date, prevTag, tag, commits) {
     const info = groups.get(cat)
     // dedupe short subjects while preserving order
     const uniq = Array.from(new Set(info.items))
-    // Limit number of items in summary line (remain in all-commits list)
+    // Summary line item limit (remains in full list).
     const summaryItems = uniq.slice(0, 6)
     const summary = summaryItems.join(' · ')
     lines.push(`* ${info.emoji} ${cat}: · ${summary}`)
@@ -365,7 +343,7 @@ function main () {
 
   // Use only tags that look like vX.Y.Z
   remoteTags = remoteTags.filter(t => /^v?\d+\.\d+\.\d+$/.test(t))
-  // Normalize to v-prefixed tags for processing (we will use exact remote tag names fetched)
+  // Normalize to v-prefixed tags for processing (we use exact remote tag names fetched)
   remoteTags = remoteTags.map(t => t.startsWith('v') ? t : `v${t}`)
 
   // Sort semver ascending

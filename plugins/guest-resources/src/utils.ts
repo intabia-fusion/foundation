@@ -47,7 +47,7 @@ export async function checkAccess (doc: Doc): Promise<void> {
     const loc = await getObjectLinkFragment(hierarchy, doc, {}, comp)
     loc.path[0] = workbenchId
     loc.path[1] = ws
-    // We have access, let's set correct tokens and redirect)
+    // We have access, set correct tokens and redirect)
     setMetadata(presentation.metadata.Token, token)
     navigate(loc)
   }

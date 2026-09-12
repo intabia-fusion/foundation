@@ -628,7 +628,7 @@ export function createModel (builder: Builder): void {
             spaceClass: card.class.CardSpace,
             addSpaceLabel: core.string.Space,
             icon: card.icon.Space,
-            // intentionally left empty in order to make space presenter working
+            // empty placeholder for the space presenter
             specials: []
           }
         ],

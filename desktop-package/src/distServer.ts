@@ -440,14 +440,7 @@ export interface DownloadArtifact {
    * Populated heuristically based on filename patterns and platform.
    */
   arch?: string
-  /**
-   * Human-friendly platform + architecture label for UI, e.g. 'macOS - Apple Silicon'
-   * Examples:
-   *  - 'macOS - Apple Silicon' (arch: 'arm64')
-   *  - 'macOS - Intel' (arch: 'x64')
-   *  - 'Windows - x64', 'Windows - x86', 'Windows - ARM64'
-   *  - 'Linux - x64', 'Linux - ARM64', 'Linux - x86'
-   */
+  /** Platform + arch label for UI, e.g. 'macOS - Apple Silicon'. */
   archLabel?: string
   sha512?: string
   blockmap?: string
@@ -545,12 +538,8 @@ function loadDownloads(): { platforms: PlatformDownloads[]; lastUpdated: string 
         console.log('[server.loadDownloads] Failed to read/parse manifest', { file: filename, error: err })
       }
 
-      // Extract platform and optional variant from manifest filename.
-      // Examples:
-      //  - latest.yml              -> platform = 'windows', variant = 'x64'
-      //  - latest-linux.yml        -> platform = 'linux', variant = 'x64'
-      //  - latest-linux-x64.yml    -> platform = 'linux', variant = 'x64'
-      //  - latest-mac.yml          -> platform = 'mac', variant = undefined
+      // Parse platform and optional variant from the manifest filename
+      // (latest.yml -> windows, latest-linux-x64.yml -> linux/x64, latest-mac.yml -> mac).
       const base = filename.replace(/^latest-?/, '').replace(/\.(yml|yaml)$/i, '')
       let platform = 'windows'
       let variant: string | undefined = undefined

@@ -51,31 +51,6 @@
       project: prj.identifier,
       repository: repository._id
     })
-    // // We need to delete all issues related to repository
-    // const ops = client.apply('cleanup:' + repository._id)
-    // const issuesQuery = await client.findAll(
-    //   github.mixin.GithubIssue,
-    //   {
-    //     space: prj._id as Ref<Project>,
-    //     repository: repository._id
-    //   },
-    //   { projection: { _id: 1, _class: 1 } }
-    // )
-    // for (const i of issuesQuery) {
-    //   await ops.removeDoc(i._class, prj._id, i._id)
-    // }
-    // const docInfo = await client.findAll(
-    //   github.class.DocSyncInfo,
-    //   {
-    //     space: prj._id as Ref<Project>,
-    //     repository: repository._id
-    //   },
-    //   { projection: { _id: 1, _class: 1 } }
-    // )
-    // for (const i of docInfo) {
-    //   await ops.removeDoc(i._class, prj._id, i._id)
-    // }
-    // await ops.commit()
   }
 
   async function onDisconnect (

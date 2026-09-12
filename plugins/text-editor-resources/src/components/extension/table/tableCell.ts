@@ -114,7 +114,7 @@ const TableSelectionNormalizerPlugin = (): Plugin<any> => {
         }
       }
 
-      // Original promemirror implementation of TableMap.positionAt skips rowspan cells, which leads to unpredictable selection behaviour
+      // Upstream ProseMirror TableMap.positionAt skips rowspan cells, causing unpredictable selection.
       const firstCellOffset = cellPositionAt(tableMap, maxBottom - 1, maxRight - 1, table.node)
       const lastCellOffset = cellPositionAt(tableMap, minTop, minLeft, table.node)
 

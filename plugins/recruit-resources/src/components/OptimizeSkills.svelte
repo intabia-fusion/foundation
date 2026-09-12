@@ -518,7 +518,7 @@
               })
             } else {
               updateClasses.add(a._class)
-              // Let's remove and add new tag reference
+              // remove and add new tag reference
               await ops.remove(a)
               updateClasses.add(tags.class.TagReference)
               await ops.addCollection(tags.class.TagReference, a.space, a.attachedTo, a.attachedToClass, a.collection, {

@@ -43,7 +43,7 @@ let client: TxOperations
 async function hydrateNotificationAsYouCan (
   lastNotification: InboxNotification
 ): Promise<{ title: string, body: string } | undefined> {
-  // Let's try to do our best and figure out from who we have an notification
+  // try to do our best and figure out from who we have an notification
 
   if (client === undefined) {
     return undefined
@@ -137,7 +137,7 @@ export function configureNotifications (): void {
   let preferences = defaultNotificationPreference
   let prevUnViewdNotificationsCount = 0
 
-  // For now we want to track all notifications which happends after the launch
+  // we want to track all notifications which happens after the launch
   // because we generate them on a client
   let initTimestamp = 0
   const notificationHistory = new Map<string, number>()

@@ -129,7 +129,7 @@ export class BroadcastMiddleware extends BaseMiddleware implements Middleware {
       if (derived.length > 10000) {
         await this.sendWithPart(derived, ctx, target, exclude)
       } else {
-        // Let's send after our response will go out
+        // send after our response will go out
         this.broadcast.broadcast(ctx, derived, target, exclude)
       }
     }

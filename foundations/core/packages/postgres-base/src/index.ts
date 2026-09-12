@@ -211,11 +211,8 @@ export function setDBExtraOptions (options: Partial<Options<any>>): void {
 }
 
 /**
- * Parse POSTGRES_OPTIONS and cache it for subsequent calls.
- * Priority for determining `prepare`:
- * 1. POSTGRES_OPTIONS.prepare (if set)
- * 2. dbExtraOptions.prepare (if set via setDBExtraOptions)
- * 3. false (default)
+ * Parse POSTGRES_OPTIONS and cache. `prepare` falls back: POSTGRES_OPTIONS.prepare,
+ * then dbExtraOptions.prepare, then false.
  */
 let cachedPostgresOptions: Partial<Options<any>> | undefined
 

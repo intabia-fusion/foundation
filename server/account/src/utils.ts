@@ -178,7 +178,7 @@ export function wrap (
             : new Status(Severity.ERROR, platform.status.InternalServerError, {})
 
         if (err instanceof TokenError) {
-          // Let's send un authorized
+          // send un authorized
           return {
             error: new Status(Severity.ERROR, platform.status.Unauthorized, {})
           }
@@ -839,9 +839,8 @@ export async function signUpByGrant (
     await db.person.insertOne({ uuid: accountUuid, firstName, lastName: lastName ?? '' })
   }
 
-  // If there's no account there should be no Huly social id associated with the person if it existed
-  // also, there should be no confirmed social ids associated
-  // so we can safely proceed to account creation
+  // If there's no account there should be no Huly social id for the person, so we can safely
+  // proceed to account creation.
 
   const socialId = await createAccount(db, accountUuid, true, true)
 
@@ -1213,13 +1212,8 @@ export async function updateWorkspaceRole (
 }
 
 /**
- * Convert workspace name to a URL-friendly string following these rules:
- *
- * 1. Converts all characters to lowercase
- * 2. Only keeps alphanumeric characters (a-z, 0-9) and hyphens (-)
- * 3. Cannot start with a number or hyphen
- * 4. Cannot end with a hyphen
- * 5. Removes all other special characters
+ * Convert a workspace name to a URL-friendly slug: lowercase, only [a-z0-9-],
+ * no leading digit/hyphen, no trailing hyphen, other chars stripped.
  */
 export function generateWorkspaceUrl (name: string): string {
   const lowercaseName = name.toLowerCase()
@@ -1277,12 +1271,8 @@ export async function createWorkspaceRecord (
     )
   }
 
-  // The workspace url must be unique.
-  // This function is not concurrency safe, moreover multiple account services may be
-  // creating a workspace with the same base url at the same time so it's not possible
-  // to make it safe in the first place.
-  // But the uniqueness is guaranteed by the database rules and it will reject duplicate workspace urls.
-  // So we just need to handle the expected error and retry until we get a unique url.
+  // Workspace URL must be unique. Not concurrency-safe across multiple account services, but DB
+  // rules reject duplicates so we retry on conflict.
   let iteration = 0
   let baseWorkspaceUrl = generateWorkspaceUrl(workspaceName)
   let workspaceUrl = baseWorkspaceUrl

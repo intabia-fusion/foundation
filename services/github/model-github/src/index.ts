@@ -887,7 +887,7 @@ export function createModel (builder: Builder): void {
     actions: [view.action.Delete, task.action.Move, tracker.action.MoveToProject]
   })
 
-  // TODO: Need rework this functionality, for now we need to allow set any user,
+  // TODO: Need rework this functionality, we need to allow set any user,
   // and github integration will skip change of field if value is not have a proper mixin instead.
 
   builder.mixin(github.class.DocSyncInfo, core.class.Class, core.mixin.IndexConfiguration, {

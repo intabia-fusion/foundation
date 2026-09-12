@@ -85,7 +85,7 @@ function loadPlugin (id: Plugin): Resources | Promise<Resources> {
     pluginLoader = monitor(status, loadHelper !== undefined ? loadHelper(locationLoader) : locationLoader()).then(
       async (plugin) => {
         try {
-          // In case of ts-node, we have a bit different import structure, so let's check for it.
+          // In case of ts-node, we have a bit different import structure, so check for it.
           if (typeof plugin.default === 'object') {
             // eslint-disable-next-line @typescript-eslint/return-await
             return await (plugin as any).default.default()

@@ -52,43 +52,4 @@ function sendMessage (req: BroadcastMessage): void {
 }
 
 async function onMessage (e: MessageEvent<BroadcastMessage>): Promise<void> {
-  /*
-  if (e.data.type === 'set_mic') {
-    if ($isCurrentInstanceConnected) {
-      await setMic(e.data.value)
-    }
-  }
-  if (e.data.type === 'set_cam') {
-    if ($isCurrentInstanceConnected) {
-      await setCam(e.data.value)
-    }
-  }
-  if (e.data.type === 'set_share') {
-    if ($isCurrentInstanceConnected) {
-      await setShare(e.data.value)
-    }
-  }
-  if (e.data.type === 'share') {
-    isSharingEnabled.set(e.data.value)
-  }
-  if (e.data.type === 'mic') {
-    isMicEnabled.set(e.data.value)
-  }
-  if (e.data.type === 'cam') {
-    isCameraEnabled.set(e.data.value)
-  }
-  if (e.data.type === 'status_ask') {
-    if ($isCurrentInstanceConnected) {
-      sendMessage({ type: 'connect', value: true })
-      sendMessage({ type: 'mic', value: get(isMicEnabled) })
-      sendMessage({ type: 'cam', value: get(isCameraEnabled) })
-      sendMessage({ type: 'share', value: get(isSharingEnabled) })
-    }
-  }
-  if (e.data.type === 'connect') {
-    if (!$isCurrentInstanceConnected) {
-      isConnected.set(e.data.value)
-    }
-  }
-  */
 }

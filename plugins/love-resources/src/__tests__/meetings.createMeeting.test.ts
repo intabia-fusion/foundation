@@ -116,8 +116,8 @@ describe('createMeeting silent no-op (defect B)', () => {
 
     const result = await createMeeting(room)
 
-    // Connect on an occupied room must surface an actionable outcome, not a silent no-op
-    // the caller cannot tell apart from "already connected".
+    // Connecting to an occupied room must surface a clear outcome, not a silent no-op the caller
+    // can't distinguish from already connected.
     expect(result).not.toBeUndefined()
   })
   // An agent (bot, egress recorder) left over from a finished meeting used to read as an occupant:

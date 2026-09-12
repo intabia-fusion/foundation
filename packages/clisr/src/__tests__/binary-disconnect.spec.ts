@@ -364,7 +364,7 @@ describe('binary request disconnect/recovery', () => {
         undefined,
         (s) => s.clientHost === 'silent'
       )
-      // Start a guard observer: when the promise rejects (round-robin retries), we will
+      // Start a guard observer: when the promise rejects (round-robin retries), we
       // exit the inner round-robin via a fake healthy client matching the same filter.
       void reqP.catch(() => {})
 

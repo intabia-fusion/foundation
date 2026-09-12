@@ -14,20 +14,9 @@
 //
 
 /**
- * Test to verify the race condition hypothesis in LiveQuery
- *
- * Hypothesis: when two change transactions {$inc: {messages: 1}} or {$inc: {transcription: 1}}
- * arrive with times t1=101 and t2=102, but tx1 takes longer to process and arrives to the client later,
- * then when processing tx1, the condition `updatedDoc.modifiedOn < tx.modifiedOn` is not met
- * and an unnecessary getCurrentDoc request is made to the server.
- *
- * Scenario:
- * 1. tx1 (t=101) is sent first but takes longer to process
- * 2. tx2 (t=102) is sent second but arrives to the client first
- * 3. Client processes tx2, updates document with modifiedOn=102
- * 4. Client receives tx1 with modifiedOn=101
- * 5. Condition updatedDoc.modifiedOn (102) < tx.modifiedOn (101) = false
- * 6. getCurrentDoc is triggered, leading to an unnecessary request
+ * Two out-of-order $inc txs (t=101 sent first but processed slower than t=102):
+ * when the client later processes t=101, modifiedOn (102) < tx.modifiedOn (101) is false,
+ * triggering an unnecessary getCurrentDoc.
  */
 
 import core, {

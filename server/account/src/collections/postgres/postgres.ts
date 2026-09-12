@@ -1112,7 +1112,7 @@ export class PostgresAccountDB implements AccountDB {
     }
     whereChunks.push(operationSql)
 
-    // TODO: support returning pending deletion workspaces when we will actually want
+    // TODO: support returning pending deletion workspaces when we actually want
     // to clear them with the worker.
     whereChunks.push("s.mode <> 'manual-creation'")
     whereChunks.push('(s.processing_attempts IS NULL OR s.processing_attempts <= 3)')

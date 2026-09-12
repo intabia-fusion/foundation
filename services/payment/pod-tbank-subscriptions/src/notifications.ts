@@ -458,13 +458,9 @@ export async function notifyPaymentSucceeded (
   }
 }
 
-/**
- * Which upcoming-expiry reminder to send, `noticeDays` before the date.
- * - 'recurrent': a recurrent subscription will be charged for the next period.
- * - 'trial': the trial period runs out (workspace falls back to the free plan).
- * - 'oneoff': a one-off paid period runs out, nothing will be charged.
- * - 'canceled': the user canceled; access is kept until the end of the paid period.
- */
+/** Upcoming-expiry reminder kind, sent `noticeDays` before the date.
+ * 'recurrent' - next period will be charged; 'trial' - trial runs out, falls back to free;
+ * 'oneoff' - paid period ends, nothing charged; 'canceled' - access kept until paid period end. */
 export type UpcomingKind = 'recurrent' | 'trial' | 'oneoff' | 'canceled'
 
 interface UpcomingFields {

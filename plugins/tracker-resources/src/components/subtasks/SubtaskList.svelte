@@ -247,7 +247,7 @@
   .item {
     border-bottom: 1px solid var(--theme-divider-color);
 
-    // Already created: visibly out of play, so a second run cannot pick it again.
+    // Already handled, skip on re-run.
     &.done {
       opacity: 0.6;
     }

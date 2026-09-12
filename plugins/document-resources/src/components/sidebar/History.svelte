@@ -251,8 +251,7 @@
                 {:else if previousMarkup !== undefined && areEqualMarkups(expandedMarkup, previousMarkup)}
                   <div class="same"><Label label={document.string.SameAsCurrent} /></div>
                 {:else}
-                  <!-- showOnlyDiff drops unchanged top-level blocks, so long documents stay readable -->
-                  <!-- withShowMore off: its button is absolutely positioned and escapes this container -->
+                  <!-- showOnlyDiff drops unchanged top-level blocks so long documents stay readable -->
                   <MarkupDiffPresenter
                     value={expandedMarkup}
                     prevValue={previousMarkup}

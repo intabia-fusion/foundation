@@ -495,7 +495,7 @@
                   >
                     {#if !cell}
                       <div class="antiTable-cells__firstCell">
-                        <!-- {getOnChange(object, attribute) !== undefined} -->
+
                         <svelte:component
                           this={attribute.presenter}
                           value={getValue(attribute, object)}

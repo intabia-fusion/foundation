@@ -234,8 +234,7 @@ export async function createTranscriptionsSupport (
 
       try {
         const audio = await aiControl.storageAdapter.read(pctx, wsClient.wsIds, task.blobId)
-        // Container as recorded: providers name the file by it. openai/deepgram unverified,
-        // see foundation-tasks TSK-2026-08-29-401.
+        // Container as recorded: providers name the file by it (openai/deepgram unverified).
         const audioFormat: AudioFormat = task.audioFormat ?? 'ogg'
         const resolved = await resolveProvider(pctx, workspace)
         const asrProvider = resolved?.provider ?? provider

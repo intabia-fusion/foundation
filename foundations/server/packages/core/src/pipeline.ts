@@ -96,8 +96,8 @@ export function wireShortcuts (headOrChain: Middleware | Middleware[] | undefine
       chain.push(cur)
       const nextRef: unknown = (cur as { next?: Middleware }).next
       if (nextRef === undefined && !(cur instanceof BaseMiddleware)) {
-        // Opaque tail-like middleware - cannot verify it's truly the end.
-        // Refuse to wire to avoid overwriting safe defaults with empty results.
+        // Opaque tail-like middleware — can't verify it's the tail. Refuse to wire to avoid
+        // overwriting safe defaults.
         return
       }
       cur = nextRef as Middleware | undefined

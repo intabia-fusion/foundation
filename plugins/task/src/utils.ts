@@ -314,7 +314,7 @@ async function createTaskTypes (
     if (skipExisting) {
       const existingOne = existingTaskTypes.find((tt) => tt.ofClass === data.ofClass)
       if (existingOne !== undefined) {
-        // We have similar one, let's check categories
+        // We have similar one, check categories
         continue
       }
     }

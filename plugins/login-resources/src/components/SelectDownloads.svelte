@@ -15,12 +15,8 @@
 */
 -->
 <script lang="ts">
-  // SelectDownloads.svelte
-  // Page component that lists available download artifacts as a simple flat grid of buttons.
-  // - Grouping and search removed; each artifact is presented as a single button
-  // - Clicking a button opens the resolved download URL in a new tab
-  // - Labels are generated for platform/arch/extension (e.g. macOS - Apple Silicon, Linux - x64.AppImage) via `friendlyLabel`
-  // - Intended to be used at `login/downloads` (rendered from `LoginApp`)
+  // Flat grid of download buttons; clicking opens the resolved URL in a new tab.
+  // Labels come from `friendlyLabel`; rendered at `login/downloads` from LoginApp.
 
   import { onMount } from 'svelte'
   import { getEmbeddedLabel, getMetadata } from '@hcengineering/platform'

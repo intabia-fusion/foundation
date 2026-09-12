@@ -262,7 +262,7 @@ export class IssueSyncManager extends IssueSyncManagerBase implements DocSyncMan
           false,
           undefined,
           async (state, existing, external) => {
-            // We need to be sure we not change status if category is same, since github doesn't know about it.
+            // We must not change status if category is same, since github doesn't know about it.
             const existingStatus = statuses.find((it) => it._id === existing.status)
             const updateState = statuses.find((it) => it._id === update.status)
             return existingStatus?.category !== updateState?.category

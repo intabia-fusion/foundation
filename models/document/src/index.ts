@@ -546,7 +546,7 @@ function defineApplication (builder: Builder): void {
             addSpaceLabel: document.string.CreateTeamspace,
             createComponent: document.component.CreateTeamspace,
             icon: document.icon.Teamspace,
-            // intentionally left empty in order to make space presenter working
+            // empty placeholder for the space presenter
             specials: []
           }
         ]

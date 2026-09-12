@@ -14,8 +14,7 @@
 //
 
 /**
- * Server-backed implementation of the LLMProvider interface.
- * Distributes LLM requests to connected external clients via Clisr.
+ * Server-side LLM adapter, distributes requests via Clisr.
  */
 
 import type { MeasureContext, WorkspaceUuid } from '@hcengineering/core'

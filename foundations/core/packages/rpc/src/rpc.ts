@@ -121,7 +121,7 @@ export interface RateLimitInfo {
 // Platform-event names the connection broadcasts so the UI can show network state.
 export const RateLimitUpdatedEvent = 'rate-limit-updated' // data: RateLimitInfo | undefined
 export const ConnectionStatusEvent = 'connection-status' // data: boolean (connected)
-export const ConnectionStatsEvent = 'connection-stats' // data: { sent, received, sentBytes, receivedBytes, latency }
+export const ConnectionStatsEvent = 'connection-stats'
 
 /**
  * Response object define a server response on transaction request.

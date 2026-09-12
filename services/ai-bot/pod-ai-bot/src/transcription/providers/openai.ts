@@ -36,15 +36,9 @@ interface OpenAIWhisperResponse {
 }
 
 /**
- * OpenAI Whisper API provider
- *
- * Uses the OpenAI Audio Transcriptions API
- * Endpoint: POST https://api.openai.com/v1/audio/transcriptions
- *
- * Supports:
- * - Multiple audio formats (wav, mp3, m4a, etc.)
- * - Language detection or specification
- * - Word-level timestamps with verbose_json response format
+ * OpenAI Whisper provider via the Audio Transcriptions API
+ * (POST /v1/audio/transcriptions). Accepts wav/mp3/m4a etc.; language spec and
+ * word-level timestamps via verbose_json.
  */
 export class OpenAIWhisperProvider implements TranscriptionProvider {
   readonly name = 'openai'

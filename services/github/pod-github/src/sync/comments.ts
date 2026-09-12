@@ -484,7 +484,7 @@ export class CommentSyncManager implements DocSyncManager {
     repository: GithubIntegrationRepository,
     project: GithubProject
   ): Promise<void> {
-    // No need to perform external sync for comments, so let's update marks
+    // No need to perform external sync for comments, so update marks
     const tx = derivedClient.apply()
     for (const d of syncDocs) {
       await tx.update(d, { externalVersion: githubExternalSyncVersion })
@@ -572,7 +572,7 @@ export class CommentSyncManager implements DocSyncManager {
     }
     const syncInfo = await this.client.findAll<DocSyncInfo>(github.class.DocSyncInfo, {
       space: repo.githubProject,
-      // repository: repo._id, // If we skip repository, we will find orphaned comments, so we could connect them on.
+      // repository: repo._id, // If we skip repository, we find orphaned comments, so we could connect them on.
       objectClass: chunter.class.ChatMessage,
       url: { $in: comments.map((it) => (it.url ?? '').toLowerCase()) }
     })

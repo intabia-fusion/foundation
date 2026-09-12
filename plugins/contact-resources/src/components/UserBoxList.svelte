@@ -70,7 +70,7 @@
           const isSelected = items.some((selectedItem) => selectedItem === it._id)
           return isActive || isSelected
         }
-        return true // Previously it was cheching for PersonAccount to exist. Now we could check for any social id to exist?
+        return true // Previously it was cheching for PersonAccount to exist. now we can check for any social id to exist?
       },
       readonly,
       create

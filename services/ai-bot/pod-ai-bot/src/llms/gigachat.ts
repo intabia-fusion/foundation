@@ -14,7 +14,7 @@
 //
 
 /**
- * GigaChat-backed implementation of the LLMProvider interface.
+ * GigaChat LLM adapter.
  */
 
 import GigaChat from 'gigachat'

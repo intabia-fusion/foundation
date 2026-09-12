@@ -153,9 +153,8 @@
     !$meetings.some((m) => m.roomId === object._id && m.status !== MeetingStatus.Finished) &&
     getCurrentAccount().role !== AccountRole.Owner
 
-  // Track whether we already sent a knock-request for this room. Knock
-  // requests are tied to the room, not a specific recipient — the server
-  // fans them out to the meeting's owners.
+  // Track whether we already sent a knock-request for this room. Knock requests belong to the room;
+  // the server fans them out to owners.
   $: knockTarget = humanInfos[0]?.person
   $: pendingKnock = $outgoingInvitesStore.find((it) => it.from === me && it.room === object._id)
   $: hasOutgoingKnock = pendingKnock !== undefined

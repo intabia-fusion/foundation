@@ -1,19 +1,5 @@
-/**
- * Example 5: Error Handling and Retry Logic
- * 
- * This example demonstrates robust error handling patterns including:
- * - Exponential backoff retry logic
- * - Graceful degradation
- * - Timeout handling
- * - Connection recovery
- * 
- * @example
- * // Start the network server first:
- * // cd pods/network-pod && rushx dev
- * 
- * // Then run this example:
- * // cd examples && rushx run:retry
- */
+// Retry with backoff, graceful degradation and timeout handling.
+// Run: cd pods/network-pod && rushx dev, then cd examples && rushx run:retry
 
 import { AgentImpl, TickManagerImpl, NetworkImpl } from '@hcengineering/network-core'
 import { NetworkServer } from '@hcengineering/network-server'
@@ -96,7 +82,7 @@ async function retryWithBackoff<T>(
   throw new Error(`Operation failed after ${maxRetries} attempts: ${lastError?.message}`)
 }
 
-// Robust container access with retry and cleanup
+// Container access with retry and cleanup
 async function robustContainerAccess(
   client: any,
   kind: ContainerKind,

@@ -82,7 +82,7 @@ export class ApiEndpoint {
   }
 
   async waitWorkspaceReady (token: string, workspaceUrl: string): Promise<void> {
-    // We need to wait for workspace to be created before we will continue.
+    // We need to wait for workspace to be created before we continue.
     const headers = this.getDefaultHeaders(token)
     // Retried like the poll below: the call is a read, and a single bad answer used to fail the
     // test in its `beforeEach`.

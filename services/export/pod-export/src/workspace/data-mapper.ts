@@ -98,12 +98,8 @@ export class DataMapper {
   }
 
   /**
-   * Apply field mappers for specific document classes.
-   * Field mappers format: { className: { fieldName: value, ... } }
-   * Special values:
-   * - '$currentUser' is replaced with current account's employee ID
-   * - '$generateSeqNumber' generates seqNumber based on minimum available value
-   * - '$generateCode' generates code from prefix and seqNumber
+   * Apply field mappers per document class. Special values: '$currentUser' -> current
+   * employee id, '$generateSeqNumber' and '$generateCode' fill seqNumber/code.
    */
   private async applyFieldMappers (docClass: Ref<Class<Doc>>, data: Record<string, any>): Promise<void> {
     const hierarchy = this.targetClient.getHierarchy()
@@ -263,7 +259,7 @@ export class DataMapper {
     // Generate code using pattern: prefix-seqNumber
     const generatedCode = `${prefix}-${seqNumber}`
 
-    // Check if this code already exists (shouldn't happen if seqNumber was generated correctly, but check anyway)
+    // Guard: seqNumber collision check
     const query: any = { code: generatedCode }
     const projection = { code: 1 } as any
     const existing = await this.targetClient.findOne(docClass, query, { projection })

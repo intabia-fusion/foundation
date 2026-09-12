@@ -42,7 +42,6 @@ import {
 } from '../helpers'
 import { createWorkspaces, connectToWorkspaces, type WorkspaceInfo } from '../workspace-manager'
 
-// Types
 
 interface WorkspaceStepResult {
   workspaceName: string

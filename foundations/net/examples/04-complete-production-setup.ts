@@ -1,17 +1,5 @@
-/**
- * Example 4: Complete Production Setup
- * 
- * This example shows a complete production-ready setup with:
- * - Multiple redundant agents
- * - Proper error handling
- * - Health monitoring
- * - Graceful shutdown
- * - Event monitoring for observability
- * 
- * @example
- * // Run this example:
- * // cd examples && rushx run:production
- */
+// Redundant agents, health monitoring, graceful shutdown and event monitoring.
+// Run: cd examples && rushx run:production
 
 import { NetworkImpl, TickManagerImpl, AgentImpl } from '@hcengineering/network-core'
 import { NetworkServer } from '@hcengineering/network-server'
@@ -215,7 +203,7 @@ async function startProductionSystem() {
   }
   console.log()
 
-  // 5. Setup comprehensive monitoring
+  // 5. Setup monitoring
   console.log('=== Setting up monitoring ===\n')
   
   let eventCount = 0

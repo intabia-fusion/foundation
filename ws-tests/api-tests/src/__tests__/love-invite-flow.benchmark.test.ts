@@ -6,20 +6,11 @@
 // obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
 //
 
-// Benchmark / soak-test variant of love-invite-flow.test.ts. We do not
-// re-build the trigger or test the server logic — we already cover that in
-// the unit-style test next to this one. The goal here is to push the same
-// invite-flow through the live ws-tests stand many times back-to-back, in
-// optional parallel batches, and:
-//   * collect per-step latencies (response delivery, accept sync, lazy
-//     meeting patch, cleanup broadcast),
-//   * flag any iteration where a broadcast didn't reach a liveQuery in the
-//     expected window (the "stale invite" we hit in the browser),
-//   * print a per-step histogram so server-side concurrency hot spots
-//     (trigger run time, RestClient broadcast tail) become visible.
-//
-// Skipped by default. Enable with BENCH_INVITE_FLOW=1 and tune iterations
-// via BENCH_INVITE_ITERATIONS / BENCH_INVITE_PARALLEL.
+// Soak-test variant of love-invite-flow.test.ts: pushes the invite flow through the live
+// ws-tests stand many times (optional parallel batches) to collect per-step latencies,
+// flag iterations where a broadcast missed its liveQuery window, and print histograms that
+// surface server-side concurrency hot spots. Skipped by default; enable with
+// BENCH_INVITE_FLOW=1 (tune via BENCH_INVITE_ITERATIONS / BENCH_INVITE_PARALLEL).
 
 import {
   connect,

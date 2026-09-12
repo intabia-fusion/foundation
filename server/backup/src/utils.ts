@@ -139,7 +139,7 @@ export async function backupSize (storage: BackupStorage): Promise<void> {
     }
   }
 
-  // Let's calculate data size for backup
+  // calculate data size for backup
   for (const sn of backupInfo.snapshots) {
     for (const [, d] of Object.entries(sn.domains)) {
       await addFileSize(d.snapshot)
@@ -230,7 +230,7 @@ export async function backupDownload (storage: BackupStorage, storeIn: string, s
   }
 
   await downloadFile(infoFile, true)
-  // Let's calculate data size for backup
+  // calculate data size for backup
   for (const sn of backupInfo.snapshots) {
     for (const [k, d] of Object.entries(sn.domains)) {
       console.log('processing', sn.date, k)
@@ -1534,7 +1534,7 @@ export async function rebuildSizeInfo (
     }
   }
 
-  // Let's calculate data size for backup
+  // calculate data size for backup
   for (const sn of backupInfo.snapshots) {
     for (const [, d] of Object.entries(sn.domains)) {
       await addFileSize(d.snapshot)

@@ -155,8 +155,7 @@ describe('performance', () => {
       const overheadPerOperation = overhead / iterations
       console.log(`  Overhead per operation: ${overheadPerOperation.toFixed(4)}ms`)
 
-      // NoMetricsContext should have very low overhead.
-      // Use an absolute per-operation threshold to make this assertion robust in noisy CI environments.
+      // Absolute threshold to survive noisy CI.
       expect(overheadPerOperation).toBeLessThan(2)
     })
   })

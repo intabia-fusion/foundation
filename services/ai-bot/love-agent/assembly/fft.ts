@@ -203,8 +203,7 @@ export function analyzeFrame (pcmSamples: i32, sampleRate: i32, runSpectral: i32
   }
 
   // Apply Hann window into real[], zero imag[]. Pad with zeros if pcmSamples
-  // is below FFT_SIZE (shouldn't happen in practice — 10 ms @ 16 kHz = 160,
-  // FFT_SIZE = 512 → padded).
+  // is below FFT_SIZE (rare: 10 ms @ 16 kHz = 160, FFT_SIZE = 512 → padded).
   const real = REAL_OFF
   const imag = IMAG_OFF
   const hann = HANN_OFF

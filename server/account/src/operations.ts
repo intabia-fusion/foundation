@@ -281,8 +281,7 @@ export async function loginOtp (
   const emailSocialId = await getEmailSocialId(db, normalizedEmail)
 
   if (emailSocialId == null) {
-    // Nothing is created: the login form must not become a sign up form. retryOn matches a fresh
-    // code so the timer cannot be used to probe existence.
+    // Nothing created: the login form must not become a sign-up form.
     return { sent: true, retryOn: Date.now() + getOtpRetryDelayMs() }
   }
 
@@ -492,8 +491,8 @@ export async function validateOtp (
       }
 
       if (targetAccount == null) {
-        // only person exists means there's no verified social id associated with it -> merge it to the current account
-        // doMergePersons will fail if there's a verified social id
+        // Only person exists means there's no verified social id — merge it into the current
+        // account.
 
         await doMergePersons(db, callerAccountUuid, emailSocialId.personUuid)
 

@@ -26,7 +26,7 @@ import { getPlanKey } from '../../utils'
 import { parseSubscriptionPlans, cancelOrUncancelSubscription, reconcileActiveSubscriptions } from '../shared'
 
 /**
- * Polar.sh implementation of PaymentProvider
+ * Polar.sh payment adapter.
  */
 export class PolarProvider implements PaymentProvider {
   readonly providerName = 'polar'

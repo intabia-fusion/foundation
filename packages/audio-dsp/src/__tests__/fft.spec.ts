@@ -288,10 +288,10 @@ describe('FFT utilities', () => {
 
       const mag = magnitude(real, imag)
 
-      expect(mag[0]).toBeCloseTo(5, 5) // sqrt(3^2 + 4^2)
-      expect(mag[1]).toBeCloseTo(1, 5) // sqrt(0^2 + 1^2)
-      expect(mag[2]).toBeCloseTo(1, 5) // sqrt(1^2 + 0^2)
-      expect(mag[3]).toBeCloseTo(0, 5) // sqrt(0^2 + 0^2)
+      expect(mag[0]).toBeCloseTo(5, 5)
+      expect(mag[1]).toBeCloseTo(1, 5)
+      expect(mag[2]).toBeCloseTo(1, 5)
+      expect(mag[3]).toBeCloseTo(0, 5)
     })
 
     it('should return Float64Array', () => {
@@ -531,7 +531,7 @@ describe('FFT utilities', () => {
 
       expect(result.real.length).toBe(2)
       expect(result.real[0]).toBeCloseTo(3, 5) // DC = 1 + 2
-      expect(result.real[1]).toBeCloseTo(-1, 5) // Nyquist = 1 - 2
+      expect(result.real[1]).toBeCloseTo(-1, 5)
     })
 
     it('should handle alternating signal', () => {

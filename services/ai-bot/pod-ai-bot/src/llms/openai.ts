@@ -14,7 +14,7 @@
 //
 
 /**
- * OpenAI-backed implementation of the LLMProvider interface.
+ * OpenAI LLM adapter.
  */
 
 import { encodingForModel, getEncoding, Tiktoken } from 'js-tiktoken'

@@ -43,7 +43,7 @@
   let dir: TooltipAlignment
   let rect: DOMRect | undefined
   let rectAnchor: DOMRect
-  let tooltipSW: boolean // tooltipSW = true - Label; false - Component
+  let tooltipSW: boolean
   let nubDirection: 'top' | 'bottom' | 'left' | 'right' | undefined = undefined
   let clWidth: number
   let docWidth: number

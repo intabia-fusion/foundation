@@ -510,12 +510,9 @@ export async function checkAndJoinIfRecipientAccepted (invites: UserMeetingInvit
 }
 
 /**
- * Sender-side watcher for invite-request transitions.
- *  - A1 (meeting set, accepted): join meeting, remove invite-request.
- *  - A2 (no meeting, accepted): caller-client creates MeetingMinutes in MY
- *    office, pushes the recipient as a member, connects, removes invite-request.
- *  - Б (knock, accepted with meeting set by trigger): connect, remove invite.
- *  - declined: show toast, remove invite-request.
+ * Sender-side watcher for invite-request transitions: A1 (meeting set, accepted) joins and
+ * clears the request; A2 (no meeting) creates minutes in the caller's office and connects;
+ * knock-accepted connects; declined shows a toast. Each path removes the invite-request.
  */
 export async function checkAndJoinIfRecipientJoined (invites: UserMeetingInvite[]): Promise<void> {
   const client = getClient()

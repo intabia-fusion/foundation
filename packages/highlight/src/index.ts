@@ -37,8 +37,7 @@ export interface HighlightOptions {
 
 /** @public */
 export function highlightText (text: string, options: HighlightOptions): string {
-  // We should always use highlighter because it sanitizes the input
-  // We have to always use highlighter to ensure that the input is sanitized
+  // Always use highlighter — it sanitizes the input.
   const { language, auto } = options
   const validLanguage = language !== undefined && hljs.getLanguage(language) !== undefined
 

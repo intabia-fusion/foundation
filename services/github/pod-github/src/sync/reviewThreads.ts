@@ -527,7 +527,7 @@ export class ReviewThreadSyncManager implements DocSyncManager {
     prj: GithubProject
   ): Promise<void> {
     if (kind === 'externalVersion') {
-      // No need to perform external sync for review threads, so let's update marks
+      // No need to perform external sync for review threads, so update marks
       const tx = derivedClient.apply()
       for (const d of syncDocs) {
         await tx.update(d, { externalVersion: githubExternalSyncVersion })

@@ -161,7 +161,7 @@ describe('ClisrClient.handleMsg behavior', () => {
   it('delegates response to handleResult when provided and resolves', async () => {
     const client = createClient()
     const handleResult = jest.fn(async (value: any) => {
-      // pretend to do async transformation
+      // Simulate async work.
       await new Promise((resolve) => setTimeout(resolve, 0))
       // no-op
     })

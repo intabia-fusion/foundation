@@ -563,11 +563,9 @@ async function enforceScheduledCancel (
 }
 
 /**
- * Start the subscription renewal scheduler.
- * Periodically checks for subscriptions that need renewal and attempts to charge them.
- * - On success: extends periodEnd by one calendar month/year (the subscription's period), resets retry counters
- * - On failure: marks as PastDue, retries up to 3 times with 1-hour intervals
- * - After 3 failed retries: subscription stays PastDue, no further retries
+ * Start the subscription renewal scheduler. On success it extends periodEnd by one period
+ * and resets retry counters; on failure marks PastDue and retries up to 3 times hourly,
+ * after which the subscription stays PastDue.
  */
 export function startScheduler (
   ctx: MeasureContext,

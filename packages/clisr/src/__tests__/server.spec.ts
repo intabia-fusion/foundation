@@ -1032,7 +1032,7 @@ describe('ClisrServer and ClisrClient consistency', () => {
       await server.handleTick()
 
       expect(fakeSocket.sendRaw).toHaveBeenCalled()
-      const buf = (fakeSocket.sendRaw as jest.Mock).mock.calls[0][1] // sendRaw(ctx, buf)
+      const buf = (fakeSocket.sendRaw as jest.Mock).mock.calls[0][1]
       expect(buf[0]).toBe(FRAME_OP_STATUS)
       const payload = JSON.parse(Buffer.from(buf.slice(1)).toString('utf8'))
       expect(payload.id).toBe('#r1')

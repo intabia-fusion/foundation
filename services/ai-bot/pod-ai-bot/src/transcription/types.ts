@@ -128,12 +128,9 @@ export interface TranscriptionProvider {
 }
 
 /**
- * Available STT provider types
- * - 'openai' - OpenAI Whisper API (also supports self-hosted OpenAI-compatible endpoints via url)
- * - 'deepgram' - Deepgram API
- * - 'server' - Will host a clisr server, and call using round-robin to do a transcription on it.
+ * STT provider: 'openai' (Whisper, also self-hosted OpenAI-compatible via url),
+ * 'deepgram', 'server' (hosted clisr, round-robin), 'none' (worker opts out of ASR).
  */
-// 'none' opts a worker out of ASR entirely (ignores any `asr:` registry block).
 export type SttProviderType = 'openai' | 'deepgram' | 'server' | 'none' | ''
 
 /**

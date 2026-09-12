@@ -178,9 +178,7 @@ export class StepTransform {
       const afterStepJSON = clone(this.currentDoc) // working document receiving patches
       const pathParts = op.path.split('/')
 
-      // collect operations until we receive a valid document:
-      // apply ops-patches until a valid prosemirror document is retrieved,
-      // then try to create a transformation step or retry with next operation
+      // Collect ops until we get a valid ProseMirror document, then build a step.
       while (toDoc == null) {
         applyPatch(afterStepJSON, [op])
 

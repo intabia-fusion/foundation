@@ -98,7 +98,7 @@ async function traverseBackup (
     }
   }
 
-  // Let's calculate data size for backup
+  // calculate data size for backup
   for (const sn of backupInfo.snapshots) {
     for (const [, d] of Object.entries(sn.domains)) {
       snapshot(sn.date)

@@ -114,9 +114,7 @@ class TelegramConnection {
     readonly client: TelegramClient,
     readonly phone: string
   ) {
-    // Important: this routine is also required to keep getting telegram updates
-    // For some reason gramjs (or Telegram API) stops getting updates after minute or so and
-    // calling api methods works like workaround
+    // GramJS stops receiving updates after ~1 min; keep alive with periodic getMe().
     this.setReadinessInterval()
   }
 

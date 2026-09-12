@@ -9,7 +9,7 @@ import {
 } from './types'
 
 /**
- * A dummy implementation of PlatformQueueProducer for testing and development
+ * A stub PlatformQueueProducer for testing.
  */
 class DummyQueueProducer<T> implements PlatformQueueProducer<T> {
   async send (ctx: MeasureContext, id: WorkspaceUuid | string, msgs: T[]): Promise<void> {
@@ -26,7 +26,7 @@ class DummyQueueProducer<T> implements PlatformQueueProducer<T> {
 }
 
 /**
- * A dummy implementation of PlatformQueue for testing and development
+ * A stub PlatformQueue for testing.
  */
 export class DummyQueue implements PlatformQueue {
   getProducer<T>(ctx: MeasureContext, topic: QueueTopic | string): PlatformQueueProducer<T> {

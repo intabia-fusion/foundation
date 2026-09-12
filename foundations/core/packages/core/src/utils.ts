@@ -419,8 +419,7 @@ function mergeField (field1: any, field2: any): any | undefined {
 
     return Object.keys(result).length > 0 ? result : undefined
   } else if (isPredicate1 || isPredicate2) {
-    // when one field is a predicate and the other is a simple value
-    // we need to ensure that the value matches predicate
+    // match the simple value against the predicate.
     const predicate = isPredicate1 ? field1 : field2
     const value = isPredicate1 ? field2 : field1
 

@@ -13,17 +13,11 @@
   limitations under the License.
 */
 
-// api-tests for where planner docs actually live now that Event moved out of a shared system
-// space (FUSIO-1308):
-//   * a WorkSlot for a project ToDo lives in that project's own space - readable by project
-//     members, not by workspace accounts outside the project;
-//   * a WorkSlot for a personal ToDo lives in the owner's PersonSpace - readable only by the
-//     owner;
-//   * either way, the WorkSlot's paired BusySlot lives in the shared calendar.space.Calendar and
-//     is readable by everyone, including accounts that cannot see the WorkSlot itself;
-//   * moving a tracker Issue to another project carries its ProjectToDo.attachedSpace and the
-//     ToDo's WorkSlot.space along (server-plugins/time-resources changeIssueDataHandler);
-//   * the ProjectToDo document itself always lives in time.space.ToDos, never in the project.
+// api-tests for planner doc placement now that Event left the shared system space (FUSIO-1308):
+// a project ToDo WorkSlot lives in that project's space; a personal ToDo WorkSlot in the
+// owner's PersonSpace; either way the paired BusySlot lives in the shared calendar space.
+// Moving an Issue to another project carries ProjectToDo.attachedSpace and WorkSlot.space;
+// the ProjectToDo doc itself always lives in time.space.ToDos.
 
 import type { RestClient } from '@hcengineering/api-client'
 import calendar from '@hcengineering/calendar'

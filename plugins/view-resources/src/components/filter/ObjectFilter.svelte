@@ -94,7 +94,7 @@
       }
     )
     if (baseObjects.length === 1000) {
-      // We have more so let's fetch all
+      // We have more so fetch all
       const ninTarget = Array.from(new Set(baseObjects.map((it) => getObjectValue(filter.key.key, it) ?? undefined)))
       const extraObjects = await client.findAll(
         filter.key._class,

@@ -335,7 +335,7 @@ export async function restore (
       workspace: workspaceId
     })
 
-    // Let's find difference
+    // find difference
     const docsToAdd = new Map(
       opt.recheck === true || opt.verifyOnly === true // recheck/verifyOnly process all documents.
         ? Array.from(changeset.entries())

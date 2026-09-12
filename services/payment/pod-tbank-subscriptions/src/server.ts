@@ -531,12 +531,7 @@ export async function runClaimedCheckout (
   res.status(409).json(IN_FLIGHT_RESPONSE)
 }
 
-/**
- * Shared tail of the checkout-reclaim ladder: after a reclaim attempt, either open the new checkout,
- * reuse a racing winner's URL, or report in_flight. Identical across all 4 reclaim call sites in
- * handleCreateSubscription; the surrounding conditions that lead here (takeover / forced switch /
- * link expiry) genuinely differ and are NOT merged.
- */
+/** Shared checkout-reclaim tail used by all 4 call sites in handleCreateSubscription. */
 async function respondAfterReclaim (
   res: Response,
   reclaim: { claimed: boolean, paymentUrl?: string, intentId: string },
@@ -654,8 +649,7 @@ export async function handleUpdatePlan (
   const sub = await loadSubscriptionOr404(async () => await findSubscription(storage, req.params.id), res)
   if (sub === null) return
 
-  // Consent is per-request; an omitted flag keeps whatever the subscription already had, so operations
-  // that don't ask the user again (e.g. a seat-only change) can't silently flip auto-renewal.
+  // Consent is per-request; an omitted flag preserves the current recurrent state.
   const newRecurrent = recurrent ?? sub.providerData?.recurrent === true
 
   // One plan change = one action: the new charge, its webhook and the old subscription's cancel

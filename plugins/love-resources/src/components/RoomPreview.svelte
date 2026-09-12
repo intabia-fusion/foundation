@@ -187,7 +187,7 @@
       if (meeting === undefined) {
         await openDoc(hierarchy, room)
       } else {
-        // We have active meeting, let's connect to it.
+        // We have active meeting, connect to it.
         await openDoc(hierarchy, meeting)
       }
     } else {

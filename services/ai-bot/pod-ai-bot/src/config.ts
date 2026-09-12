@@ -23,7 +23,7 @@ import { SttProviderType } from './transcription/types'
 /** Assistant quality level id. Data-driven, not an enum: a free-form string defined in the registry. */
 export type AILevel = string
 
-/** Per-feature availability of a level (unset = allowed). Restricts which features a level serves. */
+/** Per-feature level availability (unset = allowed). Restricts which features the level serves. */
 export interface AILevelFeatures {
   talk?: boolean
   chat?: boolean
@@ -34,7 +34,7 @@ export interface AILevelFeatures {
 /** Per-level model binding inside a provider (model + billing + UI metadata). */
 export interface AILevelModel {
   model: string // provider-specific model name for this level
-  tokenMultiplier: number // billedTokens = (prompt+completion) * tokenMultiplier
+  tokenMultiplier: number
   displayMultiplier?: number // UI-facing "xN" relative to the base (middle) level; falls back to tokenMultiplier when unset
   order: number // sort key for UI + fallback ladder (lower = weaker/cheaper)
   label: string // UI label shown to the user

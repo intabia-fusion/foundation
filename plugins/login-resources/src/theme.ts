@@ -25,11 +25,8 @@ import IntabiaIcon from './components/icons/IntabiaIcon.svelte'
 export type LoginThemeName = 'intabia' | 'huly'
 
 /**
- * Theme description for login UI.
- *
- * - `alignment` controls where the login panel is positioned.
- * - `backgroundComponent` is an optional Svelte component rendered behind the panel.
- * - `logoComponent` is an optional Svelte component used to render the small logo in the top-left.
+ * Theme for the login UI: `alignment` places the panel, `backgroundComponent` renders
+ * behind it, `logoComponent` renders the top-left logo.
  */
 export interface LoginTheme {
   name: LoginThemeName

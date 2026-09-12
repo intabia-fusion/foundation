@@ -43,13 +43,7 @@
     updateAppFocused(false)
   }
   function handleWindowBeforeUnload (): void {
-    // Many text inputs across the platform rely on the blur event to persist state,
-    // but they don’t account for cases where the tab is forcefully closed, navigated away from, or destroyed.
-    // Handling beforeunload for every input individually is impractical,
-    // so leveraging existing blur behavior is a more maintainable approach.
-    // While not foolproof—since most blur handlers are async and may not complete in time, it’s sufficient for most cases.
-    // A more robust solution, such as tracking pending async mutations to block tab unload,
-    // would require significant reworks across the board.
+    // Force-blur active element before unload so pending input edits flush via existing blur handlers.
     ;(document.activeElement as HTMLElement)?.blur?.()
   }
 

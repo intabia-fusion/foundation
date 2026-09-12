@@ -356,7 +356,7 @@ export class TSessionManager implements SessionManager {
       // A gauge does not need the full 20Hz tick rate.
       this.ctx.measure('sessions', this.sessions.size, { kind: 'total' }, true)
 
-      // Let's update workspace statistics every 10 seconds
+      // update workspace statistics every 10 seconds
       this.sendUserWorkspaceStats()
 
       // Send extra counters and clear them to collect again

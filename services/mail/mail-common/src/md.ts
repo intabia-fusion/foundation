@@ -63,7 +63,7 @@ export function markdownToText (markdown: string): string {
 
   try {
     const html = markdownToHtml(markdown)
-    // Remove HTML tags using a robust library
+    // Remove HTML tags via a library
     return striptags(html).trim()
   } catch (error) {
     console.error('Error converting markdown to text:', error)

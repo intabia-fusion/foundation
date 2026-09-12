@@ -1,15 +1,7 @@
 <script lang="ts">
   /**
-   * PlatformIcon.svelte
-   *
-   * Small, themeable SVG icons for platform types used by SelectDownloads.
-   * Icons use `currentColor` so they inherit the surrounding label color
-   * (this keeps them consistent with the login theme tokens).
-   *
-   * Props:
-   *  - platform: 'mac' | 'linux' | 'windows' | string
-   *  - size: number|string (pixel size for width/height, defaults to 20)
-   *  - className: optional class string applied to the wrapper
+   * Small themeable SVG platform icons for SelectDownloads. Uses `currentColor` to
+   * inherit the label color. Props: platform, size (default 20), className.
    */
   export let platform: string = ''
   export let size: number | string = 20

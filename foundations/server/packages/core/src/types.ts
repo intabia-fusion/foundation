@@ -277,7 +277,7 @@ export interface TriggerControl {
   // Cache per root tx
   contextCache: Map<string, any>
 
-  // Since we don't have other storages let's consider adapter is MinioClient
+  // Since we don't have other storages consider adapter is MinioClient
   // Later can be replaced with generic one with bucket encapsulated inside.
   storageAdapter: StorageAdapter
   serviceAdaptersManager: ServiceAdaptersManager

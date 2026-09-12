@@ -53,16 +53,9 @@ import converter from '@hcengineering/converter'
 import { viewletContextStore } from './viewletContextStore'
 
 /**
- * Action to be used for copying text to clipboard.
- * In Safari a request to write to the clipboard must be triggered during a user gesture.
- * A call to clipboard.write or clipboard.writeText outside the scope of a user
- * gesture(such as "click" or "touch" event handlers) will result in the immediate
- * rejection of the promise returned by the API call.
- * https://webkit.org/blog/10855/async-clipboard-api/
- *
- *  * Require props:
- * - textProvider - a function that provides text to be copied.
- * - props - additional text provider props.
+ * Copy text to clipboard. Safari requires the write to happen inside a user
+ * gesture or the promise rejects immediately (webkit.org/blog/10855).
+ * Props: `textProvider` returns the text, `props` are passed to it.
  */
 async function CopyTextToClipboard (
   doc: Doc | Doc[],
@@ -378,11 +371,8 @@ async function OpenInNewTab (
 }
 
 /**
- * Quick action for show panel
- * Require props:
- * - component - view.component.EditDoc or another component
- * - element - position
- * - right - some right component
+ * Quick action to open a panel. Props: `component` (e.g. view.component.EditDoc),
+ * `element` (anchor), `right` (optional right-side component).
  */
 function ShowPanel (
   doc: Doc | Doc[],
@@ -405,13 +395,8 @@ function ShowPanel (
 }
 
 /**
- * Quick action for show popup
- * Props:
- * - _id - object id will be placed into
- * - _class - object _class will be placed into
- * - value - object itself will be placed into
- * - values - all docs will be placed into
- * - props - some basic props, will be merged with key, _class, value, values
+ * Quick action to open a popup. Props: `_id`/`_class`/`value`/`values` locate the
+ * target docs, `props` are merged into the popup options.
  */
 async function ShowPopup (
   doc: Doc | Doc[],

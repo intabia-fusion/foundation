@@ -158,9 +158,6 @@ function updatePackageJson(filePath, targetVersion) {
   }
 }
 
-/**
- * Main function
- */
 function main() {
   const targetVersion = getTargetVersion()
   const workspaceRoot = path.resolve(__dirname, '../..')

@@ -102,14 +102,8 @@ export async function migrateDefaultStatusesBase<T extends Task> (
   const baseTaskClasses = h.getDescendants(baseTaskClass).filter((it) => !h.isMixin(it))
 
   let counter = 0
-  // There are several cases possible based on the history of the workspace
-  // 1. One system default type - pretty fresh or already migrated workspace.
-  // Proceed with the regular scenario.
-  // 2. One custom default type (modifiedBy user or ConfigUser) - migrated system type.
-  // 2.a. If modified by ConfigUser - proceed with the regular scenario. Update to become modified by system.
-  // 2.b. If modified by user - update to use the new ID of the type.
-  // 3. More than one type (one system and one custom) - the tool is running after the WS upgrade.
-  // Not supported for now. Alternatively - Proceed with (2) scenario for the custom one. Delete it in the end.
+  // Workspace may be fresh (one system type), migrated (one custom type),
+  // or mid-upgrade (system + custom types coexist, not supported yet).
 
   const defaultTypes = await client.find<TxCreateDoc<ProjectType>>(DOMAIN_MODEL_TX, {
     _class: core.class.TxCreateDoc,
@@ -295,10 +289,7 @@ export async function migrateDefaultStatusesBase<T extends Task> (
     return statusMapping[status] ?? status
   }
 
-  // For project types with the same descriptor
-  // 1. Update all create TXes with statuses
-  // 1. Update all update TXes with statuses
-  // 2. Update all push TXes with statuses
+  // Migrate statuses on create/update/push TXes for project types sharing the same descriptor.
 
   const projectTypeStatusesCreates = await client.find<TxCreateDoc<ProjectType>>(DOMAIN_MODEL_TX, {
     _class: core.class.TxCreateDoc,
@@ -424,11 +415,7 @@ export async function migrateDefaultStatusesBase<T extends Task> (
 
   await migrateProjects?.(getNewStatus)
 
-  // For all Tasks:
-  // 1. status
-  // 2. TxCollectionCUD:TxCreateDoc
-  // 3. TxCollectionCUD:TxUpdateDoc
-  // 3. DocUpdateMessage:action:update&attributeUpdates:attrKey:status
+  // Migrate status references in task TXes and DocUpdateMessage events.
 
   const affectedBaseTasks = await client.find<Task>(DOMAIN_TASK, {
     _class: { $in: baseTaskClasses },

@@ -598,7 +598,7 @@ export class ReviewCommentSyncManager implements DocSyncManager {
     repository: GithubIntegrationRepository,
     project: GithubProject
   ): Promise<void> {
-    // No need to perform external sync for reviews, so let's update marks
+    // No need to perform external sync for reviews, so update marks
     const tx = derivedClient.apply()
     for (const d of syncDocs) {
       await tx.update(d, { externalVersion: githubExternalSyncVersion })

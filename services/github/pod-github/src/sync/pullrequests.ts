@@ -286,7 +286,7 @@ export class PullRequestSyncManager extends IssueSyncManagerBase implements DocS
           true,
           undefined,
           async (state, existing, external, update) => {
-            // We need to be sure we not change status if category is same, since github doesn't know about it.
+            // We must not change status if category is same, since github doesn't know about it.
             const existingStatus = statuses.find((it) => it._id === existing.status)
             const updateState = statuses.find((it) => it._id === update.status)
             if (existingStatus?.category === updateState?.category) {

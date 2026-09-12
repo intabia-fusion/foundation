@@ -117,7 +117,7 @@ export interface IdentityResponse {
   name: string
 }
 
-/** Which AI features a level may serve; unset flag = allowed (default true). */
+/** Which AI capabilities a level may serve; unset flag = allowed (default true). */
 export interface AIFeatureFlags {
   talk?: boolean // "Discuss with the assistant" (live conversation)
   chat?: boolean // chat replies

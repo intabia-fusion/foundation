@@ -74,16 +74,9 @@ interface DeepgramResponse {
 }
 
 /**
- * Deepgram pre-recorded (batch) API provider
- *
- * Uses the Deepgram Listen API for pre-recorded audio
- * Endpoint: POST https://api.deepgram.com/v1/listen
- *
- * Features:
- * - Multiple models: nova-2, nova, enhanced, base
- * - Language detection and specification
- * - Word-level timestamps
- * - Punctuation and smart formatting
+ * Deepgram pre-recorded (batch) provider via the Listen API
+ * (POST /v1/listen). Models: nova-2/nova/enhanced/base; supports language spec,
+ * word-level timestamps, punctuation and smart formatting.
  */
 export class DeepgramProvider implements TranscriptionProvider {
   readonly name = 'deepgram'

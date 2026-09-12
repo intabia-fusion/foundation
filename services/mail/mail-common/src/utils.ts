@@ -66,15 +66,9 @@ export function getMdContent (ctx: MeasureContext, email: EmailMessage): string 
 }
 
 /**
- * Parse email header into EmailContact objects
- * Supports both single and multiple addresses in formats like:
- * - "Name" <email@example.com>
- * - Name <email@example.com>
- * - email@example.com
- * - Multiple comma-separated addresses in any of the above formats
- *
- * @param headerValue Email header value to parse
- * @returns Array of EmailContact objects
+ * Parse an email header into EmailContact objects. Handles "Name" <a@b.c>,
+ * Name <a@b.c>, bare a@b.c, and comma-separated lists of any of these.
+ * @param headerValue the raw header value.
  */
 export function parseEmailHeader (headerValue: string | undefined): EmailContact[] {
   if (headerValue == null || headerValue.trim() === '') {

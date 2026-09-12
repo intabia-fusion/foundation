@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Comprehensive benchmark and comparison script for Rush builds
+ * Benchmark and comparison script for Rush builds
  *
  * Compares:
  * - rush build / rush validate (with and without Rush cache)

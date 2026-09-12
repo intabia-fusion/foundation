@@ -12,11 +12,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  // Guest join popup:
-  // - asks guest for their name
-  // - exchanges a guest invite token for a LiveKit token via love service (/guestJoin)
-  // - connects to LiveKit and shows minimal video UI with mute/unmute and camera toggle
-  // Comments are in English, UI strings are localized via plugin strings.
+  // Asks the guest for a name, exchanges a guest invite token for a LiveKit token
+  // (/guestJoin), then connects and shows a minimal video UI with mute/camera toggles.
 
   import { onMount, onDestroy } from 'svelte'
   import { get } from 'svelte/store'

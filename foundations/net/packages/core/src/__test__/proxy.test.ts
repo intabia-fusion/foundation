@@ -26,7 +26,7 @@ describe('Core Proxy Tests', () => {
     getName: () => Promise<string>
   }
 
-  // Implementation of the service
+  // Service proxy
   const calculatorImpl: CalculatorService = {
     add: async (a: number, b: number) => a + b,
     subtract: async (a: number, b: number) => a - b,

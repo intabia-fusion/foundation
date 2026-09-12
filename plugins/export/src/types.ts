@@ -37,9 +37,6 @@ export interface ExportResultRecord extends Doc {
 export enum OperationType {
   IDENTITY = 'identity',
   GROUP_BY = 'group_by'
-  // JOIN = 'join',
-  // EXTRACT = 'extract',
-  // MAP = 'map'
 }
 
 export interface OperationConfig {

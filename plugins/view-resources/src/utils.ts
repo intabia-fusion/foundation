@@ -605,7 +605,7 @@ export function buildConfigLookup<T extends Doc> (
     }
   }
   if (existingLookup !== undefined) {
-    // Let's merg
+    // merg
     const _id: ReverseLookup = {
       ...((existingLookup as ReverseLookups)._id ?? {}),
       ...((res as ReverseLookups)._id ?? {})

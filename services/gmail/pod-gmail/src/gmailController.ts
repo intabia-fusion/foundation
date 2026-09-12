@@ -133,22 +133,6 @@ export class GmailController {
         this.ctx.error('Queue not found')
         return
       }
-      // this.txConsumer = this.queue.createConsumer<TxCUD<Doc>>(
-      //   this.ctx,
-      //   QueueTopic.Tx,
-      //   this.queue.getClientId(),
-      //   async (ctx, msg) => {
-      //     const workspaceUuid = msg.workspace
-      //
-      //     const messageEvent = toMessageEvent(msg.value)
-      //     if (messageEvent !== undefined) {
-      //       await this.handleNewMessage(workspaceUuid, messageEvent)
-      //     }
-      //   },
-      //   {
-      //     fromBegining: false // Set to true to process all historical messages
-      //   }
-      // )
       this.ctx.info('Queue consumer started', { topic: QueueTopic.Tx })
     } catch (err: any) {
       this.ctx.error('Failed to start queue consumer', { topic: QueueTopic.Tx })
@@ -202,7 +186,7 @@ export class GmailController {
           continue
         }
 
-        // So we will not start it one more time.
+        // So it is not started again.
         unprocessedWorkspaces.delete(workspace)
 
         const tokens = allTokens.get(workspace) ?? []
@@ -341,9 +325,6 @@ export class GmailController {
       await workspace.close()
     }
     this.workspaces.clear()
-    // if (this.txConsumer !== undefined) {
-    //   await this.txConsumer.close()
-    // }
     if (this.queue !== undefined) {
       await this.queue.shutdown()
     }

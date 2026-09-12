@@ -344,7 +344,7 @@
       }
 
       if (!object.avatar && doc.avatar !== undefined) {
-        // We had avatar, let's try to upload it.
+        // We had avatar, try to upload it.
         const data = atob(doc.avatar)
         let n = data.length
         const u8arr = new Uint8Array(n)

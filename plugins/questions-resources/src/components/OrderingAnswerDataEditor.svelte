@@ -21,7 +21,7 @@
   import OptionsList, { type OptionsListDropEvent } from './OptionsList.svelte'
 
   /**
-   * Declared $$Props help TypeScript ensure that your component properly implements interface
+   * Declared $$Props help TypeScript verify component prop interface conformance
    * @see https://raqueebuddinaziz.com/blog/svelte-type-events-slots-and-props/#restprops-props
    */
   type $$Props =

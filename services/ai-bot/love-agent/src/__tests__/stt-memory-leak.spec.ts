@@ -316,7 +316,7 @@ describe('STT Memory Leak Tests', () => {
         const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length
         const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length
 
-        // Second half should not be significantly higher than first half
+        // Second half should not be much higher than first half
         expect(secondAvg).toBeLessThan(firstAvg * 1.5)
       }
     }, 60000) // 60 second timeout

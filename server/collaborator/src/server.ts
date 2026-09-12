@@ -79,7 +79,7 @@ export async function start (ctx: MeasureContext, config: Config, storageAdapter
      * options to pass to the ydoc document
      */
     yDocOptions: {
-      // we intentionally disable gc in order to make snapshots working
+      // Intentionally disable GC so snapshots work
       // see https://github.com/yjs/yjs/blob/v13.5.52/src/utils/Snapshot.js#L162
       gc: false,
       gcFilter: () => false

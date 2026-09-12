@@ -1531,7 +1531,7 @@ describe('account operations', () => {
         })
 
         expect(result.sent).toBe(true)
-        // No email is sent and nothing is created: the login form must not become a sign up form.
+        // No email is sent; the login form must not become a sign-up form.
         expect(utils.sendOtp).not.toHaveBeenCalled()
       })
 

@@ -989,7 +989,7 @@ export class LiveQuery implements WithTx, Client {
       space: tx.objectSpace
     }
 
-    // we cannot handle $inc correctly, let's skip it
+    // we cannot handle $inc correctly, skip it
     const { $inc, ...ops } = tx.operations
 
     const emptyOps = Object.keys(ops).length === 0

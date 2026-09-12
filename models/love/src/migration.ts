@@ -295,10 +295,7 @@ export const loveOperation: MigrateOperation = {
             throw err
           }
 
-          // Build mapping from PersonId (createdBy) to AccountUuid (personUuid)
-          // 1. Get all SocialIdentity documents (their _id is PersonId)
-          // 2. Get all Employees by attachedTo from SocialIdentity
-          // 3. Create mapping: SocialIdentity._id -> Employee.personUuid
+          // Map SocialIdentity._id (PersonId) to Employee.personUuid via attachedTo.
 
           const socialIdentities = await client.find<SocialIdentity>(DOMAIN_CONTACT, {
             _class: contact.class.SocialIdentity

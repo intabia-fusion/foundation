@@ -182,8 +182,7 @@ function LeftMenu (options: LeftMenuOptions): Plugin {
               return
             }
 
-            // For some reason the offsetTop value for all elements is shifted by the first element's margin
-            // so taking it into account here
+            // offsetTop is shifted by the first element's margin; account for it
             let firstMargin = 0
             const firstChild = parent.firstChild
             if (firstChild !== null && firstChild instanceof HTMLElement) {

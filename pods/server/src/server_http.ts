@@ -769,7 +769,7 @@ function createWebsocketClientSocket (
         return
       }
 
-      // We need to be sure all data is send before we will send more.
+      // We need to be sure all data is send before we send more.
       if (cs.isBackpressure()) {
         await cs.backpressure(ctx)
       }

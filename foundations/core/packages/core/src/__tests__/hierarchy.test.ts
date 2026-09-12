@@ -331,7 +331,7 @@ describe('hierarchy', () => {
     expect(endTime - startTime).toBeLessThan(100)
   })
 
-  // Additional comprehensive tests for better coverage
+  // More coverage
 
   it('should handle findClass and hasClass correctly', async () => {
     const hierarchy = prepare()

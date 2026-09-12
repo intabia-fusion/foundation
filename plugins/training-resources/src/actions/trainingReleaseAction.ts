@@ -15,7 +15,7 @@ export const trainingReleaseAction = focusActionWithAvailability<Training>(
     const tx = getClient().apply()
 
     // There should be only 0 or 1 existing released version,
-    // but let's find and archive them all, just in case
+    // but find and archive them all, just in case
     const existingReleases = await tx.findAll(object._class, {
       code: object.code,
       state: TrainingState.Released

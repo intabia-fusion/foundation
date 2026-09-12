@@ -26,7 +26,7 @@ import { getPlanKey } from '../../utils'
 import { parseSubscriptionPlans, cancelOrUncancelSubscription, reconcileActiveSubscriptions } from '../shared'
 
 /**
- * Stripe implementation of PaymentProvider
+ * Stripe payment adapter.
  */
 export class StripeProvider implements PaymentProvider {
   readonly providerName = 'stripe'

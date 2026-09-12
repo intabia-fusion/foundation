@@ -18,13 +18,9 @@ import { Buffer } from 'node:buffer'
 // NOTE: `process` is intentionally the Node global (NOT imported) — esbuild's define replaces
 // `process.env.LICENSE_PUBLIC_KEY` at build time only when it's the global, not a module binding.
 
-// Self-host edition gating. NOT DRM: the code is open, a determined user can strip the check and
-// rebuild. Goal is an honest nudge so growing installs come ask for a key, not a fortress.
-//
-// Three editions, decided by two signals:
-//   - baked LICENSE_PUBLIC_KEY empty        -> 'dev'       (unlimited, no badge, payment free)
-//   - public key set, LICENSE_KEY missing/bad -> 'community' (cap COMMUNITY_MAX_USERS, badge, payment off)
-//   - public key set, LICENSE_KEY valid       -> 'licensed'  (maxUsers from key, payment per key flag)
+// Self-host edition gating, not DRM - just a nudge for growing installs to get a key.
+// dev: no baked key (unlimited, payment free); community: key set, no license (capped);
+// licensed: valid license key (maxUsers from key).
 
 export const COMMUNITY_MAX_USERS = 15
 

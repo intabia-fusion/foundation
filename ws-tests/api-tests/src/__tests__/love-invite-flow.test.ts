@@ -6,20 +6,11 @@
 // obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
 //
 
-// End-to-end api-test for the love invite flow against the live ws-tests
-// stand. Reproduces the same call path the sanity meetings.client-create
-// test uses (caller -> recipient accepts -> caller-client creates a meeting
-// in caller's office), but at the API layer — no browser, no LiveKit. The
-// goal is to validate that:
-//   * `OnUserMeetingInvite` creates an invite-response in the recipient's
-//     PersonSpace, observable via WebSocket liveQuery,
-//   * accept flips status and the trigger syncs invite-request,
-//   * a `removeDoc` of the invite-request results in a TxRemoveDoc broadcast
-//     that BOTH subscribed WS clients observe.
-//
-// The third point is the live-bug we hit in the browser: REST cleanup
-// happened on the server but the WS client never saw the remove, so the
-// outgoing-invite trigger stayed on screen until refresh.
+// End-to-end api-test for the love invite flow against the live ws-tests stand
+// (API layer, no browser/LiveKit): OnUserMeetingInvite creates an invite-response in the
+// recipient's PersonSpace, accept flips status and syncs the invite-request, and a
+// removeDoc of the invite-request is broadcast to BOTH subscribed WS clients (the third
+// is the live-bug: REST cleanup happened server-side but the WS client never saw the remove).
 
 import {
   connect,

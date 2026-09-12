@@ -81,7 +81,7 @@
       dispatch('close', undefined)
       return
     }
-    // Subscription edit is billing-impactful -> OTP-gated on the server
+    // Subscription edits affect billing and are OTP-gated server-side.
     const code = await requestAdminOtpCode()
     if (code === undefined) return
     saving = true

@@ -241,7 +241,7 @@ func checkFileApplied(hash, file string) fileState {
 		}
 	}
 	_ = removedHit
-	// Otherwise: genuinely absent or conflicting
+	// Otherwise: absent or conflicting.
 	if addedHit > 0 {
 		return fileConflict
 	}

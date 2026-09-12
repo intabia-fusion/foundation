@@ -778,9 +778,7 @@ function yRelativePositionToString (id: RelativePosition): string | undefined {
   return `${id.item.client}_${id.item.clock}`
 }
 
-// There is no public implementation of memraid syntax for higlightjs, while implementations for
-// other highlighting tools are either incomplete or outdated (even the one used in the official live editor).
-// This is a crude (broken) and incomplete port of the grammar.
+// No public mermaid grammar for highlight.js; other highlighters are incomplete.
 function mermaidHLJS (hljs: any): any {
   return {
     case_insensitive: false,

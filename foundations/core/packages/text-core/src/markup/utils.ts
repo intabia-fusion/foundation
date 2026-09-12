@@ -139,7 +139,6 @@ export function markupToJSON (markup: Markup): MarkupNode {
   }
 }
 
-// UTILS
 
 const ELLIPSIS_CHAR = '…'
 const WHITESPACE = ' '

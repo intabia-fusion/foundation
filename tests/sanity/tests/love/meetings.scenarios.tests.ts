@@ -118,8 +118,7 @@ export function registerScenariosTests (): void {
         // creates no invite-request at all.
         await inviteByLastNames(page3, ['Appleseed'])
 
-        // No invite-request was created: sender (user3) gets no outgoing trigger
-        // and the receiver (user1) gets no incoming trigger.
+        // No invite-request created: sender gets no outgoing trigger and receiver no incoming trigger.
         await expect(page3.locator('[data-id="outgoing-invite-trigger"]')).toBeHidden({ timeout: 15000 })
         await expect(page1.locator('[data-id="incoming-invite-trigger"]')).toBeHidden({ timeout: 15000 })
       } finally {

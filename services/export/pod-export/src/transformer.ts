@@ -57,7 +57,7 @@ export class Transformer {
       return {}
     }
 
-    // check if there is a special transformation for this key
+    // Special mapping for this key.
     const transform = this.attributeTransforms.get(key)
     if (transform !== undefined) {
       return this.applyTransform(value, transform)

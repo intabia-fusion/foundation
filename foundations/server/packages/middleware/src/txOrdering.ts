@@ -34,18 +34,8 @@ interface TxOrderEntry {
 
 /**
  * @public
- *
- * TxOrderingMiddleware ensures that transactions for the same document
- * are processed sequentially by waiting in the tx() method.
- *
- * This prevents race conditions on the client side when transactions
- * arrive out of order (e.g., tx1 with modifiedOn=101 arrives after
- * tx2 with modifiedOn=102), which would cause unnecessary getCurrentDoc calls.
- *
- * How it works:
- * 1. In tx(): Wait for previous transaction for the same document to complete before proceeding
- * 2. After processing completes (after provideTx returns), mark the transaction as complete
- * 3. In handleBroadcast(): Simply pass through since ordering is already guaranteed
+ * Serializes transactions per document so out-of-order arrivals
+ * (tx1@101 landing after tx2@102) don't trigger extra getCurrentDoc calls.
  */
 export class TxOrderingMiddleware extends BaseMiddleware implements Middleware {
   // Track transactions order per document: Map<docId, TxOrderEntry>

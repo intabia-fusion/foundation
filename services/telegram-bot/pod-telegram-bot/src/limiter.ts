@@ -16,7 +16,7 @@
 import { Timestamp } from '@hcengineering/core'
 
 export class Limiter {
-  // Bot should not send more than 30 messages per second, but we will limit it to 25 just to be safe
+  // Bot should not send more than 30 messages per second, but we limit it to 25 just to be safe
   maxMsgPerTime = 25
   timeLimit = 1000
 

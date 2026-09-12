@@ -87,9 +87,6 @@ function publishPackage(packagePath, packageName) {
   }
 }
 
-/**
- * Main function
- */
 async function main() {
   const args = process.argv.slice(2)
   let includePattern = null

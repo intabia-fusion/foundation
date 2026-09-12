@@ -96,8 +96,8 @@ function groupByObject (
 ): Map<WorkspaceUuid, Map<Ref<Space>, Map<Ref<Doc>, { effectiveClass: Ref<Class<Doc>>, txs: TxCUD<Doc>[] }>>> {
   const classes = trackedClasses(rules)
   const result = new Map<
-  WorkspaceUuid,
-  Map<Ref<Space>, Map<Ref<Doc>, { effectiveClass: Ref<Class<Doc>>, txs: TxCUD<Doc>[] }>>
+    WorkspaceUuid,
+    Map<Ref<Space>, Map<Ref<Doc>, { effectiveClass: Ref<Class<Doc>>, txs: TxCUD<Doc>[] }>>
   >()
 
   for (const msg of msgs) {
@@ -351,8 +351,8 @@ function capCache<T> (cache: Map<string, T>, max: number): void {
 // Endpoints change rarely, batches arrive every BATCH_TIMEOUT_MS - without this the translator would
 // hit the transactor several times a second. A minute of staleness after an edit is acceptable.
 export type EndpointCache = Map<
-WorkspaceUuid,
-{ endpoints: WebhookEndpoint[], privateSpaces: Set<Ref<Space>>, at: number }
+  WorkspaceUuid,
+  { endpoints: WebhookEndpoint[], privateSpaces: Set<Ref<Space>>, at: number }
 >
 const ENDPOINT_TTL_MS = 60_000
 

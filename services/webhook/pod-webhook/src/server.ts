@@ -327,7 +327,7 @@ async function handleJobStatus (
 
   // keyId as well as workspace: one key must not read another key's job result or error text.
   const job = store.getJob(req.params.id)
-  if (job === undefined || job.workspace !== check.workspace || job.keyId !== check.keyId) {
+  if (job?.workspace !== check.workspace || job.keyId !== check.keyId) {
     sendError(res, 404, 'not_found')
     return
   }

@@ -167,9 +167,7 @@ export async function safeFetch (rawUrl: string, opts: SafeFetchOptions): Promis
   ssrfPolicy.assertAllowed(url.hostname, await resolveAll(url.hostname), opts.devAllowedHosts, opts.blockedHosts)
 
   const headers = { ...opts.headers }
-  if (headers['Content-Length'] === undefined) {
-    headers['Content-Length'] = String(Buffer.byteLength(opts.body))
-  }
+  headers['Content-Length'] ??= String(Buffer.byteLength(opts.body))
 
   const transport = secure ? https : http
   return await new Promise<SafeFetchResult>((resolve, reject) => {

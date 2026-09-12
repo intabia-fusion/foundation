@@ -297,9 +297,7 @@ export function wrapPipeline (
   // callers had no such step, so `findOne(X, { _id })` handed back a doc with no `_id`.
   function revertStrippedQueryFields<T extends Doc> (docs: T[], _class: Ref<Class<T>>, query: DocumentQuery<T>): T[] {
     for (const doc of docs) {
-      if (doc._class == null) {
-        doc._class = _class
-      }
+      doc._class ??= _class
       for (const [k, v] of Object.entries(query)) {
         if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
           if ((doc as any)[k] == null) {

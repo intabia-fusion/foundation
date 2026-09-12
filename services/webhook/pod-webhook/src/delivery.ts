@@ -66,7 +66,7 @@ export async function processDelivery (
 ): Promise<void> {
   const target = await getSystemTransactorTarget(config, job.workspace)
   const endpoint = await target.rest.findOne(setting.class.WebhookEndpoint, { _id: job.endpointId })
-  if (endpoint === undefined || !endpoint.enabled) {
+  if (endpoint?.enabled !== true) {
     // Recipient was deleted or disabled after this delivery was queued - nothing to retry into.
     ctx.info('webhook delivery skipped: endpoint missing or disabled', {
       deliveryId: job.deliveryId,

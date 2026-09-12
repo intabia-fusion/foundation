@@ -75,6 +75,9 @@ const DEFAULTS = {
   ACCOUNT_DB_URL: 'postgresql://postgres:postgres@localhost:5433/postgres',
   ACCOUNTS_URL: 'http://localhost:8083/_account',
   STORAGE_CONFIG: 'datalake|http://localhost:8083/_datalake',
+  // The archive bucket, reached straight from the host (compose publishes minio on 9002).
+  BACKUP_STORAGE_CONFIG: 'minio|localhost:9002?accessKey=minioadmin&secretKey=minioadmin',
+  BACKUP_BUCKET_NAME: 'ws-dev-backups',
   SERVER_SECRET: 'secret',
   FRONT_URL: 'http://localhost:8083'
 }
@@ -104,6 +107,15 @@ export interface BackupPipelineHandle {
   pipeline: Pipeline
   storageAdapter: StorageAdapter
   close: () => Promise<void>
+}
+
+/**
+ * Storage adapter for the archive bucket - the one the backup pod writes into, not the workspace
+ * blob storage `createPipeline` builds.
+ */
+export function createBackupStorageAdapter (): StorageAdapter {
+  registerBackupTools()
+  return buildStorageFromConfig(storageConfigFromEnv(env('BACKUP_STORAGE_CONFIG')))
 }
 
 /** Build a backup pipeline for a workspace, same way dev/tool backup does. */

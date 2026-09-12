@@ -84,7 +84,8 @@ import {
   type WorkspaceLoginInfo,
   type WorkspaceStatus
 } from './types'
-import { isAdminEmail, isBillingAdminEmail } from './admin'
+import { getBillingAdminEmails, isAdminEmail, isBillingAdminEmail } from './admin'
+import { isReadOnlyPending } from './deletion'
 
 export const GUEST_ACCOUNT = 'b6996120-416f-49cd-841e-e4a5d2e49c9b' as PersonUuid
 
@@ -983,6 +984,12 @@ export async function selectWorkspace (
       ctx.error('Selecting a disabled workspace', { workspaceUrl, accountUuid })
 
       throw new PlatformError(new Status(Severity.ERROR, platform.status.WorkspaceNotFound, { workspaceUrl }))
+    }
+
+    // Scheduled for deletion: open for taking the data out, closed for writing.
+    if (isReadOnlyPending(wsStatus)) {
+      extra ??= {}
+      extra.readonly = 'true'
     }
   }
 
@@ -2043,6 +2050,41 @@ export async function sendEmail (info: EmailInfo, ctx: MeasureContext): Promise<
     ],
     to
   )
+}
+
+function escapeHtml (value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/**
+ * Deleting a workspace is irreversible for everyone in it, and an owner can do it without an admin
+ * ever being involved - so the people who watch the account get told out of band.
+ */
+export async function notifyWorkspaceDeleted (
+  ctx: MeasureContext,
+  db: AccountDB,
+  token: string,
+  workspace: { uuid: WorkspaceUuid, name: string, url: string }
+): Promise<void> {
+  const recipients = getBillingAdminEmails()
+  if (recipients.length === 0) return
+
+  try {
+    const { account } = decodeTokenVerbose(ctx, token)
+    // A retired social id carries a mangled value, an unverified one was never proven to be theirs.
+    const emails = (await db.socialId.find({ personUuid: account, type: SocialIdType.EMAIL })).filter(
+      (sid) => sid.isDeleted !== true && sid.verifiedOn != null
+    )
+    const actor = emails.sort((a, b) => (a.createdOn ?? 0) - (b.createdOn ?? 0))[0]?.value ?? account
+    const subject = `Workspace deleted: ${workspace.name}`
+    const text = `${actor} deleted workspace "${workspace.name}" (${workspace.url}, ${workspace.uuid}) at ${new Date().toISOString()}.`
+
+    for (const to of recipients) {
+      await sendEmail({ to, subject, text, html: `<p>${escapeHtml(text)}</p>` }, ctx)
+    }
+  } catch (err) {
+    ctx.warn('Failed to notify billing admins about a workspace deletion', { workspace: workspace.uuid, err })
+  }
 }
 
 export function sanitizeEmail (email: string): string {

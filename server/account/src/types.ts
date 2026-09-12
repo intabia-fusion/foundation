@@ -68,6 +68,7 @@ export interface Account {
   salt?: Buffer | null
   maxWorkspaces?: number
   failedLoginAttempts?: number // Number of consecutive failed login attempts
+  deleteOn?: Timestamp // Deferred deletion: when the identity gets purged for good
 }
 
 // TODO: type data with generic type
@@ -134,6 +135,7 @@ export interface WorkspaceStatus extends WorkspaceVersion {
   processingMessage?: string
   backupInfo?: BackupStatus
   usageInfo?: UsageStatus
+  deleteOn?: Timestamp
 
   targetRegion?: string
 }
@@ -724,6 +726,8 @@ export interface LoginInfo {
   name?: string
   socialId?: PersonId
   token?: string
+  // Set when the account is scheduled for deletion: the client asks whether to call it off.
+  deleteOn?: Timestamp
 }
 
 export interface LoginInfoRequestData {

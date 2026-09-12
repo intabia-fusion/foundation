@@ -849,7 +849,13 @@ export type WorkspaceMode =
   | 'pending-restore' // -> 'restoring'
   | 'restoring' // -> 'active'
 
-export type WorkspaceUserOperation = 'archive' | 'migrate-to' | 'unarchive' | 'delete' | 'reset-attempts'
+export type WorkspaceUserOperation =
+  | 'archive'
+  | 'migrate-to'
+  | 'unarchive'
+  | 'delete'
+  | 'cancel-delete'
+  | 'reset-attempts'
 
 export function isActiveMode (mode?: WorkspaceMode): boolean {
   return mode === 'active'
@@ -944,8 +950,13 @@ export interface WorkspaceInfoWithStatus extends WorkspaceInfo {
   lastVisit?: number
   mode: WorkspaceMode
   processingProgress?: number
+  // Stamped by every mode transition, so for a workspace left in a terminal mode it reads as
+  // "when it got there" - `deleted` included.
+  lastProcessingTime?: number
   backupInfo?: BackupStatus
   usageInfo?: UsageStatus
+  // Deferred deletion: when the workspace gets purged for good. Absent means not scheduled.
+  deleteOn?: Timestamp
   processingAttemps: number
   // Self-host edition of this deployment (dev|community|licensed) — same for every workspace, carried
   // here so the workspace-select screen can show a "Community" badge. Absent on older servers.

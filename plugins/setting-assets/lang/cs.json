@@ -113,7 +113,7 @@
     "DeleteRole": "Smazat roli",
     "DeleteRoleConfirmation": "Opravdu chcete tuto roli smazat? Všichni uživatelé s touto rolí ztratí svá oprávnění.",
     "DeleteWorkspace": "Smazat pracovní prostor",
-    "DeleteWorkspaceConfirm": "Opravdu chcete tento pracovní prostor smazat? Vy i všichni ostatní členové ztratíte přístup k tomuto pracovnímu prostoru. Všechny informace z pracovního prostoru budou ztraceny. Tuto akci nelze vrátit zpět. Chcete pokračovat?",
+    "DeleteWorkspaceConfirm": "Pracovní prostor bude 7 dní jen ke čtení, aby bylo možné odnést data, poté se archivuje a 21 dní od začátku se i se zálohou nenávratně smaže. Do té doby může vlastník smazání zrušit. Předplatné se ruší ihned. Pokračovat?",
     "DeleteSpaceType": "Smazat typ prostoru",
     "DeleteSpaceTypeConfirm": "Opravdu chcete tento typ prostoru smazat?",
     "WorkspaceName": "Název pracovního prostoru",

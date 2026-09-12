@@ -116,6 +116,20 @@
     "ConfirmationFailed": "Registraci se nepodařilo dokončit",
     "NoFreeSeats": "Žádná volná místa",
     "NoFreeSeatsDescription": "Tento pracovní prostor dosáhl limitu míst tarifu. Obraťte se prosím na správce pracovního prostoru.",
-    "NoFreeSeatsForInvite": "Tarif nemá volná místa, nový odkaz s pozvánkou nelze vytvořit."
+    "NoFreeSeatsForInvite": "Tarif nemá volná místa, nový odkaz s pozvánkou nelze vytvořit.",
+    "ScheduledForDeletion": "smazání {date}",
+    "WorkspaceDeletionScheduledDesc": "Tento pracovní prostor je naplánován ke smazání {date}. Do té doby jej lze obnovit, poté zmizí i se zálohou.",
+    "CancelWorkspaceDeletion": "Zrušit smazání",
+    "AccountDeletionScheduled": "Účet je naplánován ke smazání",
+    "AccountDeletionScheduledDesc": "Váš účet bude smazán {date}. Zrušte smazání, pokud si jej chcete ponechat. Naplánované pracovní prostory zůstávají naplánované - obnovte každý zvlášť.",
+    "CancelAccountDeletion": "Zrušit smazání",
+    "KeepAccountDeletion": "Ponechat beze změny",
+    "AccountDeletionCancelled": "Smazání účtu bylo zrušeno.",
+    "CopyToClipboard": "Kopírovat",
+    "DeleteAccount": "Smazat účet",
+    "DeleteAccountConfirm": "Účet bude označen ke smazání a za 21 dní nenávratně odstraněn. Pokud se do té doby přihlásíte, můžete smazání zrušit. Pokračovat?",
+    "CodeSent": "Potvrzovací kód byl odeslán na váš e-mail.",
+    "EnterCode": "Zadejte kód",
+    "WorkspaceArchivedDesc": "Pracovní prostor byl archivován kvůli nečinnosti."
   }
 }

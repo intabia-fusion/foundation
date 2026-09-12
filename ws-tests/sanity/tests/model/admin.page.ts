@@ -32,6 +32,27 @@ export class AdminPage {
     await this.page.locator('[data-id="tab-workspaces"]').click()
   }
 
+  async openAccountsTab (): Promise<void> {
+    await this.page.locator('[data-id="tab-accounts"]').click()
+  }
+
+  async searchAccount (query: string): Promise<void> {
+    const input = this.page.locator('[data-testid="account-search-container"] input')
+    await input.click()
+    await input.fill(query)
+    await input.press('Enter')
+  }
+
+  // Account deletion is hidden behind the "Enable deletion" checkbox on the Accounts tab.
+  async enableAccountDeletion (): Promise<void> {
+    await this.toggleFilter('Enable deletion')
+  }
+
+  async deleteAccount (uuid: string): Promise<void> {
+    await this.page.locator(`[id="${uuid}"]`).getByRole('button', { name: 'Delete' }).click()
+    await this.confirmOtp()
+  }
+
   async searchWorkspace (uuid: string): Promise<void> {
     const input = this.page.locator('[data-testid="workspace-search-container"] input')
     await input.click()

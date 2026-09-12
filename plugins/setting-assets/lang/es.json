@@ -110,7 +110,7 @@
     "DeleteRole": "Eliminar función",
     "DeleteRoleConfirmation": "¿Está seguro de que desea eliminar esta función? Todos los usuarios con este rol perderán sus permisos",
     "DeleteWorkspace": "Eliminar espacio de trabajo",
-    "DeleteWorkspaceConfirm": "¿Estás seguro de que quieres eliminar este espacio de trabajo? Tú y todos los demás miembros perderán el acceso a este espacio de trabajo. Toda la información del espacio de trabajo se perderá. Esta acción no se puede deshacer. ¿Quieres continuar?",
+    "DeleteWorkspaceConfirm": "El espacio de trabajo quedará en solo lectura durante 7 días para poder llevarse los datos, luego se archiva y a los 21 días se elimina definitivamente junto con su copia de seguridad. Hasta entonces un propietario puede cancelar la eliminación. La suscripción se cancela de inmediato. ¿Continuar?",
     "DeleteSpaceType": "Eliminar tipo de espacio",
     "DeleteSpaceTypeConfirm": "¿Estás seguro de que quieres eliminar este tipo de espacio?",
     "WorkspaceName": "Nombre del espacio de trabajo",

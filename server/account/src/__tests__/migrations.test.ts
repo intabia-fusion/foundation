@@ -71,3 +71,28 @@ describe('getMigrations - v40/v41 workspace_purchase dedup + unique index', () =
     )
   })
 })
+
+describe.each(['postgres', 'cockroach'] as const)('getMigrations - v42/v43 delete_on [%s]', (flavor) => {
+  const migrations = getMigrations(ns, flavor)
+  const ids = migrations.map(([id]) => id)
+  const ddlOf = (id: string): string => migrations.find(([mid]) => mid === id)?.[1] ?? ''
+
+  it('registers both delete_on migrations, without duplicates', () => {
+    expect(ids).toContain('account_db_v42_workspace_delete_on')
+    expect(ids).toContain('account_db_v43_account_delete_on')
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('uses the int8 type of this flavor', () => {
+    const expected = flavor === 'cockroach' ? 'INT8' : 'BIGINT'
+    expect(ddlOf('account_db_v42_workspace_delete_on')).toContain(`delete_on ${expected}`)
+    expect(ddlOf('account_db_v43_account_delete_on')).toContain(`delete_on ${expected}`)
+  })
+
+  it('touches one table each: CockroachDB parses a batch as a whole', () => {
+    for (const id of ['account_db_v42_workspace_delete_on', 'account_db_v43_account_delete_on']) {
+      expect(ddlOf(id).match(/ALTER TABLE/g)).toHaveLength(1)
+      expect(ddlOf(id)).not.toMatch(/UPDATE |INSERT INTO|DELETE FROM/i)
+    }
+  })
+})

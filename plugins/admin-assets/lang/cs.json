@@ -195,6 +195,8 @@
     "Actions": "Akce",
     "NoTrial": "Bez zkušební verze",
     "Sessions": "Relace",
-    "Ops5m": "Operace (5 min)"
+    "Ops5m": "Operace (5 min)",
+    "CancelDeletion": "Zrušit smazání",
+    "DeletionScheduled": "smazání {date}"
   }
 }

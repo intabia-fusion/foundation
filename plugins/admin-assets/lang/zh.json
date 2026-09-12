@@ -195,6 +195,8 @@
     "Actions": "操作",
     "NoTrial": "排除试用",
     "Sessions": "会话数",
-    "Ops5m": "操作数（5 分钟）"
+    "Ops5m": "操作数（5 分钟）",
+    "CancelDeletion": "取消删除",
+    "DeletionScheduled": "{date} 删除"
   }
 }

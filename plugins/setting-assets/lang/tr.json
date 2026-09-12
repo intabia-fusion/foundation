@@ -122,7 +122,7 @@
     "DeleteRole": "Rolü sil",
     "DeleteRoleConfirmation": "Bu rolü silmek istediğinizden emin misiniz? Bu role sahip tüm kullanıcılar izinlerini kaybedecek.",
     "DeleteWorkspace": "Çalışma alanını sil",
-    "DeleteWorkspaceConfirm": "Bu çalışma alanını silmek istediğinizden emin misiniz? Siz ve diğer tüm üyeler bu çalışma alanına erişimi kaybedecek. Çalışma alanındaki tüm bilgiler kaybolacak. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?",
+    "DeleteWorkspaceConfirm": "Çalışma alanı, veriler dışarı alınabilsin diye 7 gün salt okunur olacak, ardından arşivlenecek ve 21 gün sonra yedeğiyle birlikte kalıcı olarak silinecek. O ana kadar bir sahip silmeyi iptal edebilir. Abonelik hemen iptal edilir. Devam edilsin mi?",
     "DeleteSpaceType": "Alan tipini sil",
     "DeleteSpaceTypeConfirm": "Bu alan tipini silmek istediğinizden emin misiniz?",
     "WorkspaceName": "Çalışma alanı adı",

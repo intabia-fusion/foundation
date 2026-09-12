@@ -112,6 +112,9 @@
     isEditingName = false
   }
 
+  // Deleting a workspace wipes it for every member, so only its owners get the button at all.
+  const isWorkspaceOwner = getCurrentAccount().role === AccountRole.Owner
+
   async function handleDelete (): Promise<void> {
     showPopup(MessageBox, {
       label: settingsRes.string.DeleteWorkspace,
@@ -414,17 +417,19 @@
             </div>
           </div> -->
 
-          <div class="flex-col flex-gap-4 mt-6">
-            <div class="title"><Label label={settingsRes.string.DangerZone} /></div>
-            <div class="w-32">
-              <Button
-                label={settingsRes.string.DeleteWorkspace}
-                kind="dangerous"
-                on:click={handleDelete}
-                showTooltip={{ label: settingsRes.string.DeleteWorkspace }}
-              />
+          {#if isWorkspaceOwner}
+            <div class="flex-col flex-gap-4 mt-6">
+              <div class="title"><Label label={settingsRes.string.DangerZone} /></div>
+              <div class="w-32">
+                <Button
+                  label={settingsRes.string.DeleteWorkspace}
+                  kind="dangerous"
+                  on:click={handleDelete}
+                  showTooltip={{ label: settingsRes.string.DeleteWorkspace }}
+                />
+              </div>
             </div>
-          </div>
+          {/if}
         </div>
       </Scroller>
     {/if}

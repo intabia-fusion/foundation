@@ -990,7 +990,24 @@
                             }}
                           />
                         {/if}
-                        {#if !readOnly && superAdminMode && !isDeletingMode(workspace.mode) && !isArchivingMode(workspace.mode)}
+                        {#if !readOnly && workspace.deleteOn != null}
+                          <Button
+                            icon={IconStart}
+                            size={'small'}
+                            kind={'ghost'}
+                            label={adminRes.string.CancelDeletion}
+                            showTooltip={{
+                              label: adminRes.string.DeletionScheduled,
+                              props: { date: new Date(workspace.deleteOn).toLocaleDateString() }
+                            }}
+                            on:click={() => {
+                              void otpGuardedOp(workspace.uuid, 'cancel-delete').then(() => {
+                                void loadPage()
+                              })
+                            }}
+                          />
+                        {/if}
+                        {#if !readOnly && superAdminMode && workspace.deleteOn == null && !isDeletingMode(workspace.mode) && !isArchivingMode(workspace.mode)}
                           <Button
                             icon={IconStop}
                             size={'small'}

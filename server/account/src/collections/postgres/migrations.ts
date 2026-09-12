@@ -107,7 +107,9 @@ export function getMigrations (ns: string, flavor: DBFlavor): [string, string][]
     getV38Migration(ns),
     getV39Migration(ns, flavor),
     getV40Migration(ns),
-    getV41Migration(ns)
+    getV41Migration(ns),
+    getV42Migration(ns, flavor),
+    getV43Migration(ns, flavor)
   ]
 }
 
@@ -1181,6 +1183,28 @@ function getV41Migration (ns: string): [string, string] {
     `
     CREATE UNIQUE INDEX IF NOT EXISTS workspace_purchase_payment_provider_unique
       ON ${ns}.workspace_purchase (payment_id, provider) WHERE payment_id IS NOT NULL;
+    `
+  ]
+}
+
+function getV42Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v42_workspace_delete_on',
+    /* Deferred deletion: the moment the workspace gets purged for good. Null means not scheduled. */
+    `
+    ALTER TABLE ${ns}.workspace_status ADD COLUMN IF NOT EXISTS delete_on ${types.int8};
+    `
+  ]
+}
+
+function getV43Migration (ns: string, flavor: DBFlavor): [string, string] {
+  const types = dbTypes[flavor]
+  return [
+    'account_db_v43_account_delete_on',
+    /* Separate migration on purpose: a multi-statement batch is parsed as a whole. */
+    `
+    ALTER TABLE ${ns}.account ADD COLUMN IF NOT EXISTS delete_on ${types.int8};
     `
   ]
 }

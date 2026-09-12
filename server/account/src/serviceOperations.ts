@@ -31,6 +31,7 @@ import {
   type AccountUuid,
   type UsageStatus,
   type Timestamp,
+  type WorkspaceUserOperation,
   readOnlyGuestAccountUuid
 } from '@hcengineering/core'
 import platform, { getMetadata, PlatformError, Severity, Status, unknownError } from '@hcengineering/platform'
@@ -45,6 +46,7 @@ import {
 } from '@hcengineering/server-core'
 
 import { isHumanAdminLogin, requireAdminOp, requireAdminSession, verifyAdminOtpLimited } from './adminOp'
+import { deletionDeadline } from './deletion'
 
 import { accountPlugin } from './plugin'
 import { SubscriptionStatus, SubscriptionType } from './types'
@@ -113,6 +115,7 @@ import {
   assignableRoles,
   requestAdminOtp,
   logAdminAction,
+  notifyWorkspaceDeleted,
   doReleaseSocialId,
   publishMembersChanged
 } from './utils'
@@ -136,9 +139,13 @@ export async function listWorkspaces (
     region?: string | null
     mode?: WorkspaceMode | null
     visited?: number | null
+    // null lists disabled workspaces too - deleted ones are always disabled, and backup retention
+    // has to see them. Defaults to the enabled-only view every existing caller expects.
+    isDisabled?: boolean | null
   }
 ): Promise<WorkspaceInfoWithStatus[]> {
   const { region, mode, visited } = params
+  const isDisabled = params.isDisabled === undefined ? false : params.isDisabled
   const { extra } = decodeTokenVerbose(ctx, token)
 
   if (
@@ -150,7 +157,7 @@ export async function listWorkspaces (
     throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
   }
 
-  return await getWorkspaces(db, false, region, mode, visited)
+  return await getWorkspaces(db, isDisabled, region, mode, visited)
 }
 
 function checkAdmin (ctx: MeasureContext, token: string): void {
@@ -730,6 +737,19 @@ export async function adminCancelSubscription (
   }
   if (existing.status === SubscriptionStatus.Canceled) return
 
+  await cancelSubscriptionRow(ctx, db, existing, 'ADMIN_CANCELED')
+  await logAdminAction(ctx, db, token, 'cancel_subscription', existing.workspaceUuid, existing.plan, {
+    subscriptionId: existing.id
+  })
+}
+
+/** Cancels one subscription row and tells the ledger and pod-payment about it. */
+async function cancelSubscriptionRow (
+  ctx: MeasureContext,
+  db: AccountDB,
+  existing: Subscription,
+  reason: 'ADMIN_CANCELED' | 'WORKSPACE_DELETION'
+): Promise<void> {
   const now = Date.now()
   const oldProviderData: Record<string, any> = (existing.providerData as Record<string, any>) ?? {}
   await db.subscription.update(
@@ -738,32 +758,29 @@ export async function adminCancelSubscription (
       status: SubscriptionStatus.Canceled,
       canceledAt: now,
       updatedOn: now,
-      providerData: { ...oldProviderData, pending: false, status: 'ADMIN_CANCELED', modifiedAt: now }
+      providerData: { ...oldProviderData, pending: false, status: reason, modifiedAt: now }
     }
   )
-  ctx.info('admin: subscription canceled', { id: existing.id, workspaceUuid: existing.workspaceUuid })
-  await logAdminAction(ctx, db, token, 'cancel_subscription', existing.workspaceUuid, existing.plan, {
-    subscriptionId: existing.id
-  })
+  ctx.info('subscription canceled', { id: existing.id, workspaceUuid: existing.workspaceUuid, reason })
   // Also record it in the payment ledger to keep the billing timeline consistent.
   try {
     await db.logPaymentOperation({
       provider: existing.provider,
       operation: 'cancel',
-      status: 'ADMIN_CANCELED',
+      status: reason,
       paymentId: existing.providerSubscriptionId,
       orderId: oldProviderData.orderId as string | undefined,
       subscriptionId: existing.id,
       workspaceUuid: existing.workspaceUuid,
       accountUuid: existing.accountUuid,
       actionId: oldProviderData.actionId as string | undefined,
-      actor: 'admin',
+      actor: reason === 'ADMIN_CANCELED' ? 'admin' : 'system',
       amount: existing.amount,
-      raw: { plan: existing.plan, seats: oldProviderData.quantity, type: existing.type, reason: 'ADMIN_CANCELED' },
+      raw: { plan: existing.plan, seats: oldProviderData.quantity, type: existing.type, reason },
       createdOn: now
     })
   } catch (err: any) {
-    ctx.error('Failed to log admin cancel to payment ledger', { subscriptionId: existing.id, err })
+    ctx.error('Failed to log cancel to payment ledger', { subscriptionId: existing.id, err })
   }
 
   if (existing.type === SubscriptionType.Tier) {
@@ -772,6 +789,22 @@ export async function adminCancelSubscription (
     ])
     // pod-payment owns the free-plan config, so it decides whether a free fallback follows this cancel.
     await publishAdminCanceled(ctx, { ...existing, status: SubscriptionStatus.Canceled, canceledAt: now })
+  }
+}
+
+/**
+ * A workspace scheduled for deletion stops being billable right away: it is read-only from that
+ * moment and gets archived before the deadline.
+ */
+export async function cancelWorkspaceSubscriptions (
+  ctx: MeasureContext,
+  db: AccountDB,
+  workspaceUuid: WorkspaceUuid
+): Promise<void> {
+  const subs = await db.subscription.find({ workspaceUuid })
+  for (const sub of subs) {
+    if (sub.status === SubscriptionStatus.Canceled) continue
+    await cancelSubscriptionRow(ctx, db, sub, 'WORKSPACE_DELETION')
   }
 }
 
@@ -902,7 +935,7 @@ export async function performWorkspaceOperation (
   token: string,
   parameters: {
     workspaceId: WorkspaceUuid | WorkspaceUuid[]
-    event: 'archive' | 'migrate-to' | 'unarchive' | 'delete' | 'reset-attempts'
+    event: WorkspaceUserOperation
     params: any[]
     otpCode?: string
   }
@@ -913,7 +946,16 @@ export async function performWorkspaceOperation (
   const isAdminUser = isHumanAdmin({ account, extra })
 
   if (extra?.admin !== 'true') {
-    if (event !== 'unarchive' || workspaceId !== workspace) {
+    // Reviving a workspace is the owner's own business, but the workspace it happens to is dead:
+    // its token is the only proof we used to have. Accept an owner role on the target as well.
+    const target = Array.isArray(workspaceId) ? undefined : workspaceId
+    const selfService = event === 'unarchive' || event === 'cancel-delete'
+    const allowed =
+      selfService &&
+      target !== undefined &&
+      (target === workspace || (await db.getWorkspaceRole(account, target)) === AccountRole.Owner)
+
+    if (!allowed) {
       throw new PlatformError(new Status(Severity.ERROR, platform.status.Forbidden, {}))
     }
   }
@@ -944,10 +986,22 @@ export async function performWorkspaceOperation (
           throw new PlatformError(unknownError('Delete allowed only for active workspaces'))
         }
 
-        update.mode = 'pending-deletion'
-        update.processingAttempts = 0
-        update.processingProgress = 0
-        update.lastProcessingTime = Date.now() - processingTimeoutMs // To not wait for next step
+        // Deferred: read-only first, then archived, and only then purged. See sweepScheduledDeletions.
+        update.deleteOn = deletionDeadline()
+        break
+      case 'cancel-delete':
+        if (workspace.status.deleteOn == null) {
+          throw new PlatformError(unknownError('Workspace is not scheduled for deletion'))
+        }
+
+        update.deleteOn = undefined
+        // Still read-only and alive - nothing to restore, the mark alone was holding it.
+        if (workspace.status.mode === 'archived') {
+          update.mode = 'pending-restore'
+          update.processingAttempts = 0
+          update.processingProgress = 0
+          update.lastProcessingTime = Date.now() - processingTimeoutMs // To not wait for next step
+        }
         break
       case 'archive':
         if (!isActiveMode(workspace.status.mode)) {
@@ -960,12 +1014,11 @@ export async function performWorkspaceOperation (
         update.lastProcessingTime = Date.now() - processingTimeoutMs // To not wait for next step
         break
       case 'unarchive':
-        if (event === 'unarchive') {
-          if (workspace.status.mode !== 'archived') {
-            throw new PlatformError(unknownError('Unarchive allowed only for archived workspaces'))
-          }
+        if (workspace.status.mode !== 'archived') {
+          throw new PlatformError(unknownError('Unarchive allowed only for archived workspaces'))
         }
 
+        update.deleteOn = undefined
         update.mode = 'pending-restore'
         update.processingAttempts = 0
         update.processingProgress = 0
@@ -1008,6 +1061,13 @@ export async function performWorkspaceOperation (
   if (isAdminUser && ops > 0) {
     for (const workspace of workspaces) {
       await logAdminAction(ctx, db, token, `workspace_${event}`, workspace.uuid, workspace.name, { params })
+    }
+  }
+
+  if (event === 'delete' && ops > 0) {
+    for (const workspace of workspaces) {
+      await cancelWorkspaceSubscriptions(ctx, db, workspace.uuid)
+      await notifyWorkspaceDeleted(ctx, db, token, workspace)
     }
   }
   return ops > 0

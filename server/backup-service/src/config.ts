@@ -52,7 +52,8 @@ const envMap: { [key in keyof Config]: string } = {
   WorkspaceStorage: 'WORKSPACE_STORAGE',
   Region: 'REGION',
   Parallel: 'PARALLEL',
-  KeepSnapshots: 'KEEP_SNAPSHOTS'
+  KeepSnapshots: 'KEEP_SNAPSHOTS',
+  DeletedRetentionDays: 'DELETED_RETENTION_DAYS'
 }
 
 const required: Array<keyof Config> = [
@@ -83,7 +84,10 @@ export const config: () => Config = () => {
     Storage: process.env[envMap.Storage],
     Region: process.env[envMap.Region] ?? '',
     Parallel: parseInt(process.env[envMap.Parallel] ?? '1'),
-    KeepSnapshots: parseInt(process.env[envMap.KeepSnapshots] ?? '84')
+    KeepSnapshots: parseInt(process.env[envMap.KeepSnapshots] ?? '84'),
+    // The grace period is served while the workspace is archived, so the archive of an already
+    // deleted workspace is only kept as a short safety net.
+    DeletedRetentionDays: parseInt(process.env[envMap.DeletedRetentionDays] ?? '1')
   }
 
   const missingEnv = required.filter((key) => params[key] === undefined).map((key) => envMap[key])

@@ -116,6 +116,18 @@
     "ConfirmationFailed": "Impossible de finaliser l'inscription",
     "NoFreeSeats": "Aucune place disponible",
     "NoFreeSeatsDescription": "Cet espace de travail a atteint la limite de places de son forfait. Veuillez contacter l'administrateur de l'espace de travail.",
-    "NoFreeSeatsForInvite": "Le forfait n'a plus de places disponibles, un nouveau lien d'invitation ne peut pas être créé."
+    "NoFreeSeatsForInvite": "Le forfait n'a plus de places disponibles, un nouveau lien d'invitation ne peut pas être créé.",
+    "ScheduledForDeletion": "suppression le {date}",
+    "WorkspaceDeletionScheduledDesc": "Cet espace de travail doit être supprimé le {date}. Jusque-là il peut être restauré ; ensuite lui et sa sauvegarde disparaissent.",
+    "CancelWorkspaceDeletion": "Annuler la suppression",
+    "AccountDeletionScheduled": "Compte programmé pour suppression",
+    "AccountDeletionScheduledDesc": "Votre compte sera supprimé le {date}. Annulez la suppression pour le conserver. Les espaces de travail programmés le restent : restaurez chacun séparément.",
+    "CancelAccountDeletion": "Annuler la suppression",
+    "KeepAccountDeletion": "Laisser tel quel",
+    "AccountDeletionCancelled": "Suppression du compte annulée.",
+    "CopyToClipboard": "Copier",
+    "DeleteAccount": "Supprimer le compte",
+    "DeleteAccountConfirm": "Le compte sera marqué pour suppression et définitivement effacé dans 21 jours. Si vous vous connectez avant, vous pourrez annuler. Continuer ?",
+    "CodeSent": "Un code de confirmation a été envoyé à votre adresse e-mail."
   }
 }
